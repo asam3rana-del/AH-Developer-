@@ -181,6 +181,32 @@ extension ProductUnitLogic on Product {
     return 1.0;
   }
 
+  /// How many smallest-units make up one [unitName]. Mirrors
+  /// `smallestPerUnitOf()` in Database.kt.
+  double smallestPerUnitOf(String unitName) {
+    for (final t in unitLadder()) {
+      if (_sameUnit(t.unit, unitName)) return t.smallestPerUnit;
+    }
+    return 1.0;
+  }
+
+  /// Converts a rate/price entered per [fromUnit] into the equivalent rate
+  /// per the product's PRIMARY unit (e.g. Rs per pcs -> Rs per carton).
+  /// Mirrors `toPrimaryUnitRate()` in Database.kt.
+  double toPrimaryUnitRate(double entered, String fromUnit) {
+    final perFromUnit = smallestPerUnitOf(fromUnit);
+    if (perFromUnit <= 0) return entered;
+    return entered * (smallestUnitFactor() / perFromUnit);
+  }
+
+  /// Reverse of [toPrimaryUnitRate]: converts a primary-unit rate down to
+  /// [chosenUnit]. Mirrors `fromPrimaryUnitRate()` in Database.kt.
+  double fromPrimaryUnitRate(double mainRate, String chosenUnit) {
+    final perChosenUnit = smallestPerUnitOf(chosenUnit);
+    final factor = perChosenUnit > 0 ? smallestUnitFactor() / perChosenUnit : 1.0;
+    return factor > 0 ? mainRate / factor : mainRate;
+  }
+
   String smallestUnitName() => unitLadder().first.unit;
 
   /// Converts [qty] entered in [enteredUnit] into the product's

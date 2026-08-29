@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'screens/product_screen.dart';
 import 'screens/purchase_screen.dart';
+import 'screens/sale_screen.dart';
 import 'theme/app_colors.dart';
 
 // TODO: once you run `flutterfire configure` (see README), uncomment these
@@ -50,6 +51,7 @@ class _RootNavState extends State<RootNav> {
   static const _screens = [
     ProductScreen(),
     PurchaseScreen(),
+    SaleScreen(),
   ];
 
   @override
@@ -62,6 +64,7 @@ class _RootNavState extends State<RootNav> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'Products'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Purchase'),
+          NavigationDestination(icon: Icon(Icons.point_of_sale_outlined), selectedIcon: Icon(Icons.point_of_sale), label: 'Sale'),
         ],
       ),
     );

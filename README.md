@@ -3,20 +3,22 @@
 Flutter port of the **IBTISAAM Kiryana Store** Kotlin/Android app, aimed at
 running the same POS on iPad/iPhone as well as Android from one codebase.
 
-## What's in this drop (Phase 1 + 2 — foundation, Product screen, Purchase screen)
+## What's in this drop (Phase 1 + 2 + 3 — foundation, Product, Purchase, Sale)
 
 - `lib/models/` — every entity from the Kotlin `Database.kt` (Product,
   Category, UnitType, Customer, Supplier, Sale, SaleItem, Purchase,
   PurchaseItem, Payment, ReturnLine, User, Expense, CashTransaction,
   CashRegister, AppSetting, SyncQueueEntry), including the 3-tier unit-ladder
-  conversion logic (`toSmallestUnits`, `formatStockBreakdown`, etc.)
+  conversion logic (`toSmallestUnits`, `formatStockBreakdown`,
+  `toPrimaryUnitRate`/`fromPrimaryUnitRate` for per-unit price conversion)
 - `lib/db/app_database.dart` — SQLite schema, one table per entity, matching
   the Room schema column-for-column
 - `lib/db/product_repository.dart`, `category_unit_repository.dart`,
-  `supplier_repository.dart`, `purchase_repository.dart` — Dart ports of
-  `ProductDao`/`CategoryDao`/`UnitDao`/`SupplierDao` and the
-  `PurchaseActivity.savePurchase()` transaction (weighted-average cost
-  recalculation, stock increase, supplier balance, payment + cash entry)
+  `supplier_repository.dart`, `purchase_repository.dart`,
+  `customer_repository.dart`, `sale_repository.dart` — Dart ports of
+  `ProductDao`/`CategoryDao`/`UnitDao`/`SupplierDao`/`CustomerDao` and the
+  `PurchaseActivity.savePurchase()` / `SaleActivity.saveSale()` transactions
+- `lib/utils/discount_calculator.dart` — Dart port of `DiscountCalculator.kt`
 - `lib/widgets/` — reusable "premium" UI pieces (cards, gradient badges,
   gradient buttons, header) matching the Android app's visual style
 - `lib/screens/product_screen.dart` — full Add/Edit Product screen: name +
@@ -31,17 +33,25 @@ running the same POS on iPad/iPhone as well as Android from one codebase.
   confirmation** when nothing is paid, Save (updates stock, recalculates
   weighted-average cost, updates supplier balance, records payment/cash
   entry — all in one transaction)
-- `lib/main.dart` — bottom navigation between Products and Purchase
+- `lib/screens/sale_screen.dart` — New Sale screen: Retail/Wholesale toggle
+  (auto-fills the matching price per unit when you pick a product or change
+  unit), customer autocomplete (auto-creates new customers), item entry with
+  live stock-availability check against what's already in the cart, running
+  bill list, discount, paid amount with **due-requires-customer
+  validation**, Save (checks stock again inside the transaction, decreases
+  stock, updates customer balance, records payment/cash entry)
+- `lib/main.dart` — bottom navigation between Products, Purchase, and Sale
 - `.github/workflows/build.yml` — CI that builds an **unsigned iOS app** on
   a macOS cloud runner (since iOS builds require a Mac) and an Android APK
 
 ## Not yet ported (next phases — see chat for the plan)
 
-Sale, Party (Customer/Supplier list screen), History, Reports, Stock
+Party (Customer/Supplier list/ledger screen), History, Reports, Stock
 Report, Balance Sheet, Day Book, Cash, Expense, Bill Scan (OCR), Bill
 Preview, Backup/Export, User Management, Login, Settings, Bulk Translate,
 Firebase sync wiring, Bluetooth printer, ML Kit-equivalent OCR, and editing
-an already-saved purchase (this drop only supports creating new ones).
+an already-saved purchase or sale (this drop only supports creating new
+ones).
 
 ## Setup (you're building this yourself, so here's the full path)
 
@@ -91,5 +101,3 @@ both apps pointed at the same Firestore backend for sync rather than a
 one-time file copy. If you want your existing product/customer data
 carried over, say so and we can add a one-time import routine (e.g. reading
 the exported Android backup format your app already produces).
-git status
-git push
