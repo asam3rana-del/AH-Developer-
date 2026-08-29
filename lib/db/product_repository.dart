@@ -27,6 +27,11 @@ class ProductRepository {
     if (!_controller.isClosed) _controller.add(rows);
   }
 
+  /// Call after another repository writes to `products` directly (e.g. a
+  /// purchase bumping stock/cost in the same transaction) so this screen's
+  /// stream picks up the change immediately.
+  Future<void> refresh() => _notify();
+
   Future<List<Product>> listAll() async {
     final db = await AppDatabase.instance.database;
     final rows = await db.query('products', orderBy: 'name COLLATE NOCASE ASC');

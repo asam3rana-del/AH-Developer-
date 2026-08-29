@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/product_screen.dart';
+import 'screens/purchase_screen.dart';
 import 'theme/app_colors.dart';
 
 // TODO: once you run `flutterfire configure` (see README), uncomment these
@@ -29,9 +30,40 @@ class AhDeveloperApp extends StatelessWidget {
         colorSchemeSeed: AppColors.navy,
         fontFamily: 'Roboto',
       ),
-      // Product screen is the first ported screen (see chat history for the
-      // rest of the plan: Purchase -> Sale -> Party -> History -> Reports).
-      home: const ProductScreen(),
+      home: const RootNav(),
+    );
+  }
+}
+
+/// Simple bottom navigation between ported screens. As more screens land
+/// (Sale, Party, History, Reports...) add them here.
+class RootNav extends StatefulWidget {
+  const RootNav({super.key});
+
+  @override
+  State<RootNav> createState() => _RootNavState();
+}
+
+class _RootNavState extends State<RootNav> {
+  int _index = 0;
+
+  static const _screens = [
+    ProductScreen(),
+    PurchaseScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(index: _index, children: _screens),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'Products'),
+          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Purchase'),
+        ],
+      ),
     );
   }
 }
