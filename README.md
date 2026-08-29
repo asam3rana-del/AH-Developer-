@@ -91,3 +91,5 @@ both apps pointed at the same Firestore backend for sync rather than a
 one-time file copy. If you want your existing product/customer data
 carried over, say so and we can add a one-time import routine (e.g. reading
 the exported Android backup format your app already produces).
+git status
+git push
