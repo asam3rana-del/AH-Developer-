@@ -17,10 +17,21 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      # ios/ aur android/ folder repo mein nahi hain, isliye yahan bana lete hain
-      - run: flutter create . --platforms=ios,android --project-name ah_developer_kiryana_store --org com.ahdeveloper
+      # Repo has no ios/ or android/ folders, so generate them.
+      - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
+
+      # Firebase plugins need iOS 13+; Flutter's template defaults to 12.
+      - name: Set iOS deployment target to 13.0
+        run: |
+          sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
+          sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g" ios/Runner.xcodeproj/project.pbxproj
 
       - run: flutter pub get
+
+      # Unsigned build — good enough to confirm it compiles for iOS.
+      # To install on a real iPad you need a signed IPA: open ios/Runner.xcworkspace
+      # in Xcode on a Mac, set your Apple Developer team under Signing & Capabilities,
+      # then Product > Archive (or use TestFlight for wider distribution).
       - run: flutter build ios --release --no-codesign
 
       - uses: actions/upload-artifact@v4
@@ -39,7 +50,8 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      - run: flutter create . --platforms=ios,android --project-name ah_developer_kiryana_store --org com.ahdeveloper
+      - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
+
       - run: flutter pub get
       - run: flutter build apk --release
 
