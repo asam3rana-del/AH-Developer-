@@ -373,9 +373,9 @@
  {
   "kotlin": "PaymentsReportActivity.kt",
   "phase": 8,
-  "dart": "lib/screens/payments_report_screen.dart",
-  "status": "todo",
-  "note": "admin/manager only."
+  "dart": "lib/screens/payments_screen.dart (History tab)",
+  "status": "done",
+  "note": "History tab admin/manager only; edit/delete admin only. Record tab (Receive/Make Payment) for all roles."
  },
  {
   "kotlin": "BalanceSheetActivity.kt",
