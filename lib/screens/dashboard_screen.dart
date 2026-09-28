@@ -5,6 +5,11 @@ import '../theme/app_colors.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
+import 'balance_sheet_screen.dart';
+import 'cash_register_screen.dart';
+import 'cash_screen.dart';
+import 'day_book_screen.dart';
+import 'expense_screen.dart';
 import 'item_search_screen.dart';
 import 'login_screen.dart';
 import 'payments_screen.dart';
@@ -12,7 +17,9 @@ import 'product_screen.dart';
 import 'purchase_screen.dart';
 import 'sale_screen.dart';
 import 'settings_screen.dart';
+import 'shell_ledger_screen.dart';
 import 'user_management_screen.dart';
+import 'zakat_screen.dart';
 
 class _Tile {
   final String en, ur, subEn, subUr;
@@ -44,7 +51,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const _Tile('Quick Sale', 'کوئیک سیل', 'Fast single-item sale', 'ایک آئٹم کی تیز سیل', Icons.timer, AppColors.purple, _all, null),
         _Tile('Purchase', 'خریداری', 'Record a purchase', 'خریداری درج کریں', Icons.inventory, AppColors.red, _admin,
             () => const RoleGuard(allowed: _admin, child: PurchaseScreen())),
-        const _Tile('Cash', 'کیش', 'Cash in / cash out', 'کیش اِن / آؤٹ', Icons.account_balance_wallet, AppColors.amber, _all, null),
+        _Tile('Cash', 'کیش', 'Cash in / cash out', 'کیش اِن / آؤٹ', Icons.account_balance_wallet, AppColors.amber, _all, () => const CashScreen()),
+        _Tile('Cash Register', 'کیش رجسٹر', 'Daily till open & close', 'روزانہ رجسٹر کھولیں / بند کریں', Icons.point_of_sale, AppColors.amber, _all, () => const CashRegisterScreen()),
+        _Tile('Expenses', 'اخراجات', 'Track business spending', 'کاروباری اخراجات', Icons.receipt_long, AppColors.red, _all, () => const ExpenseScreen()),
         _Tile('Payments', 'ادائیگیاں', 'Receive or make a payment', 'رقم وصول یا ادا کریں', Icons.account_balance, AppColors.teal, _all, () => const PaymentsScreen()),
         const _Tile('Customers & Suppliers', 'گاہک اور سپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people, Color(0xFFEC4899), _all, null),
         const _Tile('Low Stock', 'کم اسٹاک', 'Items needing restock', 'دوبارہ منگوانے والی اشیاء', Icons.warning_amber, AppColors.red, _all, null),
@@ -53,7 +62,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const _Tile('Backup', 'بیک اپ', 'Export data (CSV + PDF)', 'ڈیٹا ایکسپورٹ', Icons.save, AppColors.blue, _am, null),
         _Tile('Users', 'یوزرز', 'Add, update, remove staff', 'اسٹاف مینیج کریں', Icons.manage_accounts, AppColors.purple, _admin, () => const UserManagementScreen()),
         _Tile('Settings', 'سیٹنگز', 'Shop, login & language', 'دکان، لاگ اِن اور زبان', Icons.settings, AppColors.navy, _all, () => const SettingsScreen()),
-        const _Tile('Day book', 'روزنامچہ', 'View daily ledger', 'روزانہ کھاتہ', Icons.menu_book, AppColors.teal, _all, null),
+        // Kotlin opens Balance Sheet from Reports (Phase 9). Reports isn't ported yet, so it
+        // lives here for now — move it under Reports then.
+        _Tile('Balance Sheet', 'بیلنس شیٹ', 'Assets, liabilities & capital', 'اثاثے، واجبات اور سرمایہ', Icons.assessment, AppColors.blue, _am,
+            () => const RoleGuard(allowed: _am, child: BalanceSheetScreen())),
+        _Tile('Zakat', 'زکوٰۃ', 'Ramadan-to-Ramadan tracker', 'رمضان تا رمضان حساب', Icons.volunteer_activism, AppColors.teal, _am,
+            () => const RoleGuard(allowed: _am, child: ZakatScreen())),
+        _Tile('Shell Ledger', 'شیل لیجر', 'Bottles given & shells back', 'بھری بوتلیں اور واپس شیل', Icons.repeat, AppColors.amber, _all,
+            () => const ShellLedgerScreen()),
+        _Tile('Day book', 'روزنامچہ', 'View daily ledger', 'روزانہ کھاتہ', Icons.menu_book, AppColors.teal, _all, () => const DayBookScreen()),
       ];
 
   Future<void> _logout() async {

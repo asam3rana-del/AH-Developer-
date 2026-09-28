@@ -11,7 +11,6 @@ class Payment {
   final String? serverId;
   final int updatedAt;
   final bool dirty;
-  final String billReference;
 
   const Payment({
     this.id,
@@ -25,23 +24,7 @@ class Payment {
     this.serverId,
     this.updatedAt = 0,
     this.dirty = true,
-    this.billReference = '',
   });
-
-  Payment copyWith({double? amount, String? method, String? note, int? createdAt, String? billReference}) => Payment(
-        id: id,
-        reference: reference,
-        partyType: partyType,
-        partyId: partyId,
-        amount: amount ?? this.amount,
-        method: method ?? this.method,
-        note: note ?? this.note,
-        createdAt: createdAt ?? this.createdAt,
-        serverId: serverId,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        dirty: true,
-        billReference: billReference ?? this.billReference,
-      );
 
   Map<String, Object?> toMap() => {
         if (id != null) 'id': id,
@@ -55,7 +38,6 @@ class Payment {
         'serverId': serverId,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
-        'billReference': billReference,
       };
 
   factory Payment.fromMap(Map<String, Object?> m) => Payment(
@@ -70,7 +52,6 @@ class Payment {
         serverId: m['serverId'] as String?,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,
-        billReference: (m['billReference'] as String?) ?? '',
       );
 }
 

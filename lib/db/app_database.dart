@@ -15,7 +15,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 5;
+  static const _dbVersion = 1;
 
   Database? _db;
 
@@ -71,10 +71,7 @@ class AppDatabase {
         tertiaryUnit TEXT NOT NULL DEFAULT '',
         tertiaryUnitQty REAL NOT NULL DEFAULT 0,
         updatedAt INTEGER NOT NULL DEFAULT 0,
-        dirty INTEGER NOT NULL DEFAULT 1,
-        searchTag TEXT NOT NULL DEFAULT '',
-        defaultUnitIndex INTEGER NOT NULL DEFAULT -1,
-        quickSaleDefaultUnitIndex INTEGER NOT NULL DEFAULT -1
+        dirty INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -133,8 +130,7 @@ class AppDatabase {
         unit TEXT NOT NULL DEFAULT '',
         unitPrice REAL NOT NULL,
         cost REAL NOT NULL,
-        amount REAL NOT NULL,
-        conversionFactor REAL NOT NULL DEFAULT 0
+        amount REAL NOT NULL
       )
     ''');
 
@@ -150,8 +146,7 @@ class AppDatabase {
         createdAt INTEGER NOT NULL,
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
-        dirty INTEGER NOT NULL DEFAULT 1,
-        billReference TEXT NOT NULL DEFAULT ''
+        dirty INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -294,37 +289,5 @@ class AppDatabase {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     // Add ALTER TABLE / migration steps here as the schema evolves, the
     // same way MIGRATION_23_24 / MIGRATION_24_25 work in the Kotlin app.
-    if (oldVersion < 3) {
-      // v3: manual default-unit overrides (Kotlin MIGRATION_40_41 / _41_42).
-      // Existing rows get -1 = Auto, so nothing changes for old products.
-      await _addColumnIfMissing(
-          db, 'products', 'defaultUnitIndex', 'INTEGER NOT NULL DEFAULT -1');
-      await _addColumnIfMissing(
-          db, 'products', 'quickSaleDefaultUnitIndex', 'INTEGER NOT NULL DEFAULT -1');
-    }
-    if (oldVersion < 4) {
-      // v4: sale_items freeze "smallest units per 1 unit" at sale time so a
-      // later edit/return/delete reverses the SAME qty even if the product's
-      // unit ladder was changed afterwards (Kotlin SaleItem.conversionFactor).
-      // 0 = never captured (old rows) -> fall back to the product's current ladder.
-      await _addColumnIfMissing(
-          db, 'sale_items', 'conversionFactor', 'REAL NOT NULL DEFAULT 0');
-    }
-    if (oldVersion < 5) {
-      // v5: a payment can be linked to one bill (Kotlin Payment.billReference).
-      await _addColumnIfMissing(
-          db, 'payments', 'billReference', "TEXT NOT NULL DEFAULT ''");
-    }
-  }
-
-  /// Safe ALTER TABLE: skips if the column already exists (e.g. a device that
-  /// got the column from an earlier test build), so upgrade never crashes.
-  Future<void> _addColumnIfMissing(
-      Database db, String table, String column, String definition) async {
-    final info = await db.rawQuery('PRAGMA table_info($table)');
-    final exists = info.any((row) => row['name'] == column);
-    if (!exists) {
-      await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
-    }
   }
 }

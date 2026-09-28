@@ -1,49 +1,26 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../db/customer_repository.dart';
 import '../db/product_repository.dart';
 import '../db/sale_repository.dart';
-import '../db/user_repository.dart';
 import '../models/party.dart';
 import '../models/product.dart';
-import '../models/sale.dart';
-import '../services/sale_draft.dart';
-import '../services/sale_hold_recall.dart';
-import '../services/session.dart';
 import '../theme/app_colors.dart';
-import '../utils/bill_text.dart';
 import '../utils/discount_calculator.dart';
-import '../utils/loc.dart';
-import '../utils/sale_cart.dart';
-import '../utils/stock_touch_policy.dart';
-import '../widgets/autocomplete_options.dart';
-import '../widgets/held_bills_dialog.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
-import '../widgets/role_guard.dart';
-import 'sale_quick_sale.dart';
 
 class SaleScreen extends StatefulWidget {
-  /// null = new sale. An invoice number re-opens that SAVED bill for
-  /// edit / return / delete — admin only (Session role is checked again in
-  /// SaleRepository, this is just the UI side).
-  final String? editInvoice;
-
-  const SaleScreen({super.key, this.editInvoice});
+  const SaleScreen({super.key});
 
   @override
   State<SaleScreen> createState() => _SaleScreenState();
 }
 
-class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
+class _SaleScreenState extends State<SaleScreen> {
   final _customerCtrl = TextEditingController();
-  final _customerFocus = FocusNode();
   final _itemCtrl = TextEditingController();
-  final _itemFocus = FocusNode();
   final _qtyCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
   final _discountCtrl = TextEditingController();
@@ -53,242 +30,18 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   bool _isWholesale = false;
   Product? _pickedProduct;
   String _selectedUnit = '';
-
-  /// Rate per PRIMARY unit of what the cashier last typed — switching the
-  /// unit re-converts their own rate. Reset when a product is picked or the
-  /// sale type changes. Mirrors `lastMainPrice` in SaleActivity.kt.
-  double _lastMainPrice = 0.0;
-
   final List<SaleLine> _lines = [];
   bool _saving = false;
-  final _scrollCtrl = ScrollController();
-
-  /// "Rs" mode: the Quantity box holds a rupee amount and the quantity is
-  /// worked out from the rate (SaleActivity.qtyIsAmountMode).
-  bool _qtyIsAmountMode = false;
-
-  /// Index of the billed line being corrected in place, or null when adding.
-  int? _editingIndex;
-
-  /// Set when the price box was filled with THIS customer's usual rate.
-  String? _customerRateName;
-
-  // Draft autosave (new sales only).
-  Timer? _draftTimer;
-  // True until the saved draft (if any) has been restored — autosaving before
-  // that would overwrite it with an empty bill.
-  bool _suppressDraft = true;
-  bool _draftRestored = false;
-
-  // Saved-sale edit mode.
-  bool get _isEdit => widget.editInvoice != null;
-  Sale? _originalSale;
-  String _paymentMethod = 'Cash';
-
-  /// barcode -> smallest units the ORIGINAL bill already took out of stock.
-  /// Added back to "available" while editing so raising a qty isn't rejected.
-  final Map<String, double> _originalSmallestByBarcode = {};
-
-  List<Product> _products = const [];
-  List<Customer> _customers = const [];
-  StreamSubscription<List<Product>>? _productSub;
-  StreamSubscription<List<Customer>>? _customerSub;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _customerFocus.addListener(() {
-      // Customer picked/typed AFTER the item: re-check their usual rate.
-      if (!_customerFocus.hasFocus) _suggestCustomerRate();
-    });
-    _load();
-  }
-
-  Future<void> _load() async {
-    if (_isEdit && !Session.isAdmin) return; // build() shows the lock screen
-    final products = await ProductRepository.instance.listAll();
-    final customers = await CustomerRepository.instance.listAll();
-    if (!mounted) return;
-    setState(() {
-      _products = products;
-      _customers = customers;
-    });
-    // The repositories' streams only emit on change, so load once (above)
-    // and then follow updates.
-    _productSub = ProductRepository.instance.watchAll().listen((v) {
-      if (mounted) setState(() => _products = v);
-    });
-    _customerSub = CustomerRepository.instance.watchAll().listen((v) {
-      if (mounted) setState(() => _customers = v);
-    });
-    if (_isEdit) {
-      await _loadForEdit();
-    } else {
-      await _restoreDraft();
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // App sent to background / closed mid-bill -> keep the bill.
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.detached) {
-      _saveDraftNow();
-    }
-  }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _draftTimer?.cancel();
-    // Leaving the screen (back button etc.) also keeps the bill. Built BEFORE
-    // the controllers are disposed; after a successful save they are empty,
-    // which just clears the stored draft.
-    if (!_isEdit && !_suppressDraft) {
-      unawaited(SaleDraftStore.save(_currentDraft()));
-    }
-    _productSub?.cancel();
-    _customerSub?.cancel();
-    _scrollCtrl.dispose();
     _customerCtrl.dispose();
-    _customerFocus.dispose();
     _itemCtrl.dispose();
-    _itemFocus.dispose();
     _qtyCtrl.dispose();
     _priceCtrl.dispose();
     _discountCtrl.dispose();
     _paidCtrl.dispose();
     super.dispose();
-  }
-
-  /// Every state change may change the bill, so every one schedules a
-  /// (debounced) draft save — the same coverage as the Kotlin text watchers.
-  @override
-  void setState(VoidCallback fn) {
-    super.setState(fn);
-    _scheduleDraftSave();
-  }
-
-  // ------------------------------------------------------------------ draft
-
-  SaleDraft _currentDraft() => SaleDraft(
-        customer: _customerCtrl.text,
-        isWholesale: _isWholesale,
-        discount: _discountCtrl.text,
-        paid: _paidCtrl.text,
-        pendingItemName: _itemCtrl.text,
-        pendingQty: _qtyCtrl.text,
-        pendingPrice: _priceCtrl.text,
-        lines: List.of(_lines),
-      );
-
-  void _scheduleDraftSave() {
-    if (_isEdit || _suppressDraft) return;
-    _draftTimer?.cancel();
-    _draftTimer = Timer(const Duration(milliseconds: 600), _saveDraftNow);
-  }
-
-  Future<void> _saveDraftNow() async {
-    if (_isEdit || _suppressDraft) return;
-    _draftTimer?.cancel();
-    await SaleDraftStore.save(_currentDraft());
-  }
-
-  Future<void> _clearDraft() async {
-    _draftTimer?.cancel();
-    await SaleDraftStore.clear();
-  }
-
-  Future<void> _restoreDraft() async {
-    final draft = await SaleDraftStore.load();
-    if (!mounted) return; // left the screen first: keep the stored draft as-is
-    if (draft == null || _draftRestored) {
-      _suppressDraft = false;
-      return;
-    }
-    _draftRestored = true;
-    try {
-      setState(() {
-        _customerCtrl.text = draft.customer;
-        _isWholesale = draft.isWholesale;
-        if (draft.discount.isNotEmpty) _discountCtrl.text = draft.discount;
-        if (draft.paid.isNotEmpty) _paidCtrl.text = draft.paid;
-        // The saved date is intentionally not restored (see SaleDraft) —
-        // the bill is dated "now"; the date picker still allows another day.
-        _lines
-          ..clear()
-          ..addAll(draft.lines);
-        if (draft.pendingItemName.trim().isNotEmpty) {
-          _itemCtrl.text = draft.pendingItemName;
-          final match = _findProductByName(draft.pendingItemName);
-          if (match != null) {
-            _pickedProduct = match;
-            _selectedUnit = defaultUnitFor(match);
-            _lastMainPrice = 0.0;
-          }
-        }
-        if (draft.pendingQty.isNotEmpty) _qtyCtrl.text = draft.pendingQty;
-        if (draft.pendingPrice.isNotEmpty) {
-          _priceCtrl.text = draft.pendingPrice;
-          final pp = _pickedProduct;
-          if (pp != null) {
-            final unit = _selectedUnit.isEmpty ? pp.unit : _selectedUnit;
-            _lastMainPrice = pp.toPrimaryUnitRate(double.tryParse(draft.pendingPrice.trim()) ?? 0.0, unit);
-          }
-        }
-      });
-    } finally {
-      _suppressDraft = false;
-    }
-    if (draft.worthAnnouncing) {
-      _toast(Loc.t('Restored your unsaved sale draft', 'آپ کا غیر محفوظ شدہ سیل ڈرافٹ بحال کر دیا گیا'));
-    }
-  }
-
-  // ------------------------------------------------------- saved-sale edit
-
-  Future<void> _loadForEdit() async {
-    try {
-      final edit = await SaleRepository.instance.loadForEdit(widget.editInvoice!);
-      if (!mounted) return;
-      if (edit == null) {
-        _toast('Ye bill nahi mila');
-        Navigator.of(context).maybePop();
-        return;
-      }
-      final original = <String, double>{};
-      for (final si in edit.items) {
-        Product? product;
-        for (final p in _products) {
-          if (p.barcode == si.barcode) {
-            product = p;
-            break;
-          }
-        }
-        original[si.barcode] = (original[si.barcode] ?? 0) + saleItemSmallestQty(si, product);
-      }
-      setState(() {
-        _originalSale = edit.sale;
-        _originalSmallestByBarcode
-          ..clear()
-          ..addAll(original);
-        _saleDate = DateTime.fromMillisecondsSinceEpoch(edit.sale.createdAt);
-        _customerCtrl.text = edit.customerName;
-        _isWholesale = edit.sale.saleType == 'wholesale';
-        _discountCtrl.text = edit.sale.discount > 0 ? edit.sale.discount.toStringAsFixed(2) : '';
-        _paidCtrl.text = edit.sale.paid.toStringAsFixed(2);
-        _paymentMethod = edit.sale.paymentMethod.toLowerCase() == 'bank' ? 'Bank' : 'Cash';
-        _lines
-          ..clear()
-          ..addAll(edit.lines);
-      });
-    } on ArgumentError catch (e) {
-      _toast(e.message.toString());
-    } catch (e) {
-      _toast('Bill load nahi hui: $e');
-    }
   }
 
   double get _subtotal => _lines.fold(0.0, (sum, l) => sum + l.amount);
@@ -299,30 +52,15 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         double.tryParse(_paidCtrl.text.trim()) ?? 0.0,
       );
 
-  Product? _findProductByName(String name) {
-    final t = name.trim().toLowerCase();
-    if (t.isEmpty) return null;
-    for (final p in _products) {
-      if (p.name.toLowerCase() == t) return p;
-    }
-    return null;
-  }
-
-  // ------------------------------------------------------------ item entry
+  List<String> _unitOptionsFor(Product p) => p.unitLadder().map((t) => t.unit).toList();
 
   void _onProductPicked(Product p) {
     setState(() {
       _pickedProduct = p;
       _itemCtrl.text = p.name;
-      // Manual default-unit override wins; otherwise the Auto rule
-      // (1-tier: only unit, 3-tier: 2nd unit, 2-tier: 2nd unit except Beverages).
-      _selectedUnit = defaultUnitFor(p);
-      _lastMainPrice = 0.0;
-      _customerRateName = null;
+      _selectedUnit = p.unit;
       _refillAutoPrice();
     });
-    // A regular customer's own usual rate replaces the standard one.
-    _suggestCustomerRate();
   }
 
   void _refillAutoPrice() {
@@ -330,112 +68,17 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     if (p == null) return;
     final basePrice = _isWholesale ? p.wholesalePrice : p.salePrice;
     final unit = _selectedUnit.isEmpty ? p.unit : _selectedUnit;
-    final base = _lastMainPrice > 0 ? _lastMainPrice : basePrice;
-    final price = p.fromPrimaryUnitRate(base, unit);
+    final price = p.fromPrimaryUnitRate(basePrice, unit);
     _priceCtrl.text = price > 0 ? price.toStringAsFixed(2) : '';
-  }
-
-  void _onPriceChanged(String v) {
-    final p = _pickedProduct;
-    if (p != null) {
-      final unit = _selectedUnit.isEmpty ? p.unit : _selectedUnit;
-      _lastMainPrice = p.toPrimaryUnitRate(double.tryParse(v.trim()) ?? 0.0, unit);
-    }
-    // The shopkeeper typed their own number: it wins over the suggestion.
-    setState(() => _customerRateName = null);
-  }
-
-  /// If [customer] has bought the picked item before, use THEIR last rate
-  /// instead of the standard retail/wholesale one so a deliberately
-  /// custom-priced regular doesn't need it re-typed every bill. Silent when
-  /// there is no match, or when the cashier already typed their own rate.
-  /// Mirrors `suggestCustomerRate()`.
-  Future<void> _suggestCustomerRate() async {
-    final product = _pickedProduct;
-    if (product == null) return;
-    final name = _customerCtrl.text.trim();
-    if (name.isEmpty) return;
-    Customer? customer;
-    for (final c in _customers) {
-      if (c.name.toLowerCase() == name.toLowerCase()) {
-        customer = c;
-        break;
-      }
-    }
-    final customerId = customer?.id;
-    if (customer == null || customerId == null) return;
-    final customerDisplayName = customer.name;
-    // Their own typed rate (not one we applied) must never be overwritten.
-    if (_lastMainPrice > 0 && _customerRateName == null) return;
-
-    final priceBefore = _priceCtrl.text;
-    final barcodeAtLookup = product.barcode;
-    final last = await SaleRepository.instance.lastRateForCustomerItem(customerId, barcodeAtLookup);
-    if (last == null || !mounted) return;
-    // Bail if the item or the price changed while we were querying.
-    if (_pickedProduct?.barcode != barcodeAtLookup) return;
-    if (_priceCtrl.text != priceBefore) return;
-
-    final unit = _selectedUnit.isEmpty ? product.unit : _selectedUnit;
-    final suggestion = customerRateFor(product,
-        lastUnitPrice: last.unitPrice, lastUnit: last.unit, chosenUnit: unit);
-    if (suggestion == null) return;
-    setState(() {
-      _lastMainPrice = suggestion.primaryRate;
-      _priceCtrl.text = suggestion.priceInChosenUnit.toStringAsFixed(2);
-      _customerRateName = customerDisplayName;
-    });
-  }
-
-  void _onSaleTypeChanged(int index) {
-    final wholesale = index == 1;
-    if (wholesale == _isWholesale) return;
-    setState(() {
-      _isWholesale = wholesale;
-      _lastMainPrice = 0.0;
-      _customerRateName = null;
-      _refillAutoPrice();
-      // Lines already in the cart are re-rated too (cost untouched).
-      final result = repriceLinesForSaleType(_lines, _products, isWholesale: wholesale);
-      if (result.changed) {
-        _lines
-          ..clear()
-          ..addAll(result.lines);
-      }
-    });
-    _suggestCustomerRate();
-  }
-
-  void _toggleAmountMode() {
-    setState(() {
-      _qtyIsAmountMode = !_qtyIsAmountMode;
-      _qtyCtrl.clear();
-    });
   }
 
   void _addLine() {
     final name = _itemCtrl.text.trim();
-    final product = _findProductByName(name);
+    final product = _pickedProduct;
+    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
     final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
-    var qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
 
-    // Rs mode: the box holds a rupee amount — turn it into a quantity first
-    // so nothing below needs to know which mode was used.
-    if (_qtyIsAmountMode) {
-      if (price <= 0) {
-        _toast('Pehle Rate likhein, phir Rs se qty nikalegi');
-        return;
-      }
-      final amount = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
-      final computed = qtyFromAmount(amount, price);
-      if (computed == null) {
-        _toast('Rs amount theek se likhen');
-        return;
-      }
-      qty = computed;
-    }
-
-    if (product == null) {
+    if (product == null || name.isEmpty) {
       _toast('Ye item product list mein nahi hai');
       return;
     }
@@ -444,31 +87,21 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       return;
     }
 
-    final samePicked = _pickedProduct?.barcode == product.barcode;
-    final unit = (samePicked && _selectedUnit.isNotEmpty) ? _selectedUnit : defaultUnitFor(product);
+    final unit = _selectedUnit.isEmpty ? product.unit : _selectedUnit;
     final neededSmallest = product.toSmallestUnits(qty, unit);
 
     if (!product.isValidSmallestQty(neededSmallest)) {
-      _toast('Qty (${formatQty(qty)} $unit) whole ${product.smallestUnitName()} mein convert nahi hoti');
+      _toast('Qty ($qty $unit) whole ${product.smallestUnitName()} mein convert nahi hoti');
       return;
     }
 
-    // While correcting a line, that line's own qty must not count against
-    // itself, or raising the qty would be wrongly rejected as "stock kam hai".
-    final editIndex = _editingIndex;
-    var alreadyInCartSmallest = 0.0;
-    for (var i = 0; i < _lines.length; i++) {
-      final l = _lines[i];
-      if (l.barcode == product.barcode && i != editIndex) {
-        alreadyInCartSmallest += product.toSmallestUnits(l.qty, l.unit);
-      }
-    }
-    // Editing a SAVED bill: its own original qty is already out of `stock`.
-    final availableForThisAdd =
-        product.stock + (_originalSmallestByBarcode[product.barcode] ?? 0.0) - alreadyInCartSmallest;
+    final alreadyInCartSmallest = _lines
+        .where((l) => l.barcode == product.barcode)
+        .fold<double>(0, (sum, l) => sum + product.toSmallestUnits(l.qty, l.unit));
+    final availableForThisAdd = product.stock - alreadyInCartSmallest;
 
     if (availableForThisAdd < neededSmallest) {
-      _toast('Stock kam hai — "${product.name}" mein sirf ${formatQty(availableForThisAdd < 0 ? 0 : availableForThisAdd)} ${product.smallestUnitName()} bacha hai');
+      _toast('Stock kam hai — "${product.name}" mein sirf ${_trimNum(availableForThisAdd)} ${product.smallestUnitName()} bacha hai');
       return;
     }
 
@@ -476,122 +109,25 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     final costPerSmallest = factor > 0 ? product.cost / factor : product.cost;
     final costForThisLine = costPerSmallest * neededSmallest;
 
-    final newLine = SaleLine(
-      itemName: product.name,
-      barcode: product.barcode,
-      qty: qty,
-      unit: unit,
-      unitPrice: price,
-      cost: costForThisLine,
-      amount: qty * price,
-      // Unit ladder snapshot so a held bill can be recalled later.
-      mainUnit: product.unit,
-      secondaryUnit: product.secondaryUnit,
-      secondaryUnitQty: product.secondaryUnitQty,
-      tertiaryUnit: product.tertiaryUnit,
-      tertiaryUnitQty: product.tertiaryUnitQty,
-    );
-
     setState(() {
-      // Correcting a line updates it in place instead of adding a duplicate.
-      if (editIndex != null && editIndex >= 0 && editIndex < _lines.length) {
-        _lines[editIndex] = newLine;
-      } else {
-        _lines.add(newLine);
-      }
-      _editingIndex = null;
-      _clearItemEntry();
-    });
-    _itemFocus.requestFocus();
-  }
-
-  void _clearItemEntry() {
-    _itemCtrl.clear();
-    _qtyCtrl.clear();
-    _priceCtrl.clear();
-    _pickedProduct = null;
-    _selectedUnit = '';
-    _lastMainPrice = 0.0;
-    _qtyIsAmountMode = false;
-    _customerRateName = null;
-  }
-
-  /// Loads a billed line back into the entry fields so a mistake can be
-  /// corrected instead of deleting and retyping the line. Mirrors `editLine()`.
-  void _editLine(int index) {
-    if (index < 0 || index >= _lines.length) return;
-    final line = _lines[index];
-    Product? product;
-    for (final p in _products) {
-      if (p.barcode == line.barcode) {
-        product = p;
-        break;
-      }
-    }
-    if (product == null) {
-      for (final p in _products) {
-        if (p.name.toLowerCase() == line.itemName.toLowerCase()) {
-          product = p;
-          break;
-        }
-      }
-    }
-    final Product? prod = product; // final copy: stays promotable in the closure
-    setState(() {
-      _editingIndex = index;
-      _pickedProduct = prod; // null if the product was renamed/removed
-      _itemCtrl.text = prod?.name ?? line.itemName;
-      final choices = prod != null ? saleUnitChoices(prod) : <String>[line.unit];
-      _selectedUnit = choices.contains(line.unit) ? line.unit : choices.first;
-      _qtyCtrl.text = formatQty(line.qty);
-      _qtyIsAmountMode = false;
-      _customerRateName = null;
-      _priceCtrl.text = line.unitPrice == line.unitPrice.truncateToDouble()
-          ? line.unitPrice.toInt().toString()
-          : line.unitPrice.toString();
-      // So switching the unit re-converts THIS line's own rate.
-      _lastMainPrice = prod != null ? prod.toPrimaryUnitRate(line.unitPrice, _selectedUnit) : 0.0;
-    });
-    if (_scrollCtrl.hasClients) {
-      _scrollCtrl.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-    }
-  }
-
-  void _cancelLineEdit() {
-    setState(() {
-      _editingIndex = null;
-      _clearItemEntry();
+      _lines.add(SaleLine(
+        itemName: name,
+        barcode: product.barcode,
+        qty: qty,
+        unit: unit,
+        unitPrice: price,
+        cost: costForThisLine,
+        amount: qty * price,
+      ));
+      _itemCtrl.clear();
+      _qtyCtrl.clear();
+      _priceCtrl.clear();
+      _pickedProduct = null;
+      _selectedUnit = '';
     });
   }
 
-  void _removeLine(int index) {
-    setState(() {
-      // Keep an in-progress edit pointed at the right line.
-      final editing = _editingIndex;
-      if (editing != null) {
-        if (editing == index) {
-          _editingIndex = null;
-          _clearItemEntry();
-        } else if (editing > index) {
-          _editingIndex = editing - 1;
-        }
-      }
-      _lines.removeAt(index);
-    });
-  }
-
-  void _clearAll() {
-    setState(() {
-      _lines.clear();
-      _customerCtrl.clear();
-      _discountCtrl.clear();
-      _paidCtrl.clear();
-      _saleDate = DateTime.now();
-      _isWholesale = false;
-      _editingIndex = null;
-      _clearItemEntry();
-    });
-  }
+  void _removeLine(int index) => setState(() => _lines.removeAt(index));
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -603,25 +139,17 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     if (picked != null) setState(() => _saleDate = picked);
   }
 
-  // ------------------------------------------------------------------ save
-
-  Future<void> _save({bool overrideCreditLimit = false}) async {
+  Future<void> _save() async {
     if (_lines.isEmpty) {
       _toast('Kam az kam ek item add karen');
       return;
     }
-    if (_isEdit && _originalSale == null) return; // bill still loading
 
     final totals = _totals;
     if (totals.due > 0.009 && _customerCtrl.text.trim().isEmpty) {
       _toast('Due amount ke liye Customer zaroori hai');
       return;
     }
-
-    // Snapshot for the bill preview — _clearAll() wipes the screen after save.
-    final previewLines = List<SaleLine>.of(_lines);
-    final previewCustomer = _customerCtrl.text.trim();
-    final previewDate = _saleDate;
 
     setState(() => _saving = true);
     try {
@@ -632,43 +160,16 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         paidInput: double.tryParse(_paidCtrl.text.trim()) ?? 0.0,
         saleType: _isWholesale ? 'wholesale' : 'retail',
         saleDateMillis: _saleDate.millisecondsSinceEpoch,
-        paymentMethod: _paymentMethod,
-        overrideCreditLimit: overrideCreditLimit,
-        editInvoice: widget.editInvoice,
       );
       if (!mounted) return;
-      if (_isEdit) {
-        _toast(Loc.t('Sale updated: $invoice', 'سیل اپ ڈیٹ ہو گئی: $invoice'));
-        Navigator.of(context).pop(true);
-        return;
-      }
-      // Saved: the draft must go NOW (not after the debounce) or a kill in
-      // the next second would bring the already-saved bill back.
-      await _clearDraft();
       _toast('Sale saved: $invoice');
-      final shownTotals = totals;
-      _clearAll();
-      await _showBillPreview(
-        invoice: invoice,
-        date: previewDate,
-        customer: previewCustomer,
-        lines: previewLines,
-        subtotal: shownTotals.subtotal,
-        discount: shownTotals.discount,
-        total: shownTotals.total,
-        paid: shownTotals.paid,
-      );
-    } on SaleCreditLimitException catch (e) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      if (await _confirmCreditLimit(e) == true && mounted) {
-        await _save(overrideCreditLimit: true);
-      }
-      return;
-    } on SaleStockException catch (e) {
-      _toast(e.message);
-    } on ArgumentError catch (e) {
-      _toast(e.message.toString());
+      setState(() {
+        _lines.clear();
+        _customerCtrl.clear();
+        _discountCtrl.clear();
+        _paidCtrl.clear();
+        _saleDate = DateTime.now();
+      });
     } catch (e) {
       _toast('Could not save sale: $e');
     } finally {
@@ -676,315 +177,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     }
   }
 
-  // ------------------------------------------------------- Return / Delete
-
-  Future<bool> _confirm(String title, String message, String okLabel, {Color? okColor}) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
-          FilledButton(
-            style: okColor == null ? null : FilledButton.styleFrom(backgroundColor: okColor),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(okLabel),
-          ),
-        ],
-      ),
-    );
-    return ok == true;
-  }
-
-  Future<void> _returnSale() async {
-    final invoice = widget.editInvoice;
-    if (invoice == null) return;
-    final ok = await _confirm(
-      Loc.t('Return Sale', 'سیل واپس کریں'),
-      Loc.t(
-        'The items go back to stock, the customer balance is reversed and the sale is marked Returned. Continue?',
-        'آئٹمز واپس اسٹاک میں جائیں گے، کسٹمر بیلنس واپس ہوگا اور سیل "واپس" نشان زد ہوگی۔ جاری رکھیں؟',
-      ),
-      Loc.t('Return', 'واپس'),
-      okColor: AppColors.amber,
-    );
-    if (!ok || !mounted) return;
-    setState(() => _saving = true);
-    try {
-      await SaleRepository.instance.returnSale(invoice);
-      if (!mounted) return;
-      _toast(Loc.t('Sale returned', 'سیل واپس ہو گئی'));
-      Navigator.of(context).pop(true);
-    } on ArgumentError catch (e) {
-      _toast(e.message.toString());
-    } catch (e) {
-      _toast('Return nahi ho saki: $e');
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _deleteSale() async {
-    final invoice = widget.editInvoice;
-    if (invoice == null) return;
-    final ok = await _confirm(
-      Loc.t('Delete Sale', 'سیل حذف کریں'),
-      Loc.t(
-        'This will remove the bill and reverse its stock and customer balance effect. Continue?',
-        'یہ بل حذف کر دے گا اور اس کا اسٹاک اور کسٹمر بیلنس پر اثر واپس کر دے گا۔ جاری رکھیں؟',
-      ),
-      Loc.t('Delete', 'حذف کریں'),
-      okColor: AppColors.red,
-    );
-    if (!ok || !mounted) return;
-    setState(() => _saving = true);
-    try {
-      await SaleRepository.instance.deleteSale(invoice);
-      if (!mounted) return;
-      _toast(Loc.t('Sale deleted', 'سیل حذف ہو گئی'));
-      Navigator.of(context).pop(true);
-    } on ArgumentError catch (e) {
-      _toast(e.message.toString());
-    } catch (e) {
-      _toast('Delete nahi ho saki: $e');
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  // ------------------------------------------------------------------ Print
-
-  /// Print / Share entry (overflow menu in Kotlin). Only a SAVED bill has an
-  /// invoice number, so a new unsaved sale is asked to be saved first.
-  Future<void> _printCurrent() async {
-    final invoice = widget.editInvoice;
-    if (invoice == null) {
-      _toast(Loc.t('Save the sale first', 'پہلے سیل محفوظ کریں'));
-      return;
-    }
-    if (_lines.isEmpty) return;
-    final t = _totals;
-    await _showBillPreview(
-      invoice: invoice,
-      date: _saleDate,
-      customer: _customerCtrl.text.trim(),
-      lines: List<SaleLine>.of(_lines),
-      subtotal: t.subtotal,
-      discount: t.discount,
-      total: t.total,
-      paid: t.paid,
-    );
-  }
-
-  /// Bill preview shown after a save and from Print. Until Bluetooth printing
-  /// (Phase 12) the bill can be copied as text (paste into WhatsApp/notes).
-  Future<void> _showBillPreview({
-    required String invoice,
-    required DateTime date,
-    required String customer,
-    required List<SaleLine> lines,
-    required double subtotal,
-    required double discount,
-    required double total,
-    required double paid,
-  }) async {
-    String shopName = '';
-    String shopPhone = '';
-    try {
-      shopName = await UserRepository.instance.getSetting('shop_name') ?? '';
-      shopPhone = await UserRepository.instance.getSetting('shop_phone') ?? '';
-    } catch (_) {}
-    if (!mounted) return;
-    final text = buildSaleBillText(
-      shopName: shopName,
-      shopPhone: shopPhone,
-      invoice: invoice,
-      date: date,
-      customer: customer,
-      lines: lines,
-      subtotal: subtotal,
-      discount: discount,
-      total: total,
-      paid: paid,
-      paymentMethod: paid <= 0.009 ? 'Credit' : _paymentMethod,
-    );
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Bill Preview', 'بل پری ویو')),
-        content: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.3)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: text));
-              _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
-            },
-            child: Text(Loc.t('Copy', 'کاپی')),
-          ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
-        ],
-      ),
-    );
-  }
-
-  /// "Save Anyway?" prompt — a shopkeeper can knowingly let a trusted customer
-  /// go over their limit, so this asks instead of hard-blocking.
-  Future<bool?> _confirmCreditLimit(SaleCreditLimitException e) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Credit Limit Exceeded', 'کریڈٹ لیمٹ سے تجاوز')),
-        content: Text(
-          '${e.customerName} ki credit limit Rs.${formatQty(e.creditLimit)} hai. '
-          'Ye bill save karne ke baad balance Rs.${formatQty(e.projectedBalance)} ho jayega.\n\n'
-          'Phir bhi save karen?',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں')),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ------------------------------------------------------------- Quick Sale
-
-  Future<void> _openQuickSale() async {
-    final top = await SaleRepository.instance.topProductNames();
-    if (!mounted) return;
-    final request = await showQuickSaleDialog(
-      context,
-      products: _products,
-      customers: _customers,
-      topNames: top,
-    );
-    if (request == null || !mounted) return;
-    await _submitQuickSale(request);
-  }
-
-  Future<void> _submitQuickSale(QuickSaleRequest r, {bool overrideCreditLimit = false}) async {
-    try {
-      final result = await SaleRepository.instance.saveQuickSale(
-        product: r.product,
-        qty: r.qty,
-        price: r.price,
-        unit: r.unit,
-        customerName: r.customerName,
-        overrideCreditLimit: overrideCreditLimit,
-      );
-      _toast(result.isCredit
-          ? 'Quick Sale (credit) saved: ${result.invoice}'
-          : 'Quick Sale saved: ${result.invoice}');
-    } on SaleCreditLimitException catch (e) {
-      if (!mounted) return;
-      if (await _confirmCreditLimit(e) == true && mounted) {
-        await _submitQuickSale(r, overrideCreditLimit: true);
-      }
-    } on SaleStockException catch (e) {
-      _toast(e.message);
-    } on ArgumentError catch (e) {
-      _toast(e.message.toString());
-    } catch (e) {
-      _toast('Quick Sale save nahi hui: $e');
-    }
-  }
-
-  // ---------------------------------------------------------- Hold / Recall
-
-  Future<void> _holdBill() async {
-    if (_lines.isEmpty) {
-      _toast('Add items pehle, phir hold karen');
-      return;
-    }
-    final payload = encodeHold(HeldSaleDraft(
-      customerName: _customerCtrl.text.trim(),
-      isWholesale: _isWholesale,
-      isCash: _customerCtrl.text.trim().isEmpty,
-      discountText: _discountCtrl.text.trim(),
-      lines: List.of(_lines),
-    ));
-    try {
-      await SaleRepository.instance.holdBill(payload);
-      if (!mounted) return;
-      _toast('Bill hold ho gayi');
-      _clearAll();
-    } catch (e) {
-      _toast('Hold nahi ho saki: $e');
-    }
-  }
-
-  Future<void> _openRecall() async {
-    final held = await SaleRepository.instance.heldBills();
-    if (!mounted) return;
-    final choice = await showHeldBillsDialog(context, held);
-    if (choice == null || !mounted) return;
-
-    if (choice.action == HeldBillAction.delete) {
-      await SaleRepository.instance.deleteHeldBill(choice.bill);
-      _toast('Held bill hata di');
-      return;
-    }
-
-    // Recall replaces the bill on screen (same as Android) — don't silently
-    // throw away items the cashier is in the middle of entering.
-    if (_lines.isNotEmpty) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Recall'),
-          content: const Text('Current bill ki items replace ho jayengi. Recall karen?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Recall')),
-          ],
-        ),
-      );
-      if (ok != true || !mounted) return;
-    }
-
-    final draft = decodeHold(choice.bill.payload);
-    setState(() {
-      _editingIndex = null;
-      _clearItemEntry();
-      _customerCtrl.text = draft.customerName;
-      _isWholesale = draft.isWholesale;
-      _discountCtrl.text = draft.discountText;
-      _paidCtrl.clear();
-      _lines
-        ..clear()
-        ..addAll(draft.lines);
-    });
-    await SaleRepository.instance.deleteHeldBill(choice.bill);
-  }
-
   void _toast(String message) {
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 2)));
   }
 
-  // ------------------------------------------------------------------- UI
+  String _trimNum(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
 
   @override
   Widget build(BuildContext context) {
-    // Editing a saved bill is admin-only.
-    if (_isEdit && !Session.isAdmin) {
-      return const RoleGuard(allowed: {'admin'}, child: SizedBox.shrink());
-    }
-    if (_isEdit && _originalSale == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.bg,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-    final returned = _originalSale?.status == 'returned';
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
@@ -992,24 +192,11 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                controller: _scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    PremiumHeader(
-                      title: _isEdit ? Loc.t('Edit Sale', 'سیل میں ترمیم') : Loc.t('New Sale', 'نئی سیل'),
-                      subtitle: _isEdit ? 'Invoice ${widget.editInvoice}' : 'Stock Out / Customer Bill',
-                    ),
-                    if (returned)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          Loc.t('This sale is already Returned', 'یہ سیل پہلے ہی واپس ہو چکی ہے'),
-                          style: const TextStyle(color: AppColors.red, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    _buildActionRow(),
+                    const PremiumHeader(title: 'New Sale', subtitle: 'Stock Out / Customer Bill'),
                     _buildTopRow(),
                     _buildCustomerCard(),
                     _buildItemEntryCard(),
@@ -1022,45 +209,6 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             _buildSaveBar(),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _pill(String emoji, String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(30)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 13)),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionRow() {
-    final returned = _originalSale?.status == 'returned';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 8,
-        children: [
-          if (!_isEdit) ...[
-            _pill('⚡', Loc.t('Quick Sale', 'فوری سیل'), AppColors.teal, _openQuickSale),
-            _pill('⏸', Loc.t('Hold', 'ہولڈ'), AppColors.amber, _holdBill),
-            _pill('▶', Loc.t('Recall', 'ریکال'), AppColors.blue, _openRecall),
-          ],
-          _pill('🖨', Loc.t('Print', 'پرنٹ'), AppColors.navy, _printCurrent),
-          if (_isEdit && !returned) _pill('↩', Loc.t('Return', 'واپس'), AppColors.orange, _saving ? () {} : _returnSale),
-          if (_isEdit) _pill('🗑', Loc.t('Delete', 'حذف'), AppColors.red, _saving ? () {} : _deleteSale),
-        ],
       ),
     );
   }
@@ -1102,7 +250,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               fillColor: AppColors.teal,
               color: AppColors.textMuted,
               constraints: const BoxConstraints(minHeight: 36, minWidth: 72),
-              onPressed: _onSaleTypeChanged,
+              onPressed: (i) => setState(() {
+                _isWholesale = i == 1;
+                _refillAutoPrice();
+              }),
               children: const [Text('Retail'), Text('Wholesale')],
             ),
           ),
@@ -1111,268 +262,129 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _fieldBox({required Widget child}) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-        child: child,
-      );
-
   Widget _buildCustomerCard() {
     return PremiumCard(
       accentTop: AppColors.purple,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SectionLabel(emoji: '🧑‍🤝‍🧑', label: 'Customer (optional unless on credit)', accent: AppColors.purple),
-          _fieldBox(
-            child: RawAutocomplete<String>(
-              textEditingController: _customerCtrl,
-              focusNode: _customerFocus,
-              onSelected: (_) => _suggestCustomerRate(),
-              optionsBuilder: (text) {
-                final q = text.text.trim().toLowerCase();
-                final names = _customers.map((c) => c.name);
-                if (q.isEmpty) return names;
-                return names.where((n) => n.toLowerCase().contains(q));
-              },
-              fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
-                controller: controller,
-                focusNode: focusNode,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(hintText: 'Walk-in customer — leave blank if fully paid', border: InputBorder.none, isDense: true),
+      child: StreamBuilder<List<Customer>>(
+        stream: CustomerRepository.instance.watchAll(),
+        builder: (context, snapshot) {
+          final customers = snapshot.data ?? const <Customer>[];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SectionLabel(emoji: '🧑‍🤝‍🧑', label: 'Customer (optional unless on credit)', accent: AppColors.purple),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                child: Autocomplete<String>(
+                  optionsBuilder: (text) {
+                    if (text.text.isEmpty) return customers.map((c) => c.name);
+                    return customers.map((c) => c.name).where((n) => n.toLowerCase().contains(text.text.toLowerCase()));
+                  },
+                  onSelected: (v) => _customerCtrl.text = v,
+                  fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                    controller.text = _customerCtrl.text;
+                    controller.addListener(() => _customerCtrl.text = controller.text);
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(hintText: 'Walk-in customer — leave blank if fully paid', border: InputBorder.none, isDense: true),
+                    );
+                  },
+                ),
               ),
-              optionsViewBuilder: (context, onSelected, options) =>
-                  autocompleteOptionsView<String>(context, onSelected, options, (o) => o, maxWidth: 640),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
-  /// "1 Carton = 12 Dozen • 1 Dozen = 12 Pcs" line under the unit picker.
-  String _conversionInfo(Product p) {
-    final choices = saleUnitChoices(p);
-    final parts = <String>[];
-    if (choices.length > 1 && p.secondaryUnitQty > 0) {
-      parts.add('1 ${p.unit} = ${formatQty(p.secondaryUnitQty)} ${p.secondaryUnit}');
-    }
-    if (choices.length > 2 && p.tertiaryUnitQty > 0) {
-      parts.add('1 ${p.secondaryUnit} = ${formatQty(p.tertiaryUnitQty)} ${p.tertiaryUnit}');
-    }
-    return parts.join('   •   ');
-  }
-
-  Widget _buildMarginWarning() {
-    final p = _pickedProduct;
-    if (p == null) return const SizedBox.shrink();
-    final unit = _selectedUnit.isEmpty ? p.unit : _selectedUnit;
-    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
-    final m = marginFor(p, price, unit);
-    if (m.level == MarginLevel.none) return const SizedBox.shrink();
-
-    // Cost figures are admin/manager only; a cashier still gets the loss
-    // warning (same protection) but never sees the cost or margin numbers.
-    final showFigures = Session.isAdminOrManager;
-    late final String text;
-    late final Color color;
-    switch (m.level) {
-      case MarginLevel.loss:
-        color = AppColors.red;
-        text = showFigures
-            ? Loc.t('⚠ Loss! Sale rate ≤ Cost (Rs ${m.costInUnit.toStringAsFixed(2)})',
-                '⚠ نقصان! سیل ریٹ لاگت (روپے ${m.costInUnit.toStringAsFixed(2)}) کے برابر یا کم ہے')
-            : Loc.t('⚠ Loss! Rate is too low', '⚠ نقصان! ریٹ بہت کم ہے');
-        break;
-      case MarginLevel.low:
-        color = AppColors.amber;
-        text = showFigures
-            ? Loc.t('⚠ Low margin: Rs ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) vs Cost Rs ${m.costInUnit.toStringAsFixed(2)}',
-                '⚠ کم منافع: روپے ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) بمقابلہ لاگت روپے ${m.costInUnit.toStringAsFixed(2)}')
-            : Loc.t('⚠ Low margin', '⚠ کم منافع');
-        break;
-      default:
-        if (!showFigures) return const SizedBox.shrink();
-        color = AppColors.teal;
-        text = Loc.t('Margin: Rs ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) vs Cost Rs ${m.costInUnit.toStringAsFixed(2)}',
-            'منافع: روپے ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) بمقابلہ لاگت روپے ${m.costInUnit.toStringAsFixed(2)}');
-    }
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, left: 4),
-      child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
-    );
-  }
-
-  /// "Total Amount: Rs 500" — in Rs mode also the qty that amount buys.
-  String _itemTotalText(double qty, double price, String unit) {
-    if (_qtyIsAmountMode) {
-      final amount = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
-      final derived = qtyFromAmount(amount, price);
-      if (derived != null) {
-        return '≈ ${formatQty(derived)} $unit   •   Total Amount: Rs ${amount.round()}';
-      }
-      return 'Total Amount: Rs 0';
-    }
-    return 'Total Amount: Rs ${(qty * price).round()}';
-  }
-
   Widget _buildItemEntryCard() {
-    final picked = _pickedProduct;
-    final unitOptions = picked != null ? saleUnitChoices(picked) : <String>['pcs'];
-    final unitValue = unitOptions.contains(_selectedUnit) ? _selectedUnit : unitOptions.first;
-    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
-    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
-
     return PremiumCard(
       accentTop: AppColors.amber,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SectionLabel(emoji: '➕', label: 'Add Item', accent: AppColors.amber),
-          _fieldBox(
-            child: RawAutocomplete<Product>(
-              textEditingController: _itemCtrl,
-              focusNode: _itemFocus,
-              displayStringForOption: (p) => p.name,
-              optionsBuilder: (text) {
-                if (text.text.trim().isEmpty) return const Iterable<Product>.empty();
-                return _products.where((p) => p.matchesQuery(text.text));
-              },
-              onSelected: _onProductPicked,
-              fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
-                controller: controller,
-                focusNode: focusNode,
-                onChanged: (v) {
-                  // Typing a different name drops the previous pick.
-                  final pp = _pickedProduct;
-                  if (pp != null && pp.name != v) {
-                    setState(() {
-                      _pickedProduct = null;
-                      _selectedUnit = '';
-                      _lastMainPrice = 0.0;
-                      _customerRateName = null;
-                    });
-                  }
-                },
-                decoration: const InputDecoration(hintText: 'Search a product to sell', border: InputBorder.none, isDense: true),
-              ),
-              optionsViewBuilder: (context, onSelected, options) =>
-                  autocompleteOptionsView<Product>(context, onSelected, options, (o) => o.name, maxWidth: 640),
-            ),
-          ),
-          if (picked != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8, left: 4),
-              child: Text(
-                'In stock: ${picked.formatStockBreakdown()}',
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-              ),
-            ),
-          const SizedBox(height: 12),
-          Row(
+      child: StreamBuilder<List<Product>>(
+        stream: ProductRepository.instance.watchAll(),
+        builder: (context, snapshot) {
+          final products = snapshot.data ?? const <Product>[];
+          final unitOptions = _pickedProduct != null ? _unitOptionsFor(_pickedProduct!) : <String>['pcs'];
+          final unitValue = unitOptions.contains(_selectedUnit) ? _selectedUnit : unitOptions.first;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: PremiumLabeledField(
-                  emoji: _qtyIsAmountMode ? '₨' : '🔢',
-                  label: _qtyIsAmountMode ? Loc.t('Amount (Rs)', 'رقم (روپے)') : 'Quantity',
-                  accent: AppColors.amber,
-                  controller: _qtyCtrl,
-                  hint: _qtyIsAmountMode ? Loc.t('Amount in Rs', 'روپے میں رقم') : '0',
-                  onChanged: (_) => setState(() {}),
+              const SectionLabel(emoji: '➕', label: 'Add Item', accent: AppColors.amber),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                child: Autocomplete<Product>(
+                  displayStringForOption: (p) => p.name,
+                  optionsBuilder: (text) {
+                    if (text.text.isEmpty) return const Iterable<Product>.empty();
+                    return products.where((p) => p.name.toLowerCase().contains(text.text.toLowerCase()));
+                  },
+                  onSelected: _onProductPicked,
+                  fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                    controller.text = _itemCtrl.text;
+                    controller.addListener(() => _itemCtrl.text = controller.text);
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(hintText: 'Search a product to sell', border: InputBorder.none, isDense: true),
+                    );
+                  },
                 ),
               ),
-              const SizedBox(width: 8),
-              // "Rs" pill: type the rupee amount, qty is worked out from the rate.
-              GestureDetector(
-                onTap: _toggleAmountMode,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _qtyIsAmountMode ? AppColors.teal : AppColors.cardWhite,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _qtyIsAmountMode ? AppColors.teal : AppColors.border),
-                  ),
+              if (_pickedProduct != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, left: 4),
                   child: Text(
-                    'Rs',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: _qtyIsAmountMode ? Colors.white : AppColors.textMuted,
+                    'In stock: ${_pickedProduct!.formatStockBreakdown()}',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: PremiumLabeledField(emoji: '🔢', label: 'Quantity', accent: AppColors.amber, controller: _qtyCtrl, hint: '0'),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                    child: DropdownButton<String>(
+                      value: unitValue,
+                      underline: const SizedBox.shrink(),
+                      items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _selectedUnit = v;
+                          _refillAutoPrice();
+                        });
+                      },
                     ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-                child: DropdownButton<String>(
-                  value: unitValue,
-                  underline: const SizedBox.shrink(),
-                  items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
-                  onChanged: picked == null
-                      ? null
-                      : (v) {
-                          if (v == null) return;
-                          setState(() {
-                            _selectedUnit = v;
-                            _refillAutoPrice();
-                          });
-                        },
+              const SizedBox(height: 12),
+              PremiumLabeledField(emoji: '💵', label: 'Unit Price (auto-filled, editable)', accent: AppColors.teal, controller: _priceCtrl),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: GradientButton(
+                  label: 'Add to Bill',
+                  emoji: '✚',
+                  start: AppColors.teal,
+                  end: AppColors.tealDark,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  onTap: _addLine,
                 ),
               ),
             ],
-          ),
-          if (picked != null && _conversionInfo(picked).isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8, left: 4),
-              child: Text(_conversionInfo(picked), style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
-            ),
-          const SizedBox(height: 12),
-          PremiumLabeledField(
-            emoji: '💵',
-            label: 'Unit Price (auto-filled, editable)',
-            accent: AppColors.teal,
-            controller: _priceCtrl,
-            onChanged: _onPriceChanged,
-          ),
-          if (_customerRateName != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8, left: 4),
-              child: Text(
-                Loc.t(
-                  "$_customerRateName's usual rate applied: Rs ${price.toStringAsFixed(2)} / $unitValue",
-                  '$_customerRateName کا معمول کا ریٹ لگا دیا گیا: روپے ${price.toStringAsFixed(2)} / $unitValue',
-                ),
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.blue),
-              ),
-            ),
-          _buildMarginWarning(),
-          Padding(
-            padding: const EdgeInsets.only(top: 10, left: 4),
-            child: Text(_itemTotalText(qty, price, unitValue),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textDark)),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: GradientButton(
-              label: _editingIndex != null ? Loc.t('UPDATE ITEM', 'آئٹم اپ ڈیٹ کریں') : 'Add to Bill',
-              emoji: _editingIndex != null ? '✔' : '✚',
-              start: _editingIndex != null ? AppColors.amber : AppColors.teal,
-              end: _editingIndex != null ? AppColors.orange : AppColors.tealDark,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              onTap: _addLine,
-            ),
-          ),
-          if (_editingIndex != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: TextButton(
-                onPressed: _cancelLineEdit,
-                child: Text(Loc.t('Cancel edit', 'ترمیم منسوخ کریں'), style: const TextStyle(color: AppColors.red)),
-              ),
-            ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1388,32 +400,23 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           ..._lines.asMap().entries.map((entry) {
             final i = entry.key;
             final line = entry.value;
-            final beingEdited = _editingIndex == i;
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: beingEdited ? AppColors.amber.withOpacity(0.12) : AppColors.fieldFill,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: beingEdited ? AppColors.amber : AppColors.border),
-              ),
+              decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
               child: Row(
                 children: [
                   Expanded(
-                    child: InkWell(
-                      onTap: () => _editLine(i),
-                      child: Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(line.itemName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
-                        Text('${formatQty(line.qty)} ${line.unit}  ×  ${line.unitPrice.toStringAsFixed(2)}',
+                        Text('${_trimNum(line.qty)} ${line.unit}  ×  ${line.unitPrice.toStringAsFixed(2)}',
                             style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
                       ],
                     ),
-                    ),
                   ),
                   Text(line.amount.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.teal)),
-                  IconButton(icon: const Icon(Icons.edit, size: 18, color: AppColors.blue), tooltip: 'Edit', onPressed: () => _editLine(i)),
                   IconButton(icon: const Icon(Icons.close, size: 18, color: AppColors.red), onPressed: () => _removeLine(i)),
                 ],
               ),
@@ -1470,7 +473,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         child: SizedBox(
           width: double.infinity,
           child: GradientButton(
-            label: _saving ? 'SAVING…' : (_isEdit ? Loc.t('UPDATE SALE', 'سیل اپ ڈیٹ کریں') : 'SAVE SALE'),
+            label: _saving ? 'SAVING…' : 'SAVE SALE',
             emoji: '💾',
             start: AppColors.navy,
             end: AppColors.navyLight,

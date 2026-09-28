@@ -76,10 +76,6 @@ class SaleItem {
   final double cost;
   final double amount;
 
-  /// Smallest units per ONE [unit], frozen when the sale was saved. 0 = never
-  /// captured (rows from before DB v4) -> use the product's current ladder.
-  final double conversionFactor;
-
   const SaleItem({
     this.id,
     required this.invoice,
@@ -90,7 +86,6 @@ class SaleItem {
     required this.unitPrice,
     required this.cost,
     required this.amount,
-    this.conversionFactor = 0.0,
   });
 
   Map<String, Object?> toMap() => {
@@ -103,7 +98,6 @@ class SaleItem {
         'unitPrice': unitPrice,
         'cost': cost,
         'amount': amount,
-        'conversionFactor': conversionFactor,
       };
 
   factory SaleItem.fromMap(Map<String, Object?> m) => SaleItem(
@@ -116,6 +110,5 @@ class SaleItem {
         unitPrice: (m['unitPrice'] as num).toDouble(),
         cost: (m['cost'] as num).toDouble(),
         amount: (m['amount'] as num).toDouble(),
-        conversionFactor: (m['conversionFactor'] as num?)?.toDouble() ?? 0.0,
       );
 }
