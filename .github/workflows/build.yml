@@ -57,6 +57,7 @@ jobs:
         run: sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"1.9.24"/' android/settings.gradle
 
       - run: flutter pub get
+      - run: bash tools/android_fix.sh
       - run: flutter build apk --release
 
       - uses: actions/upload-artifact@v4
