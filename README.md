@@ -44,14 +44,10 @@ running the same POS on iPad/iPhone as well as Android from one codebase.
 - `.github/workflows/build.yml` — CI that builds an **unsigned iOS app** on
   a macOS cloud runner (since iOS builds require a Mac) and an Android APK
 
-## Not yet ported (next phases — see chat for the plan)
+## Porting plan (Kotlin → Flutter)
 
-Party (Customer/Supplier list/ledger screen), History, Reports, Stock
-Report, Balance Sheet, Day Book, Cash, Expense, Bill Scan (OCR), Bill
-Preview, Backup/Export, User Management, Login, Settings, Bulk Translate,
-Firebase sync wiring, Bluetooth printer, ML Kit-equivalent OCR, and editing
-an already-saved purchase or sale (this drop only supports creating new
-ones).
+Poora plan, phases aur rules: **`PORTING_PLAN.md`** · live progress: **`PORT_STATUS.md`** ·
+Android ki nayi tabdeeliyan: **`ANDROID_CHANGELOG.md`** · Kotlin source: **`kotlin_reference/`**.
 
 ## Setup (you're building this yourself, so here's the full path)
 
