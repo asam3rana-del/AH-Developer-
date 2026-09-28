@@ -2,7 +2,7 @@
 
 `python3 tools/port_status.py` chala kar dobara banayein.
 
-**Overall (lines of Kotlin ke hisaab se): 19%**  (9519/49102)
+**Overall (lines of Kotlin ke hisaab se): 37%**  (18187/49102)
 
 ## Phase 0: Foundation (models, DB, colors, widgets) — 100%
 
@@ -18,7 +18,7 @@
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ✅ | ProductUnitDialog.kt | 625 | lib/widgets/unit_dialog.dart |  |
+| ✅ | ProductUnitDialog.kt | 625 | lib/widgets/unit_dialog.dart | 3-tier + "Default Unit for Sale / Quick Sale" chips (lib/widgets/unit_dialog.dart). |
 | ✅ | ProductActivity.kt | 2112 | lib/screens/product_screen.dart | Admin-only (role guard baad mein Phase 4 se). |
 
 ## Phase 2: Purchase — 64%
@@ -35,51 +35,51 @@
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Naya sale done. Baaki: quick sale, hold/recall, edit/return, keypad, print. |
-| ✅ | SaleRepository.kt | 136 | lib/db/sale_repository.dart |  |
+| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only, SaleScreen(editInvoice:)), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print (text bill preview + copy). Baaki: Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup, Bluetooth/WhatsApp share (Phase 12). |
+| ✅ | SaleRepository.kt | 136 | lib/db/sale_repository.dart | Edit/delete/return + audit + frozen conversionFactor (DB v4) bhi done; linked-payment void Phase 6/8 mein. |
 | ✅ | RoomSaleRepository.kt | 563 | lib/db/sale_repository.dart |  |
 | ✅ | SaleUseCases.kt | 400 | lib/db/sale_repository.dart |  |
 | ➖ | SaleViewModel.kt | 193 | — |  |
 
-## Phase 4: Login, roles, settings, dashboard — 0%
+## Phase 4: Login, roles, settings, dashboard — 57%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ⬜ | LoginActivity.kt | 866 | lib/screens/login_screen.dart | Session {username, role}; OTP/phone link baad mein Phase 10 ke saath. |
-| ⬜ | PasswordHasher.kt | 61 | lib/utils/password_hasher.dart | Same hash format zaroori taake dono apps ke users chalein. |
-| ⬜ | UserManagementActivity.kt | 753 | lib/screens/user_management_screen.dart | Admin-only. |
-| ⬜ | AppLock.kt | 157 | lib/services/app_lock.dart | local_auth package. |
-| ⬜ | Loc.kt | 43 | lib/utils/loc.dart | Loc.t(en, ur) — har naye screen mein use hoga. |
-| ⬜ | ThemeManager.kt | 125 | lib/theme/theme_manager.dart | Dark mode palette. |
-| ⬜ | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart |  |
-| ⬜ | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Role-based tiles (admin/manager/cashier), dashboard live search. |
-| ⬜ | InputValidation.kt | 58 | lib/utils/input_validation.dart |  |
-| ⬜ | Numerickeypad.kt | 214 | lib/widgets/numeric_keypad.dart |  |
-| ⬜ | MenuRow.kt | 196 | lib/widgets/menu_row.dart |  |
+| 🟡 | LoginActivity.kt | 866 | lib/screens/login_screen.dart | Password / none / fingerprint / both done. OTP + phone link Phase 10 mein. |
+| ✅ | PasswordHasher.kt | 61 | lib/utils/password_hasher.dart |  |
+| 🟡 | UserManagementActivity.kt | 753 | lib/screens/user_management_screen.dart | Fingerprint lock done. Sync queue Phase 10 mein. |
+| ✅ | AppLock.kt | 157 | lib/services/app_lock.dart | WidgetsBindingObserver + navigatorKey; pending re-lock prefs mein. |
+| ✅ | Loc.kt | 43 | lib/utils/loc.dart |  |
+| 🟡 | ThemeManager.kt | 125 | lib/theme/theme_manager.dart | Palette + dark toggle done. Purani screens abhi static AppColors par — migrate baaki. |
+| 🟡 | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart | Shop info, login method (password/fingerprint/both/none), dark mode, language, users. Printer/Backup/Sync/OTP baad ke phases. |
+| 🟡 | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Role-based dashboard maujood; live search / baaki tiles check baaki. |
+| ✅ | InputValidation.kt | 58 | lib/utils/input_validation.dart |  |
+| ✅ | Numerickeypad.kt | 214 | lib/widgets/numeric_keypad.dart | NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI. |
+| ✅ | MenuRow.kt | 196 | lib/widgets/menu_row.dart | MenuRow / ExpandableMenuRow / IconBadge. Dashboard/Settings ko isi par lana baaki. |
 
-## Phase 5: Item search, rates, items, sale extras — 0%
+## Phase 5: Item search, rates, items, sale extras — 37%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ⬜ | ItemSearchActivity.kt | 842 | lib/screens/item_search_screen.dart | LATEST spec: docs/specs/item_rate_search.md (3 sale rates, wholesale, cost sirf admin/manager). |
+| ✅ | ItemSearchActivity.kt | 842 | lib/screens/item_search_screen.dart | Spec item_rate_search.md ke mutabiq (3 sale rates, wholesale, cost gate). |
 | ⬜ | RateComparisonActivity.kt | 537 | lib/screens/rate_comparison_screen.dart | Purchase-side => admin/manager only. |
 | ⬜ | ItemsActivity.kt | 1300 | lib/screens/items_screen.dart |  |
 | ⬜ | BulkMissingRatesActivity.kt | 525 | lib/screens/bulk_missing_rates_screen.dart |  |
 | ⬜ | BulkDefaultUnitActivity.kt | 318 | lib/screens/bulk_default_unit_screen.dart |  |
-| ⬜ | SaleCart.kt | 685 | lib/utils/sale_cart.dart | defaultUnitIndexFor / quick-sale default unit logic. |
-| ⬜ | SaleQuickSale.kt | 404 | lib/screens/sale_quick_sale.dart |  |
-| ⬜ | SaleHoldRecall.kt | 199 | lib/services/sale_hold_recall.dart |  |
+| 🟡 | SaleCart.kt | 685 | lib/utils/sale_cart.dart | Done: default unit, reprice on sale type, margin check, Rs-amount mode, inline line edit, customer-rate suggest. Baaki: sirf 'Billed Items' popup (Flutter mein list seedhi screen par hai). |
+| ✅ | SaleQuickSale.kt | 404 | lib/screens/sale_quick_sale.dart | Dialog + saveQuickSale + credit-limit confirm + top-30-day items pehle. System keyboard (Kotlin bhi yahi). |
+| ✅ | SaleHoldRecall.kt | 199 | lib/services/sale_hold_recall.dart + lib/widgets/held_bills_dialog.dart | encode/decode + Held Bills dialog. Sale holds sirf HOLD% (PHOLD% purchase ke liye). |
 
-## Phase 6: Parties (customer/supplier) — 0%
+## Phase 6: Parties (customer/supplier) — 17%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ⬜ | PartyActivity.kt | 1359 | lib/screens/party_screen.dart |  |
+| 🟡 | PartyActivity.kt | 1359 | lib/screens/party_screen.dart | Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Baaki: contact picker (flutter_contacts + permissions), row tap se Party Dashboard/Transaction. |
 | ⬜ | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart |  |
 | ⬜ | PartyTransactionActivity.kt | 2219 | lib/screens/party_transaction_screen.dart | Edit/delete items admin-only. |
 | ⬜ | PartyReportsActivity.kt | 1034 | lib/screens/party_reports_screen.dart |  |
-| ⬜ | PartyRepository.kt | 444 | lib/db/party_repository.dart |  |
-| ⬜ | PartyUseCases.kt | 196 | lib/db/party_repository.dart |  |
+| ✅ | PartyRepository.kt | 444 | lib/db/party_repository.dart | lib/db/party_repository.dart: CRUD + live balances + recalc(dryRun) + merge + cleanup, sab ek transaction mein. PartyLedger/trueBalance/countBalanceDrift yahin (Balance Sheet bhi yahi istemal karta hai). Test: test/party_test.dart. |
+| ✅ | PartyUseCases.kt | 196 | lib/db/party_repository.dart | Validation (naam zaroori) PartyRepository.addCustomer/editCustomer/... mein. |
 | ⬜ | PartyQuickAddMenu.kt | 291 | lib/widgets/party_quick_add_menu.dart |  |
 | ⬜ | DueRemindersActivity.kt | 494 | lib/screens/due_reminders_screen.dart |  |
 | ➖ | PartyViewModel.kt | 271 | — |  |
@@ -93,16 +93,16 @@
 | ⬜ | SaleHistoryActivity.kt | 621 | lib/screens/sale_history_screen.dart | Profit sirf admin. |
 | ⬜ | PurchaseHistoryActivity.kt | 860 | lib/screens/purchase_history_screen.dart | Admin-only. |
 
-## Phase 8: Cash, expense, accounts — 0%
+## Phase 8: Cash, expense, accounts — 63%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ⬜ | CashActivity.kt | 483 | lib/screens/cash_screen.dart |  |
-| ⬜ | CashRegisterActivity.kt | 580 | lib/screens/cash_register_screen.dart |  |
-| ⬜ | ExpenseActivity.kt | 504 | lib/screens/expense_screen.dart |  |
-| ⬜ | DayBookActivity.kt | 476 | lib/screens/day_book_screen.dart |  |
-| ⬜ | PaymentsReportActivity.kt | 428 | lib/screens/payments_report_screen.dart | admin/manager only. |
-| ⬜ | BalanceSheetActivity.kt | 289 | lib/screens/balance_sheet_screen.dart | admin/manager only. |
+| ✅ | CashActivity.kt | 483 | lib/screens/cash_screen.dart + lib/db/cash_repository.dart | Sab roles. Cash Out + category => Expense + linked cash row (ek transaction). DB v6: expenses.method. Test: test/cash_test.dart. |
+| ✅ | CashRegisterActivity.kt | 580 | lib/screens/cash_register_screen.dart + lib/db/cash_register_repository.dart | Sab roles. Open (check+insert ek transaction, create_if_absent) / edit opening / close (fresh expected confirm) / reopen + history. Test: test/cash_register_test.dart. Dashboard par "Cash Register" tile. |
+| ✅ | ExpenseActivity.kt | 504 | lib/screens/expense_screen.dart + lib/db/expense_repository.dart | Sab roles. Save/Delete = Expense + linked cash OUT row ek transaction. CashRepository.save ab isi ExpenseRepository.insertExpenseWithCash ko use karta hai. Test: test/expense_test.dart. Dashboard par "Expenses" tile. |
+| ✅ | DayBookActivity.kt | 476 | lib/screens/day_book_screen.dart + lib/db/day_book_repository.dart | Sab roles. Sale row tap = admin only (SaleScreen editInvoice). Purchase row tap Phase 7 (edit saved purchase) ke saath. Double-count fixes test/day_book_test.dart mein. |
+| ✅ | PaymentsReportActivity.kt | 428 | lib/screens/payments_screen.dart (History tab) | History tab admin/manager only; edit/delete admin only. Record tab (Receive/Make Payment) for all roles. |
+| ✅ | BalanceSheetActivity.kt | 289 | lib/screens/balance_sheet_screen.dart + lib/db/balance_sheet_repository.dart | Admin/Manager only (RoleGuard + role check in repository). Fix Balances dry-run warning: ledger logic ab PartyRepository (party_repository.dart) se aata hai. Tile abhi Dashboard par; Phase 9 mein Reports ke andar le jayen. Test: test/balance_sheet_test.dart. |
 | ⬜ | ZakatActivity.kt | 983 | lib/screens/zakat_screen.dart | admin/manager only. |
 | ⬜ | ShellLedgerActivity.kt | 607 | lib/screens/shell_ledger_screen.dart |  |
 

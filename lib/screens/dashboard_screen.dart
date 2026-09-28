@@ -12,6 +12,7 @@ import 'day_book_screen.dart';
 import 'expense_screen.dart';
 import 'item_search_screen.dart';
 import 'login_screen.dart';
+import 'party_screen.dart';
 import 'payments_screen.dart';
 import 'product_screen.dart';
 import 'purchase_screen.dart';
@@ -55,7 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _Tile('Cash Register', 'کیش رجسٹر', 'Daily till open & close', 'روزانہ رجسٹر کھولیں / بند کریں', Icons.point_of_sale, AppColors.amber, _all, () => const CashRegisterScreen()),
         _Tile('Expenses', 'اخراجات', 'Track business spending', 'کاروباری اخراجات', Icons.receipt_long, AppColors.red, _all, () => const ExpenseScreen()),
         _Tile('Payments', 'ادائیگیاں', 'Receive or make a payment', 'رقم وصول یا ادا کریں', Icons.account_balance, AppColors.teal, _all, () => const PaymentsScreen()),
-        const _Tile('Customers & Suppliers', 'گاہک اور سپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people, Color(0xFFEC4899), _all, null),
+        _Tile('Customers & Suppliers', 'گاہک اور سپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people, const Color(0xFFEC4899), _all, () => const PartyScreen()),
         const _Tile('Low Stock', 'کم اسٹاک', 'Items needing restock', 'دوبارہ منگوانے والی اشیاء', Icons.warning_amber, AppColors.red, _all, null),
         _Tile('Products', 'پروڈکٹس', 'Products, categories & units', 'پروڈکٹس، کیٹیگریز اور یونٹس', Icons.list_alt, AppColors.blue, _admin,
             () => const RoleGuard(allowed: _admin, child: ProductScreen())),

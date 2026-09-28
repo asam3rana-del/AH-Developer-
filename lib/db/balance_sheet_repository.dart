@@ -1,6 +1,11 @@
 import '../models/product.dart';
 import '../services/session.dart';
 import 'app_database.dart';
+import 'party_repository.dart';
+
+// PartyLedger / trueBalance / countBalanceDrift ab party_repository.dart mein hain (ek hi copy);
+// purane imports (aur test/balance_sheet_test.dart) chalte rahein isliye yahan se re-export.
+export 'party_repository.dart' show PartyLedger, trueBalance, countBalanceDrift;
 
 /// Ports the data side of BalanceSheetActivity.kt (`loadBalanceSheet`).
 ///
@@ -86,33 +91,6 @@ BalanceSheetFigures buildBalanceSheet({
   );
 }
 
-/// One party's bills + payments, enough to recompute its true balance.
-class PartyLedger {
-  final double storedBalance;
-  final List<({String id, String status, double total, double paid})> bills;
-  final List<({String reference, String billReference, double amount})> payments;
-  const PartyLedger({required this.storedBalance, required this.bills, required this.payments});
-}
-
-/// Kotlin trueCustomerBalance / trueSupplierBalance:
-///   sum(total - paid) of non-returned bills  -  sum(payment amounts)
-/// where a payment is skipped if it is already inside a bill's `paid`
-/// (its reference is a bill id, or its billReference points at a known bill —
-/// the id set is built from ALL bills, returned ones included).
-double trueBalance(PartyLedger l) {
-  final ids = {for (final b in l.bills) b.id};
-  final owed = l.bills.where((b) => b.status != 'returned').fold<double>(0, (a, b) => a + b.total - b.paid);
-  final paidSeparately = l.payments
-      .where((p) => !ids.contains(p.reference) && !(p.billReference.isNotEmpty && ids.contains(p.billReference)))
-      .fold<double>(0, (a, p) => a + p.amount);
-  return owed - paidSeparately;
-}
-
-/// Dry-run of Kotlin `recalculateBalances(dryRun = true)`: how many parties
-/// have a stored balance that differs from the recomputed one. Writes nothing.
-int countBalanceDrift(Iterable<PartyLedger> parties) =>
-    parties.where((p) => (trueBalance(p) - p.storedBalance).abs() > 0.009).length;
-
 class BalanceSheetData {
   final BalanceSheetFigures figures;
   final int customersDrifted;
@@ -159,53 +137,8 @@ class BalanceSheetRepository {
 
     return BalanceSheetData(
       figures,
-      countBalanceDrift(await _ledgers(customers: true)),
-      countBalanceDrift(await _ledgers(customers: false)),
+      countBalanceDrift(await PartyRepository.instance.ledgers(customers: true)),
+      countBalanceDrift(await PartyRepository.instance.ledgers(customers: false)),
     );
-  }
-
-  Future<List<PartyLedger>> _ledgers({required bool customers}) async {
-    final db = await AppDatabase.instance.database;
-    final partyTable = customers ? 'customers' : 'suppliers';
-    final billTable = customers ? 'sales' : 'purchases';
-    final billKey = customers ? 'invoice' : 'billNo';
-    final partyCol = customers ? 'customerId' : 'supplierId';
-    final partyType = customers ? 'customer' : 'supplier';
-
-    final parties = await db.query(partyTable, columns: ['id', 'balance']);
-    final billRows = await db.query(billTable, columns: [billKey, partyCol, 'status', 'total', 'paid']);
-    final payRows = await db.query('payments',
-        columns: ['partyId', 'reference', 'billReference', 'amount'], where: 'partyType = ?', whereArgs: [partyType]);
-
-    final billsBy = <int, List<({String id, String status, double total, double paid})>>{};
-    for (final b in billRows) {
-      final pid = b[partyCol] as int?;
-      if (pid == null) continue;
-      (billsBy[pid] ??= []).add((
-        id: b[billKey] as String,
-        status: (b['status'] as String?) ?? 'active',
-        total: (b['total'] as num).toDouble(),
-        paid: (b['paid'] as num).toDouble(),
-      ));
-    }
-    final paysBy = <int, List<({String reference, String billReference, double amount})>>{};
-    for (final p in payRows) {
-      final pid = p['partyId'] as int?;
-      if (pid == null) continue;
-      (paysBy[pid] ??= []).add((
-        reference: p['reference'] as String,
-        billReference: (p['billReference'] as String?) ?? '',
-        amount: (p['amount'] as num).toDouble(),
-      ));
-    }
-
-    return [
-      for (final p in parties)
-        PartyLedger(
-          storedBalance: (p['balance'] as num).toDouble(),
-          bills: billsBy[p['id'] as int] ?? const [],
-          payments: paysBy[p['id'] as int] ?? const [],
-        ),
-    ];
   }
 }
