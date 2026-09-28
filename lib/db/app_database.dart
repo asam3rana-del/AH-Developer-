@@ -15,7 +15,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 4;
+  static const _dbVersion = 5;
 
   Database? _db;
 
@@ -150,7 +150,8 @@ class AppDatabase {
         createdAt INTEGER NOT NULL,
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
-        dirty INTEGER NOT NULL DEFAULT 1
+        dirty INTEGER NOT NULL DEFAULT 1,
+        billReference TEXT NOT NULL DEFAULT ''
       )
     ''');
 
@@ -308,6 +309,11 @@ class AppDatabase {
       // 0 = never captured (old rows) -> fall back to the product's current ladder.
       await _addColumnIfMissing(
           db, 'sale_items', 'conversionFactor', 'REAL NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 5) {
+      // v5: a payment can be linked to one bill (Kotlin Payment.billReference).
+      await _addColumnIfMissing(
+          db, 'payments', 'billReference', "TEXT NOT NULL DEFAULT ''");
     }
   }
 
