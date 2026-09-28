@@ -17,12 +17,10 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      - run: flutter pub get
+      # ios/ aur android/ folder repo mein nahi hain, isliye yahan bana lete hain
+      - run: flutter create . --platforms=ios,android --project-name ah_developer_kiryana_store --org com.ahdeveloper
 
-      # Unsigned build — good enough to confirm it compiles for iOS.
-      # To install on a real iPad you need a signed IPA: open ios/Runner.xcworkspace
-      # in Xcode on a Mac, set your Apple Developer team under Signing & Capabilities,
-      # then Product > Archive (or use TestFlight for wider distribution).
+      - run: flutter pub get
       - run: flutter build ios --release --no-codesign
 
       - uses: actions/upload-artifact@v4
@@ -41,6 +39,7 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
+      - run: flutter create . --platforms=ios,android --project-name ah_developer_kiryana_store --org com.ahdeveloper
       - run: flutter pub get
       - run: flutter build apk --release
 
