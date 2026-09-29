@@ -325,8 +325,8 @@
   "kotlin": "HistoryActivity.kt",
   "phase": 7,
   "dart": "lib/screens/history_screen.dart",
-  "status": "todo",
-  "note": "Return/Delete/profit admin-only."
+  "status": "done",
+  "note": "lib/screens/history_screen.dart — router: HistoryMode.sales/purchases => SaleHistoryScreen/PurchaseHistoryScreen; mode null => SALES/PURCHASES pills (Purchases sirf admin). Business logic dedicated screens mein (admin-only Return/Delete/profit)."
  },
  {
   "kotlin": "SaleHistoryActivity.kt",
@@ -388,36 +388,36 @@
   "kotlin": "ZakatActivity.kt",
   "phase": 8,
   "dart": "lib/screens/zakat_screen.dart",
-  "status": "todo",
-  "note": "admin/manager only."
+  "status": "done",
+  "note": "lib/screens/zakat_screen.dart. admin/manager only (RoleGuard). Test: test/zakat_test.dart. Dashboard tile."
  },
  {
   "kotlin": "ShellLedgerActivity.kt",
   "phase": 8,
   "dart": "lib/screens/shell_ledger_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "lib/screens/shell_ledger_screen.dart. Test: test/shell_test.dart. Dashboard tile."
  },
  {
   "kotlin": "ReportsActivity.kt",
   "phase": 9,
   "dart": "lib/screens/reports_screen.dart",
-  "status": "todo",
-  "note": "admin/manager only."
+  "status": "partial",
+  "note": "lib/screens/reports_screen.dart + lib/db/reports_repository.dart. Admin/Manager only. Done: hub rows (Monthly, Stock Report, History, Party Reports, Payments, Due Reminders, Balance Sheet, Zakat), period filter, 7 summary cards, P&L, Top Products, Daily Sales. Baaki: Stock*/Insights rows abhi \"Coming soon\" — un screens ke saath jorna. Test: test/reports_test.dart. Dashboard tile."
  },
  {
   "kotlin": "MonthlySalesPurchaseActivity.kt",
   "phase": 9,
   "dart": "lib/screens/monthly_sales_purchase_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "lib/screens/monthly_screen.dart + lib/db/monthly_repository.dart (pure selectEntries/groupPeriods). Admin/Manager only. Party id se match, item lines mein returned bills bahar. Test: test/monthly_test.dart. Reports hub row."
  },
  {
   "kotlin": "StockReportActivity.kt",
   "phase": 9,
   "dart": "lib/screens/stock_report_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "lib/screens/stock_report_screen.dart + lib/db/stock_report_repository.dart (pure costPerSmallestUnit/summarizeStock/filterStock). Sab roles (dashboard Low Stock tile, StockReportScreen(lowStockOnly: true)); cashier ko cost data nahi. Test: test/stock_report_test.dart. Reports hub row."
  },
  {
   "kotlin": "StockAuditActivity.kt",

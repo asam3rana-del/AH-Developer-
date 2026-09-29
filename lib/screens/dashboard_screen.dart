@@ -21,10 +21,12 @@ import 'payments_screen.dart';
 import 'product_screen.dart';
 import 'purchase_history_screen.dart';
 import 'purchase_screen.dart';
+import 'reports_screen.dart';
 import 'rate_comparison_screen.dart';
 import 'sale_history_screen.dart';
 import 'sale_screen.dart';
 import 'settings_screen.dart';
+import 'stock_report_screen.dart';
 import 'shell_ledger_screen.dart';
 import 'user_management_screen.dart';
 import 'zakat_screen.dart';
@@ -68,7 +70,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _Tile('Party Dashboard', 'پارٹی ڈیش بورڈ', "You'll get / give, parties & items", 'لینے دینے کا خلاصہ', Icons.dashboard_customize, AppColors.blue, _all,
             () => const PartyDashboardScreen()),
         _Tile('Customers & Suppliers', 'گاہک اور سپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people, const Color(0xFFEC4899), _all, () => const PartyScreen()),
-        const _Tile('Low Stock', 'کم اسٹاک', 'Items needing restock', 'دوبارہ منگوانے والی اشیاء', Icons.warning_amber, AppColors.red, _all, null),
+        _Tile('Low Stock', 'کم اسٹاک', 'Items needing restock', 'دوبارہ منگوانے والی اشیاء', Icons.warning_amber, AppColors.red, _all,
+            () => const StockReportScreen(lowStockOnly: true)),
         _Tile('Items', 'آئٹمز', 'Products, categories & units', 'پروڈکٹس، کیٹیگریز اور یونٹس', Icons.category, AppColors.blue, _admin,
             () => const RoleGuard(allowed: _admin, child: ItemsScreen())),
         _Tile('Products', 'پروڈکٹس', 'Products, categories & units', 'پروڈکٹس، کیٹیگریز اور یونٹس', Icons.list_alt, AppColors.blue, _admin,
@@ -84,6 +87,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             () => const DueRemindersScreen()),
         // Kotlin: Due Reminders bhi Reports (admin/manager) ke andar hai — Reports (Phase 9) tak yahan.
         // Kotlin opens Party Reports from Reports (Phase 9) — temporary home here, same as Balance Sheet.
+        _Tile('Reports', 'رپورٹس', 'Sales, stock & financial overview', 'سیل، اسٹاک اور مالیاتی جائزہ', Icons.bar_chart, AppColors.purple, _am,
+            () => const ReportsScreen()),
         _Tile('Party Reports', 'پارٹی رپورٹس', 'Ledger, statement & item reports', 'لیجر، اسٹیٹمنٹ اور آئٹم رپورٹس', Icons.people_alt, AppColors.purple, _am,
             () => const PartyReportsScreen()),
         _Tile('Zakat', 'زکوٰۃ', 'Ramadan-to-Ramadan tracker', 'رمضان تا رمضان حساب', Icons.volunteer_activism, AppColors.teal, _am,

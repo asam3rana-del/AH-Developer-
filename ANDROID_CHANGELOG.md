@@ -1,5 +1,37 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Stock Report (Phase 9)
+- [x] `StockReportActivity.kt`: `lib/screens/stock_report_screen.dart` + `lib/db/stock_report_repository.dart` (pure `costPerSmallestUnit`, `salePerSmallestUnit`, `isLowStock`, `summarizeStock`, `filterStock`; test `test/stock_report_test.dart`).
+- Dashboard "Low Stock" tile ab `StockReportScreen(lowStockOnly: true)` kholta hai (Kotlin `EXTRA_LOW_STOCK_ONLY`); Reports hub ki "Stock Report" row bhi.
+- Summary: Total Products / Low Stock / Stock Value (Cost) / Stock Value (Sale); search naam+searchTag, category, barcode; LOW STOCK ONLY toggle; card par LOW badge + stock breakdown + cost value.
+- Kotlin FIX barqarar: value = stock * (rate / smallestUnitFactor) (stock smallest unit mein, rate primary par).
+- Role: sab roles (Low Stock tile sab ko dikhta hai). Cashier ko cost data nahi: repository `cost` zero karta hai, "Stock Value (Cost)" card aur row values chhup jate hain.
+- [ ] Reports hub ki "Coming soon" rows ab baqi: Stock History, Cost History, Stock Audit, Stock Adjustment, Stock Taking, Reorder, Damage/Loss, Profit Margin, Movers.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_report_test.dart`.
+
+## Flutter side (2026-09-29) — Monthly Sale vs Purchase (Phase 9)
+- [x] `MonthlySalesPurchaseActivity.kt`: `lib/screens/monthly_screen.dart` + `lib/db/monthly_repository.dart` (pure `selectEntries`, `groupPeriods`, `suggestParties`, `suggestProducts`; test `test/monthly_test.dart`). Reports hub ki "Sale vs Purchase" row ab isi ko kholti hai.
+- Monthly / Yearly, Party (customer/supplier) + Item filter, Total Sale / Total Purchase cards, har period ka Sale / Purchase / Net (naya pehle). Customer chuna => purchase side n/a, supplier => sale side n/a (Kotlin jaisa).
+- Farq: party *id* se match (Kotlin naam se); item lines se returned bills bahar (Kotlin ke item queries status nahi dekhte the); item suggestions `matchesQuery` (name + searchTag); header `palette.teal`. Role admin/manager (Kotlin mein check nahi tha, Reports ke andar hai).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/monthly_test.dart`.
+
+## Flutter side (2026-09-29) — Reports (Phase 9, pehli screen)
+- [x] `ReportsActivity.kt`: `lib/screens/reports_screen.dart` + `lib/db/reports_repository.dart` (pure `reportRangeFor`, `buildProfitLoss`; test `test/reports_test.dart`). Dashboard tile "Reports" (admin/manager).
+- Hub rows chalte hain: Sale/Purchase History (`HistoryScreen(mode:)`), Party Reports, Payments, Due Reminders, Balance Sheet, Zakat.
+- Period filter (Today / Week / Month / All Time) -> Total Sales / Profit / Purchases / Expenses / Sale Returns / Purchase Returns / Number of Sales, P&L (Revenue - COGS = Gross - Expenses = Net), Top 5 Products, Daily Sales. SQL Kotlin DAO jaisi (returned bills bahar; profit = sale.total - bill COGS).
+- [ ] Rows jo abhi "Coming soon" dikhati hain (baqi Phase 9 screens banne par `_soon` ki jagah `_open(...)`): Stock History, Cost History, Stock Audit, Stock Adjustment, Stock Taking, Reorder, Damage/Loss, Profit Margin, Fast/Slow Movers.
+- Farq: Today ka end agla midnight (DST-safe); hafta Monday se (Kotlin mein locale ka firstDayOfWeek); Purchase History row manager ko dikhti hai magar screen admin-only hai.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/reports_test.dart`.
+
+## Flutter side (2026-09-29) — HistoryActivity (Phase 7, aakhri screen)
+- [x] `HistoryActivity.kt`: `lib/screens/history_screen.dart` — `HistoryScreen(mode: HistoryMode.sales | purchases | null)`.
+  Kotlin mein ye combined screen hai; dono lists Flutter mein pehle se `SaleHistoryScreen` / `PurchaseHistoryScreen` hain
+  (Return/Delete/profit admin-only, atomic transactions wahin), isliye ye sirf router hai — logic dobara nahi likhi.
+  `mode` di ho to seedha wahi list (koi tab nahi); `mode` null ho to SALES / PURCHASES pills (Purchases sirf admin, warna sirf Sales).
+- Kahin se abhi `HistoryScreen` khulti nahi (Dashboard par alag Sale/Purchase History tiles hain) — Phase 9 Reports ke tiles `HistoryScreen(mode: ...)` use karenge.
+- Tools: `port_map.json` mein Zakat + Shell Ledger `done` kiye (screens/tests/dashboard tiles pehle se maujood thay, status purana tha).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze`.
+
 ## Flutter side (2026-09-29) — Purchase History (Phase 7, doosra screen)
 - [x] `PurchaseHistoryActivity.kt`: `lib/screens/purchase_history_screen.dart` + `lib/db/purchase_history_repository.dart`
   (pure `summarizePurchases`, `filterPurchaseRows`, `parseReturnRequest`, `returnedLineAmount`; test `test/purchase_history_test.dart`;

@@ -2,7 +2,7 @@
 
 `python3 tools/port_status.py` chala kar dobara banayein.
 
-**Overall (lines of Kotlin ke hisaab se): 55%**  (27147/49102)
+**Overall (lines of Kotlin ke hisaab se): 63%**  (31092/49102)
 
 ## Phase 0: Foundation (models, DB, colors, widgets) — 100%
 
@@ -85,15 +85,15 @@
 | ➖ | PartyViewModel.kt | 271 | — |  |
 | ➖ | PartyViewModelFactory.kt | 58 | — |  |
 
-## Phase 7: History — 58%
+## Phase 7: History — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ⬜ | HistoryActivity.kt | 1063 | lib/screens/history_screen.dart | Return/Delete/profit admin-only. |
+| ✅ | HistoryActivity.kt | 1063 | lib/screens/history_screen.dart | lib/screens/history_screen.dart — router: HistoryMode.sales/purchases => SaleHistoryScreen/PurchaseHistoryScreen; mode null => SALES/PURCHASES pills (Purchases sirf admin). Business logic dedicated screens mein (admin-only Return/Delete/profit). |
 | ✅ | SaleHistoryActivity.kt | 621 | lib/screens/sale_history_screen.dart | lib/db/sale_history_repository.dart (pure groupSalesByCustomer/summarizeSales/filterGroups). Sab roles dekh sakte hain; profit + Edit/Return/Delete sirf admin. Print = text Bill Preview. Test: test/sale_history_test.dart. Dashboard tile. |
 | ✅ | PurchaseHistoryActivity.kt | 860 | lib/screens/purchase_history_screen.dart | lib/screens/purchase_history_screen.dart + lib/db/purchase_history_repository.dart (pure summarizePurchases/filterPurchaseRows/parseReturnRequest/returnedLineAmount). Admin-only. Partial return + delete ek transaction mein. Card tap = detail dialog (edit-saved-purchase Phase 2 baaki). Print = text preview, Share = clipboard. Test: test/purchase_history_test.dart. |
 
-## Phase 8: Cash, expense, accounts — 63%
+## Phase 8: Cash, expense, accounts — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
@@ -103,16 +103,16 @@
 | ✅ | DayBookActivity.kt | 476 | lib/screens/day_book_screen.dart + lib/db/day_book_repository.dart | Sab roles. Sale row tap = admin only (SaleScreen editInvoice). Purchase row tap Phase 7 (edit saved purchase) ke saath. Double-count fixes test/day_book_test.dart mein. |
 | ✅ | PaymentsReportActivity.kt | 428 | lib/screens/payments_screen.dart (History tab) | History tab admin/manager only; edit/delete admin only. Record tab (Receive/Make Payment) for all roles. |
 | ✅ | BalanceSheetActivity.kt | 289 | lib/screens/balance_sheet_screen.dart + lib/db/balance_sheet_repository.dart | Admin/Manager only (RoleGuard + role check in repository). Fix Balances dry-run warning: ledger logic ab PartyRepository (party_repository.dart) se aata hai. Tile abhi Dashboard par; Phase 9 mein Reports ke andar le jayen. Test: test/balance_sheet_test.dart. |
-| ⬜ | ZakatActivity.kt | 983 | lib/screens/zakat_screen.dart | admin/manager only. |
-| ⬜ | ShellLedgerActivity.kt | 607 | lib/screens/shell_ledger_screen.dart |  |
+| ✅ | ZakatActivity.kt | 983 | lib/screens/zakat_screen.dart | lib/screens/zakat_screen.dart. admin/manager only (RoleGuard). Test: test/zakat_test.dart. Dashboard tile. |
+| ✅ | ShellLedgerActivity.kt | 607 | lib/screens/shell_ledger_screen.dart | lib/screens/shell_ledger_screen.dart. Test: test/shell_test.dart. Dashboard tile. |
 
-## Phase 9: Reports & stock — 0%
+## Phase 9: Reports & stock — 34%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ⬜ | ReportsActivity.kt | 808 | lib/screens/reports_screen.dart | admin/manager only. |
-| ⬜ | MonthlySalesPurchaseActivity.kt | 561 | lib/screens/monthly_sales_purchase_screen.dart |  |
-| ⬜ | StockReportActivity.kt | 327 | lib/screens/stock_report_screen.dart |  |
+| 🟡 | ReportsActivity.kt | 808 | lib/screens/reports_screen.dart | lib/screens/reports_screen.dart + lib/db/reports_repository.dart. Admin/Manager only. Done: hub rows (Monthly, Stock Report, History, Party Reports, Payments, Due Reminders, Balance Sheet, Zakat), period filter, 7 summary cards, P&L, Top Products, Daily Sales. Baaki: Stock*/Insights rows abhi "Coming soon" — un screens ke saath jorna. Test: test/reports_test.dart. Dashboard tile. |
+| ✅ | MonthlySalesPurchaseActivity.kt | 561 | lib/screens/monthly_sales_purchase_screen.dart | lib/screens/monthly_screen.dart + lib/db/monthly_repository.dart (pure selectEntries/groupPeriods). Admin/Manager only. Party id se match, item lines mein returned bills bahar. Test: test/monthly_test.dart. Reports hub row. |
+| ✅ | StockReportActivity.kt | 327 | lib/screens/stock_report_screen.dart | lib/screens/stock_report_screen.dart + lib/db/stock_report_repository.dart (pure costPerSmallestUnit/summarizeStock/filterStock). Sab roles (dashboard Low Stock tile, StockReportScreen(lowStockOnly: true)); cashier ko cost data nahi. Test: test/stock_report_test.dart. Reports hub row. |
 | ⬜ | StockAuditActivity.kt | 345 | lib/screens/stock_audit_screen.dart |  |
 | ⬜ | StockTakingActivity.kt | 335 | lib/screens/stock_taking_screen.dart |  |
 | ⬜ | StockAdjustmentActivity.kt | 328 | lib/screens/stock_adjustment_screen.dart |  |
