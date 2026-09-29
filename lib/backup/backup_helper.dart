@@ -12,6 +12,7 @@ import 'package:sqflite/sqflite.dart';
 import '../db/app_database.dart';
 import 'backup_crypto.dart';
 import 'backup_password_store.dart';
+import 'kotlin_import.dart';
 
 /// Mirrors BackupHelper.kt — live SQLite DB ka encrypted backup / safe restore.
 ///
@@ -30,6 +31,9 @@ class BackupHelper {
   BackupHelper._();
 
   static String? lastError;
+
+  /// Kotlin app ka backup import hua ho to uska khulasa (UI "Restore complete" mein dikhata hai); warna null.
+  static String? lastImportSummary;
 
   static const folderName = 'IBTISAAM POS Backups';
   static const backupExtension = 'ibbackup';
@@ -203,6 +207,7 @@ class BackupHelper {
 
   static Future<bool> _restoreSafely(File backupFile, String? pass) async {
     lastError = null;
+    lastImportSummary = null;
     final dbPath = await AppDatabase.instance.databasePath;
     final dbFile = File(dbPath);
     final temp = File('$dbPath.restore_tmp');
@@ -229,6 +234,12 @@ class BackupHelper {
         await _deleteQuietly(temp);
         return false;
       }
+      // Kotlin (Room) app ka backup: user_version 48 aur alag columns hain, isliye file badalne ki jagah
+      // uska data column-by-column Flutter DB mein copy karte hain (KotlinBackupImporter).
+      if (await KotlinBackupImporter.isRoomDatabase(temp.path)) {
+        return await _importKotlinBackup(temp, dbFile);
+      }
+
       final schemaError = await _schemaError(temp.path);
       if (schemaError != null) {
         lastError = schemaError;
@@ -267,6 +278,31 @@ class BackupHelper {
     }
   }
 
+  /// Kotlin backup ka data live DB mein copy. Pehle safety backup; import transaction mein — fail => live data same.
+  static Future<bool> _importKotlinBackup(File temp, File dbFile) async {
+    try {
+      if (await dbFile.exists()) {
+        _busy = false; // backupNow() apna lock khud leta hai
+        final safety = await backupNow();
+        _busy = true;
+        if (safety == null) {
+          lastError = 'Import se pehle safety backup nahi ban saka: ${lastError ?? ''}'.trim();
+          await _deleteQuietly(temp);
+          return false;
+        }
+      }
+      final live = await AppDatabase.instance.database;
+      final report = await KotlinBackupImporter.importInto(live, temp.path);
+      lastImportSummary = report.summary();
+      await _deleteQuietly(temp);
+      return true;
+    } catch (e) {
+      lastError = e is KotlinImportException ? e.message : e.toString();
+      await _deleteQuietly(temp);
+      return false;
+    }
+  }
+
   static Future<bool> _isValidSqliteDb(File file) async {
     try {
       if (await file.length() < _sqliteHeader.length) return false;
@@ -297,7 +333,7 @@ class BackupHelper {
       }
       final ver = Sqflite.firstIntValue(await db.rawQuery('PRAGMA user_version')) ?? 0;
       if (ver > AppDatabase.schemaVersion) {
-        return 'Ye backup is app se naye version ka hai (v$ver) — pehle app update karein';
+        return 'Ye backup is app se naye version ka hai (v$ver) — pehle app update karein [E-KTIMPORT-OFF]';
       }
       final rows = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'");
       final have = rows.map((r) => r['name'].toString()).toSet();

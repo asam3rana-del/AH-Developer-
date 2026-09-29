@@ -288,7 +288,10 @@ class _BackupBodyState extends State<_BackupBody> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: Text(Loc.t('Restore complete', 'بحالی مکمل')),
-        content: Text(Loc.t('Please sign in again.', 'براہِ کرم دوبارہ لاگ اِن کریں۔')),
+        content: Text([
+          if (BackupHelper.lastImportSummary != null) BackupHelper.lastImportSummary!,
+          Loc.t('Please sign in again.', 'براہِ کرم دوبارہ لاگ اِن کریں۔'),
+        ].join('\n\n')),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
       ),
     );
