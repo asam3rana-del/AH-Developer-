@@ -76,3 +76,31 @@ jobs:
         with:
           name: android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+  build-windows:
+    name: Build Windows (exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      # Repo mein windows/ folder nahi hota, isliye generate karte hain (iOS / Android jaisa).
+      - run: flutter create --platforms=windows --project-name ah_developer_kiryana_store .
+
+      - run: flutter pub get
+
+      - run: flutter build windows --release
+
+      # Poora Release folder (exe + dll + data) — sirf .exe akeli nahi chalti.
+      - name: Zip Release folder
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath AH-Kiryana-Store-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: AH-Kiryana-Store-windows.zip
