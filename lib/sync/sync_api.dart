@@ -127,7 +127,9 @@ class SyncApi implements SyncBackend {
           final delta = (map['delta'] as num?)?.toDouble() ?? 0.0;
           final opId = buildOpId(DeviceTag.current, entry.id, entry.createdAt);
           final ts = nowMs();
-          final updatedAtValue = map['updatedAt'] ?? ts;
+          // PULL FIX: increment ka updatedAt PUSH ke waqt ka ho (queue banne ke waqt ka nahi) — warna doosra
+          // device jiska checkpoint us se aage nikal chuka ho ye balance/stock change kabhi pull nahi karta.
+          final updatedAtValue = ts;
           // Transaction ke bahar (local DB async): naye doc ko is device ke record ki pehchan dene ke liye.
           final seed = await loadSeedFields(localDb,
               entityType: entry.entityType, entityId: entry.entityId);
@@ -209,7 +211,7 @@ class SyncApi implements SyncBackend {
       final snap = await fs
           .collection(collection)
           .where('branchId', isEqualTo: branch)
-          .where('updatedAt', isGreaterThan: since)
+          .where('updatedAt', isGreaterThan: since > pullOverlapMs ? since - pullOverlapMs : 0)
           .get(const GetOptions(source: Source.server));
       return MapEntry(collection, [for (final d in snap.docs) Map<String, Object?>.from(d.data())]);
     }

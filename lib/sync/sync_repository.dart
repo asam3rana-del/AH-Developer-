@@ -95,6 +95,7 @@ class SyncRepository {
     final p = await SharedPreferences.getInstance();
     final since = p.getInt(prefsLastSync) ?? 0;
 
+    final pullStartedAt = nowMs();
     final PullResult changes;
     try {
       changes = await api.pull(since);
@@ -115,7 +116,10 @@ class SyncRepository {
       } catch (_) {/* sync kabhi nahi rukti */}
     }
 
-    await p.setInt(prefsLastSync, changes.serverTime);
+    // CLOCK-SKEW FIX: kisi device ki clock aage ho to uska updatedAt checkpoint ko future mein le jata tha aur
+    // baqi devices ke docs skip hote the. Checkpoint kabhi is pull ke start se aage nahi.
+    final checkpoint = changes.serverTime < pullStartedAt ? changes.serverTime : pullStartedAt;
+    await p.setInt(prefsLastSync, checkpoint);
 
     // Safai: 7 din se purani synced queue rows.
     await queue.pruneSynced(nowMs() - pruneAfterMs);

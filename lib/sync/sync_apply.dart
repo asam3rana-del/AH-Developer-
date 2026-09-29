@@ -88,7 +88,23 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
     final localPending = await pendingDelta(q, 'customer', serverId, 'increment_balance');
     // 2-device FIX: is device ka apna naam/phone edit abhi push nahi hua => server ki purani copy se
     // overwrite na karo.
-    if ((await q.pendingForEntityAnyRetry('customer', serverId, 'upsert')).isNotEmpty) continue;
+    final customerUpsertPending =
+        (await q.pendingForEntityAnyRetry('customer', serverId, 'upsert')).isNotEmpty;
+    if (customerUpsertPending) {
+      // BALANCE FIX: pending naam/phone edit ki wajah se poora row skip NAHI hona chahiye — warna doosre
+      // device ka balance update hamesha ke liye kho jata hai (checkpoint aage barh jata hai, ye doc
+      // dobara pull nahi hota). Sirf balance apply karo; naam/phone/limit local hi rahein.
+      final local = await _findBy(db, 'customers', 'serverId', serverId);
+      if (local != null) {
+        await db.update(
+          'customers',
+          {'balance': balance + localPending},
+          where: 'id = ?',
+          whereArgs: [local['id']],
+        );
+      }
+      continue;
+    }
 
     final existing = await _findBy(db, 'customers', 'serverId', serverId);
     if (existing != null) {
@@ -145,7 +161,21 @@ Future<void> applySuppliers(DatabaseExecutor db, List<SyncDoc> rows, {required i
     final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
     final localPending = await pendingDelta(q, 'supplier', serverId, 'increment_balance');
     // 2-device FIX (customer jaisa): pending rename ("Cash Purchase" -> asli naam) pull se wapas na ho.
-    if ((await q.pendingForEntityAnyRetry('supplier', serverId, 'upsert')).isNotEmpty) continue;
+    final supplierUpsertPending =
+        (await q.pendingForEntityAnyRetry('supplier', serverId, 'upsert')).isNotEmpty;
+    if (supplierUpsertPending) {
+      // BALANCE FIX (customer jaisa): pending rename ho to bhi doosre device ka balance apply karo.
+      final local = await _findBy(db, 'suppliers', 'serverId', serverId);
+      if (local != null) {
+        await db.update(
+          'suppliers',
+          {'balance': balance + localPending},
+          where: 'id = ?',
+          whereArgs: [local['id']],
+        );
+      }
+      continue;
+    }
 
     final existing = await _findBy(db, 'suppliers', 'serverId', serverId);
     if (existing != null) {
@@ -171,11 +201,11 @@ Future<void> applySuppliers(DatabaseExecutor db, List<SyncDoc> rows, {required i
       await db.insert('suppliers', {
         'name': name,
         'phone': phone,
-        'balance': balance,
+        'balance': balance + localPending,
         'openingBalance': openingBalance,
         'serverId': serverId,
-        'updatedAt': nowMs(),
-        'dirty': 0,
+        'updatedAt': serverUpdatedAt,
+        'dirty': localPending != 0.0 ? 1 : 0,
       });
     }
   }

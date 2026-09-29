@@ -3,6 +3,10 @@ import 'sync_types.dart';
 
 /// SyncApi.pull ka SAAF hissa (Firestore ke baghair) — Kotlin `pull()` ke aakhri hisse.
 
+/// Pull har baar checkpoint se itna pichhe se shuru hota hai (late-push / thora clock farq ke docs na chhoote).
+/// Apply idempotent hai, is liye dobara pull nuqsan nahi karta.
+const int pullOverlapMs = 10 * 60 * 1000;
+
 /// Kotlin `pull()` ki tarteeb mein 20 collections (Firestore naam).
 const List<String> pullCollections = [
   'customers',
