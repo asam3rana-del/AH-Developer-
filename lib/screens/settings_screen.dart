@@ -13,6 +13,7 @@ import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/sync_section.dart';
+import 'backup_export_screen.dart';
 import 'login_screen.dart';
 import 'user_management_screen.dart';
 
@@ -20,7 +21,7 @@ import 'user_management_screen.dart';
 /// Language, Manage Users, Logout.
 /// Login method: password / fingerprint / both / none. Dark mode switch.
 /// Printer (Phase 12) done — Bluetooth 58/80mm. Cloud Sync (Phase 10): `SyncSection` (Sync Now / Setup / History).
-/// OTP login (Phase 10): login method 'otp'. TODO: Backup (Phase 11).
+/// OTP login (Phase 10): login method 'otp'. Backup row: BackupExportScreen (admin/manager).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -273,6 +274,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _tf(_footer, Loc.t('Receipt footer (optional)', 'رسید فوٹر (اختیاری)')),
           FilledButton(onPressed: _saveFooter, child: Text(Loc.t('SAVE FOOTER', 'فوٹر محفوظ کریں'))),
         ]),
+        // Kotlin Settings mein Backup/Export row (BackupExportScreen ka apna RoleGuard admin/manager).
+        if (Session.isAdminOrManager)
+          _card(Loc.t('Backup & Export', 'بیک اپ اور ایکسپورٹ'), Icons.save_outlined, [
+            Text(Loc.t('Encrypted backup, restore, CSV / PDF export', 'انکرپٹڈ بیک اپ، ریسٹور، CSV / PDF ایکسپورٹ')),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupExportScreen())),
+              child: Text(Loc.t('OPEN BACKUP & EXPORT', 'بیک اپ اور ایکسپورٹ کھولیں')),
+            ),
+          ]),
         const SyncSection(),
         _card(Loc.t('Appearance', 'ظاہری شکل'), Icons.dark_mode, [
           ValueListenableBuilder<bool>(

@@ -165,7 +165,7 @@
     "phase": 4,
     "dart": "lib/screens/settings_screen.dart",
     "status": "partial",
-    "note": "Shop info, login method (password/fingerprint/both/none/OTP), dark mode, language, users, Printer, Cloud Sync section (`SyncSection`). Backup link: Dashboard ke Backup tile se BackupExportScreen; Settings mein iske rows aur baaki chhote items dekhne baaki hain."
+    "note": "Shop info, login method (password/fingerprint/both/none/OTP), dark mode, language, users, Printer, Backup & Export row (admin/manager), Cloud Sync section (`SyncSection`). Baaki chhote items (Kotlin ke baqi rows) device par dekhein."
   },
   {
     "kotlin": "MainActivity.kt",
@@ -263,7 +263,7 @@
     "phase": 6,
     "dart": "lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart",
     "status": "partial",
-    "note": "Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Purchase row tap = PurchaseScreen(editBillNo:) (admin only). Test: test/party_dashboard_test.dart."
+    "note": "Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu (Reports/Products/Cash/Settings sab jure), '+' quick add (Sale/Purchase Return = Sale/Purchase History screens), Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Purchase row tap = PurchaseScreen(editBillNo:) (admin only). Test: test/party_dashboard_test.dart."
   },
   {
     "kotlin": "PartyTransactionActivity.kt",

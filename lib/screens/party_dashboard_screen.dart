@@ -17,7 +17,10 @@ import 'party_screen.dart';
 import 'party_transaction_screen.dart';
 import 'payments_screen.dart';
 import 'product_screen.dart';
+import 'purchase_history_screen.dart';
 import 'purchase_screen.dart';
+import 'reports_screen.dart';
+import 'sale_history_screen.dart';
 import 'sale_screen.dart';
 import 'settings_screen.dart';
 
@@ -169,8 +172,6 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  void _comingSoon() => _toast(Loc.t('Coming soon', 'جلد آ رہا ہے'));
-
   /// Screen kholo, wapas aane par data taza (Kotlin onResume).
   Future<void> _push(Widget page) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
@@ -302,7 +303,8 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
               () => _push(const RoleGuard(allowed: {'admin'}, child: ProductScreen()))),
         if (Session.isAdminOrManager)
           _SheetItem(Icons.trending_up, _purple, Loc.t('Reports', 'رپورٹس'),
-              Loc.t('Sales, stock & financial overview', 'سیل، اسٹاک اور مالیاتی جائزہ'), _comingSoon),
+              Loc.t('Sales, stock & financial overview', 'سیل، اسٹاک اور مالیاتی جائزہ'),
+              () => _push(const ReportsScreen())),
         _SheetItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Cash In/Out', 'کیش ان/آؤٹ'),
             Loc.t('Record cash movements', 'کیش کی آمد و رفت درج کریں'), () => _push(const CashScreen())),
         _SheetItem(Icons.search, _green, Loc.t('Item Rate Search', 'آئٹم ریٹ سرچ'),
@@ -328,12 +330,14 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
           PartyMenuItem(Icons.shopping_cart_outlined, _blue, Loc.t('Add Purchase', 'خریداری شامل کریں'),
               Loc.t('Create a new purchase bill', 'نیا خریداری بل بنائیں'),
               () => _push(const RoleGuard(allowed: {'admin'}, child: PurchaseScreen()))),
-        // Returns History screens (Phase 7) se hoti hain.
+        // Kotlin: return History screens se hoti hai (Sale History = Return/Delete/Edit, admin-only buttons andar).
         PartyMenuItem(Icons.undo, _orange, Loc.t('Sale Return', 'سیل واپسی'),
-            Loc.t('Return items from a past sale', 'پچھلی سیل سے آئٹمز واپس کریں'), _comingSoon),
+            Loc.t('Return items from a past sale', 'پچھلی سیل سے آئٹمز واپس کریں'),
+            () => _push(const SaleHistoryScreen())),
         if (Session.isAdmin)
           PartyMenuItem(Icons.undo, _green, Loc.t('Purchase Return', 'خریداری واپسی'),
-              Loc.t('Return items from a past purchase', 'پچھلی خریداری سے آئٹمز واپس کریں'), _comingSoon),
+              Loc.t('Return items from a past purchase', 'پچھلی خریداری سے آئٹمز واپس کریں'),
+              () => _push(const PurchaseHistoryScreen())),
         PartyMenuItem(Icons.person_add_alt, _purple, Loc.t('New Party', 'نئی پارٹی'),
             Loc.t('Add a customer or supplier', 'کسٹمر یا سپلائر شامل کریں'), () => _push(const PartyScreen())),
         PartyMenuItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Payment Received', 'ادائیگی وصول ہوئی'),

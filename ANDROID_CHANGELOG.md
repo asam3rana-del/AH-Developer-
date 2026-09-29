@@ -1,5 +1,11 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Baqi "Coming soon" buttons jore
+- [x] Party Dashboard menu: Reports -> `ReportsScreen`; '+' menu: Sale Return -> `SaleHistoryScreen`, Purchase Return -> `PurchaseHistoryScreen` (admin-only; buttons/roles un screens ke andar). `_comingSoon` helper hata diya.
+- [x] Settings: "Backup & Export" card (admin/manager) -> `BackupExportScreen`; purana TODO comment hata diya.
+- [ ] Ab bhi baqi: contact picker (`flutter_contacts` + permissions), background WorkManager (sync/backup band app par), purani screens ko `AppColors` se `ThemeManager.palette` par migrate, USB printing, Android Room .db ka Flutter mein import (schema alag).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test`.
+
 ## Flutter side (2026-09-29) — Phase 10 mukammal (Cloud sync + Phone OTP login)
 - [x] `SyncQueueHelper` (+ `enqueueLegacy`) aur `SettingsSync` (+ `SyncSection` UI) pehle hi port ho chuke the — tracker mein 'todo' reh gaya tha; ab `done`. `installSyncWiring()` `main()` mein chalti hai (`SyncRepository.backend = SyncApi`, `afterApply = mergeOwnDuplicateExpenses`, `onQueued = SyncWorker.triggerNow`).
 - [x] Phone OTP login: `lib/services/otp_login.dart` + login screen panel + Settings mein "OTP (Phone Number)" radio; `UserRepository.findByPhone` / `activeUsers`. Naya test: `test/otp_login_test.dart` (resolveOtpUser, verifyLinkPassword hashed + plain, 6-digit code, phone check).
