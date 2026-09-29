@@ -1,5 +1,58 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Inventory Insights: Reorder / Damage / Margin / Movers (Phase 9, aakhri screen)
+- [x] `InventoryInsightsActivity.kt`: `lib/screens/inventory_insights_screen.dart` (`InventoryInsightsScreen(initialMode: InsightsMode.reorder | damage | profit | movers)`) + `lib/db/inventory_insights_repository.dart` (pure `reorderCandidates`, `suggestedReorderQty`, `damageLossValue`, `totalDamageLoss`, `marginPercent`, `averageMargin`, `sortByMarginAsc`, `buildMovementRows`, `fastMovers`, `slowMovers`, `mergeItemHistory`; test `test/inventory_insights_test.dart`). Reports hub ki 4 rows (Reorder Suggestions, Damage / Loss Report, Profit Margin per Item, Fast / Slow Movers) ab chalti hain; \"Coming soon\" ka `_soon` hata diya. Admin/Manager only.
+- **Reorder:** `stock <= reorderLevel` aur `reorderLevel > 0`; tajweez = level ka DOUBLE tak wapas bharna (kam az kam level tak), smallest unit mein.
+- **Damage:** `stock_movements` type `DAMAGE` (period filter), Total loss value + Entries; value = `|qty| * cost / smallestUnitFactor` (Kotlin FIX barqarar; product delete ho to raw cost).
+- **Margin:** `(sale - cost) / sale * 100`, sirf salePrice > 0; sabse kam margin pehle; rang < 10% red, < 25% amber, warna teal; row tap = us item ki har sale + purchase (naya pehle) dialog.
+- **Movers:** period ke andar (returned sales bahar) barcode ke hisaab se qty/amount; Fast = top 15 (qty > 0), Slow = 15 sab se kam (zero-sale pehle). Qty Kotlin jaisi hi — jis unit mein bechi gayi, unit-normalize nahi (isliye carton aur pcs ek hi total mein jur sakte hain).
+- Farq (Kotlin se): hafta Monday se (`reportRangeFor`); role repository mein bhi check; barabar values par stable order.
+- `StockTouchPolicy.kt` pehle hi `lib/utils/stock_touch_policy.dart` mein port ho chuki thi — sirf `port_map.json` ka status purana tha, ab `done`.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/inventory_insights_test.dart`.
+- [ ] Phase 9 mukammal. Agla: Phase 10 (Cloud sync) ya Phase 4 ke baqi (Dashboard/Settings ko MenuRow/ThemeManager par lana).
+
+## Flutter side (2026-09-29) — Stock Taking (Phase 9)
+- [x] `StockTakingActivity.kt`: `lib/screens/stock_taking_screen.dart` + `lib/db/stock_taking_repository.dart` (pure `buildVariances`, `stockTakeValueImpact`, `firstInvalidCount`, `filterStockTakeProducts`, `stockTakeSessionId`, `stockTakeSummaryText`; test `test/stock_taking_test.dart`). Reports hub ki \"Stock Taking\" row ab chalti hai. Admin/Manager only.
+- Poori catalog list (naam/searchTag/category/barcode search), har item par System stock + \"Counted\" field (custom `NumericKeypadField`). Gintee product ki SMALLEST unit mein (row par unit ka naam likha). **Khali field = gina hi nahi** (0 nahi) — sirf likhi hui ginti wale products chuute hain; search se list filter hone par ginti gum nahi hoti.
+- \"Review & Save\": taaza product se variance (|farq| > 0.0001), confirm dialog mein pehli 15 lines + \"… +N more\" + Estimated value impact (`delta * cost / smallestUnitFactor`, Kotlin FIX barqarar).
+- Confirm = har line ka `products.stock` update + `STOCK_TAKE` ledger row (reference = `ST<yyMMddHHmmss>`, note `system=.. counted=.. — <note>`) + product `sync_queue`, sab ek transaction mein; phir ek `stock_take` audit entry. Stock History mein rows khud dikhti hain.
+- Farq (Kotlin se): negative gintee rad; piece-based item mein fraction rad (`isValidSmallestQty`); role Admin/Manager (Kotlin mein check nahi tha); role repository mein bhi check.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_taking_test.dart`.
+- [ ] Baaki: Inventory Insights (Reorder / Damage-Loss / Profit Margin / Movers), StockTouchPolicy.
+
+## Flutter side (2026-09-29) — Stock Adjustment (Phase 9)
+- [x] `StockAdjustmentActivity.kt`: `lib/screens/stock_adjustment_screen.dart` + `lib/db/stock_adjustment_repository.dart` (pure `adjustmentDelta`, `adjustmentType`, `validateAdjustment`, `searchProductsForAdjustment`; test `test/stock_adjustment_test.dart`). Reports hub ki "Stock Adjustment" row ab chalti hai. Admin/Manager only.
+- Item search (khali search kuch nahi dikhata, Kotlin jaisa) -> dialog: **Damage / Loss** (hamesha stock ghatata hai, ledger type `DAMAGE`) ya **Correction** (+ Add / − Remove, type `ADJUSTMENT`), qty smallest unit mein + optional note.
+- Save = `products.stock` update + ledger row (cost = us waqt ka product.cost) + product `sync_queue`, ek transaction mein. Kam karte waqt SQL guard (`stock + delta >= 0`).
+- Farq (Kotlin se): piece-based item mein fraction reject (`isValidSmallestQty`); galti par dialog khula rehta hai aur wajah dikhata hai; role repository mein bhi check.
+- `DAMAGE` rows ab ban rahi hain — inhi par **Damage / Loss Report** (Inventory Insights) chalegi.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_adjustment_test.dart`.
+- [ ] Baaki: Stock Taking, Inventory Insights.
+
+## Flutter side (2026-09-29) — Stock Audit (Phase 9)
+- [x] `StockAuditActivity.kt`: `lib/screens/stock_audit_screen.dart` + `lib/db/stock_audit_repository.dart` (pure `buildAuditRows`, `filterAuditRows`; test `test/stock_audit_test.dart`). Reports hub ki "Stock Audit" row ab chalti hai. Admin/Manager only.
+- Har product ka `stock` vs `SUM(stock_movements.qty)`; |farq| > 0.01 wale mismatch, bara farq pehle. Card: System stock / Ledger says / Difference + "Isko fix karo"; upar "Sab mismatches fix karo" (confirm dialog).
+- Fix = `AUDIT_RECONCILE` ledger row (`StockLedger.logAuditReconciliation`); live `products.stock` KABHI nahi badalta. Fix-all ek transaction mein (ya sab, ya koi nahi) + sync_queue.
+- Farq (Kotlin se): card tap us product ki Stock History kholta hai (`StockMovementScreen(initialBarcode:)`; Kotlin generic list kholta tha); negative farq ka breakdown abs value + sign se (Kotlin mein floor() ulta deta tha).
+- Note: DB v11 ke backfill ki wajah se purane products pehli baar clean dikhenge; mismatch sirf naye drift par aayega.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_audit_test.dart`.
+- [ ] Baaki: Stock Taking, Stock Adjustment, Inventory Insights.
+
+## Flutter side (2026-09-29) — Stock Movement / Stock History + Cost History (Phase 9)
+- [x] `StockMovementActivity.kt`: `lib/screens/stock_movement_screen.dart` (`StockMovementScreen(mode: stock | cost)`) + `lib/db/stock_ledger.dart` + `lib/models/stock_movement.dart`. Reports hub ki "Stock History" aur "Cost History" rows ab chalti hain. Admin/Manager only.
+- **Asal masla:** Flutter mein `stock_movements` table thi hi nahi, is liye koi movement kabhi record nahi hoti thi. Ab **DB v11**: table + index + purane products ka maujooda stock ek `OPENING_STOCK` row ke taur par (taake ledger sum == product.stock shuru se sahi ho, Stock Audit fazool drift na dikhaye).
+- `StockLedger.log(txn, ...)` (Kotlin `logMovement`) har stock badalne wale write ke SAME transaction mein + `sync_queue` (`stock_movement`, id `stock_movement:<id>`): 
+  - Sale: `SALE` (naya), `SALE_EDIT` + `SALE_EDIT_REVERSAL` (edit), `SALE_REVERSAL` (delete/return), quick sale `SALE`.
+  - Purchase: `PURCHASE` (naya, unitCost = naya weighted cost), `PURCHASE_RETURN` (partial return), `PURCHASE_REVERSAL` (poori delete).
+  - Party Transaction: sale item qty edit `SALE_EDIT`, sale item delete `SALE_ITEM_DELETE`, purchase item edit `PURCHASE_EDIT` (rate-only edit bhi, qty 0 ke saath — Cost History mein dikhne ke liye), purchase item delete `PURCHASE_ITEM_DELETE`.
+  - Naya product: `OPENING_STOCK` (`ProductRepository.upsert(isNew: true)`).
+- `StockLedger.logAuditReconciliation()` tayyar hai (Stock Audit ke liye); `DAMAGE` / `ADJUSTMENT` / `STOCK_TAKE` types screen mein label ke saath maujood hain — likhne wali screens abhi baaki.
+- Kotlin FIX barqarar: `PURCHASE_RETURN` ka apna label; Cost History sirf `PURCHASE*` + `OPENING_STOCK`.
+- **Bug fix:** `ProductRepository.upsert` ab `ConflictAlgorithm.replace` use karta hai (Kotlin `OnConflictStrategy.REPLACE`); pehle existing product edit karne par PRIMARY KEY conflict aa sakta tha.
+- Test: `test/stock_movement_test.dart` (map round-trip, cost-affecting types, qty format, ledgerSum, product filter).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_movement_test.dart`. Purane Flutter DB par pehli baar khulne par v10 -> v11 migration chalegi.
+- [ ] Baaki (ledger ab tayyar hai): Stock Audit, Stock Taking, Stock Adjustment, Inventory Insights.
+
 ## Flutter side (2026-09-29) — Stock Report (Phase 9)
 - [x] `StockReportActivity.kt`: `lib/screens/stock_report_screen.dart` + `lib/db/stock_report_repository.dart` (pure `costPerSmallestUnit`, `salePerSmallestUnit`, `isLowStock`, `summarizeStock`, `filterStock`; test `test/stock_report_test.dart`).
 - Dashboard "Low Stock" tile ab `StockReportScreen(lowStockOnly: true)` kholta hai (Kotlin `EXTRA_LOW_STOCK_ONLY`); Reports hub ki "Stock Report" row bhi.
@@ -261,3 +314,15 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [ ] Bill se linked payments (`voidLinkedPayments` / `linkedPaidForBill`) — Phase 6/8 (Payments) ke saath.
 - [ ] `BulkDefaultUnitActivity.kt` / `BulkMissingRatesActivity.kt` (Phase 5) — default unit ab column mein hai, screen baaki.
 - Note: yeh code is session mein compile/test nahi hua (Flutter SDK maujood nahi tha) — `flutter analyze && flutter test` chalayein.
+
+---
+## Flutter side (2026-09-29) — Dashboard (Phase 4)
+- [x] `MainActivity.kt`: `lib/screens/dashboard_screen.dart` + `lib/db/dashboard_repository.dart` (pure functions: `dashboardColumns`, `dashboardAmount`, `dashboardSearch`, `todayRange`, `dashboardProfit`, `syncPendingMessage`, `showsProfitCard`, `showsLogoutTile`, `switchableUsers`, `roleColorValue`, `checkSwitchPassword`; tests `test/dashboard_test.dart`).
+- Header: Settings gear, dark/light toggle (`ThemeManager`), Quick Switch user. Quick Switch = fingerprint pehle (`Biometric`), cancel/fail par us user ka password; purani plain-text password theek nikle to hash mein badal jata hai. Switch ke baad dashboard naye role ke saath dobara banta hai (Kotlin `recreate()`).
+- Live search: naam + searchTag, pehle 6 nateeje, tap => `ItemSearchScreen(preselectBarcode:)`.
+- Today's sale (sab roles) / Today's profit (sirf admin, cost data data-layer par bhi band). Kotlin FIX barqarar: profit = discount ke baad sale - COGS. Card tap = amount chhupao (`Rs ••••••`).
+- Quick Actions Kotlin ki tarteeb mein, 2 / 3 / 4 column (phone / tablet portrait / bara tablet). Naye hooks: `SaleScreen(openQuickSale: true)` (Quick Sale tile) aur `PartyDashboardScreen(quickPayment: true)` (Payments tile — Received/Made chooser, phir searchable party picker). Logout tile sirf manager/cashier ko (admin Settings se).
+- DUES SUMMARY: You'll get / You'll give live-ledger closings se (`partyTotals`), Party Dashboard jaisa hi; tap => Party Dashboard. Sync pending label (`sync_queue.syncedAt IS NULL`) tap => Settings.
+- Farq: Reports/Products/Zakat/Balance Sheet/... Kotlin mein Settings/Reports ke andar hain, Flutter Settings mein unke links abhi nahi, is liye "MORE SCREENS" (collapsed) mein hain — links aane par woh section hata dein. Items tile abhi sirf admin (Kotlin sab ko).
+- [ ] Backup tile (Phase 11) abhi "Coming soon". Crash dialog + `SyncWorker.schedulePeriodic` (Phase 10/13). Dashboard tiles ko `MenuRow` par lana zaroori nahi tha (Kotlin bhi apna quick-action card use karta hai).
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.

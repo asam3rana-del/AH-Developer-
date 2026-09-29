@@ -6,10 +6,15 @@ import '../utils/loc.dart';
 import 'balance_sheet_screen.dart';
 import 'due_reminders_screen.dart';
 import 'history_screen.dart';
+import 'inventory_insights_screen.dart';
 import 'monthly_screen.dart';
 import 'party_reports_screen.dart';
 import 'payments_screen.dart';
+import 'stock_adjustment_screen.dart';
+import 'stock_audit_screen.dart';
+import 'stock_movement_screen.dart';
 import 'stock_report_screen.dart';
+import 'stock_taking_screen.dart';
 import 'zakat_screen.dart';
 import '../widgets/role_guard.dart';
 
@@ -21,8 +26,7 @@ import '../widgets/role_guard.dart';
 /// Role: admin + manager (RoleGuard; ReportsRepository.load dobara check karta hai).
 ///
 /// Farq (Kotlin se):
-///  * Jo screens Flutter mein abhi nahi (Monthly, Stock*, Inventory Insights) unki row par tap =
-///    "Coming soon" — Phase 9 ke baqi screens ke saath jurti jayengi.
+///  * Stock/Insights ki sab rows ab chalti hain (Reorder / Damage / Margin / Movers = InventoryInsightsScreen).
 ///  * "Today" ka end agla midnight (DST-safe); hafta Monday se (Kotlin mein locale ka firstDayOfWeek).
 ///  * Purchase History row manager ko dikhti hai magar screen admin-only hai (RoleGuard message).
 class ReportsScreen extends StatelessWidget {
@@ -82,9 +86,6 @@ class _ReportsBodyState extends State<_ReportsBody> {
 
   void _open(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
 
-  void _soon() => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(Loc.t('Coming soon (Phase 9)', 'جلد آ رہا ہے (فیز 9)'))));
-
   String get _periodLabel {
     switch (_period) {
       case ReportPeriod.today:
@@ -127,25 +128,30 @@ class _ReportsBodyState extends State<_ReportsBody> {
                 p.flatAmberFg, () => _open(const StockReportScreen())),
             _row(p, Loc.t('Stock History', 'اسٹاک کی تاریخ'),
                 Loc.t('Every purchase, sale & adjustment per item', 'ہر آئٹم کی خریداری، سیل اور ایڈجسٹمنٹ'),
-                p.flatBlueFg, _soon),
+                p.flatBlueFg, () => _open(const StockMovementScreen(mode: StockMovementMode.stock))),
             _row(p, Loc.t('Cost History', 'لاگت کی تاریخ'),
                 Loc.t("How a product's cost changed over time", 'پروڈکٹ کی لاگت وقت کے ساتھ کیسے بدلی'),
-                p.flatTealFg, _soon),
+                p.flatTealFg, () => _open(const StockMovementScreen(mode: StockMovementMode.cost))),
             _row(p, Loc.t('Stock Audit', 'اسٹاک آڈٹ'),
                 Loc.t("Find products where stock doesn't match its own history", 'وہ پروڈکٹس جن کا اسٹاک اپنی تاریخ سے میچ نہیں کرتا'),
-                p.red, _soon),
+                p.red, () => _open(const StockAuditScreen())),
             _row(p, Loc.t('Stock Adjustment', 'اسٹاک ایڈجسٹمنٹ'),
-                Loc.t('Log damage, loss, or a correction', 'نقصان یا درستگی درج کریں'), p.red, _soon),
+                Loc.t('Log damage, loss, or a correction', 'نقصان یا درستگی درج کریں'), p.red,
+                () => _open(const StockAdjustmentScreen())),
             _row(p, Loc.t('Stock Taking', 'اسٹاک گنتی'), Loc.t('Physical count vs system stock', 'اصل گنتی بمقابلہ سسٹم اسٹاک'),
-                p.flatBlueFg, _soon),
+                p.flatBlueFg, () => _open(const StockTakingScreen())),
             _row(p, Loc.t('Reorder Suggestions', 'دوبارہ آرڈر تجاویز'),
-                Loc.t('Items at or below reorder level', 'کم اسٹاک آئٹمز'), p.flatAmberFg, _soon),
+                Loc.t('Items at or below reorder level', 'کم اسٹاک آئٹمز'), p.flatAmberFg,
+                () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.reorder))),
             _row(p, Loc.t('Damage / Loss Report', 'نقصان کی رپورٹ'),
-                Loc.t('Value of stock damaged or lost', 'خراب یا ضائع اسٹاک کی مالیت'), p.red, _soon),
+                Loc.t('Value of stock damaged or lost', 'خراب یا ضائع اسٹاک کی مالیت'), p.red,
+                () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.damage))),
             _row(p, Loc.t('Profit Margin per Item', 'فی آئٹم منافع'),
-                Loc.t('Sale price vs cost, item by item', 'سیل پرائس بمقابلہ لاگت'), p.flatTealFg, _soon),
+                Loc.t('Sale price vs cost, item by item', 'سیل پرائس بمقابلہ لاگت'), p.flatTealFg,
+                () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.profit))),
             _row(p, Loc.t('Fast / Slow Movers', 'تیز / سست چلنے والے'),
-                Loc.t("Which items sell, and which don't", 'کون سے آئٹم بکتے ہیں'), p.flatBlueFg, _soon),
+                Loc.t("Which items sell, and which don't", 'کون سے آئٹم بکتے ہیں'), p.flatBlueFg,
+                () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.movers))),
             _row(p, Loc.t('Due Date Reminders', 'ادائیگی کی یاد دہانی'),
                 Loc.t('Credit sales still owed, by due date', 'ادھار سیلز جو واجب الادا ہیں'), p.flatBlueFg,
                 () => _open(const DueRemindersScreen())),

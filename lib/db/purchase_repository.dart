@@ -5,8 +5,10 @@ import '../models/misc_entities.dart';
 import '../models/party.dart';
 import '../models/product.dart';
 import '../models/purchase.dart';
+import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
 import 'product_repository.dart';
+import 'stock_ledger.dart';
 import 'supplier_repository.dart';
 
 /// One line the user has added to the purchase before saving — mirrors
@@ -166,6 +168,13 @@ class PurchaseRepository {
           'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
           [purchasedSmallest, newCost, now, barcode],
         );
+        await StockLedger.log(txn,
+            barcode: barcode,
+            type: MovementType.purchase,
+            signedQty: purchasedSmallest,
+            reference: billNo,
+            unitCost: newCost,
+            now: now);
       }
 
       final outstanding = grandTotal - paid;

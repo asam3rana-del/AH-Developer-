@@ -35,7 +35,11 @@ class SaleScreen extends StatefulWidget {
   /// SaleRepository, this is just the UI side).
   final String? editInvoice;
 
-  const SaleScreen({super.key, this.editInvoice});
+  /// Dashboard "Quick Sale" tile (Kotlin EXTRA_OPEN_QUICK_SALE): screen khulte hi Quick Sale dialog.
+  /// Sirf naye sale par (edit mode mein ignore).
+  final bool openQuickSale;
+
+  const SaleScreen({super.key, this.editInvoice, this.openQuickSale = false});
 
   @override
   State<SaleScreen> createState() => _SaleScreenState();
@@ -133,6 +137,11 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       await _loadForEdit();
     } else {
       await _restoreDraft();
+      if (widget.openQuickSale) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _openQuickSale();
+        });
+      }
     }
   }
 

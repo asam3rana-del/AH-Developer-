@@ -3,7 +3,7 @@
 Flutter port of the **IBTISAAM Kiryana Store** Kotlin/Android app, aimed at
 running the same POS on iPad/iPhone as well as Android from one codebase.
 
-## What's in this drop (Phase 1 + 2 + 3 — foundation, Product, Purchase, Sale)
+## What's in this drop (Phase 0-9 — foundation, Product, Purchase, Sale, Parties, History, Cash, Reports & Stock)
 
 - `lib/models/` — every entity from the Kotlin `Database.kt` (Product,
   Category, UnitType, Customer, Supplier, Sale, SaleItem, Purchase,

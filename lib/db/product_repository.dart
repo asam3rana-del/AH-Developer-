@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
+
 import '../models/product.dart';
 import 'app_database.dart';
+import 'stock_ledger.dart';
 
 /// Dart port of ProductDao (Database.kt). Room's `Flow<List<Product>>` is
 /// mirrored here with a broadcast StreamController that re-queries and
@@ -48,9 +51,17 @@ class ProductRepository {
   }
 
   /// Mirrors `upsert(p: Product)` (OnConflictStrategy.REPLACE).
-  Future<void> upsert(Product product) async {
+  ///
+  /// [isNew] = true (naya product) aur stock != 0 ho to usi transaction mein OPENING_STOCK ledger
+  /// row bhi likhta hai (Kotlin enqueueProductOpeningStock). Edit par stock ledger se nahi chhedta.
+  Future<void> upsert(Product product, {bool isNew = false}) async {
     final db = await AppDatabase.instance.database;
-    await db.insert('products', product.toMap());
+    await db.transaction((txn) async {
+      await txn.insert('products', product.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+      if (isNew && product.stock != 0) {
+        await StockLedger.logOpeningStock(txn, product.barcode, product.stock);
+      }
+    });
     await _notify();
   }
 

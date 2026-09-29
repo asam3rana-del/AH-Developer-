@@ -1,6 +1,8 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'stock_ledger.dart';
+
 /// Ports the Room schema from Database.kt table-for-table so data shape
 /// stays identical to the Android app (useful if you ever need to import/
 /// export between them, and keeps Firestore sync payloads consistent).
@@ -15,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 10;
+  static const _dbVersion = 11;
 
   Database? _db;
 
@@ -288,7 +290,7 @@ class AppDatabase {
       )
     ''');
 
-    for (final sql in [..._zakatTablesSql, ..._shellTablesSql]) {
+    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql]) {
       batch.execute(sql);
     }
 
@@ -351,7 +353,35 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'sales', 'dueDate', 'INTEGER NOT NULL DEFAULT 0');
       await _addColumnIfMissing(db, 'purchases', 'dueDate', 'INTEGER NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 11) {
+      // v11: stock_movements ledger (Kotlin MIGRATION_26_27 + 37_38 sync columns). Pehle se maujood
+      // stock ke liye ek OPENING_STOCK row (StockLedger.backfillOpening) taake ledger sum == stock.
+      for (final sql in _stockMovementsSql) {
+        await db.execute(sql);
+      }
+      await StockLedger.backfillOpening(db);
+    }
   }
+
+  static const _stockMovementsSql = <String>[
+    '''
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        barcode TEXT NOT NULL,
+        type TEXT NOT NULL,
+        qty REAL NOT NULL,
+        unit TEXT NOT NULL DEFAULT '',
+        cost REAL NOT NULL DEFAULT 0,
+        reference TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        createdAt INTEGER NOT NULL,
+        serverId TEXT,
+        updatedAt INTEGER NOT NULL DEFAULT 0,
+        dirty INTEGER NOT NULL DEFAULT 1
+      )
+    ''',
+    'CREATE INDEX IF NOT EXISTS index_stock_movements_barcode ON stock_movements (barcode)',
+  ];
 
   static const _shellTablesSql = <String>[
     '''

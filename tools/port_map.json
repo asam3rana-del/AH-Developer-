@@ -172,7 +172,7 @@
   "phase": 4,
   "dart": "lib/screens/dashboard_screen.dart",
   "status": "partial",
-  "note": "Role-based dashboard maujood; live search / baaki tiles check baaki."
+  "note": "Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Baaki: Backup tile (Phase 11), crash dialog + SyncWorker.schedulePeriodic (Phase 10/13), Items tile Kotlin mein sab roles ko (Flutter mein admin), MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart."
  },
  {
   "kotlin": "InputValidation.kt",
@@ -423,43 +423,43 @@
   "kotlin": "StockAuditActivity.kt",
   "phase": 9,
   "dart": "lib/screens/stock_audit_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "lib/screens/stock_audit_screen.dart + lib/db/stock_audit_repository.dart (pure buildAuditRows/filterAuditRows, reconcile = AUDIT_RECONCILE ledger rows ek transaction mein, live stock nahi chhoota). Admin/Manager only. Card tap = us product ki Stock History (StockMovementScreen(initialBarcode)). Test: test/stock_audit_test.dart. Reports hub row."
  },
  {
   "kotlin": "StockTakingActivity.kt",
   "phase": 9,
-  "dart": "lib/screens/stock_taking_screen.dart",
-  "status": "todo",
-  "note": ""
+  "dart": "lib/screens/stock_taking_screen.dart + lib/db/stock_taking_repository.dart",
+  "status": "done",
+  "note": "Admin/Manager only (RoleGuard + repository check). Poori list + search, gintee smallest unit mein, khali = nahi gina, Review dialog (15 lines + value impact), Confirm = STOCK_TAKE ledger + stock + sync_queue ek transaction mein + audit. Farq: negative/fraction gintee rad. Test: test/stock_taking_test.dart."
  },
  {
   "kotlin": "StockAdjustmentActivity.kt",
   "phase": 9,
   "dart": "lib/screens/stock_adjustment_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "lib/screens/stock_adjustment_screen.dart + lib/db/stock_adjustment_repository.dart (pure adjustmentDelta/validateAdjustment/searchProductsForAdjustment). Damage/Loss (DAMAGE) + Correction +/- (ADJUSTMENT); stock + ledger + sync_queue ek transaction mein, SQL guard se negative stock nahi. Admin/Manager only. Test: test/stock_adjustment_test.dart. Reports hub row."
  },
  {
   "kotlin": "StockMovementActivity.kt",
   "phase": 9,
   "dart": "lib/screens/stock_movement_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "lib/screens/stock_movement_screen.dart + lib/db/stock_ledger.dart + lib/models/stock_movement.dart. Stock History + Cost History (StockMovementMode). DB v11: stock_movements table + purane stock ka OPENING_STOCK backfill. StockLedger.log() har stock write ke transaction mein (sale/edit/delete/return/quick sale, purchase/edit/delete/return, party_transaction item edit/delete, naya product opening stock). Admin/Manager only. Test: test/stock_movement_test.dart. Reports hub rows."
  },
  {
   "kotlin": "InventoryInsightsActivity.kt",
   "phase": 9,
-  "dart": "lib/screens/inventory_insights_screen.dart",
-  "status": "todo",
-  "note": ""
+  "dart": "lib/screens/inventory_insights_screen.dart + lib/db/inventory_insights_repository.dart",
+  "status": "done",
+  "note": "Admin/Manager only (RoleGuard + repository check). 4 tabs: Reorder / Damage / Margin / Movers (Reports hub ki 4 rows initialMode se). Pure: reorderCandidates, suggestedReorderQty, damageLossValue (cost/smallestUnitFactor FIX), marginPercent, fast/slowMovers, mergeItemHistory. Margin row tap = sale+purchase history dialog. Test: test/inventory_insights_test.dart."
  },
  {
   "kotlin": "StockTouchPolicy.kt",
   "phase": 9,
   "dart": "lib/utils/stock_touch_policy.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "Pehle se maujood (Sale edit ke saath port hui, test/sale_edit_and_draft_test.dart); port_map status purana tha."
  },
  {
   "kotlin": "SyncApi.kt",

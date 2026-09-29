@@ -8,8 +8,10 @@ import '../models/purchase.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
 import '../utils/stock_touch_policy.dart' show saleItemSmallestQty;
+import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
 import 'customer_repository.dart';
+import 'stock_ledger.dart';
 import 'supplier_repository.dart';
 
 /// Ports the data/logic half of PartyTransactionActivity.kt.
@@ -506,6 +508,9 @@ class PartyTransactionRepository {
           await txn.rawUpdate('UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
               [-net, _now(), cur.barcode]);
         }
+        // net > 0 => zyada bika => stock ghata (-net); net < 0 => stock wapas (-net = +ve).
+        await StockLedger.log(txn,
+            barcode: cur.barcode, type: MovementType.saleEdit, signedQty: -net, reference: cur.invoice);
       }
 
       final perUnitCost = oldQty != 0 ? cur.cost / oldQty : 0.0;
@@ -567,6 +572,11 @@ class PartyTransactionRepository {
       if (product != null) {
         await txn.rawUpdate('UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
             [saleItemSmallestQty(cur, product), _now(), cur.barcode]);
+        await StockLedger.log(txn,
+            barcode: cur.barcode,
+            type: MovementType.saleItemDelete,
+            signedQty: saleItemSmallestQty(cur, product),
+            reference: cur.invoice);
         await _enqueueProduct(txn, cur.barcode);
       }
       await txn.delete('sale_items', where: 'id = ?', whereArgs: [cur.id]);
@@ -648,6 +658,13 @@ class PartyTransactionRepository {
             'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= 0',
             [net, finalCost, _now(), cur.barcode, net]);
         if (rows == 0) throw const InsufficientStockException('Not enough stock to reduce');
+        await StockLedger.log(txn,
+            barcode: cur.barcode,
+            type: MovementType.purchaseEdit,
+            signedQty: net,
+            reference: cur.billNo,
+            unitCost: finalCost,
+            allowZero: true);
       }
 
       await txn.update('purchase_items', {'qty': newQty, 'unitCost': newRate, 'amount': newAmount},
@@ -692,6 +709,12 @@ class PartyTransactionRepository {
             'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock >= ?',
             [delta, newCost, _now(), cur.barcode, delta]);
         if (rows == 0) throw const InsufficientStockException('Cannot delete: stock already used');
+        await StockLedger.log(txn,
+            barcode: cur.barcode,
+            type: MovementType.purchaseItemDelete,
+            signedQty: -delta,
+            reference: cur.billNo,
+            unitCost: newCost);
         await _enqueueProduct(txn, cur.barcode);
       }
       await txn.delete('purchase_items', where: 'id = ?', whereArgs: [cur.id]);

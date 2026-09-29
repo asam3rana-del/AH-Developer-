@@ -37,7 +37,11 @@ import 'settings_screen.dart';
 ///  * Overdue / Due Today badge: ab hai (DB v10 sales.dueDate).
 ///  * Reports (Phase 9). Share summary: share plugin nahi, is liye clipboard mein copy.
 class PartyDashboardScreen extends StatefulWidget {
-  const PartyDashboardScreen({super.key});
+  /// Dashboard "Payments" tile (Kotlin `quickPayment=true`): screen khulte hi Received/Made chooser,
+  /// phir searchable party picker — Customers -> "+" -> Payment -> party ke 3 tap bachte hain.
+  final bool quickPayment;
+
+  const PartyDashboardScreen({super.key, this.quickPayment = false});
 
   @override
   State<PartyDashboardScreen> createState() => _PartyDashboardScreenState();
@@ -80,6 +84,8 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
 
   bool get _canSeeCost => Session.isAdminOrManager;
 
+  bool _quickPaymentShown = false;
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +107,12 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
       final rows = await PartyDashboardRepository.instance.loadParties();
       if (!mounted) return;
       setState(() => _parties = rows);
+      if (widget.quickPayment && !_quickPaymentShown) {
+        _quickPaymentShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showPaymentChooser();
+        });
+      }
     } catch (e) {
       _toast(e.toString());
     }
@@ -324,6 +336,24 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
         PartyMenuItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Payment Received', 'ادائیگی وصول ہوئی'),
             Loc.t('Record money received', 'موصول ہونے والی رقم درج کریں'), () => _pickPartyForPayment(forCustomer: true)),
         // Supplier screen cashier ke liye band (PartyTransactionScreen._blocked) — menu mein bhi nahi.
+        if (Session.isAdminOrManager)
+          PartyMenuItem(Icons.account_balance, _gold, Loc.t('Payment Made', 'ادائیگی ہوئی'),
+              Loc.t('Record money paid out', 'ادا کی گئی رقم درج کریں'), () => _pickPartyForPayment(forCustomer: false)),
+      ],
+    );
+  }
+
+  /// Kotlin quickPayment: sirf Payment Received / Payment Made ka chooser (Add Sale/Purchase nahi).
+  void _showPaymentChooser() {
+    showPartyMenuSheet(
+      context,
+      icon: Icons.account_balance_wallet_outlined,
+      title: Loc.t('Payment', 'ادائیگی'),
+      subtitle: Loc.t('Choose an action', 'ایک عمل منتخب کریں'),
+      items: [
+        PartyMenuItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Payment Received', 'ادائیگی وصول ہوئی'),
+            Loc.t('Record money received', 'موصول ہونے والی رقم درج کریں'), () => _pickPartyForPayment(forCustomer: true)),
+        // Supplier screen cashier ke liye band.
         if (Session.isAdminOrManager)
           PartyMenuItem(Icons.account_balance, _gold, Loc.t('Payment Made', 'ادائیگی ہوئی'),
               Loc.t('Record money paid out', 'ادا کی گئی رقم درج کریں'), () => _pickPartyForPayment(forCustomer: false)),

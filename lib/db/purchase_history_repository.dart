@@ -9,7 +9,9 @@ import '../services/session.dart';
 import 'app_database.dart';
 import 'party_transaction_repository.dart'
     show InsufficientStockException, purchaseItemSmallestQty, reconcilePaid, reversePurchaseLineCost;
+import '../models/stock_movement.dart' show MovementType;
 import 'product_repository.dart';
+import 'stock_ledger.dart';
 import 'supplier_repository.dart';
 
 /// Ports the data side of PurchaseHistoryActivity.kt + PurchaseDao.allPurchases() (Database.kt) +
@@ -353,6 +355,13 @@ class PurchaseHistoryRepository {
           await txn.rawUpdate(
               'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
               [smallest, newCost, now, item.barcode]);
+          await StockLedger.log(txn,
+              barcode: item.barcode,
+              type: MovementType.purchaseReturn,
+              signedQty: -smallest,
+              reference: billNo,
+              unitCost: newCost,
+              now: now);
           await _enqueueProduct(txn, item.barcode);
         }
 
@@ -439,6 +448,13 @@ class PurchaseHistoryRepository {
             throw InsufficientStockException(
                 '"${product.name}" ka stock is purchase ke baad kam ho chuka hai — delete karne se stock/cost galat ho jayega.');
           }
+          await StockLedger.log(txn,
+              barcode: it.barcode,
+              type: MovementType.purchaseReversal,
+              signedQty: -smallest,
+              reference: billNo,
+              unitCost: newCost,
+              now: now);
           await _enqueueProduct(txn, it.barcode);
         }
         final outstanding = purchase.total - purchase.paid;

@@ -10,9 +10,11 @@ import '../models/sale.dart';
 import '../services/session.dart';
 import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
+import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'product_repository.dart';
+import 'stock_ledger.dart';
 
 /// One line the user has added to the sale bill before saving — mirrors
 /// `SaleLine` (domain) used by SaleActivity.kt's `lines` list. The unit
@@ -174,11 +176,14 @@ class SaleRepository {
     }
   }
 
-  Future<void> _increaseStock(Transaction txn, String barcode, double smallest, int now) async {
+  /// Stock wapas + ledger row (SALE_REVERSAL / SALE_EDIT_REVERSAL), ek hi transaction mein.
+  Future<void> _increaseStock(Transaction txn, String barcode, double smallest, int now,
+      {required String type, required String reference}) async {
     await txn.rawUpdate(
       'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
       [smallest, now, barcode],
     );
+    await StockLedger.log(txn, barcode: barcode, type: type, signedQty: smallest, reference: reference, now: now);
   }
 
   Future<void> _adjustCustomerBalance(Transaction txn, int customerId, double delta, int now) async {
@@ -388,7 +393,8 @@ class SaleRepository {
         for (final si in diff!.itemsToReverse) {
           final pr = await txn.query('products', where: 'barcode=?', whereArgs: [si.barcode], limit: 1);
           final product = pr.isEmpty ? null : Product.fromMap(pr.first);
-          await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now);
+          await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now,
+              type: MovementType.saleEditReversal, reference: invoice);
         }
         // Reverse the original due (or advance) — nonzero either way.
         final originalOutstanding = original.total - original.paid;
@@ -517,6 +523,12 @@ class SaleRepository {
           'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
           [smallest, now, line.barcode],
         );
+        await StockLedger.log(txn,
+            barcode: line.barcode,
+            type: original != null ? MovementType.saleEdit : MovementType.sale,
+            signedQty: -smallest,
+            reference: invoice,
+            now: now);
       }
 
       if (customerId != null && (total - paid).abs() > 0.009) {
@@ -583,7 +595,8 @@ class SaleRepository {
         final si = SaleItem.fromMap(r);
         final pr = await txn.query('products', where: 'barcode=?', whereArgs: [si.barcode], limit: 1);
         final product = pr.isEmpty ? null : Product.fromMap(pr.first);
-        await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now);
+        await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now,
+            type: MovementType.saleReversal, reference: invoice);
       }
       final outstanding = sale.total - sale.paid;
       if (sale.customerId != null && outstanding.abs() > 0.009) {
@@ -626,7 +639,8 @@ class SaleRepository {
         final si = SaleItem.fromMap(r);
         final pr = await txn.query('products', where: 'barcode=?', whereArgs: [si.barcode], limit: 1);
         final product = pr.isEmpty ? null : Product.fromMap(pr.first);
-        await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now);
+        await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now,
+            type: MovementType.saleReversal, reference: invoice);
         final ret = ReturnLine(
           reference: invoice,
           type: 'sale',
@@ -828,6 +842,8 @@ class SaleRepository {
         'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
         [smallest, now, current.barcode],
       );
+      await StockLedger.log(txn,
+          barcode: current.barcode, type: MovementType.sale, signedQty: -smallest, reference: invoice, now: now);
       if (isCredit && customerId != null) {
         await txn.rawUpdate('UPDATE customers SET balance = balance + ?, dirty = 1 WHERE id = ?', [amount, customerId]);
       }

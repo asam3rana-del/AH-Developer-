@@ -272,7 +272,7 @@ class _ProductScreenState extends State<ProductScreen> {
       await CategoryRepository.instance.insert(models.Category(category));
     }
 
-    await ProductRepository.instance.upsert(product);
+    await ProductRepository.instance.upsert(product, isNew: existing == null);
     // TODO: enqueue into your sync_queue table + trigger the sync worker here,
     // mirroring SyncQueueHelper.enqueue()/.trigger() in the Kotlin app, once
     // the Firestore sync layer is wired up for this screen.
