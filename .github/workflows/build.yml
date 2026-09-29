@@ -20,11 +20,11 @@ jobs:
       # Repo has no ios/ or android/ folders, so generate them.
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
-      # Firebase needs iOS 13+, google_mlkit_text_recognition (MLKit) needs iOS 15.5+; Flutter template defaults to 12.
-      - name: Set iOS deployment target to 15.5
+      # Firebase plugins need iOS 13+; Flutter's template defaults to 12.
+      - name: Set iOS deployment target to 13.0
         run: |
-          sed -i '' "s/^# platform :ios.*/platform :ios, '15.5'/" ios/Podfile
-          sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 15.5/g" ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
+          sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g" ios/Runner.xcodeproj/project.pbxproj
 
       # Pods (e.g. resource bundles) otherwise ask for a Development Team even with --no-codesign.
       - name: Disable code signing for Pods
@@ -58,7 +58,7 @@ jobs:
 
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
-      # firebase_auth plugin is built with Kotlin 2.1 metadata; Flutter 3.24's template pins 1.7.10.
+      # Firebase auth 23.x needs Kotlin 2.1+.
       - name: Bump Kotlin plugin
         run: sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
 
