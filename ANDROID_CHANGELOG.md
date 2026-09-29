@@ -1,5 +1,9 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — CI build fix
+- [x] Android APK build fail: `bulk_translate_screen.dart:194` — `formatStockBreakdown` ek `extension ProductUnitLogic` mein hai, aur is file ne `models/product.dart` import hi nahi kiya tha. Import jora. Poori `lib/` ka missing-import scan chalaya — koi aur file nahi mili.
+- [ ] iOS build fail (`pod install`, CocoaPods dependency conflict): asal wajah error ke sabse upar wali `[!] CocoaPods could not find compatible versions for pod ...` line mein hai — woh line chahiye.
+
 ## Flutter side (2026-09-29) — Baqi "Coming soon" buttons jore
 - [x] Party Dashboard menu: Reports -> `ReportsScreen`; '+' menu: Sale Return -> `SaleHistoryScreen`, Purchase Return -> `PurchaseHistoryScreen` (admin-only; buttons/roles un screens ke andar). `_comingSoon` helper hata diya.
 - [x] Settings: "Backup & Export" card (admin/manager) -> `BackupExportScreen`; purana TODO comment hata diya.

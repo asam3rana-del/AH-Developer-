@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../backup/backup_helper.dart';
 import '../db/bulk_translate_repository.dart';
+import '../models/product.dart';
 import '../theme/app_colors.dart';
 import '../utils/duplicate_unit_fix.dart';
 import '../utils/loc.dart';
