@@ -1,5 +1,9 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — CI build fix 2
+- [x] Android APK: `purchase_history_repository.dart` aur `party_transaction_repository.dart` mein ek FAALTU `}` tha (`_adjustSupplierBalance` / `_adjustPartyBalance` ke baad) — class wahin band ho jati thi, is liye `deletePurchase`/`returnItems` "isn't defined" aur "Expected a declaration, but got '}'" aaye. Faaltu `}` hata diya. Poori `lib/` + `test/` ka bracket scan ab saaf.
+- [x] iOS: repo ki `.github/workflows/build.yml` purani hai ("deployment target 13.0"); zip wali 15.5 set karti hai (ML Kit text recognition ko iOS 15.5+ chahiye, warna `pod install` conflict). GitHub par `.github/workflows/build.yml` replace karna zaroori hai (upload se `.github` folder shayad nahi jata).
+
 ## Flutter side (2026-09-29) — CI build fix
 - [x] Android APK build fail: `bulk_translate_screen.dart:194` — `formatStockBreakdown` ek `extension ProductUnitLogic` mein hai, aur is file ne `models/product.dart` import hi nahi kiya tha. Import jora. Poori `lib/` ka missing-import scan chalaya — koi aur file nahi mili.
 - [ ] iOS build fail (`pod install`, CocoaPods dependency conflict): asal wajah error ke sabse upar wali `[!] CocoaPods could not find compatible versions for pod ...` line mein hai — woh line chahiye.

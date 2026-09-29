@@ -360,7 +360,6 @@ class PartyTransactionRepository {
         [delta, _now(), partyId]);
     await SyncQueueHelper.enqueueBalanceDelta(ex, customer: isCustomer, partyId: partyId, delta: delta);
   }
-  }
 
   Future<void> _deleteCashByReference(DatabaseExecutor ex, String reference) =>
       SyncQueueHelper.deleteCashTransactionsByReference(ex, reference);

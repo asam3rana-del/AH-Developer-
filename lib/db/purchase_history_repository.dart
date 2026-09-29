@@ -210,7 +210,6 @@ class PurchaseHistoryRepository {
         [delta, _now(), supplierId]);
     await SyncQueueHelper.enqueueBalanceDelta(ex, customer: false, partyId: supplierId, delta: delta);
   }
-  }
 
   Future<void> _deleteCashByReference(DatabaseExecutor ex, String reference) =>
       SyncQueueHelper.deleteCashTransactionsByReference(ex, reference);
