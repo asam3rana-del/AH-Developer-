@@ -263,21 +263,21 @@
   "phase": 6,
   "dart": "lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart",
   "status": "partial",
-  "note": "Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Baaki: party row tap -> PartyTransaction, Overdue/Due Today badge (sales mein dueDate nahi), Purchase row edit (Phase 7), Payment Received/Made party picker (PartyQuickAddMenu). Test: test/party_dashboard_test.dart."
+  "note": "Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Baaki: Purchase row edit (Phase 7). Test: test/party_dashboard_test.dart."
  },
  {
   "kotlin": "PartyTransactionActivity.kt",
   "phase": 6,
-  "dart": "lib/screens/party_transaction_screen.dart",
-  "status": "todo",
-  "note": "Edit/delete items admin-only."
+  "dart": "lib/screens/party_transaction_screen.dart + lib/db/party_transaction_repository.dart",
+  "status": "done",
+  "note": "Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = clipboard, Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart."
  },
  {
   "kotlin": "PartyReportsActivity.kt",
   "phase": 6,
-  "dart": "lib/screens/party_reports_screen.dart",
-  "status": "todo",
-  "note": ""
+  "dart": "lib/screens/party_reports_screen.dart + lib/db/party_reports_repository.dart",
+  "status": "done",
+  "note": "6 reports (Item, Ledger, Payment History, Statement, Sale/Purchase by Party, P&L / Purchase Summary) — returned bills bahar, general payments Ledger/Statement mein, stuck split. Admin/Manager only (RoleGuard). Farq: Material icons; purchase item naam live product se. Test: test/party_reports_test.dart."
  },
  {
   "kotlin": "PartyRepository.kt",
@@ -297,15 +297,15 @@
   "kotlin": "PartyQuickAddMenu.kt",
   "phase": 6,
   "dart": "lib/widgets/party_quick_add_menu.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "showPartyMenuSheet (Kotlin showPremiumMenuSheet) + PartyMenuItem + showPartyPickerForPayment (searchable, naam/phone) -> PartyTransactionScreen(openPayment: true). Dashboard '+' menu ab isi se. Payment Made cashier ko nahi (supplier screen band). Pure `pickerCandidates` test: test/party_quick_add_test.dart."
  },
  {
   "kotlin": "DueRemindersActivity.kt",
   "phase": 6,
-  "dart": "lib/screens/due_reminders_screen.dart",
-  "status": "todo",
-  "note": ""
+  "dart": "lib/screens/due_reminders_screen.dart + lib/db/due_reminders_repository.dart",
+  "status": "done",
+  "note": "Sales/Purchases tabs, Overdue + Total outstanding cards, badge (OVERDUE/DUE TODAY/DUE SOON/UPCOMING/No date), card tap = date picker (dirty + updatedAt + sync_queue), WhatsApp (wa.me, 0->92) + Call. DB v10: sales.dueDate + purchases.dueDate; sale edit dueDate carry karti hai. Admin/Manager only (Kotlin mein Reports ke andar). Test: test/due_reminders_test.dart."
  },
  {
   "kotlin": "PartyViewModel.kt",
@@ -332,15 +332,15 @@
   "kotlin": "SaleHistoryActivity.kt",
   "phase": 7,
   "dart": "lib/screens/sale_history_screen.dart",
-  "status": "todo",
-  "note": "Profit sirf admin."
+  "status": "done",
+  "note": "lib/db/sale_history_repository.dart (pure groupSalesByCustomer/summarizeSales/filterGroups). Sab roles dekh sakte hain; profit + Edit/Return/Delete sirf admin. Print = text Bill Preview. Test: test/sale_history_test.dart. Dashboard tile."
  },
  {
   "kotlin": "PurchaseHistoryActivity.kt",
   "phase": 7,
   "dart": "lib/screens/purchase_history_screen.dart",
-  "status": "todo",
-  "note": "Admin-only."
+  "status": "done",
+  "note": "lib/screens/purchase_history_screen.dart + lib/db/purchase_history_repository.dart (pure summarizePurchases/filterPurchaseRows/parseReturnRequest/returnedLineAmount). Admin-only. Partial return + delete ek transaction mein. Card tap = detail dialog (edit-saved-purchase Phase 2 baaki). Print = text preview, Share = clipboard. Test: test/purchase_history_test.dart."
  },
  {
   "kotlin": "CashActivity.kt",

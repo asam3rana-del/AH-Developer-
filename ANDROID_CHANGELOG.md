@@ -1,5 +1,66 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Purchase History (Phase 7, doosra screen)
+- [x] `PurchaseHistoryActivity.kt`: `lib/screens/purchase_history_screen.dart` + `lib/db/purchase_history_repository.dart`
+  (pure `summarizePurchases`, `filterPurchaseRows`, `parseReturnRequest`, `returnedLineAmount`; test `test/purchase_history_test.dart`;
+  `buildPurchaseBillText` / `buildPurchaseShareText` in `lib/utils/bill_text.dart`). Dashboard tile "Purchase History" (admin).
+- Total Purchases / Total Due (returned bills bahar, due kabhi negative nahi), search (bill no. ya supplier), DUE/PAID badge, Balance, Print / Share / ⋮ (Return, Delete).
+- **Return = partial** (Kotlin FIX): har line par qty; sirf wahi qty stock + weighted cost + supplier balance se nikalti hai; `returns` row har line ki; line poori wapas => row delete; sab lines wapas => bill `returned` + cash ka dated reversal (`return:<bill>`) + payments/linked payments hatana; warna `paid` cap + cash/payment reduce. Stock bik chuka ho to rok (Kotlin jaisa message). Sab ek transaction + sync_queue (jsonEncode).
+- **Delete**: stock+cost wapas (stock kam ho to rok), supplier balance (overpaid advance bhi), bill/items/payments/cash/linked payments + sync delete.
+- Role: admin-only (RoleGuard + repository check).
+- Farq: card tap Kotlin mein PurchaseActivity (edit saved purchase) kholta hai — Flutter mein wo screen nahi, isliye abhi lines ka detail dialog. Print = text preview + Copy; Share = clipboard. Line naam live product se (purchase_items par naam/conversionFactor snapshot nahi — upar unchecked migration item).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/purchase_history_test.dart`.
+- [ ] Phase 7 mein baaki: `HistoryActivity.kt`. Purchase card tap = edit saved purchase jab PurchaseScreen(editBillNo:) ban jaye.
+
+## Flutter side (2026-09-29) — Sale History (Phase 7, pehla screen) + build fixes
+- [x] `SaleHistoryActivity.kt`: `lib/screens/sale_history_screen.dart` + `lib/db/sale_history_repository.dart`
+  (pure `groupSalesByCustomer`, `summarizeSales`, `filterGroups`; test `test/sale_history_test.dart`). Dashboard tile "Sale History".
+  Customer ke hisaab se group, Total Sales / Total Returned cards, customer search, bill tap = items expand, Print (Bill Preview), Edit / Return / Delete.
+- Role: sab dekh sakte hain (Kotlin jaisa). Profit (bill + customer) sirf admin — cashier/manager ke liye `saleProfits()` khali map deta hai (cost load hi nahi hota). Edit/Return/Delete sirf admin (`SaleRepository` bhi dobara check karta hai).
+- Return/Delete `SaleRepository.returnSale/deleteSale` se hi hote hain (stock, customer balance, cash reversal, sync_queue ek transaction mein).
+- Farq: Material icons; Print = text Bill Preview + Copy (Bluetooth Phase 12).
+- **Build fix:** `Expense.method` model mein add ('cash' default) — `expense_repository.dart` compile error. iOS workflow mein Pods ka code signing band (`CODE_SIGNING_ALLOWED=NO`).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/sale_history_test.dart`.
+- [ ] Phase 7 mein baaki: `PurchaseHistoryActivity.kt`, `HistoryActivity.kt`; sale row ka "Return" ab bill-linked payments void nahi karta jab tak `voidLinkedPayments` Flutter mein na ho (upar Sale section ka unchecked item).
+
+## Flutter side (2026-09-29) — PartyQuickAddMenu + Due Reminders (Phase 6, chautha/paanchwan)
+- [x] `PartyQuickAddMenu.kt`: `lib/widgets/party_quick_add_menu.dart` (`showPartyMenuSheet`, `PartyMenuItem`, `showPartyPickerForPayment`, pure `pickerCandidates`; test `test/party_quick_add_test.dart`).
+  Party Dashboard ka "+" menu ab isi sheet se; Payment Received/Made => party chunein => `PartyTransactionScreen(openPayment: true)`. Payment Made sirf admin/manager (supplier screen cashier ke liye band).
+- [x] `DueRemindersActivity.kt`: `lib/screens/due_reminders_screen.dart` + `lib/db/due_reminders_repository.dart`
+  (pure `dueBucket`, `summarizeDue`, `sortDueBills`, `overdueCustomerStatus`, `whatsAppDigits`, `reminderMessage`; test `test/due_reminders_test.dart`).
+- **DB v10** (migration): `sales.dueDate`, `purchases.dueDate` (INTEGER NOT NULL DEFAULT 0; 0 = date set nahi). `Sale`/`Purchase` models mein `dueDate`.
+  `SaleRepository.saveSale` edit par original `dueDate` carry karta hai (Kotlin FIX: edit par reset-to-0 nahi). Date set karna: dirty + updatedAt + poori row `sync_queue` mein (Kotlin FIX).
+- [x] Overdue ab asli: Party Transaction ka Overdue stat (bill `dueDate` guzri + paisa baqi) aur Party Dashboard par customer ka Overdue / Due Today badge.
+- Role: Due Reminders admin + manager (Kotlin mein Reports ke andar, jahan role check hai); Dashboard tile abhi wahi (Reports Phase 9 mein aayega). Badge sab roles ko dikhta hai.
+- Farq: Material icons; WhatsApp/Call `url_launcher` se; sale checkout mein due date field abhi nahi (Kotlin mein bhi nahi — sirf yahin se set hoti hai).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test`. Purani DB par pehli launch mein v9->v10 migration chalegi.
+- [ ] Phase 6 mein sirf baaki: `PartyActivity` ka contact picker (flutter_contacts + permissions) + party row tap se Dashboard/Transaction.
+
+## Flutter side (2026-09-29) — Party Reports (Phase 6, teesra screen)
+- [x] `PartyReportsActivity.kt`: `lib/screens/party_reports_screen.dart` + `lib/db/party_reports_repository.dart`
+  (pure `buildLedgerLines`, `runLedger`, `aggregateItems`, `paymentEntries`, `customerPL`, `supplierSummary`; test `test/party_reports_test.dart`).
+  Customers/Suppliers tabs -> party tap -> 6 reports: Item, Ledger (Dr/Cr), Payment History, Statement, Sale/Purchase by Party, P&L / Purchase Summary.
+- Kotlin FIX rules saath aaye: returned bills sab reports se bahar; general (bill-unlinked) payments Ledger/Statement mein; bill-embedded payments dobara nahi; stuck balance ka Daily/Stuck/Total split.
+- Role: admin + manager (RoleGuard; P&L mein cost hai, repository `allowCost` bhi check karta hai). Abhi Dashboard tile se khulta hai (Reports Phase 9 mein aayega, Balance Sheet jaisa).
+- Farq: Kotlin ke `ic_*` ki jagah Material icons; supplier item ka naam live product se (Flutter `PurchaseItem` mein naam snapshot nahi).
+- Note: yeh code compile/test nahi hua (Flutter SDK maujood nahi) — `flutter analyze && flutter test test/party_reports_test.dart` chalayein.
+- [ ] Phase 6 mein baaki: `PartyQuickAddMenu.kt`, `DueRemindersActivity.kt` (+ sales/purchases `dueDate` DB migration), `PartyActivity` ka contact picker + row tap.
+
+## Flutter side (2026-09-29) — Party Transaction (Phase 6, doosra screen)
+- [x] `PartyTransactionActivity.kt`: `lib/screens/party_transaction_screen.dart` + `lib/db/party_transaction_repository.dart`
+  (pure `computePartyTxStats`, `filterTxEntries`, `standalonePayments`, `reconcilePaid`, `reversePurchaseLineCost`/`addPurchaseLineCost`; test `test/party_transaction_test.dart`).
+  Balance card (Opening + You'll Get/Give), Stuck split, stat grid, Share Statement, search + All/Bills/Payments, bills + standalone payments ki merged list.
+- [x] Billed Items dialog: har line Edit (qty/rate) / Delete, sirf admin (screen + data layer). Ek transaction mein: stock (sale = frozen conversionFactor; rate-only edit stock nahi chhoota),
+  purchase par weighted-average cost, line, bill total/paid (paid sirf cap hota hai + cash reversal `return:<ref>`), party balance, sync_queue. Aakhri line = poori bill delete (cash + linked payments samet).
+- [x] Party Dashboard: party row tap ab `PartyTransactionScreen` kholta hai. `openPayment` parameter tayyar (PartyQuickAddMenu ke liye).
+- [x] FIX: `Payment` model mein `billReference` + `copyWith` nahi the (payment_repository / payments_screen unhe istemal karte the => compile nahi hota) — ab model mein hain.
+- `PaymentRepository.update/delete` ab data layer par bhi admin-only (Kotlin `requireAdminOrAbort`).
+- Farq: Share Statement / Share receipt clipboard mein copy (share plugin nahi); payment save ke baad "Share receipt?" offer nahi (har payment row par Share chip); Overdue Rs 0 (dueDate column nahi);
+  `purchase_items` mein conversionFactor / itemName nahi => purchase line ki smallest qty product ki MAUJUDA ladder se; supplier screen cashier ke liye band.
+- [ ] Sales/Purchases mein `dueDate` column (Overdue + Due Reminders) — DB migration + Sale/Purchase screens.
+- [ ] `purchase_items.conversionFactor` + `itemName` (Kotlin snapshot) — DB migration.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
+
 ## Flutter side (2026-09-29) — Party Dashboard (Phase 6, pehla screen)
 - [x] `PartyDashboardActivity.kt`: `lib/screens/party_dashboard_screen.dart` + `lib/db/party_dashboard_repository.dart`
   (pure `partyTotals`, `filterPartyRows`, `sortPartyRows`, `filterTxRows`, `filterItemAggs`; test `test/party_dashboard_test.dart`).
@@ -8,7 +69,7 @@
 - Closing hamesha live ledger se (`PartyRepository.liveCustomerBalances`); customer aur supplier ka sign rule ulta (Kotlin FIX jaisa).
 - `ProductRepository.setAllRates()` naya (cost + retail + wholesale + sync_queue, ek transaction). Edit Rates sirf admin; cashier ko cost / purchase data load hi nahi hota.
 - Farq: transaction item-name search ka key `S:<invoice>` / `P:<billNo>` (Kotlin sirf reference); Share summary clipboard mein copy hota hai (share plugin nahi).
-- [ ] Party row tap => `PartyTransactionScreen` (`_openParty` mein TODO) — PartyTransactionActivity port hone par.
+- [x] Party row tap => `PartyTransactionScreen` (Party Transaction entry dekhein).
 - [ ] Overdue / Due Today badge: `sales` table mein `dueDate` column nahi — Due Reminders (DueRemindersActivity) ke saath.
 - [ ] Transactions tab mein Purchase row tap = edit-saved-purchase (Phase 7). "+" menu: Sale/Purchase Return (Phase 7 History).
 - [ ] "+" menu ka Payment Received/Made abhi Payments screen kholta hai; party picker + openPayment PartyQuickAddMenu.kt ke saath.

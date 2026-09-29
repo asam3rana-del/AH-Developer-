@@ -11,6 +11,9 @@ class Purchase {
   final int updatedAt;
   final bool dirty;
 
+  /// Supplier ko payment ki date (millis). 0 = set nahi (Kotlin Purchase.dueDate, DB v10).
+  final int dueDate;
+
   const Purchase({
     required this.billNo,
     this.supplierId,
@@ -22,6 +25,7 @@ class Purchase {
     this.status = 'active',
     this.updatedAt = 0,
     this.dirty = true,
+    this.dueDate = 0,
   });
 
   Map<String, Object?> toMap() => {
@@ -35,6 +39,7 @@ class Purchase {
         'status': status,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
+        'dueDate': dueDate,
       };
 
   factory Purchase.fromMap(Map<String, Object?> m) => Purchase(
@@ -48,6 +53,7 @@ class Purchase {
         status: (m['status'] as String?) ?? 'active',
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,
+        dueDate: (m['dueDate'] as num?)?.toInt() ?? 0,
       );
 }
 

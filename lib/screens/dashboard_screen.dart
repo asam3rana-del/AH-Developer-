@@ -15,10 +15,14 @@ import 'items_screen.dart';
 import 'login_screen.dart';
 import 'party_dashboard_screen.dart';
 import 'party_screen.dart';
+import 'due_reminders_screen.dart';
+import 'party_reports_screen.dart';
 import 'payments_screen.dart';
 import 'product_screen.dart';
+import 'purchase_history_screen.dart';
 import 'purchase_screen.dart';
 import 'rate_comparison_screen.dart';
+import 'sale_history_screen.dart';
 import 'sale_screen.dart';
 import 'settings_screen.dart';
 import 'shell_ledger_screen.dart';
@@ -76,10 +80,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // lives here for now — move it under Reports then.
         _Tile('Balance Sheet', 'بیلنس شیٹ', 'Assets, liabilities & capital', 'اثاثے، واجبات اور سرمایہ', Icons.assessment, AppColors.blue, _am,
             () => const RoleGuard(allowed: _am, child: BalanceSheetScreen())),
+        _Tile('Due Reminders', 'ادائیگی یاد دہانی', 'Credit still owed, by due date', 'ادھار جو باقی ہے، تاریخ کے ساتھ', Icons.alarm, AppColors.amber, _am,
+            () => const DueRemindersScreen()),
+        // Kotlin: Due Reminders bhi Reports (admin/manager) ke andar hai — Reports (Phase 9) tak yahan.
+        // Kotlin opens Party Reports from Reports (Phase 9) — temporary home here, same as Balance Sheet.
+        _Tile('Party Reports', 'پارٹی رپورٹس', 'Ledger, statement & item reports', 'لیجر، اسٹیٹمنٹ اور آئٹم رپورٹس', Icons.people_alt, AppColors.purple, _am,
+            () => const PartyReportsScreen()),
         _Tile('Zakat', 'زکوٰۃ', 'Ramadan-to-Ramadan tracker', 'رمضان تا رمضان حساب', Icons.volunteer_activism, AppColors.teal, _am,
             () => const RoleGuard(allowed: _am, child: ZakatScreen())),
         _Tile('Shell Ledger', 'شیل لیجر', 'Bottles given & shells back', 'بھری بوتلیں اور واپس شیل', Icons.repeat, AppColors.amber, _all,
             () => const ShellLedgerScreen()),
+        _Tile('Sale History', 'سیل ہسٹری', 'Past sales by customer', 'پرانی سیلز، گاہک کے حساب سے', Icons.receipt, AppColors.teal, _all,
+            () => const SaleHistoryScreen()),
+        _Tile('Purchase History', 'خریداری کی تاریخ', 'Supplier bills, return & delete', 'سپلائر بلز، واپسی اور حذف', Icons.history, AppColors.red, _admin,
+            () => const PurchaseHistoryScreen()),
         _Tile('Day book', 'روزنامچہ', 'View daily ledger', 'روزانہ کھاتہ', Icons.menu_book, AppColors.teal, _all, () => const DayBookScreen()),
       ];
 

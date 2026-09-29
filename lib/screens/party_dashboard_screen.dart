@@ -7,11 +7,14 @@ import '../models/product.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
+import '../widgets/party_quick_add_menu.dart';
 import '../widgets/role_guard.dart';
+import '../db/due_reminders_repository.dart' show PartyDueStatus;
 import 'cash_screen.dart';
 import 'item_search_screen.dart';
 import 'login_screen.dart';
 import 'party_screen.dart';
+import 'party_transaction_screen.dart';
 import 'payments_screen.dart';
 import 'product_screen.dart';
 import 'purchase_screen.dart';
@@ -28,11 +31,10 @@ import 'settings_screen.dart';
 ///  * Sale row tap (edit) sirf admin — Day Book jaisa.
 ///
 /// Abhi baaki (Phase 6 ke agle screens / Phase 7 / Phase 10):
-///  * Party row tap => PartyTransactionScreen (port hone par `_openParty` mein jorein).
 ///  * Purchase row tap => edit-saved-purchase (Phase 7).
 ///  * "+" menu: Sale/Purchase Return (History, Phase 7); Payment Received/Made abhi Payments
 ///    screen kholta hai (party picker + openPayment PartyQuickAddMenu.kt ke saath aayega).
-///  * Overdue / Due Today badge (sales mein dueDate column nahi — Due Reminders ke saath).
+///  * Overdue / Due Today badge: ab hai (DB v10 sales.dueDate).
 ///  * Reports (Phase 9). Share summary: share plugin nahi, is liye clipboard mein copy.
 class PartyDashboardScreen extends StatefulWidget {
   const PartyDashboardScreen({super.key});
@@ -172,8 +174,7 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
   // ------------------------------------------------------------------ actions
 
   void _openParty(PartyRow r) {
-    // TODO(Phase 6): PartyTransactionScreen(partyId: r.id, partyName: r.name, isCustomer: r.isCustomer)
-    _comingSoon();
+    _push(PartyTransactionScreen(partyId: r.id, partyName: r.name, isCustomer: r.isCustomer));
   }
 
   void _openTx(TxRow row) {
@@ -300,30 +301,49 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
   }
 
   void _showQuickAdd() {
-    _showSheet(
+    showPartyMenuSheet(
+      context,
       icon: Icons.add,
       title: Loc.t('Quick Add', 'فوری اندراج'),
       subtitle: Loc.t('Choose an action', 'ایک عمل منتخب کریں'),
       items: [
-        _SheetItem(Icons.receipt_long, _red, Loc.t('Add Sale', 'سیل شامل کریں'),
+        PartyMenuItem(Icons.receipt_long, _red, Loc.t('Add Sale', 'سیل شامل کریں'),
             Loc.t('Create a new sale invoice', 'نیا سیل انوائس بنائیں'), () => _push(const SaleScreen())),
         if (Session.isAdmin)
-          _SheetItem(Icons.shopping_cart_outlined, _blue, Loc.t('Add Purchase', 'خریداری شامل کریں'),
+          PartyMenuItem(Icons.shopping_cart_outlined, _blue, Loc.t('Add Purchase', 'خریداری شامل کریں'),
               Loc.t('Create a new purchase bill', 'نیا خریداری بل بنائیں'),
               () => _push(const RoleGuard(allowed: {'admin'}, child: PurchaseScreen()))),
         // Returns History screens (Phase 7) se hoti hain.
-        _SheetItem(Icons.undo, _orange, Loc.t('Sale Return', 'سیل واپسی'),
+        PartyMenuItem(Icons.undo, _orange, Loc.t('Sale Return', 'سیل واپسی'),
             Loc.t('Return items from a past sale', 'پچھلی سیل سے آئٹمز واپس کریں'), _comingSoon),
         if (Session.isAdmin)
-          _SheetItem(Icons.undo, _green, Loc.t('Purchase Return', 'خریداری واپسی'),
+          PartyMenuItem(Icons.undo, _green, Loc.t('Purchase Return', 'خریداری واپسی'),
               Loc.t('Return items from a past purchase', 'پچھلی خریداری سے آئٹمز واپس کریں'), _comingSoon),
-        _SheetItem(Icons.person_add_alt, _purple, Loc.t('New Party', 'نئی پارٹی'),
+        PartyMenuItem(Icons.person_add_alt, _purple, Loc.t('New Party', 'نئی پارٹی'),
             Loc.t('Add a customer or supplier', 'کسٹمر یا سپلائر شامل کریں'), () => _push(const PartyScreen())),
-        _SheetItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Payment Received', 'ادائیگی وصول ہوئی'),
-            Loc.t('Record money received', 'موصول ہونے والی رقم درج کریں'), () => _push(const PaymentsScreen())),
-        _SheetItem(Icons.account_balance, _gold, Loc.t('Payment Made', 'ادائیگی ہوئی'),
-            Loc.t('Record money paid out', 'ادا کی گئی رقم درج کریں'), () => _push(const PaymentsScreen())),
+        PartyMenuItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Payment Received', 'ادائیگی وصول ہوئی'),
+            Loc.t('Record money received', 'موصول ہونے والی رقم درج کریں'), () => _pickPartyForPayment(forCustomer: true)),
+        // Supplier screen cashier ke liye band (PartyTransactionScreen._blocked) — menu mein bhi nahi.
+        if (Session.isAdminOrManager)
+          PartyMenuItem(Icons.account_balance, _gold, Loc.t('Payment Made', 'ادائیگی ہوئی'),
+              Loc.t('Record money paid out', 'ادا کی گئی رقم درج کریں'), () => _pickPartyForPayment(forCustomer: false)),
       ],
+    );
+  }
+
+  /// Kotlin showPartyPickerForPayment(): party chunein => PartyTransactionScreen payment dialog
+  /// pehle se khuli (openPayment) — party ka ledger kholne ka ek tap bachta hai.
+  void _pickPartyForPayment({required bool forCustomer}) {
+    showPartyPickerForPayment(
+      context,
+      parties: _parties,
+      forCustomer: forCustomer,
+      onPicked: (r) => _push(PartyTransactionScreen(
+        partyId: r.id,
+        partyName: r.name,
+        isCustomer: r.isCustomer,
+        openPayment: true,
+      )),
     );
   }
 
@@ -726,6 +746,28 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
                 Text(r.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.textDark)),
                 const SizedBox(height: 4),
                 Text(subtitle, style: TextStyle(fontSize: 11.5, color: p.textMuted)),
+                // Due badge: is customer ki aaj/purani due-date wali sale baqi hai (Kotlin DueStatus).
+                if (r.dueStatus != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: r.dueStatus == PartyDueStatus.overdue ? _red : _gold,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.alarm, size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          r.dueStatus == PartyDueStatus.overdue
+                              ? Loc.t('Overdue', 'میعاد گزر گئی')
+                              : Loc.t('Due Today', 'آج واجب الادا'),
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ]),
+                    ),
+                  ),
                 // Stuck Balance: badi figure TOTAL hai, ye line use Daily + Stuck mein todti hai.
                 if (r.stuck != 0.0)
                   Padding(

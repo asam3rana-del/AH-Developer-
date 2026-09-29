@@ -14,6 +14,9 @@ class Sale {
   final int updatedAt;
   final bool dirty;
 
+  /// Payment reminder date (millis, start of day). 0 = koi date set nahi (Kotlin Sale.dueDate, DB v10).
+  final int dueDate;
+
   const Sale({
     required this.invoice,
     this.customerId,
@@ -28,6 +31,7 @@ class Sale {
     this.status = 'active',
     this.updatedAt = 0,
     this.dirty = true,
+    this.dueDate = 0,
   });
 
   Map<String, Object?> toMap() => {
@@ -44,6 +48,7 @@ class Sale {
         'status': status,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
+        'dueDate': dueDate,
       };
 
   factory Sale.fromMap(Map<String, Object?> m) => Sale(
@@ -60,6 +65,7 @@ class Sale {
         status: (m['status'] as String?) ?? 'active',
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,
+        dueDate: (m['dueDate'] as num?)?.toInt() ?? 0,
       );
 }
 

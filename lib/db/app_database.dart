@@ -15,7 +15,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 9;
+  static const _dbVersion = 10;
 
   Database? _db;
 
@@ -120,7 +120,8 @@ class AppDatabase {
         createdAt INTEGER NOT NULL,
         status TEXT NOT NULL DEFAULT 'active',
         updatedAt INTEGER NOT NULL DEFAULT 0,
-        dirty INTEGER NOT NULL DEFAULT 1
+        dirty INTEGER NOT NULL DEFAULT 1,
+        dueDate INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -167,7 +168,8 @@ class AppDatabase {
         discount REAL NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'active',
         updatedAt INTEGER NOT NULL DEFAULT 0,
-        dirty INTEGER NOT NULL DEFAULT 1
+        dirty INTEGER NOT NULL DEFAULT 1,
+        dueDate INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -342,6 +344,12 @@ class AppDatabase {
     if (oldVersion < 9) {
       // v9: Customer.stuckBalance (Kotlin MIGRATION "Stuck Balance": plain ADD COLUMN, default 0).
       await _addColumnIfMissing(db, 'customers', 'stuckBalance', 'REAL NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 10) {
+      // v10: Due Date Reminders (Kotlin MIGRATION_29_30 sales.dueDate + MIGRATION_42_43 purchases.dueDate).
+      // Plain ADD COLUMN, purani rows 0 = "date set nahi".
+      await _addColumnIfMissing(db, 'sales', 'dueDate', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'purchases', 'dueDate', 'INTEGER NOT NULL DEFAULT 0');
     }
   }
 

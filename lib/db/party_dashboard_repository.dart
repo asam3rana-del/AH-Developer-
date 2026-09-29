@@ -4,6 +4,7 @@ import '../models/product.dart';
 import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
+import 'due_reminders_repository.dart';
 import 'party_repository.dart';
 import 'product_repository.dart';
 import 'supplier_repository.dart';
@@ -21,8 +22,8 @@ import 'supplier_repository.dart';
 ///  * Rates edit sirf admin (Kotlin mein koi check nahi tha; PORTING_PLAN: Products admin-only).
 ///
 /// Farq (Kotlin se):
-///  * `dueStatus` (Overdue / Due Today badge) abhi nahi: `sales` table mein `dueDate` column nahi
-///    hai (Due Reminders Phase 6 ka baaki hissa). Jab column aaye to [PartyRow] mein field jorein.
+///  * `dueStatus` (Overdue / Due Today badge, sirf customers) ab hai: DB v10 `sales.dueDate` +
+///    [DueRemindersRepository.customerDueStatus].
 ///  * Transaction item-name search ka key `S:<invoice>` / `P:<billNo>` hai (Kotlin sirf reference
 ///    istemal karta tha, jo invoice aur billNo ke ek jaisay hone par takra sakta tha).
 
@@ -48,6 +49,9 @@ class PartyRow {
   /// sales / purchases / payments mein sab se naya createdAt; null => abhi koi len-den nahi.
   final int? lastActivityAt;
 
+  /// Customer par aaj/purani due date wali sale baqi ho to badge (sirf customers; Kotlin DueStatus).
+  final PartyDueStatus? dueStatus;
+
   const PartyRow({
     required this.id,
     required this.name,
@@ -56,6 +60,7 @@ class PartyRow {
     required this.isCustomer,
     this.stuck = 0.0,
     this.lastActivityAt,
+    this.dueStatus,
   });
 
   bool get isSettled => closing.abs() < 0.005;
@@ -203,6 +208,8 @@ class PartyDashboardRepository {
     final liveCustomer = await PartyRepository.instance.liveCustomerBalances();
     final liveSupplier = await PartyRepository.instance.liveSupplierBalances();
 
+    final dueByCustomer = await DueRemindersRepository.instance.customerDueStatus();
+
     final customerLastAt = <int, int>{};
     _mergeMax(
         customerLastAt,
@@ -233,6 +240,7 @@ class PartyDashboardRepository {
           isCustomer: true,
           stuck: c.stuckBalance,
           lastActivityAt: customerLastAt[c.id],
+          dueStatus: dueByCustomer[c.id],
         ),
       for (final s in suppliers)
         PartyRow(

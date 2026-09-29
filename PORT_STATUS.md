@@ -2,7 +2,7 @@
 
 `python3 tools/port_status.py` chala kar dobara banayein.
 
-**Overall (lines of Kotlin ke hisaab se): 44%**  (21628/49102)
+**Overall (lines of Kotlin ke hisaab se): 55%**  (27147/49102)
 
 ## Phase 0: Foundation (models, DB, colors, widgets) — 100%
 
@@ -70,28 +70,28 @@
 | ✅ | SaleQuickSale.kt | 404 | lib/screens/sale_quick_sale.dart | Dialog + saveQuickSale + credit-limit confirm + top-30-day items pehle. System keyboard (Kotlin bhi yahi). |
 | ✅ | SaleHoldRecall.kt | 199 | lib/services/sale_hold_recall.dart + lib/widgets/held_bills_dialog.dart | encode/decode + Held Bills dialog. Sale holds sirf HOLD% (PHOLD% purchase ke liye). |
 
-## Phase 6: Parties (customer/supplier) — 27%
+## Phase 6: Parties (customer/supplier) — 80%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
 | 🟡 | PartyActivity.kt | 1359 | lib/screens/party_screen.dart | Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Baaki: contact picker (flutter_contacts + permissions), row tap se Party Dashboard/Transaction. |
-| 🟡 | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart | Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Baaki: party row tap -> PartyTransaction, Overdue/Due Today badge (sales mein dueDate nahi), Purchase row edit (Phase 7), Payment Received/Made party picker (PartyQuickAddMenu). Test: test/party_dashboard_test.dart. |
-| ⬜ | PartyTransactionActivity.kt | 2219 | lib/screens/party_transaction_screen.dart | Edit/delete items admin-only. |
-| ⬜ | PartyReportsActivity.kt | 1034 | lib/screens/party_reports_screen.dart |  |
+| 🟡 | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart | Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Baaki: Purchase row edit (Phase 7). Test: test/party_dashboard_test.dart. |
+| ✅ | PartyTransactionActivity.kt | 2219 | lib/screens/party_transaction_screen.dart + lib/db/party_transaction_repository.dart | Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = clipboard, Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart. |
+| ✅ | PartyReportsActivity.kt | 1034 | lib/screens/party_reports_screen.dart + lib/db/party_reports_repository.dart | 6 reports (Item, Ledger, Payment History, Statement, Sale/Purchase by Party, P&L / Purchase Summary) — returned bills bahar, general payments Ledger/Statement mein, stuck split. Admin/Manager only (RoleGuard). Farq: Material icons; purchase item naam live product se. Test: test/party_reports_test.dart. |
 | ✅ | PartyRepository.kt | 444 | lib/db/party_repository.dart | lib/db/party_repository.dart: CRUD + live balances + recalc(dryRun) + merge + cleanup, sab ek transaction mein. PartyLedger/trueBalance/countBalanceDrift yahin (Balance Sheet bhi yahi istemal karta hai). Test: test/party_test.dart. |
 | ✅ | PartyUseCases.kt | 196 | lib/db/party_repository.dart | Validation (naam zaroori) PartyRepository.addCustomer/editCustomer/... mein. |
-| ⬜ | PartyQuickAddMenu.kt | 291 | lib/widgets/party_quick_add_menu.dart |  |
-| ⬜ | DueRemindersActivity.kt | 494 | lib/screens/due_reminders_screen.dart |  |
+| ✅ | PartyQuickAddMenu.kt | 291 | lib/widgets/party_quick_add_menu.dart | showPartyMenuSheet (Kotlin showPremiumMenuSheet) + PartyMenuItem + showPartyPickerForPayment (searchable, naam/phone) -> PartyTransactionScreen(openPayment: true). Dashboard '+' menu ab isi se. Payment Made cashier ko nahi (supplier screen band). Pure `pickerCandidates` test: test/party_quick_add_test.dart. |
+| ✅ | DueRemindersActivity.kt | 494 | lib/screens/due_reminders_screen.dart + lib/db/due_reminders_repository.dart | Sales/Purchases tabs, Overdue + Total outstanding cards, badge (OVERDUE/DUE TODAY/DUE SOON/UPCOMING/No date), card tap = date picker (dirty + updatedAt + sync_queue), WhatsApp (wa.me, 0->92) + Call. DB v10: sales.dueDate + purchases.dueDate; sale edit dueDate carry karti hai. Admin/Manager only (Kotlin mein Reports ke andar). Test: test/due_reminders_test.dart. |
 | ➖ | PartyViewModel.kt | 271 | — |  |
 | ➖ | PartyViewModelFactory.kt | 58 | — |  |
 
-## Phase 7: History — 0%
+## Phase 7: History — 58%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
 | ⬜ | HistoryActivity.kt | 1063 | lib/screens/history_screen.dart | Return/Delete/profit admin-only. |
-| ⬜ | SaleHistoryActivity.kt | 621 | lib/screens/sale_history_screen.dart | Profit sirf admin. |
-| ⬜ | PurchaseHistoryActivity.kt | 860 | lib/screens/purchase_history_screen.dart | Admin-only. |
+| ✅ | SaleHistoryActivity.kt | 621 | lib/screens/sale_history_screen.dart | lib/db/sale_history_repository.dart (pure groupSalesByCustomer/summarizeSales/filterGroups). Sab roles dekh sakte hain; profit + Edit/Return/Delete sirf admin. Print = text Bill Preview. Test: test/sale_history_test.dart. Dashboard tile. |
+| ✅ | PurchaseHistoryActivity.kt | 860 | lib/screens/purchase_history_screen.dart | lib/screens/purchase_history_screen.dart + lib/db/purchase_history_repository.dart (pure summarizePurchases/filterPurchaseRows/parseReturnRequest/returnedLineAmount). Admin-only. Partial return + delete ek transaction mein. Card tap = detail dialog (edit-saved-purchase Phase 2 baaki). Print = text preview, Share = clipboard. Test: test/purchase_history_test.dart. |
 
 ## Phase 8: Cash, expense, accounts — 63%
 

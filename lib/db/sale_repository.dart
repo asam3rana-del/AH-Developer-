@@ -467,6 +467,8 @@ class SaleRepository {
         // A returned sale stays returned through an edit.
         status: original?.status ?? 'active',
         updatedAt: now,
+        // Edit par dueDate reset na ho (Kotlin: "reset-to-0 dueDate on every edit" FIX).
+        dueDate: original?.dueDate ?? 0,
       );
       if (original != null) {
         // True in-place UPDATE keyed by invoice (never delete + re-insert).

@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../models/misc_entities.dart';
+import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
@@ -140,6 +141,7 @@ class PaymentRepository {
     required int newDateMillis,
     required String newBillRef,
   }) async {
+    if (!Session.isAdmin) throw StateError('Sirf Admin ye action kar sakta hai');
     final db = await AppDatabase.instance.database;
     final delta = newAmount - original.amount;
     await db.transaction((txn) async {
@@ -183,6 +185,7 @@ class PaymentRepository {
 
   /// Mirrors deletePayment() — reverses exactly what save() did.
   Future<void> delete({required Payment payment, required bool isCustomer}) async {
+    if (!Session.isAdmin) throw StateError('Sirf Admin ye action kar sakta hai');
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await txn.delete('payments', where: 'reference = ?', whereArgs: [payment.reference]);
