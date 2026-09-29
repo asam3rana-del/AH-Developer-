@@ -42,3 +42,16 @@ sed -i -E "s/^([[:space:]]*)signingConfig[[:space:]]*=?[[:space:]]*signingConfig
 echo "=== app build.gradle (verify proguard) ==="
 grep -n "proguard\|signingConfig" "$GRADLE"
 grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build.gradle"; exit 1; }
+
+# --- Fixed signing key: har build par wahi key, taake APK purani app ke upar update ho sake. ---
+# Secret KEYSTORE_BASE64 (GitHub repo secret) se keystore banti hai. Na ho to debug key (update nahi hoga).
+if [ -n "$KEYSTORE_BASE64" ]; then
+  echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload.jks
+  sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword 'AhKiryana2026x'\n\1        keyAlias 'ahkey'\n\1        keyPassword 'AhKiryana2026x'\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
+  sed -i -E 's/signingConfigs\.debug/signingConfigs.release/' "$GRADLE"
+  echo "=== app build.gradle (verify signing) ==="
+  grep -n "signingConfig\|upload.jks" "$GRADLE"
+  grep -q "signingConfigs.release" "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
+else
+  echo "WARNING: KEYSTORE_BASE64 secret nahi mila, debug key use hogi (update install nahi hoga)"
+fi
