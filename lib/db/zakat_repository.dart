@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart' show Transaction;
@@ -11,6 +10,7 @@ import 'app_database.dart';
 import 'balance_sheet_repository.dart' show stockValueAtCost;
 import 'expense_repository.dart';
 import 'user_repository.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ports ZakatActivity.kt + ZakatDao: Ramadan-to-Ramadan Zakat year,
 /// (cash + bank + stock at cost + receivables - payables) x 2.5%, payments
@@ -138,15 +138,9 @@ class ZakatRepository {
     }
   }
 
+  /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   static Future<void> _enqueue(Transaction txn, String type, String id, String op, Map<String, Object?> payload) =>
-      txn.insert('sync_queue', {
-        'entityType': type,
-        'entityId': id,
-        'operation': op,
-        'payloadJson': jsonEncode(payload),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'retryCount': 0,
-      });
+      SyncQueueHelper.enqueueLegacy(txn, type, id, op, payload);
 
   Future<String> defaultCurrency() async {
     final v = (await UserRepository.instance.getSetting('currency'))?.trim() ?? '';

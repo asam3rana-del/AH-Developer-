@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart' show Transaction;
 
@@ -14,6 +13,7 @@ import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'product_repository.dart';
+import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
 
 /// One line the user has added to the sale bill before saving — mirrors
@@ -203,6 +203,7 @@ class SaleRepository {
       'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
       [smallest, now, barcode],
     );
+    await SyncQueueHelper.enqueueStockDelta(txn, barcode, smallest);
     await StockLedger.log(txn, barcode: barcode, type: type, signedQty: smallest, reference: reference, now: now);
   }
 
@@ -211,18 +212,13 @@ class SaleRepository {
       'UPDATE customers SET balance = balance + ?, dirty = 1, updatedAt = ? WHERE id = ?',
       [delta, now, customerId],
     );
+    await SyncQueueHelper.enqueueBalanceDelta(txn, customer: true, partyId: customerId, delta: delta);
   }
 
   /// Deletes the cash-drawer rows of [invoice] AND queues each removal so
   /// other devices drop them too (Kotlin deleteCashTransactionsByReference).
-  Future<void> _deleteCashByReference(Transaction txn, String invoice) async {
-    final rows = await txn.query('cash_transactions', where: 'reference=?', whereArgs: [invoice]);
-    for (final r in rows) {
-      final id = r['id'];
-      await txn.delete('cash_transactions', where: 'id=?', whereArgs: [id]);
-      await _enqueueSync(txn, 'cash_transaction', '$id', 'delete', {'id': id, 'reference': invoice});
-    }
-  }
+  Future<void> _deleteCashByReference(Transaction txn, String invoice) =>
+      SyncQueueHelper.deleteCashTransactionsByReference(txn, invoice);
 
   /// Kotlin `PaymentDao.linkedPaidForBill()`: standalone payments recorded via
   /// "Receive Payment > link to bill" (billReference == bill, but NOT the bill's
@@ -282,8 +278,7 @@ class SaleRepository {
       } else {
         await _deleteCashByReference(txn, ref);
       }
-      await txn.delete('payments', where: 'id = ?', whereArgs: [p['id']]);
-      await _enqueueSync(txn, 'payment', '${p['id']}', 'delete', {'id': p['id'], 'reference': ref});
+      await SyncQueueHelper.deletePaymentRow(txn, Map<String, Object?>.from(p));
     }
   }
 
@@ -606,6 +601,7 @@ class SaleRepository {
           'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
           [smallest, now, line.barcode],
         );
+        await SyncQueueHelper.enqueueStockDelta(txn, line.barcode, -smallest);
         await StockLedger.log(txn,
             barcode: line.barcode,
             type: original != null ? MovementType.saleEdit : MovementType.sale,
@@ -919,10 +915,12 @@ class SaleRepository {
         'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
         [smallest, now, current.barcode],
       );
+      await SyncQueueHelper.enqueueStockDelta(txn, current.barcode, -smallest);
       await StockLedger.log(txn,
           barcode: current.barcode, type: MovementType.sale, signedQty: -smallest, reference: invoice, now: now);
       if (isCredit && customerId != null) {
         await txn.rawUpdate('UPDATE customers SET balance = balance + ?, dirty = 1 WHERE id = ?', [amount, customerId]);
+        await SyncQueueHelper.enqueueBalanceDelta(txn, customer: true, partyId: customerId, delta: amount);
       }
 
       await _enqueueSync(txn, 'sale', invoice, 'create', {
@@ -1001,16 +999,10 @@ class SaleRepository {
     await db.delete('held_bills', where: 'holdId=?', whereArgs: [bill.holdId]);
   }
 
-  Future<void> _enqueueSync(Transaction txn, String entityType, String entityId, String operation, Map<String, Object?> payload) async {
-    await txn.insert('sync_queue', {
-      'entityType': entityType,
-      'entityId': entityId,
-      'operation': operation,
-      'payloadJson': jsonEncode(payload),
-      'createdAt': DateTime.now().millisecondsSinceEpoch,
-      'retryCount': 0,
-    });
-  }
+  /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
+  Future<void> _enqueueSync(Transaction txn, String entityType, String entityId, String operation,
+          Map<String, Object?> payload) =>
+      SyncQueueHelper.enqueueLegacy(txn, entityType, entityId, operation, payload);
 
   String _trimNum(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
 }

@@ -1,6 +1,6 @@
-import 'dart:convert';
 
 import 'app_database.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ports the data side of DueRemindersActivity.kt + SaleDao.dueSales()/setDueDate() +
 /// PurchaseDao.duePurchases()/setDueDate() (Database.kt). UI: lib/screens/due_reminders_screen.dart.
@@ -204,15 +204,11 @@ class DueRemindersRepository {
         whereArgs: [id],
       );
       if (n == 0) return false; // bill ab nahi rahi (delete ho gayi)
-      final fresh = (await txn.query(table, where: '$key = ?', whereArgs: [id], limit: 1)).first;
-      await txn.insert('sync_queue', {
-        'entityType': isSale ? 'sale' : 'purchase',
-        'entityId': id,
-        'operation': 'update',
-        'payloadJson': jsonEncode(fresh),
-        'createdAt': now,
-        'retryCount': 0,
-      });
+      if (isSale) {
+        await SyncQueueHelper.enqueueSale(txn, id);
+      } else {
+        await SyncQueueHelper.enqueuePurchase(txn, id);
+      }
       return true;
     });
   }

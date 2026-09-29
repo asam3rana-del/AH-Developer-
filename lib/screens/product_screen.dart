@@ -273,9 +273,7 @@ class _ProductScreenState extends State<ProductScreen> {
     }
 
     await ProductRepository.instance.upsert(product, isNew: existing == null);
-    // TODO: enqueue into your sync_queue table + trigger the sync worker here,
-    // mirroring SyncQueueHelper.enqueue()/.trigger() in the Kotlin app, once
-    // the Firestore sync layer is wired up for this screen.
+    // Sync: ProductRepository.upsert khud sync_queue mein likhta hai (Kotlin enqueue + opening stock delta).
 
     _toast(existing != null ? 'Product updated' : 'Product saved');
     _justSavedBarcode = barcode;
@@ -300,8 +298,7 @@ class _ProductScreenState extends State<ProductScreen> {
     if (confirmed != true) return;
 
     await ProductRepository.instance.delete(product);
-    // TODO: enqueue a "delete" sync_queue entry here, mirroring the Kotlin
-    // confirmDeleteProduct()'s SyncQueueHelper.enqueue(..., "delete", "{}").
+    // Sync: ProductRepository.delete khud "delete" (tombstone) queue karta hai.
 
     if (_editing?.barcode == product.barcode) _clearForm();
     _toast('Product deleted');

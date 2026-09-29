@@ -1,9 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart' show PhoneAuthCredential;
 import 'package:flutter/material.dart';
 
 import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
 import '../services/app_lock.dart';
 import '../services/biometric.dart';
+import '../services/otp_login.dart';
 import '../services/session.dart';
 import '../theme/app_colors.dart';
 import '../utils/loc.dart';
@@ -11,7 +13,9 @@ import '../utils/password_hasher.dart';
 import 'dashboard_screen.dart';
 
 /// Mirrors LoginActivity.kt (password + "none" login method + pehli dafa admin setup).
-/// Login methods: password, none, fingerprint, both (local_auth). TODO(Phase 10): OTP / phone link.
+/// Login methods: password, none, fingerprint, both (local_auth), otp (Firebase Phone Auth — `lib/services/otp_login.dart`).
+/// OTP: phone kisi active staff se link ho to seedha login; warna akela active user ho to us ka password ek baar
+/// puch kar phone link (Kotlin SECURITY FIX). Cloud project na ho to OTP nahi chal sakta => password fields wapas.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -25,12 +29,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final _user = TextEditingController();
   final _pass = TextEditingController();
   final _confirm = TextEditingController();
+  final _otpPhone = TextEditingController();
+  final _otpCode = TextEditingController();
 
   bool _loading = true;
   bool _setupMode = false;
   bool _busy = false;
   bool _showPass = false;
   bool _fingerprintOnly = false;
+  bool _otpMode = false;
+  String? _verificationId;
   String? _error;
 
   @override
@@ -47,6 +55,8 @@ class _LoginScreenState extends State<LoginScreen> {
     _user.dispose();
     _pass.dispose();
     _confirm.dispose();
+    _otpPhone.dispose();
+    _otpCode.dispose();
     super.dispose();
   }
 
@@ -68,6 +78,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (method == 'fingerprint' && last != null && last.isNotEmpty) {
       setState(() { _fingerprintOnly = true; _loading = false; });
       _triggerFingerprintUnlock();
+      return;
+    }
+    // "OTP (Phone Number)": sirf phone/OTP wala panel (Kotlin applyLoginMethod "otp").
+    if (method == 'otp') {
+      setState(() { _otpMode = true; _loading = false; });
       return;
     }
     setState(() => _loading = false);
@@ -192,6 +207,153 @@ class _LoginScreenState extends State<LoginScreen> {
     await _completeLogin(user);
   }
 
+  // ---- Phone OTP (Kotlin sendOtpBtn / verifyOtpBtn / verifyAndLogin) ----
+
+  Future<void> _sendOtp() async {
+    final phone = _otpPhone.text.trim();
+    if (!isPhoneEntered(phone)) {
+      _toast(Loc.t('Enter phone number', 'فون نمبر درج کریں'));
+      return;
+    }
+    try {
+      await PhoneOtpAuth.instance.sendCode(
+        phone,
+        onCodeSent: (id) {
+          if (!mounted) return;
+          setState(() { _verificationId = id; _error = null; });
+          _toast(Loc.t('OTP sent', 'OTP بھیج دیا گیا'));
+        },
+        onAutoVerified: (cred) => _verifyAndLogin(cred, phone),
+        onFailed: (msg) => _toast('Failed: $msg'),
+      );
+    } on OtpException catch (e) {
+      // Cloud project hi nahi => OTP kabhi nahi chalega; lockout se bachao: password fields wapas.
+      if (mounted) setState(() { _otpMode = false; _error = e.message; });
+    }
+  }
+
+  Future<void> _verifyOtp() async {
+    final id = _verificationId;
+    if (id == null) return;
+    final code = _otpCode.text.trim();
+    if (!isValidOtpCode(code)) {
+      _toast(Loc.t('Enter the 6-digit code', '6 ہندسوں کا کوڈ درج کریں'));
+      return;
+    }
+    await _verifyAndLogin(PhoneOtpAuth.instance.credentialFor(id, code), _otpPhone.text.trim());
+  }
+
+  /// Firebase se OTP verify hone ke baad us phone se local User dhoondh kar login complete karo.
+  Future<void> _verifyAndLogin(PhoneAuthCredential cred, String phone) async {
+    if (_busy) return;
+    setState(() { _busy = true; _error = null; });
+    try {
+      if (!await PhoneOtpAuth.instance.signIn(cred)) {
+        _toast(Loc.t('Wrong OTP', 'OTP غلط ہے'));
+        return;
+      }
+      final r = resolveOtpUser(byPhone: await _repo.findByPhone(phone), activeUsers: await _repo.activeUsers());
+      switch (r.kind) {
+        case OtpOutcomeKind.login:
+          await _repo.setSetting('last_username', r.user!.username);
+          await _completeLogin(r.user!);
+        case OtpOutcomeKind.linkNeedsPassword:
+          await _askPasswordBeforeFirstPhoneLink(r.user!, phone);
+        case OtpOutcomeKind.notLinked:
+          _toast(Loc.t('This number is not linked to any staff. Add it in Settings > Manage Users.',
+              'یہ نمبر کسی اسٹاف سے لنک نہیں۔ Settings > Manage Users میں شامل کروائیں۔'));
+      }
+    } on OtpException catch (e) {
+      _toast(e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Kotlin `askPasswordBeforeFirstPhoneLink`: sirf OTP ki milkiyat se naya number admin se na bandhe.
+  Future<void> _askPasswordBeforeFirstPhoneLink(User user, String phone) async {
+    final field = TextEditingController();
+    final typed = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Link phone to account', 'فون کو اکاؤنٹ سے لنک کریں')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(Loc.t('OTP verified. For security, also verify ${user.displayName}\'s current password.',
+              'OTP ویریفائی ہو گیا۔ سیکیورٹی کے لیے ${user.displayName} کا موجودہ پاس ورڈ بھی ویریفائی کریں۔')),
+          const SizedBox(height: 10),
+          TextField(
+            controller: field,
+            obscureText: true,
+            decoration: InputDecoration(hintText: Loc.t('${user.displayName} password', '${user.displayName} کا پاس ورڈ')),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, field.text), child: Text(Loc.t('Verify', 'ویریفائی'))),
+        ],
+      ),
+    );
+    // field.dispose() jaan boojh kar nahi: dialog band hone ki animation abhi controller use kar rahi hoti hai
+    // (dispose se "used after being disposed" crash aata hai) — GC khud saaf kar dega.
+    if (typed == null) return;
+    if (!await verifyLinkPassword(user, typed)) {
+      _toast(Loc.t('Wrong password — phone not linked', 'پاس ورڈ غلط ہے — فون لنک نہیں ہوا'));
+      return;
+    }
+    final linked = User(
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      passwordHash: user.passwordHash,
+      active: user.active,
+      phone: phone,
+    );
+    await _repo.upsert(linked);
+    await _repo.setSetting('last_username', linked.username);
+    _toast(Loc.t('Phone linked to account.', 'فون اکاؤنٹ سے لنک ہو گیا۔'));
+    await _completeLogin(linked);
+  }
+
+  Widget _otpPanel() => Column(children: [
+        TextField(
+          controller: _otpPhone,
+          keyboardType: TextInputType.phone,
+          decoration: _dec(Loc.t('Phone (+92XXXXXXXXXX)', 'فون (+92XXXXXXXXXX)'), Icons.phone_outlined),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            onPressed: _busy ? null : _sendOtp,
+            child: Text(_verificationId == null ? Loc.t('SEND OTP', 'OTP بھیجیں') : Loc.t('RESEND OTP', 'دوبارہ OTP بھیجیں')),
+          ),
+        ),
+        if (_verificationId != null) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _otpCode,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            onSubmitted: (_) => _verifyOtp(),
+            decoration: _dec(Loc.t('6-digit code', '6 ہندسوں کا کوڈ'), Icons.pin_outlined),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.navy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              onPressed: _busy ? null : _verifyOtp,
+              child: _busy
+                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(Loc.t('VERIFY & LOGIN', 'ویریفائی اور لاگ اِن')),
+            ),
+          ),
+        ],
+      ]);
+
   void _toast(String m) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
@@ -253,7 +415,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.all(22),
                       child: Column(children: [
                         if (_fingerprintOnly) _fingerprintPanel(),
-                        if (!_fingerprintOnly) ...[
+                        if (_otpMode) _otpPanel(),
+                        if (!_fingerprintOnly && !_otpMode) ...[
                         if (_setupMode) ...[
                           TextField(controller: _name, decoration: _dec(Loc.t('Your name', 'آپ کا نام'), Icons.person_outline)),
                           const SizedBox(height: 12),

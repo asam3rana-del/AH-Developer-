@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
@@ -15,6 +14,7 @@ import 'app_database.dart';
 import 'party_transaction_repository.dart' show addPurchaseLineCost, purchaseItemSmallestQty, reversePurchaseLineCost;
 import 'product_repository.dart';
 import 'sale_repository.dart' show subtractLinkedPaid;
+import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
 
@@ -496,6 +496,7 @@ class PurchaseRepository {
             'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
             [purchasedSmallest, newCost, now, barcode],
           );
+          await SyncQueueHelper.enqueueStockDelta(txn, barcode, purchasedSmallest);
           await StockLedger.log(txn,
               barcode: barcode,
               type: MovementType.purchase,
@@ -599,6 +600,7 @@ class PurchaseRepository {
         'is purchase ko edit karna cost ko galat kar dega. Iski jagah stock adjustment karen.',
       );
     }
+    await SyncQueueHelper.enqueueStockDelta(txn, it.barcode, -smallest);
     await StockLedger.log(txn,
         barcode: it.barcode,
         type: MovementType.purchaseReversal,
@@ -625,27 +627,15 @@ class PurchaseRepository {
       'UPDATE suppliers SET balance = balance + ?, dirty = 1, updatedAt = ? WHERE id = ?',
       [delta, now, supplierId],
     );
-    final r = await txn.query('suppliers', where: 'id = ?', whereArgs: [supplierId], limit: 1);
-    if (r.isNotEmpty) {
-      await _enqueue(txn, 'supplier', (r.first['serverId'] as String?) ?? 'supplier:$supplierId', 'update', r.first);
-    }
+    await SyncQueueHelper.enqueueBalanceDelta(txn, customer: false, partyId: supplierId, delta: delta);
   }
 
-  Future<void> _deletePaymentsByReference(Transaction txn, String reference) async {
-    final rows = await txn.query('payments', where: 'reference = ?', whereArgs: [reference]);
-    for (final p in rows) {
-      await txn.delete('payments', where: 'id = ?', whereArgs: [p['id']]);
-      await _enqueue(txn, 'payment', '${p['id']}', 'delete', {'reference': reference});
-    }
-  }
+  // Entity id delete se PEHLE (serverId-preferred) — SyncQueueHelper.delete* isi tarteeb se karta hai.
+  Future<void> _deletePaymentsByReference(Transaction txn, String reference) =>
+      SyncQueueHelper.deletePaymentsByReference(txn, reference);
 
-  Future<void> _deleteCashByReference(Transaction txn, String reference) async {
-    final rows = await txn.query('cash_transactions', where: 'reference = ?', whereArgs: [reference]);
-    for (final r in rows) {
-      await txn.delete('cash_transactions', where: 'id = ?', whereArgs: [r['id']]);
-      await _enqueue(txn, 'cash_transaction', '${r['id']}', 'delete', {'id': r['id'], 'reference': reference});
-    }
-  }
+  Future<void> _deleteCashByReference(Transaction txn, String reference) =>
+      SyncQueueHelper.deleteCashTransactionsByReference(txn, reference);
 
   Future<void> _enqueueProduct(Transaction txn, String barcode) async {
     final r = await txn.query('products', where: 'barcode = ?', whereArgs: [barcode], limit: 1);
@@ -659,15 +649,8 @@ class PurchaseRepository {
     String operation,
     Map<String, Object?> payload,
   ) async {
-    // Mirrors SyncQueueHelper.enqueue() — har pending badlav ki ek row.
-    await txn.insert('sync_queue', {
-      'entityType': entityType,
-      'entityId': entityId,
-      'operation': operation,
-      'payloadJson': jsonEncode(payload),
-      'createdAt': _now(),
-      'retryCount': 0,
-    });
+    // SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
+    await SyncQueueHelper.enqueueLegacy(txn, entityType, entityId, operation, payload);
   }
 
   Future<void> _logAudit(String action, String reference, String details) async {

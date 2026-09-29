@@ -3,16 +3,16 @@ import 'package:uuid/uuid.dart';
 
 import '../db/maintenance_sync.dart';
 import '../utils/password_hasher.dart';
+import 'sync_apply_rest.dart';
 import 'sync_push_plan.dart' show decodePayload;
 import 'sync_queue_dao.dart';
 import 'sync_types.dart';
 
 /// Kotlin `SyncApi.applyServerChanges()` — pull ki hui changes local tables mein merge.
 ///
-/// STATUS (hissa 1): customers, suppliers, products, users port hain. Baaki collections agle hisson
-/// mein; tab tak agar pull mein un ka koi document ho to [applyServerChangesToDb] kuch bhi likhne se PEHLE
-/// `UnimplementedError` fenkta hai — taake checkpoint aage na barhe aur wo changes hamesha ke liye na
-/// chhoot jayein.
+/// HISSA 1 (yahan): customers, suppliers, products, users. HISSA 2 (`sync_apply_rest.dart`): sales,
+/// purchases, expenses, payments, cash_transactions, units, categories, zakat_*, returns, stock_movements,
+/// shell_*, app_settings, cash_register. Dono ek hi transaction mein, Kotlin ki tarteeb par.
 ///
 /// FARQ: sab kuch EK transaction mein (Kotlin har DAO call alag) — beech mein ghalti ho to kuch nahi
 /// likha jata, checkpoint nahi barhta, agli sync wohi dobara lagati hai.
@@ -24,43 +24,12 @@ int? _i(Object? v) => v is num ? v.toInt() : null;
 String? _s(Object? v) => v is String ? v : null;
 double _dbl(Object? v) => v is num ? v.toDouble() : 0.0;
 
-/// Abhi port NA hui collections jin mein data ho => unke naam (khali = sab theek).
-List<String> unportedCollectionsWithData(PullResult c) {
-  final m = <String, List<SyncDoc>>{
-    'sales': c.sales,
-    'purchases': c.purchases,
-    'payments': c.payments,
-    'expenses': c.expenses,
-    'cash_transactions': c.cashTransactions,
-    'units': c.units,
-    'categories': c.categories,
-    'zakat_years': c.zakatYears,
-    'zakat_payments': c.zakatPayments,
-    'returns': c.returns,
-    'stock_movements': c.stockMovements,
-    'app_settings': c.appSettings,
-    'cash_register': c.cashRegisters,
-    'shell_customers': c.shellCustomers,
-    'shell_transactions': c.shellTransactions,
-    'shop_empty_shell_log': c.shopEmptyShellLogs,
-  };
-  return [
-    for (final e in m.entries)
-      if (e.value.isNotEmpty) e.key
-  ];
-}
-
 Future<void> applyServerChangesToDb(
   Database db,
   PullResult changes, {
   PasswordHashFn? hashPassword,
   int Function()? nowMs,
 }) async {
-  final pending = unportedCollectionsWithData(changes);
-  if (pending.isNotEmpty) {
-    throw UnimplementedError(
-        'SyncApi.applyServerChanges: yeh collections abhi port nahi hui: ${pending.join(', ')}');
-  }
   final hasher = hashPassword ?? PasswordHasher.hash;
   final clock = nowMs ?? () => DateTime.now().millisecondsSinceEpoch;
   await db.transaction((txn) async {
@@ -68,6 +37,7 @@ Future<void> applyServerChangesToDb(
     await applySuppliers(txn, changes.suppliers, nowMs: clock);
     await applyProducts(txn, changes.products, nowMs: clock);
     await applyUsers(txn, changes.users, hashPassword: hasher);
+    await applyRestOfServerChanges(txn, changes, nowMs: clock);
   });
 }
 

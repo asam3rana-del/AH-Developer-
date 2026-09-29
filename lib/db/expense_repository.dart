@@ -1,10 +1,11 @@
-import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart' show Transaction;
 
 import '../models/misc_entities.dart';
 import 'app_database.dart';
 import 'cash_repository.dart' show planCashEntry;
+import '../sync/device_tag.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ports ExpenseActivity.kt (saveExpense / confirmDeleteExpense / loadTotals /
 /// loadExpenses). Expense + its linked Cash OUT row are ALWAYS written and
@@ -41,23 +42,23 @@ class ExpenseTotals {
 /// Cash row reason: "Expense" or "Expense: <category>".
 String expenseCashReason(String category) => 'Expense${category.isNotEmpty ? ': $category' : ''}';
 
-/// Reference that ties the cash OUT row to its expense, so delete can find it.
-/// TODO(Phase 10): Kotlin uses DeviceTag (`expense:<device>-<id>`).
-String expenseCashReference(int expenseId) => 'expense:$expenseId';
+/// PURANA (legacy) reference: sirf local id (`expense:7`). Do devices par dono ke paas expense #7 hota hai,
+/// is liye naye rows ab [expenseCashReference] use karte hain; yeh sirf purani rows ki safai ke liye hai.
+String legacyExpenseCashReference(int expenseId) => 'expense:$expenseId';
+
+/// Reference jo cash OUT row ko uske expense se bandhta hai (delete isi se dhoondta hai).
+/// Kotlin `SyncQueueHelper.expenseEntityId(savedExpense)`: serverId ho to wahi, warna
+/// `expense:<DeviceTag>-<id>` — device-unique, taake ek device ka delete doosre ka cash-out na uraye.
+String expenseCashReference(int expenseId, {String? serverId}) =>
+    SyncQueueHelper.expenseEntityId({'id': expenseId, 'serverId': serverId});
 
 class ExpenseRepository {
   ExpenseRepository._();
   static final ExpenseRepository instance = ExpenseRepository._();
 
+  /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   static Future<void> _enqueue(Transaction txn, String type, String id, String op, Map<String, Object?> payload) =>
-      txn.insert('sync_queue', {
-        'entityType': type,
-        'entityId': id,
-        'operation': op,
-        'payloadJson': jsonEncode(payload),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'retryCount': 0,
-      });
+      SyncQueueHelper.enqueueLegacy(txn, type, id, op, payload);
 
   /// Inserts the Expense AND its linked cash OUT row (+ both sync entries)
   /// inside the caller's transaction. Shared by the Expense screen and by
@@ -122,15 +123,17 @@ class ExpenseRepository {
     if (id == null) return;
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
+      // Entity id (serverId-preferred) row delete se PEHLE — doosre device se aayi row ki asal id na khoye.
+      final eid = await SyncQueueHelper.entityIdFor(txn, 'expense', '$id');
       await txn.delete('expenses', where: 'id = ?', whereArgs: [id]);
-      await _enqueue(txn, 'expense', '$id', 'delete', {'id': id});
+      await SyncQueueHelper.enqueueDelete(txn, 'expense', eid);
 
-      final ref = expenseCashReference(id);
-      final cashRows = await txn.query('cash_transactions', columns: ['id'], where: 'reference = ?', whereArgs: [ref]);
-      for (final r in cashRows) {
-        final cashId = r['id'] as int;
-        await txn.delete('cash_transactions', where: 'id = ?', whereArgs: [cashId]);
-        await _enqueue(txn, 'cash_transaction', '$cashId', 'delete', {'id': cashId, 'reference': ref});
+      await SyncQueueHelper.deleteCashTransactionsByReference(txn, expenseCashReference(id, serverId: e.serverId));
+      // Purani rows (is fix se pehle) `expense:<localId>` use karti thin — yeh format sirf usi expense ke liye
+      // mehfooz hai jo isi device par bana (Kotlin `madeHere`).
+      final madeHere = e.serverId == null || e.serverId!.startsWith('expense:${DeviceTag.current}-');
+      if (madeHere) {
+        await SyncQueueHelper.deleteCashTransactionsByReference(txn, legacyExpenseCashReference(id));
       }
     });
   }

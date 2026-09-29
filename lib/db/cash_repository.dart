@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart' show Transaction;
 
@@ -6,6 +5,7 @@ import '../models/misc_entities.dart';
 import 'app_database.dart';
 import 'day_book_repository.dart';
 import 'expense_repository.dart' show ExpenseRepository;
+import '../sync/sync_queue_helper.dart';
 
 /// Ports CashActivity.kt (saveEntry / loadTodayTotals / loadTransactions).
 ///
@@ -102,26 +102,19 @@ class CashRepository {
   CashRepository._();
   static final CashRepository instance = CashRepository._();
 
+  /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   Future<void> _enqueue(Transaction txn, String type, String id, String op, Map<String, Object?> payload) =>
-      txn.insert('sync_queue', {
-        'entityType': type,
-        'entityId': id,
-        'operation': op,
-        'payloadJson': jsonEncode(payload),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'retryCount': 0,
-      });
+      SyncQueueHelper.enqueueLegacy(txn, type, id, op, payload);
 
   /// Saves one Cash In / Cash Out. Everything runs in ONE transaction.
   ///
   /// A Cash Out under a real category creates the Expense AND its linked cash
-  /// row (reference `expense:<id>`, reason `Expense: <category>`), exactly like
+  /// row (reference `expense:<tag>-<id>`, reason `Expense: <category>`), exactly like
   /// ExpenseActivity.saveExpense(), so Reports / Balance Sheet profit count it.
   /// `expense:` is not blank / `manual-` / `return:`, so Day Book shows it once
   /// (as the expense row) and not twice.
   ///
-  /// TODO(Phase 10): reference/entityId should use DeviceTag like Kotlin
-  /// (`expense:<device>-<id>`); until then it is `expense:<id>`.
+  /// Cash row ka `reference` aur sync entity id ab dono DeviceTag wale hain (`expense:<tag>-<id>`).
   Future<void> save({
     required String type,
     required double amount,

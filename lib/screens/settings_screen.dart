@@ -12,13 +12,15 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
 import '../widgets/premium_header.dart';
+import '../widgets/sync_section.dart';
 import 'login_screen.dart';
 import 'user_management_screen.dart';
 
 /// Mirrors SettingsActivity.kt (pehla hissa): Shop Info, Login method, Update Login,
 /// Language, Manage Users, Logout.
 /// Login method: password / fingerprint / both / none. Dark mode switch.
-/// Printer (Phase 12) done — Bluetooth 58/80mm. TODO: Backup (Phase 11), Cloud Sync (Phase 10), OTP login (Phase 10).
+/// Printer (Phase 12) done — Bluetooth 58/80mm. Cloud Sync (Phase 10): `SyncSection` (Sync Now / Setup / History).
+/// OTP login (Phase 10): login method 'otp'. TODO: Backup (Phase 11).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -52,7 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _printerName = pr?.name ?? '';
     _dots = await PrinterService.instance.dotsWidth();
     final m = await _repo.getSetting('login_method') ?? 'password';
-    if (mounted) setState(() => _loginMethod = const ['none', 'fingerprint', 'both'].contains(m) ? m : 'password');
+    if (mounted) setState(() => _loginMethod = const ['none', 'fingerprint', 'both', 'otp'].contains(m) ? m : 'password');
   }
 
   void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -234,6 +236,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text(Loc.t('No Password', 'بغیر پاس ورڈ')),
               subtitle: Text(Loc.t('App opens directly once signed in', 'ایک بار لاگ اِن کے بعد ایپ سیدھی کھلے گی')),
             ),
+            RadioListTile<String>(
+              value: 'otp', groupValue: _loginMethod, onChanged: (v) => _setLoginMethod(v!),
+              title: Text(Loc.t('OTP (Phone Number)', 'OTP (فون نمبر)')),
+              subtitle: Text(Loc.t('Needs Cloud Sync Setup; staff phone in Manage Users', 'Cloud Sync Setup ضروری؛ اسٹاف کا فون Manage Users میں')),
+            ),
           ]),
         _card(Loc.t('My Login', 'میرا لاگ اِن'), Icons.person, [
           _tf(TextEditingController(text: Session.username ?? ''), Loc.t('Current Username', 'موجودہ یوزر نیم'), enabled: false),
@@ -266,6 +273,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _tf(_footer, Loc.t('Receipt footer (optional)', 'رسید فوٹر (اختیاری)')),
           FilledButton(onPressed: _saveFooter, child: Text(Loc.t('SAVE FOOTER', 'فوٹر محفوظ کریں'))),
         ]),
+        const SyncSection(),
         _card(Loc.t('Appearance', 'ظاہری شکل'), Icons.dark_mode, [
           ValueListenableBuilder<bool>(
             valueListenable: ThemeManager.isDark,

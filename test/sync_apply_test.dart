@@ -8,6 +8,7 @@ import 'package:ah_developer_kiryana_store/sync/sync_queue_dao.dart';
 import 'package:ah_developer_kiryana_store/sync/sync_types.dart';
 
 /// Phase 10: pull assemble + applyServerChanges hissa 1 (customers / suppliers / products / users).
+/// Hissa 2 (sales ... cashRegisters): test/sync_apply_rest_test.dart.
 Future<String> _fakeHash(String p) async => 'hash($p)';
 
 Future<Database> _memDb() async {
@@ -72,18 +73,6 @@ void main() {
       expect(assemblePullResult({}, 200).serverTime, 200);
       expect(assemblePullResult({'sales': [{'updatedAt': 5}]}, 200).serverTime, 200);
       expect(pullCollections.length, 20);
-    });
-  });
-
-  group('guard', () {
-    test('port na hui collection mein data => UnimplementedError, kuch likha nahi', () async {
-      final r = PullResult(
-        customers: [{'serverId': 'c1', 'name': 'Ali'}],
-        sales: [{'invoice': 'S1'}],
-      );
-      expect(unportedCollectionsWithData(r), ['sales']);
-      await expectLater(_apply(db, r), throwsA(isA<UnimplementedError>()));
-      expect(await db.query('customers'), isEmpty);
     });
   });
 

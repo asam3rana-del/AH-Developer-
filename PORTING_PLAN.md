@@ -37,7 +37,7 @@
 | 7 | Sale/Purchase History (edit/return/delete admin-only) | |
 | 8 | Cash, Cash Register, Expense, Day Book, Payments, Balance Sheet, Zakat, Shell Ledger | |
 | 9 | Reports, Monthly, Stock Report/Audit/Taking/Adjustment/Movement, Inventory Insights | |
-| 10 | Cloud sync (SyncApi/Queue/Worker/Repository/Settings, Branch, DeviceTag) | Login ke OTP/phone-link yahin |
+| 10 | Cloud sync (SyncApi/Queue/Worker/Repository/Settings, Branch, DeviceTag) | ✅ Mukammal (Phone OTP samet). Device par Firebase setup + 2-device test baaki |
 | 11 | Backup/Export/Crypto/Scheduler | Format Android se compatible |
 | 12 | Bluetooth print, Bill Preview, Bill Scan (OCR) | iPad par printer alag plugin |
 | 13 | Bulk Translate, Merge Duplicates, Duplicate Unit Fix | ✅ Mukammal (Merge par preview + backup) |

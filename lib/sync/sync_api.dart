@@ -23,9 +23,10 @@ import 'sync_types.dart';
 /// stock_movements, app_settings(key), cash_register(date), shell_customers, shell_transactions,
 /// shop_empty_shell_log — schema Android jaisa (dono apps ek backend).
 ///
-/// STATUS: HEADER + PUSH + PULL port ho chuke; `applyServerChanges` ka HISSA 1 (customers, suppliers,
-/// products, users) — baaki collections ke data par UnimplementedError (kuch likhe baghair), is liye
-/// `SyncRepository.backend = SyncApi.instance` jab tak apply poora na ho NA karein.
+/// STATUS: HEADER + PUSH + PULL + APPLY (hissa 1 + 2, sab 20 collections) + branch cleanup
+/// (count/delete) — `SyncApi.kt` mukammal. `SyncRepository.backend = SyncApi.instance` abhi bhi NA
+/// lagayein jab tak `SyncQueueHelper` (asal Android-jaisa queue payload) port hokar repositories mein
+/// na jur jaye — warna purani ad-hoc queue rows Firestore mein ghalat shape ki push hongi.
 class SyncApi implements SyncBackend {
   SyncApi._();
   static final SyncApi instance = SyncApi._();
@@ -219,9 +220,61 @@ class SyncApi implements SyncBackend {
 
   // ---------- APPLY ----------
 
-  /// Kotlin `applyServerChanges` — logic `sync_apply.dart` mein. HISSA 1: customers, suppliers,
-  /// products, users; baaki collections mein data ho to kuch likhe baghair UnimplementedError.
+  /// Kotlin `applyServerChanges` — logic `sync_apply.dart` (hissa 1) + `sync_apply_rest.dart` (hissa 2).
   @override
   Future<void> applyServerChanges(Database db, PullResult changes) =>
       applyServerChangesToDb(db, changes, nowMs: nowMs);
+
+  // ---------- BRANCH CLEANUP (admin tool) ----------
+
+  /// Kotlin `countDocsByBranchId`: `badBranchId` wale documents har branch-scoped collection mein
+  /// (sirf jin mein kuch ho). Kisi collection par ghalti (missing index...) => wo collection chhod do,
+  /// baqi ka result dikhao. Branch/cloud nahi => khali map.
+  Future<Map<String, int>> countDocsByBranchId(String badBranchId) async {
+    final fs = await firestoreFor();
+    if (fs == null) return {};
+    final result = <String, int>{};
+    for (final col in branchScopedCollections) {
+      try {
+        final snap = await fs.collection(col).where('branchId', isEqualTo: badBranchId).get();
+        if (snap.size > 0) result[col] = snap.size;
+      } catch (_) {
+        // Kotlin jaisa: ek collection ki ghalti poori scan nahi rokti.
+      }
+    }
+    return result;
+  }
+
+  /// Kotlin `deleteDocsByBranchId`: `badBranchId` wale sab documents 400-400 ke batch mein delete
+  /// (Firestore limit 500). `users` / `branch_members` ko kabhi nahi chhoota. Ghalti par us collection
+  /// ki tak ki progress `result` mein rehti hai.
+  Future<Map<String, int>> deleteDocsByBranchId(String badBranchId) async {
+    final fs = await firestoreFor();
+    if (fs == null) return {};
+    final result = <String, int>{};
+    for (final col in branchScopedCollections) {
+      try {
+        var deleted = 0;
+        while (true) {
+          final snap = await fs
+              .collection(col)
+              .where('branchId', isEqualTo: badBranchId)
+              .limit(branchCleanupBatchSize)
+              .get();
+          if (snap.docs.isEmpty) break;
+          final batch = fs.batch();
+          for (final d in snap.docs) {
+            batch.delete(d.reference);
+          }
+          await batch.commit();
+          deleted += snap.size;
+          if (snap.size < branchCleanupBatchSize) break;
+        }
+        if (deleted > 0) result[col] = deleted;
+      } catch (_) {
+        // Aage wali collections ka result barqarar.
+      }
+    }
+    return result;
+  }
 }

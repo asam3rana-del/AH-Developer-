@@ -19,7 +19,11 @@ void main() {
   test('cash row reason and reference format', () {
     expect(expenseCashReason('Rent'), 'Expense: Rent');
     expect(expenseCashReason(''), 'Expense');
-    expect(expenseCashReference(7), 'expense:7');
+    expect(legacyExpenseCashReference(7), 'expense:7');
+    // Naya reference device-unique hai (DeviceTag), serverId ho to wahi.
+    expect(expenseCashReference(7, serverId: 'expense:AB12-7'), 'expense:AB12-7');
+    expect(expenseCashReference(7), startsWith('expense:'));
+    expect(expenseCashReference(7).endsWith('-7'), isTrue);
   });
 
   test('Expense screen description rule = Cash Out under a category', () {

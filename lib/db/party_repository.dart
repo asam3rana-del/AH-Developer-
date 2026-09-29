@@ -8,6 +8,7 @@ import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ports PartyRepository.kt + PartyUseCases.kt (ViewModel/Factory skip — PORTING_PLAN).
 ///
@@ -193,20 +194,13 @@ class PartyRepository {
 
   int _now() => DateTime.now().millisecondsSinceEpoch;
 
-  // NOTE (Phase 10): payload abhi `Map.toString()` hai (baaki repositories jaisa); entityId mein
-  // DeviceTag (`customer:<device>-<id>`) sync phase mein aayega.
-  Future<void> _enqueue(DatabaseExecutor ex, String type, String id, String op, Map<String, Object?> payload) =>
-      ex.insert('sync_queue', {
-        'entityType': type,
-        'entityId': id,
-        'operation': op,
-        'payloadJson': payload.toString(),
-        'createdAt': _now(),
-        'retryCount': 0,
-      });
-
-  String _customerEntityId(Customer c) => c.serverId ?? 'customer:${c.id}';
-  String _supplierEntityId(Supplier s) => s.serverId ?? 'supplier:${s.id}';
+  /// Party delete: entity id row hatne se PEHLE nikalo (pulled row ki asal serverId na khoye).
+  Future<void> _deleteParty(DatabaseExecutor ex, {required bool customer, required int id}) async {
+    final type = customer ? 'customer' : 'supplier';
+    final eid = await SyncQueueHelper.entityIdFor(ex, type, '$id');
+    await ex.delete(customer ? 'customers' : 'suppliers', where: 'id = ?', whereArgs: [id]);
+    await SyncQueueHelper.enqueueDelete(ex, type, eid);
+  }
 
   Future<void> _refreshParties() async {
     await CustomerRepository.instance.refresh();
@@ -291,7 +285,7 @@ class PartyRepository {
       // Data-layer role check: cashier stuck balance set nahi kar sakta.
       if (!Session.isAdminOrManager) row['stuckBalance'] = 0.0;
       final newId = await txn.insert('customers', row);
-      await _enqueue(txn, 'customer', customer.serverId ?? 'customer:$newId', 'upsert', {...row, 'id': newId});
+      await SyncQueueHelper.enqueueCustomer(txn, newId);
       return newId;
     });
     await CustomerRepository.instance.refresh();
@@ -305,7 +299,7 @@ class PartyRepository {
       row['updatedAt'] = _now();
       row['dirty'] = 1;
       final newId = await txn.insert('suppliers', row);
-      await _enqueue(txn, 'supplier', supplier.serverId ?? 'supplier:$newId', 'upsert', {...row, 'id': newId});
+      await SyncQueueHelper.enqueueSupplier(txn, newId);
       return newId;
     });
     await SupplierRepository.instance.refresh();
@@ -325,7 +319,7 @@ class PartyRepository {
         row['stuckBalance'] = cur.isEmpty ? 0.0 : ((cur.first['stuckBalance'] as num?)?.toDouble() ?? 0.0);
       }
       await txn.update('customers', row, where: 'id = ?', whereArgs: [customer.id]);
-      await _enqueue(txn, 'customer', _customerEntityId(customer), 'upsert', row);
+      await SyncQueueHelper.enqueueCustomer(txn, customer.id!);
     });
     await CustomerRepository.instance.refresh();
   }
@@ -338,7 +332,7 @@ class PartyRepository {
         ..['updatedAt'] = _now()
         ..['dirty'] = 1;
       await txn.update('suppliers', row, where: 'id = ?', whereArgs: [supplier.id]);
-      await _enqueue(txn, 'supplier', _supplierEntityId(supplier), 'upsert', row);
+      await SyncQueueHelper.enqueueSupplier(txn, supplier.id!);
     });
     await SupplierRepository.instance.refresh();
   }
@@ -349,8 +343,7 @@ class PartyRepository {
     if (customer.id == null) return;
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
-      await txn.delete('customers', where: 'id = ?', whereArgs: [customer.id]);
-      await _enqueue(txn, 'customer', _customerEntityId(customer), 'delete', const {});
+      await _deleteParty(txn, customer: true, id: customer.id!);
     });
     await CustomerRepository.instance.refresh();
   }
@@ -359,8 +352,7 @@ class PartyRepository {
     if (supplier.id == null) return;
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
-      await txn.delete('suppliers', where: 'id = ?', whereArgs: [supplier.id]);
-      await _enqueue(txn, 'supplier', _supplierEntityId(supplier), 'delete', const {});
+      await _deleteParty(txn, customer: false, id: supplier.id!);
     });
     await SupplierRepository.instance.refresh();
   }
@@ -485,7 +477,7 @@ class PartyRepository {
             'UPDATE $table SET balance = balance + ?, dirty = 1, updatedAt = ? WHERE id = ?',
             [delta, _now(), l.partyId],
           );
-          await _enqueue(ex, type, '$type:${l.partyId}', 'increment_balance', {'delta': delta});
+          await SyncQueueHelper.enqueueBalanceDelta(ex, customer: isCustomer, partyId: l.partyId, delta: delta);
         }
         if (isCustomer) {
           customersFixed++;
@@ -533,7 +525,7 @@ class PartyRepository {
           await txn.update('sales', {'customerId': keeper.id, 'dirty': 1, 'updatedAt': now},
               where: 'customerId = ?', whereArgs: [dup.id]);
           for (final s in sales) {
-            await _enqueue(txn, 'sale', 'sale:${s['invoice']}', 'update', {'customerId': keeper.id});
+            await SyncQueueHelper.enqueueSale(txn, s['invoice'] as String);
           }
           await _repointPayments(txn, 'customer', dup.id!, keeper.id!, now);
           // Stuck amount merge mein ZAYA nahi hona chahiye — opening ki tarah keeper mein jama.
@@ -545,10 +537,9 @@ class PartyRepository {
               dirty: true,
             );
             await txn.update('customers', keeper.toMap(), where: 'id = ?', whereArgs: [keeper.id]);
-            await _enqueue(txn, 'customer', _customerEntityId(keeper), 'upsert', keeper.toMap());
+            await SyncQueueHelper.enqueueCustomer(txn, keeper.id!);
           }
-          await txn.delete('customers', where: 'id = ?', whereArgs: [dup.id]);
-          await _enqueue(txn, 'customer', _customerEntityId(dup), 'delete', const {});
+          await _deleteParty(txn, customer: true, id: dup.id!);
           customersMerged++;
         }
       }
@@ -568,7 +559,7 @@ class PartyRepository {
           await txn.update('purchases', {'supplierId': keeper.id, 'dirty': 1, 'updatedAt': now},
               where: 'supplierId = ?', whereArgs: [dup.id]);
           for (final p in purchases) {
-            await _enqueue(txn, 'purchase', 'purchase:${p['billNo']}', 'update', {'supplierId': keeper.id});
+            await SyncQueueHelper.enqueuePurchase(txn, p['billNo'] as String);
           }
           await _repointPayments(txn, 'supplier', dup.id!, keeper.id!, now);
           if (dup.openingBalance != 0.0) {
@@ -578,10 +569,9 @@ class PartyRepository {
               dirty: true,
             );
             await txn.update('suppliers', keeper.toMap(), where: 'id = ?', whereArgs: [keeper.id]);
-            await _enqueue(txn, 'supplier', _supplierEntityId(keeper), 'upsert', keeper.toMap());
+            await SyncQueueHelper.enqueueSupplier(txn, keeper.id!);
           }
-          await txn.delete('suppliers', where: 'id = ?', whereArgs: [dup.id]);
-          await _enqueue(txn, 'supplier', _supplierEntityId(dup), 'delete', const {});
+          await _deleteParty(txn, customer: false, id: dup.id!);
           suppliersMerged++;
         }
       }
@@ -600,7 +590,7 @@ class PartyRepository {
     await txn.update('payments', {'partyId': toId, 'dirty': 1, 'updatedAt': now},
         where: 'partyType = ? AND partyId = ?', whereArgs: [partyType, fromId]);
     for (final p in pays) {
-      await _enqueue(txn, 'payment', (p['serverId'] as String?) ?? '${p['id']}', 'update', {'partyId': toId});
+      await SyncQueueHelper.enqueuePayment(txn, p['id'] as int);
     }
   }
 
@@ -652,8 +642,9 @@ class PartyRepository {
     final recalc = await db.transaction((txn) async {
       for (final p in rows) {
         if (p.id == null) continue;
-        await txn.delete('payments', where: 'id = ?', whereArgs: [p.id]);
-        await _enqueue(txn, 'payment', p.serverId ?? '${p.id}', 'delete', const {});
+        final cur = await txn.query('payments', where: 'id = ?', whereArgs: [p.id], limit: 1);
+        if (cur.isEmpty) continue;
+        await SyncQueueHelper.deletePaymentRow(txn, Map<String, Object?>.from(cur.first));
         removed++;
       }
       return removed > 0 ? await _recalcIn(txn, dryRun: false) : const RecalcResult(0, 0);

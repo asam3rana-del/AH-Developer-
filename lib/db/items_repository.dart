@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 
@@ -7,6 +6,7 @@ import '../models/product.dart';
 import 'app_database.dart';
 import 'category_unit_repository.dart';
 import 'product_repository.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Categories tab ki ek row (ItemsActivity.renderCategories ka Triple).
 class CategoryRow {
@@ -50,20 +50,13 @@ class ItemsRepository {
   ItemsRepository._();
   static final ItemsRepository instance = ItemsRepository._();
 
+  /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   Future<void> _enqueue(DatabaseExecutor db, String type, String id, String op, Map<String, Object?> payload) =>
-      db.insert('sync_queue', {
-        'entityType': type,
-        'entityId': id,
-        'operation': op,
-        'payloadJson': jsonEncode(payload),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'retryCount': 0,
-      });
+      SyncQueueHelper.enqueueLegacy(db, type, id, op, payload);
 
   Future<void> _enqueueProducts(DatabaseExecutor db, List<String> barcodes) async {
     for (final b in barcodes) {
-      final rows = await db.query('products', where: 'barcode=?', whereArgs: [b], limit: 1);
-      if (rows.isNotEmpty) await _enqueue(db, 'product', b, 'update', Map<String, Object?>.from(rows.first));
+      await SyncQueueHelper.enqueueProduct(db, b);
     }
   }
 

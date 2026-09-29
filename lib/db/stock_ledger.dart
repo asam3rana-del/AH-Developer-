@@ -1,9 +1,8 @@
-import 'dart:convert';
-
 import 'package:sqflite/sqflite.dart';
 
 import '../models/product.dart';
 import '../models/stock_movement.dart';
+import '../sync/sync_queue_helper.dart';
 import 'app_database.dart';
 
 /// Kotlin SyncQueueHelper.logMovement() / recordAuditReconciliation() ka Dart port.
@@ -11,7 +10,7 @@ import 'app_database.dart';
 /// Har jagah jo `products.stock` badalti hai (sale, purchase, return, edit, delete, opening stock)
 /// usi transaction mein [StockLedger.log] bulati hai — isliye ledger aur stock kabhi alag nahi hote
 /// (transaction fail => dono roll back). Ledger row ki sync_queue entry bhi wahi likhi jati hai
-/// (entityType `stock_movement`, id `stock_movement:<id>`, Kotlin stockMovementJson jaisa payload).
+/// (entityType `stock_movement`, id `stock_movement:<DeviceTag>-<id>`, SyncQueueHelper.stockMovementPayload).
 class StockLedger {
   StockLedger._();
 
@@ -49,27 +48,8 @@ class StockLedger {
       updatedAt: ts,
     );
     final id = await ex.insert('stock_movements', row.toMap());
-    final entityId = 'stock_movement:$id';
-    await ex.update('stock_movements', {'serverId': entityId}, where: 'id=?', whereArgs: [id]);
-    await ex.insert('sync_queue', {
-      'entityType': 'stock_movement',
-      'entityId': entityId,
-      'operation': 'upsert',
-      'payloadJson': jsonEncode({
-        'serverId': entityId,
-        'barcode': row.barcode,
-        'type': row.type,
-        'qty': row.qty,
-        'unit': row.unit,
-        'cost': row.cost,
-        'reference': row.reference,
-        'note': row.note,
-        'createdAt': row.createdAt,
-        'updatedAt': ts,
-      }),
-      'createdAt': ts,
-      'retryCount': 0,
-    });
+    // serverId-preferred entity id (`stock_movement:<DeviceTag>-<id>`) + Android payload shape.
+    await SyncQueueHelper.enqueueStockMovement(ex, id);
   }
 
   /// Naye product ki shuruati quantity (Kotlin enqueueProductOpeningStock).

@@ -11,7 +11,7 @@ import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 
 /// Mirrors UserManagementActivity.kt — Admin-only, pehle admin ka password verify.
-/// Lock: fingerprint pehle khud khulta hai, password hamesha fallback. TODO(Phase 10): sync queue.
+/// Lock: fingerprint pehle khud khulta hai, password hamesha fallback.
 class UserManagementScreen extends StatelessWidget {
   const UserManagementScreen({super.key});
 

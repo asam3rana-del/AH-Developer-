@@ -1,9 +1,9 @@
-import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart' show Transaction;
 
 import '../models/shell.dart';
 import 'app_database.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ports ShellLedgerActivity.kt + ShellDao (Bottle Shell Ledger). All roles.
 ///
@@ -59,15 +59,9 @@ class ShellRepository {
   ShellRepository._();
   static final ShellRepository instance = ShellRepository._();
 
+  /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   static Future<void> _enqueue(Transaction txn, String type, String id, String op, Map<String, Object?> payload) =>
-      txn.insert('sync_queue', {
-        'entityType': type,
-        'entityId': id,
-        'operation': op,
-        'payloadJson': jsonEncode(payload),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'retryCount': 0,
-      });
+      SyncQueueHelper.enqueueLegacy(txn, type, id, op, payload);
 
   Future<ShellSummary> summary() async {
     final db = await AppDatabase.instance.database;

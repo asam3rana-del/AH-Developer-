@@ -5,6 +5,7 @@ import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// A bill a payment can be linked to (Kotlin `BillOption`).
 class BillOption {
@@ -34,21 +35,17 @@ class PaymentRepository {
       (isCustomer ? 'Payment received from $partyName' : 'Payment made to $partyName') +
       (note.isNotEmpty ? ' | $note' : '');
 
+  /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   Future<void> _enqueue(DatabaseExecutor txn, String type, String id, String op, Map<String, Object?> payload) =>
-      txn.insert('sync_queue', {
-        'entityType': type,
-        'entityId': id,
-        'operation': op,
-        'payloadJson': payload.toString(),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'retryCount': 0,
-      });
+      SyncQueueHelper.enqueueLegacy(txn, type, id, op, payload);
 
-  Future<void> _adjustBalance(DatabaseExecutor txn, bool isCustomer, int partyId, double delta) =>
-      txn.rawUpdate(
-        'UPDATE ${isCustomer ? 'customers' : 'suppliers'} SET balance = balance + ?, dirty = 1 WHERE id = ?',
-        [delta, partyId],
-      );
+  Future<void> _adjustBalance(DatabaseExecutor txn, bool isCustomer, int partyId, double delta) async {
+    await txn.rawUpdate(
+      'UPDATE ${isCustomer ? 'customers' : 'suppliers'} SET balance = balance + ?, dirty = 1 WHERE id = ?',
+      [delta, partyId],
+    );
+    await SyncQueueHelper.enqueueBalanceDelta(txn, customer: isCustomer, partyId: partyId, delta: delta);
+  }
 
   /// Applies [delta] to the linked bill's `paid`, clamped to [0, total].
   Future<void> _applyBillPaidDelta(DatabaseExecutor txn, bool isCustomer, String billRef, double delta) async {
@@ -172,6 +169,10 @@ class PaymentRepository {
         where: 'reference = ?',
         whereArgs: [original.reference],
       );
+      for (final c in await txn.query('cash_transactions',
+          columns: ['id'], where: 'reference = ?', whereArgs: [original.reference])) {
+        await SyncQueueHelper.enqueueCashTransaction(txn, c['id'] as int);
+      }
 
       if (original.billReference == newBillRef) {
         await _applyBillPaidDelta(txn, isCustomer, newBillRef, delta);
@@ -188,10 +189,9 @@ class PaymentRepository {
     if (!Session.isAdmin) throw StateError('Sirf Admin ye action kar sakta hai');
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
-      await txn.delete('payments', where: 'reference = ?', whereArgs: [payment.reference]);
-      await _enqueue(txn, 'payment', payment.id.toString(), 'delete', {'reference': payment.reference});
-      await txn.delete('cash_transactions', where: 'reference = ?', whereArgs: [payment.reference]);
-      await _enqueue(txn, 'cash_transaction', payment.reference, 'delete', {'reference': payment.reference});
+      // Tombstone ki entity id (serverId-preferred) row delete se PEHLE nikalti hai.
+      await SyncQueueHelper.deletePaymentsByReference(txn, payment.reference);
+      await SyncQueueHelper.deleteCashTransactionsByReference(txn, payment.reference);
 
       if (payment.partyId != null) {
         await _adjustBalance(txn, isCustomer, payment.partyId!, payment.amount);

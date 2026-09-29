@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 12;
+  static const _dbVersion = 13;
 
   Database? _db;
 
@@ -220,7 +220,10 @@ class AppDatabase {
         barcode TEXT NOT NULL,
         qty REAL NOT NULL,
         amount REAL NOT NULL,
-        createdAt INTEGER NOT NULL
+        createdAt INTEGER NOT NULL,
+        serverId TEXT,
+        updatedAt INTEGER NOT NULL DEFAULT 0,
+        dirty INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -394,6 +397,13 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'purchase_items', 'itemName', "TEXT NOT NULL DEFAULT ''");
       await _addColumnIfMissing(db, 'purchase_items', 'retailRate', 'REAL NOT NULL DEFAULT 0');
       await _addColumnIfMissing(db, 'purchase_items', 'wholesaleRate', 'REAL NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 13) {
+      // v13: returns ledger sync columns (Kotlin ReturnLine.serverId/updatedAt/dirty) — pull ke returns
+      // loop ko idempotent (findByServerId) banane ke liye. Purani rows: serverId NULL, dirty=1.
+      await _addColumnIfMissing(db, 'returns', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'returns', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'returns', 'dirty', 'INTEGER NOT NULL DEFAULT 1');
     }
   }
 

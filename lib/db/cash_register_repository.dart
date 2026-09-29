@@ -1,10 +1,10 @@
-import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart' show Transaction;
 
 import '../models/misc_entities.dart';
 import 'app_database.dart';
 import 'day_book_repository.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ports CashRegisterActivity.kt (daily till open / edit opening / close /
 /// reopen + history). The maths are PURE functions so the Kotlin rules can be
@@ -76,14 +76,10 @@ class CashRegisterRepository {
   CashRegisterRepository._();
   static final CashRegisterRepository instance = CashRegisterRepository._();
 
-  static Future<void> _enqueue(Transaction txn, String op, CashRegister r) => txn.insert('sync_queue', {
-        'entityType': 'cash_register',
-        'entityId': r.date, // Kotlin cashRegisterEntityId = date
-        'operation': op,
-        'payloadJson': jsonEncode({...r.toMap(), 'closed': r.closed}),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'retryCount': 0,
-      });
+  /// OPEN => create_if_absent (doosra device ka OPEN drop ho), baaqi upsert; payload DB se.
+  static Future<void> _enqueue(Transaction txn, String op, CashRegister r) => op == 'create_if_absent'
+      ? SyncQueueHelper.enqueueCashRegisterCreate(txn, r.date)
+      : SyncQueueHelper.enqueueCashRegister(txn, r.date);
 
   Future<RegisterFlows> flowsForDate(DateTime day) async {
     final db = await AppDatabase.instance.database;

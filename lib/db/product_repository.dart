@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
 
 import '../models/product.dart';
 import 'app_database.dart';
 import 'stock_ledger.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Dart port of ProductDao (Database.kt). Room's `Flow<List<Product>>` is
 /// mirrored here with a broadcast StreamController that re-queries and
@@ -58,7 +58,11 @@ class ProductRepository {
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await txn.insert('products', product.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+      // Kotlin ProductActivity save: SyncQueueHelper.enqueue(product) — productJson mein "stock" nahi
+      // hota (conflict-safe sync), is liye naye product ki opening stock alag increment_stock se jati hai.
+      await SyncQueueHelper.enqueueProduct(txn, product.barcode);
       if (isNew && product.stock != 0) {
+        await SyncQueueHelper.enqueueStockDelta(txn, product.barcode, product.stock);
         await StockLedger.logOpeningStock(txn, product.barcode, product.stock);
       }
     });
@@ -68,7 +72,11 @@ class ProductRepository {
   /// Mirrors `delete(p: Product)`.
   Future<void> delete(Product product) async {
     final db = await AppDatabase.instance.database;
-    await db.delete('products', where: 'barcode=?', whereArgs: [product.barcode]);
+    await db.transaction((txn) async {
+      await txn.delete('products', where: 'barcode=?', whereArgs: [product.barcode]);
+      // Kotlin confirmDeleteProduct: enqueue(product, "delete") — server par tombstone.
+      await SyncQueueHelper.enqueueDelete(txn, 'product', SyncQueueHelper.productEntityId({'barcode': product.barcode}));
+    });
     await _notify();
   }
 
@@ -110,16 +118,7 @@ class ProductRepository {
       final now = DateTime.now().millisecondsSinceEpoch;
       await txn.update('products', {...changes, 'dirty': 1, 'updatedAt': now},
           where: 'barcode=?', whereArgs: [barcode]);
-      final rows = await txn.query('products', where: 'barcode=?', whereArgs: [barcode], limit: 1);
-      if (rows.isEmpty) return;
-      await txn.insert('sync_queue', {
-        'entityType': 'product',
-        'entityId': barcode,
-        'operation': 'update',
-        'payloadJson': jsonEncode(rows.first),
-        'createdAt': now,
-        'retryCount': 0,
-      });
+      await SyncQueueHelper.enqueueProduct(txn, barcode);
     });
     await _notify();
   }

@@ -1,6 +1,6 @@
-import 'dart:convert';
-
 import 'package:sqflite/sqflite.dart';
+
+import '../sync/sync_queue_helper.dart';
 
 /// Phase 13 (maintenance tools) ke liye sync_queue helpers — Kotlin `SyncQueueHelper.enqueue*` jaisa.
 /// Hamesha usi transaction ke [DatabaseExecutor] par chalayein jis mein data badla ho.
@@ -11,23 +11,13 @@ Future<void> enqueueSync(
   String op,
   Map<String, Object?> payload,
 ) =>
-    db.insert('sync_queue', {
-      'entityType': type,
-      'entityId': id,
-      'operation': op,
-      'payloadJson': jsonEncode(payload),
-      'createdAt': DateTime.now().millisecondsSinceEpoch,
-      'retryCount': 0,
-    });
+    SyncQueueHelper.enqueueLegacy(db, type, id, op, payload);
 
 /// Har barcode ki (rename/update ke BAAD wali) taaza row dobara sync_queue mein.
 /// Kotlin: `touchedBarcodes.forEach { dao.find(it)?.let { p -> enqueueProduct(db, p) } }`.
 Future<void> enqueueProductUpdates(DatabaseExecutor db, Iterable<String> barcodes) async {
   for (final b in barcodes) {
-    final rows = await db.query('products', where: 'barcode=?', whereArgs: [b], limit: 1);
-    if (rows.isNotEmpty) {
-      await enqueueSync(db, 'product', b, 'update', Map<String, Object?>.from(rows.first));
-    }
+    await SyncQueueHelper.enqueueProduct(db, b);
   }
 }
 

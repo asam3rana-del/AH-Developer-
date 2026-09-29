@@ -3,6 +3,7 @@ import '../db/maintenance_sync.dart';
 import '../db/product_repository.dart';
 import '../models/product.dart';
 import '../services/session.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ek duplicate group: [keeper] rehta hai, [losers] ka stock keeper mein jama hota hai aur wo hat jate hain.
 class MergeGroup {
@@ -138,6 +139,9 @@ class MergeDuplicateProducts {
         }
 
         await enqueueSync(txn, 'product', keeper.barcode, 'update', merged.toMap());
+        // Loser ka stock keeper mein aaya — increment_stock (doosre device ki gintee na rundhe).
+        final moved = g.combinedStock - keeper.stock;
+        if (moved != 0) await SyncQueueHelper.enqueueStockDelta(txn, keeper.barcode, moved);
         for (final loser in g.losers) {
           await enqueueSync(txn, 'product', loser.barcode, 'delete', {'barcode': loser.barcode});
         }

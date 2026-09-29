@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 
@@ -13,6 +12,7 @@ import 'app_database.dart';
 import 'customer_repository.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ports the data/logic half of PartyTransactionActivity.kt.
 ///
@@ -226,15 +226,9 @@ class PartyTransactionRepository {
 
   int _now() => DateTime.now().millisecondsSinceEpoch;
 
+  /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   Future<void> _enqueue(DatabaseExecutor ex, String type, String id, String op, Map<String, Object?> payload) =>
-      ex.insert('sync_queue', {
-        'entityType': type,
-        'entityId': id,
-        'operation': op,
-        'payloadJson': jsonEncode(payload),
-        'createdAt': _now(),
-        'retryCount': 0,
-      });
+      SyncQueueHelper.enqueueLegacy(ex, type, id, op, payload);
 
   Future<void> _refreshParties() async {
     await CustomerRepository.instance.refresh();
@@ -303,9 +297,11 @@ class PartyTransactionRepository {
       found = true;
       final now = _now();
       await txn.update(table, {'name': name, 'dirty': 1, 'updatedAt': now}, where: 'id = ?', whereArgs: [partyId]);
-      final row = (await txn.query(table, where: 'id = ?', whereArgs: [partyId], limit: 1)).first;
-      final id = (row['serverId'] as String?) ?? '${isCustomer ? 'customer' : 'supplier'}:$partyId';
-      await _enqueue(txn, isCustomer ? 'customer' : 'supplier', id, 'update', row);
+      if (isCustomer) {
+        await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      } else {
+        await SyncQueueHelper.enqueueSupplier(txn, partyId);
+      }
     });
     if (found) await _refreshParties();
     return found;
@@ -355,29 +351,19 @@ class PartyTransactionRepository {
     return r.isEmpty ? null : Product.fromMap(r.first);
   }
 
-  Future<void> _enqueueProduct(DatabaseExecutor ex, String barcode) async {
-    final r = await ex.query('products', where: 'barcode = ?', whereArgs: [barcode], limit: 1);
-    if (r.isNotEmpty) await _enqueue(ex, 'product', barcode, 'update', r.first);
-  }
+  Future<void> _enqueueProduct(DatabaseExecutor ex, String barcode) =>
+      SyncQueueHelper.enqueueProduct(ex, barcode);
 
   Future<void> _adjustPartyBalance(DatabaseExecutor ex, bool isCustomer, int partyId, double delta) async {
     final table = isCustomer ? 'customers' : 'suppliers';
     await ex.rawUpdate('UPDATE $table SET balance = balance + ?, dirty = 1, updatedAt = ? WHERE id = ?',
         [delta, _now(), partyId]);
-    final r = await ex.query(table, where: 'id = ?', whereArgs: [partyId], limit: 1);
-    if (r.isNotEmpty) {
-      final id = (r.first['serverId'] as String?) ?? '${isCustomer ? 'customer' : 'supplier'}:$partyId';
-      await _enqueue(ex, isCustomer ? 'customer' : 'supplier', id, 'update', r.first);
-    }
+    await SyncQueueHelper.enqueueBalanceDelta(ex, customer: isCustomer, partyId: partyId, delta: delta);
+  }
   }
 
-  Future<void> _deleteCashByReference(DatabaseExecutor ex, String reference) async {
-    final rows = await ex.query('cash_transactions', where: 'reference = ?', whereArgs: [reference]);
-    for (final r in rows) {
-      await ex.delete('cash_transactions', where: 'id = ?', whereArgs: [r['id']]);
-      await _enqueue(ex, 'cash_transaction', '${r['id']}', 'delete', {'id': r['id'], 'reference': reference});
-    }
-  }
+  Future<void> _deleteCashByReference(DatabaseExecutor ex, String reference) =>
+      SyncQueueHelper.deleteCashTransactionsByReference(ex, reference);
 
   /// Kotlin reverseCashByReference: asli cash rows chhoote nahi, ek nayi dated reversal row
   /// (`return:<ref>`) banti hai, purane methods ke hisaab se barabar taqseem.
@@ -410,19 +396,13 @@ class PartyTransactionRepository {
     final rows = await ex.query('payments', where: 'billReference = ?', whereArgs: [billRef]);
     for (final p in rows) {
       await _deleteCashByReference(ex, p['reference'] as String);
-      await ex.delete('payments', where: 'id = ?', whereArgs: [p['id']]);
-      await _enqueue(ex, 'payment', '${p['id']}', 'delete', {'reference': p['reference']});
+      await SyncQueueHelper.deletePaymentRow(ex, Map<String, Object?>.from(p));
     }
   }
 
   /// Purchase ki apni "Purchase payment" rows (reference == billNo) — poori bill delete par.
-  Future<void> _deletePaymentsByReference(DatabaseExecutor ex, String reference) async {
-    final rows = await ex.query('payments', where: 'reference = ?', whereArgs: [reference]);
-    for (final p in rows) {
-      await ex.delete('payments', where: 'id = ?', whereArgs: [p['id']]);
-      await _enqueue(ex, 'payment', '${p['id']}', 'delete', {'reference': reference});
-    }
-  }
+  Future<void> _deletePaymentsByReference(DatabaseExecutor ex, String reference) =>
+      SyncQueueHelper.deletePaymentsByReference(ex, reference);
 
   Future<void> _reducePaymentRecords(DatabaseExecutor ex, String reference, double amountToRemove) async {
     var remaining = amountToRemove;
@@ -510,6 +490,7 @@ class PartyTransactionRepository {
               [-net, _now(), cur.barcode]);
         }
         // net > 0 => zyada bika => stock ghata (-net); net < 0 => stock wapas (-net = +ve).
+        await SyncQueueHelper.enqueueStockDelta(txn, cur.barcode, -net);
         await StockLedger.log(txn,
             barcode: cur.barcode, type: MovementType.saleEdit, signedQty: -net, reference: cur.invoice);
       }
@@ -573,6 +554,7 @@ class PartyTransactionRepository {
       if (product != null) {
         await txn.rawUpdate('UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
             [saleItemSmallestQty(cur, product), _now(), cur.barcode]);
+        await SyncQueueHelper.enqueueStockDelta(txn, cur.barcode, saleItemSmallestQty(cur, product));
         await StockLedger.log(txn,
             barcode: cur.barcode,
             type: MovementType.saleItemDelete,
@@ -663,6 +645,7 @@ class PartyTransactionRepository {
             'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= 0',
             [net, finalCost, _now(), cur.barcode, net]);
         if (rows == 0) throw const InsufficientStockException('Not enough stock to reduce');
+        await SyncQueueHelper.enqueueStockDelta(txn, cur.barcode, net);
         await StockLedger.log(txn,
             barcode: cur.barcode,
             type: MovementType.purchaseEdit,
@@ -714,6 +697,7 @@ class PartyTransactionRepository {
             'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock >= ?',
             [delta, newCost, _now(), cur.barcode, delta]);
         if (rows == 0) throw const InsufficientStockException('Cannot delete: stock already used');
+        await SyncQueueHelper.enqueueStockDelta(txn, cur.barcode, -delta);
         await StockLedger.log(txn,
             barcode: cur.barcode,
             type: MovementType.purchaseItemDelete,

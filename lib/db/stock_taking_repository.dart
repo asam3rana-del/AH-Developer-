@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import '../models/product.dart';
 import '../models/stock_movement.dart';
@@ -6,6 +5,7 @@ import '../services/session.dart';
 import 'app_database.dart';
 import 'product_repository.dart';
 import 'stock_ledger.dart';
+import '../sync/sync_queue_helper.dart';
 
 /// Ports the data side of StockTakingActivity.kt (physical count vs system stock).
 ///
@@ -173,15 +173,8 @@ class StockTakingRepository {
             note: stockTakeLineNote(v.product.stock, v.counted, cleanNote),
             now: now);
 
-        final fresh = await txn.query('products', where: 'barcode=?', whereArgs: [barcode], limit: 1);
-        await txn.insert('sync_queue', {
-          'entityType': 'product',
-          'entityId': barcode,
-          'operation': 'update',
-          'payloadJson': jsonEncode(fresh.first),
-          'createdAt': now,
-          'retryCount': 0,
-        });
+        // Stock ka DELTA (increment_stock) — do device ek hi product gine to koi gintee nahi khoti.
+        await SyncQueueHelper.enqueueStockDelta(txn, barcode, v.delta);
       }
     });
 

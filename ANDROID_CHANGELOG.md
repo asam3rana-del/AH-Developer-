@@ -1,5 +1,27 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Phase 10 mukammal (Cloud sync + Phone OTP login)
+- [x] `SyncQueueHelper` (+ `enqueueLegacy`) aur `SettingsSync` (+ `SyncSection` UI) pehle hi port ho chuke the — tracker mein 'todo' reh gaya tha; ab `done`. `installSyncWiring()` `main()` mein chalti hai (`SyncRepository.backend = SyncApi`, `afterApply = mergeOwnDuplicateExpenses`, `onQueued = SyncWorker.triggerNow`).
+- [x] Phone OTP login: `lib/services/otp_login.dart` + login screen panel + Settings mein "OTP (Phone Number)" radio; `UserRepository.findByPhone` / `activeUsers`. Naya test: `test/otp_login_test.dart` (resolveOtpUser, verifyLinkPassword hashed + plain, 6-digit code, phone check).
+- [x] **Bug fix (Kotlin ExpenseActivity audit ke mutabiq):** Expense ke saath bana cash-OUT ka `reference` ab device-unique hai (`expense:<DeviceTag>-<id>`, serverId ho to wahi) — pehle `expense:<localId>` tha, aur do devices par expense #7 hone se ek device ka delete doosre ka cash-out bhi uda deta tha. Delete purani rows ko bhi saaf karta hai (`legacyExpenseCashReference`, sirf usi expense ke liye jo isi device par bana — Kotlin `madeHere`). Purana TODO comment hata diya. Test: `test/expense_test.dart`.
+- [x] **Bug fix (login):** `_askPasswordBeforeFirstPhoneLink` mein dialog band hote hi `field.dispose()` chal jata tha (animation ke dauran "TextEditingController used after being disposed" ka crash) — hata diya.
+- Note: `lib/screens/login_screen.dart` line 281 ka `\'s` (backslash + quote) DURUST hai — pichli chat ke markdown ne dikhane mein double backslash dikhaya, file mein ek hi backslash hai. Koi syntax ghalti nahi.
+- Farq: workmanager plugin nahi — sync/backup sirf app zinda hone par (Phase 10 SyncWorker note).
+- [ ] Device par: Firebase (`flutterfire configure`, `firebase_options.dart`), Firestore Rules + branch_members/{uid} approval, Phone Auth enable — phir 2 devices (Android + iPad) par ek sale/purchase sync karke number mila lein.
+- [ ] Phase 10 mukammal. Agla: Phase 11 (Backup/Crypto/Scheduler — dekhein PORT_STATUS) aur Phase 12/4 ke baqi items.
+- Note: yeh code is session mein compile/test nahi hua (Flutter SDK maujood nahi tha) — `flutter pub get && flutter analyze && flutter test`.
+
+## Flutter side (2026-09-29) — Phase 10 (6/x): SyncApi mukammal — apply hissa 2 + branch cleanup
+- [x] `applyServerChanges` HISSA 2 -> `lib/sync/sync_apply_rest.dart`: sales (+items), purchases (+items), expenses, payments, cash_transactions, units, categories, zakat years (payments se PEHLE) + payments, returns, stock_movements, shell customers/transactions/log, app_settings, cash_register. Kotlin ki tarteeb aur guards: pending local edit ho to pull skip + total/paid farq par `sync_conflict` audit; doosre device ka delete pending edit ko nahi khata (audit); stock_movements mein apni unclaimed row claim (duplicate PURCHASE/SALE row nahi); payment ki party `partyServerId` se resolve (doosre device ka raw id ghalat party par nahi lagta); app_setting/cash_register par apna pending push ho to skip.
+- [x] `UnimplementedError` guard hata diya — ab sab 20 collections apply hoti hain, sab ek transaction mein (beech mein ghalti => kuch nahi likha, checkpoint nahi barhta).
+- [x] `SyncApi.countDocsByBranchId` / `deleteDocsByBranchId` (admin cleanup: ghalat branchId ke docs, 16 collections, `users` nahi, 400 ke batch).
+- [x] **DB v13:** `returns` par `serverId` / `updatedAt` / `dirty` (returns pull ko idempotent karne ke liye; purani rows serverId NULL, dirty=1).
+- Farq: `saleUid` / `lineUid` / `purchaseUid` (Kotlin P2) Flutter mein nahi — pull unhein ignore karta hai. purchases ke Flutter-only columns (`dueDate`, `supplierInvoiceNo`) server doc mein na hon to local barqarar.
+- Test: `test/sync_apply_rest_test.dart` (naya), `test/sync_apply_test.dart` (guard test hata).
+- **ZAROORI:** `SyncRepository.backend = SyncApi.instance` abhi bhi mat lagayein — Flutter repositories ki purani queue rows (`entityType 'sale'`, entityId invoice, op 'create'/'update', raw `toMap` payload) Android schema jaisi nahi; pehle `SyncQueueHelper` (entity ids `sale:<invoice>` waghera, `...Json()` builders, `increment_*`) port hokar sab repositories mein jurna hai.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/sync_apply_test.dart test/sync_apply_rest_test.dart`.
+- [ ] Agla (one by one): `SyncQueueHelper` (entity ids + payload builders + enqueue* + repositories mein wiring) -> `SettingsSync` -> Settings ka Cloud Sync Setup screen -> phir `SyncRepository.backend` / `afterApply` jorna.
+
 ## Flutter side (2026-09-29) — Phase 10 (5/x): SyncApi — PULL + apply hissa 1
 - [x] `SyncApi.pull()` -> `lib/sync/sync_api.dart` (+ `sync_pull_plan.dart`): 20 collections `branchId == current && updatedAt > since` (server se), checkpoint = sab se bara `updatedAt`. Branch code na ho => `BranchNotConfiguredException` pehle (farq: Kotlin mein khali "Already up to date" aata tha).
 - [x] `applyServerChanges` hissa 1 -> `lib/sync/sync_apply.dart`: customers, suppliers, products, users. Server snapshot ke upar abhi tak na bheje gaye local deltas (increment_balance / increment_stock, stuck samet), pending "upsert" ho to us row ko skip, dirty row ka naam/qeemat badle to `sync_conflict` audit, `_deleted` tombstone se hata do. Naye user ka password bekaar random hash. Sab ek transaction mein.

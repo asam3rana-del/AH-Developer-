@@ -8,6 +8,7 @@ import 'services/session.dart';
 import 'sync/branch_config_store.dart';
 import 'sync/device_tag.dart';
 import 'sync/network_monitor.dart';
+import 'sync/settings_sync.dart';
 import 'sync/sync_worker.dart';
 import 'theme/app_colors.dart';
 import 'theme/theme_manager.dart';
@@ -34,6 +35,9 @@ void main() async {
   BackupScheduler.instance.register();
   // NetworkMonitor.register(this): internet wapas aane par sync (SyncWorker aane par onOnline jurega).
   // NetworkMonitor.onAvailable -> SyncWorker.triggerNow (20 s debounce + KEEP: retry-storm FIX).
+  // Phase 10 ka aakhri jor: SyncRepository.backend = SyncApi, afterApply = mergeOwnDuplicateExpenses,
+  // SyncQueueHelper.onQueued = SyncWorker.triggerNow (Kotlin `SyncQueueHelper.trigger`).
+  installSyncWiring();
   NetworkMonitor.onOnline = () => SyncWorker.instance.triggerNow();
   await NetworkMonitor.register();
   // PosApplication.onCreate() mein SyncWorker.schedulePeriodic(this) (har 15 min, app zinda ho tab).

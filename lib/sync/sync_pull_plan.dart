@@ -63,3 +63,28 @@ PullResult assemblePullResult(Map<String, List<SyncDoc>> byCollection, int since
     serverTime: maxUpdatedAt,
   );
 }
+
+/// Kotlin `SyncApi.BRANCH_SCOPED_COLLECTIONS` — ghalat/foreign branchId cleanup (count/delete) in hi
+/// collections par chalta hai. Jaan boojh kar `users` (login/permission data) aur shell_* shamil NAHI
+/// (Kotlin jaisa).
+const List<String> branchScopedCollections = [
+  'customers',
+  'suppliers',
+  'products',
+  'sales',
+  'purchases',
+  'payments',
+  'expenses',
+  'cash_transactions',
+  'units',
+  'categories',
+  'zakat_years',
+  'zakat_payments',
+  'returns',
+  'stock_movements',
+  'app_settings',
+  'cash_register',
+];
+
+/// Firestore batch delete ka hissa (limit 500 se neeche) — Kotlin `.limit(400)`.
+const int branchCleanupBatchSize = 400;
