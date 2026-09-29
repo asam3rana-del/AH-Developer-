@@ -12,6 +12,10 @@ class Payment {
   final int updatedAt;
   final bool dirty;
 
+  /// Bill (sale invoice / purchase billNo) this payment is linked to; '' = general
+  /// (Kotlin Payment.billReference, DB v5).
+  final String billReference;
+
   const Payment({
     this.id,
     required this.reference,
@@ -24,7 +28,32 @@ class Payment {
     this.serverId,
     this.updatedAt = 0,
     this.dirty = true,
+    this.billReference = '',
   });
+
+  Payment copyWith({
+    double? amount,
+    String? method,
+    String? note,
+    int? createdAt,
+    int? updatedAt,
+    bool? dirty,
+    String? billReference,
+  }) =>
+      Payment(
+        id: id,
+        reference: reference,
+        partyType: partyType,
+        partyId: partyId,
+        amount: amount ?? this.amount,
+        method: method ?? this.method,
+        note: note ?? this.note,
+        createdAt: createdAt ?? this.createdAt,
+        serverId: serverId,
+        updatedAt: updatedAt ?? this.updatedAt,
+        dirty: dirty ?? this.dirty,
+        billReference: billReference ?? this.billReference,
+      );
 
   Map<String, Object?> toMap() => {
         if (id != null) 'id': id,
@@ -38,6 +67,7 @@ class Payment {
         'serverId': serverId,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
+        'billReference': billReference,
       };
 
   factory Payment.fromMap(Map<String, Object?> m) => Payment(
@@ -52,6 +82,7 @@ class Payment {
         serverId: m['serverId'] as String?,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,
+        billReference: (m['billReference'] as String?) ?? '',
       );
 }
 
@@ -139,6 +170,9 @@ class Expense {
   final String category;
   final String description;
   final double amount;
+
+  /// Drawer the expense was paid from: 'cash' or 'bank' (DB v6, Kotlin Expense.method).
+  final String method;
   final int createdAt;
   final String? serverId;
   final int updatedAt;
@@ -149,6 +183,7 @@ class Expense {
     required this.category,
     required this.description,
     required this.amount,
+    this.method = 'cash',
     required this.createdAt,
     this.serverId,
     this.updatedAt = 0,
@@ -160,6 +195,7 @@ class Expense {
         'category': category,
         'description': description,
         'amount': amount,
+        'method': method,
         'createdAt': createdAt,
         'serverId': serverId,
         'updatedAt': updatedAt,
@@ -171,6 +207,7 @@ class Expense {
         category: m['category'] as String,
         description: m['description'] as String,
         amount: (m['amount'] as num).toDouble(),
+        method: (m['method'] as String?) ?? 'cash',
         createdAt: (m['createdAt'] as num).toInt(),
         serverId: m['serverId'] as String?,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
