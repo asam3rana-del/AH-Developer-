@@ -43,7 +43,7 @@ dependencies:
   print_bluetooth_thermal: ^1.1.4          # 58/80mm Bluetooth ESC/POS printer
   permission_handler: ^11.3.1              # Android 12+ Bluetooth permission
   image_picker: ^1.1.2                     # Bill Scan: camera / gallery
-  google_mlkit_text_recognition: ^0.13.1   # Bill Scan: on-device OCR
+  google_mlkit_text_recognition: ^0.14.0   # Bill Scan: on-device OCR
 
 dev_dependencies:
   flutter_test:
