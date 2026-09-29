@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_auth/firebase_auth.dart' show PhoneAuthCredential;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../db/user_repository.dart';
@@ -81,7 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     // "OTP (Phone Number)": sirf phone/OTP wala panel (Kotlin applyLoginMethod "otp").
-    if (method == 'otp') {
+    // Phone OTP sirf Android / iOS par (Firebase Phone Auth desktop par nahi) — desktop par password.
+    if (method == 'otp' && (kIsWeb || Platform.isAndroid || Platform.isIOS)) {
       setState(() { _otpMode = true; _loading = false; });
       return;
     }
@@ -150,7 +154,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
     if (!ok) {
-      return setState(() { _busy = false; _error = Loc.t('Invalid login', 'غلط لاگ اِن'); });
+      final msg = user == null
+          ? Loc.t('User not found: "$username"', 'یوزر نہیں ملا: "$username"')
+          : !user.active
+              ? Loc.t('This user is inactive', 'یہ یوزر غیر فعال ہے')
+              : Loc.t('Wrong password', 'پاس ورڈ غلط ہے');
+      return setState(() { _busy = false; _error = msg; });
     }
     await _repo.setSetting('last_username', user!.username);
     final method = await _repo.getSetting('login_method') ?? 'password';

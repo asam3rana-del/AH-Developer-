@@ -13,7 +13,12 @@ class UserRepository {
   Future<Database> get _db => AppDatabase.instance.database;
 
   Future<User?> find(String username) async {
-    final rows = await (await _db).query('users', where: 'username = ?', whereArgs: [username], limit: 1);
+    final db = await _db;
+    var rows = await db.query('users', where: 'username = ?', whereArgs: [username], limit: 1);
+    // Kotlin se aaye users: "Asam" / "asam" ka farq na ho — pehle exact, warna bari/chhoti harf nazar-andaz.
+    if (rows.isEmpty && username.isNotEmpty) {
+      rows = await db.query('users', where: 'username = ? COLLATE NOCASE', whereArgs: [username], limit: 1);
+    }
     return rows.isEmpty ? null : User.fromMap(rows.first);
   }
 
