@@ -28,3 +28,17 @@ if ! grep -q "BLUETOOTH_CONNECT" "$MANIFEST"; then
   sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>/' "$MANIFEST"
 fi
 grep -n "uses-permission" "$MANIFEST"
+
+# --- R8 rules: google_mlkit_text_recognition refers to Chinese/Japanese/Korean/Devanagari option classes
+# that we don't bundle (Latin only). Tell R8 to ignore them, otherwise release build fails with "Missing class". ---
+cat > android/app/proguard-rules.pro <<'EOF'
+-dontwarn com.google.mlkit.vision.text.chinese.**
+-dontwarn com.google.mlkit.vision.text.japanese.**
+-dontwarn com.google.mlkit.vision.text.korean.**
+-dontwarn com.google.mlkit.vision.text.devanagari.**
+EOF
+# Release buildType mein proguard file jodo (`signingConfig signingConfigs.debug` ke baad).
+sed -i -E "s/^([[:space:]]*)signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/&\n\1proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'/" "$GRADLE"
+echo "=== app build.gradle (verify proguard) ==="
+grep -n "proguard\|signingConfig" "$GRADLE"
+grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build.gradle"; exit 1; }
