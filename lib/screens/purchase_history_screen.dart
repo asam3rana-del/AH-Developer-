@@ -19,10 +19,10 @@ import 'purchase_screen.dart';
 /// Role: admin-only (RoleGuard; PORTING_PLAN — Purchase admin-only). Return/Delete data layer par bhi check.
 ///
 /// Farq (Kotlin se):
-///  * Card tap: Kotlin PurchaseActivity (edit saved purchase) kholta hai — wo screen abhi Flutter mein
-///    nahi (PORT_STATUS Phase 2 "edit-saved-purchase baaki"). Tab tak tap = bill ki lines ka detail dialog.
+///  * Card tap = PurchaseScreen(editBillNo:) (saved purchase edit, Kotlin jaisa). Returned bill edit nahi
+///    hota (Kotlin bhi rokta hai) — us par tap = bill ki lines ka detail dialog.
 ///  * Print = text Bill Preview + Copy (Bluetooth Phase 12). Share = clipboard (share plugin nahi).
-///  * Line ka naam live product se (purchase_items par naam snapshot nahi).
+///  * Line ka naam bill par jama shuda (purani rows ke liye live product).
 class PurchaseHistoryScreen extends StatelessWidget {
   const PurchaseHistoryScreen({super.key});
 
@@ -86,6 +86,13 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
   void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   // ------------------------------------------------------------------ actions
+
+  /// Card tap: active bill => edit screen; returned bill => sirf lines ka detail dialog.
+  Future<void> _openBill(PurchaseHistoryRow r) async {
+    if (r.isReturned) return _details(r);
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => PurchaseScreen(editBillNo: r.billNo)));
+    if (mounted) _load(showSpinner: false);
+  }
 
   Future<void> _details(PurchaseHistoryRow r) async {
     final items = await _repo.itemsForBill(r.billNo);
@@ -318,7 +325,7 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
       decoration: BoxDecoration(color: _p.cardWhite, borderRadius: BorderRadius.circular(18), border: Border.all(color: _p.border)),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _details(r),
+        onTap: () => _openBill(r),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -177,9 +177,10 @@ double addPurchaseLineCost({
   return newPer * factor;
 }
 
-/// Purchase line ki smallest-unit qty. (Flutter `purchase_items` mein conversionFactor column
-/// nahi, is liye product ki MAUJUDA ladder — Kotlin bhi purani rows ke liye yehi karta hai.)
+/// Purchase line ki smallest-unit qty. Khareed ke waqt jama shuda conversionFactor pehle (DB v12); sirf
+/// purani rows (factor == 0) ke liye product ki MAUJUDA ladder — Kotlin `PurchaseItem.smallestQty(product)`.
 double purchaseItemSmallestQty(PurchaseItem item, Product? product) {
+  if (item.conversionFactor > 0) return item.qty * item.conversionFactor;
   if (product == null) return item.qty;
   return product.toSmallestUnits(item.qty, item.unit.isEmpty ? product.unit : item.unit);
 }
@@ -626,11 +627,15 @@ class PartyTransactionRepository {
 
       final qtyChanged = (newQty - cur.qty).abs() > 1e-9;
       final oldSmallest = purchaseItemSmallestQty(cur, product);
+      // Unit nahi badalta (sirf qty/rate), is liye bill par jama shuda conversionFactor hi lagta hai —
+      // sirf purani rows (factor == 0) mein product ki maujuda ladder.
       final newSmallest = !qtyChanged
           ? oldSmallest
-          : (product == null
-              ? newQty
-              : product.toSmallestUnits(newQty, cur.unit.isEmpty ? product.unit : cur.unit));
+          : (cur.conversionFactor > 0
+              ? newQty * cur.conversionFactor
+              : (product == null
+                  ? newQty
+                  : product.toSmallestUnits(newQty, cur.unit.isEmpty ? product.unit : cur.unit)));
       final net = newSmallest - oldSmallest;
       final newAmount = newQty * newRate;
 

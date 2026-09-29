@@ -116,6 +116,26 @@ class CustomerItemRate {
   const CustomerItemRate(this.unitPrice, this.unit);
 }
 
+/// Removes [linkedPaid] (money already recorded by bill-linked payments, each
+/// with its own cash row) from the front of the bill's cash-in [rows], so an
+/// edited bill never counts it twice. Rows that reach zero are dropped.
+/// Mirrors the `linkedToSkip` loop in Kotlin `RoomSaleRepository.saveSale()`.
+List<PayEntry> subtractLinkedPaid(List<PayEntry> rows, double linkedPaid) {
+  var skip = linkedPaid;
+  final out = <PayEntry>[];
+  for (final row in rows) {
+    var amount = row.amount;
+    if (skip > 0.009) {
+      final cut = skip < amount ? skip : amount;
+      amount -= cut;
+      skip -= cut;
+    }
+    if (amount <= 0.009) continue;
+    out.add(PayEntry(row.method, amount));
+  }
+  return out;
+}
+
 class SaleRepository {
   SaleRepository._();
   static final SaleRepository instance = SaleRepository._();
@@ -201,6 +221,69 @@ class SaleRepository {
       final id = r['id'];
       await txn.delete('cash_transactions', where: 'id=?', whereArgs: [id]);
       await _enqueueSync(txn, 'cash_transaction', '$id', 'delete', {'id': id, 'reference': invoice});
+    }
+  }
+
+  /// Kotlin `PaymentDao.linkedPaidForBill()`: standalone payments recorded via
+  /// "Receive Payment > link to bill" (billReference == bill, but NOT the bill's
+  /// own embedded row, whose reference == bill). They are already inside the
+  /// bill's `paid`, so an edit must not record that money again in the cash book.
+  Future<double> _linkedPaidForBill(Transaction txn, String bill) async {
+    final r = await txn.rawQuery(
+      'SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE billReference = ? AND reference != ?',
+      [bill, bill],
+    );
+    if (r.isEmpty) return 0.0;
+    return (r.first['s'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  /// Kotlin `reverseCashByReference()`: the original cash rows stay untouched;
+  /// a new dated reversal row (`return:<ref>`) is written instead, split across
+  /// the original methods in proportion.
+  Future<void> _reverseCash(Transaction txn, String reference, double amount, String type,
+      String label, int now) async {
+    if (amount <= 0.009) return;
+    final rows = await txn.query('cash_transactions', where: 'reference=?', whereArgs: [reference]);
+    if (rows.isEmpty) return;
+    final originalTotal = rows.fold<double>(0, (sum, r) => sum + (r['amount'] as num).toDouble());
+    if (originalTotal <= 0.009) return;
+    final ratio = (amount / originalTotal).clamp(0.0, 1.0);
+    for (final r in rows) {
+      final portion = (r['amount'] as num).toDouble() * ratio;
+      if (portion <= 0.009) continue;
+      final reversal = CashTransaction(
+        type: type,
+        method: (r['method'] as String?) ?? 'cash',
+        amount: portion,
+        reason: label,
+        reference: 'return:$reference',
+        createdAt: now,
+      );
+      final id = await txn.insert('cash_transactions', reversal.toMap());
+      await _enqueueSync(txn, 'cash_transaction', id.toString(), 'create', reversal.toMap());
+    }
+  }
+
+  /// Kotlin `SyncQueueHelper.voidLinkedPayments()`: bill-linked payments would
+  /// otherwise live on as orphan "standalone" payments after a return/delete.
+  ///  - [refundType] != null (RETURN): money goes back -> dated reversal of each
+  ///    linked payment's cash row, then the payment row is dropped.
+  ///  - [refundType] == null (DELETE): payment row + its cash rows are dropped.
+  /// Party balance is NOT touched: the bill's own reversal uses total - paid and
+  /// `paid` already includes these payments.
+  Future<void> _voidLinkedPayments(Transaction txn, String billRef, int now,
+      {String? refundType, String refundLabel = ''}) async {
+    final rows = await txn.query('payments',
+        where: 'billReference = ? AND reference != ?', whereArgs: [billRef, billRef]);
+    for (final p in rows) {
+      final ref = (p['reference'] as String?) ?? '';
+      if (refundType != null) {
+        await _reverseCash(txn, ref, (p['amount'] as num).toDouble(), refundType, refundLabel, now);
+      } else {
+        await _deleteCashByReference(txn, ref);
+      }
+      await txn.delete('payments', where: 'id = ?', whereArgs: [p['id']]);
+      await _enqueueSync(txn, 'payment', '${p['id']}', 'delete', {'id': p['id'], 'reference': ref});
     }
   }
 
@@ -543,13 +626,23 @@ class SaleRepository {
           ? cleanRows
           : (paid > 0.009 ? [PayEntry(paymentMethod, paid)] : const <PayEntry>[]);
       if (paid > 0.009) {
+        // Editing a bill that already had bill-linked payments: `paid` (pre-filled
+        // from sale.paid) already includes them and they keep their own cash row,
+        // so re-creating a full-`paid` cash-in would count that money twice.
+        final linkedPaid = original != null ? await _linkedPaidForBill(txn, invoice) : 0.0;
         // Rows can add up to more than the bill (paid was clamped to total):
         // trim the overshoot off the last rows so cash-in == paid exactly.
         var remaining = paid;
+        final trimmed = <PayEntry>[];
         for (final row in effectiveRows) {
           if (remaining <= 0.009) break;
           final amount = row.amount > remaining ? remaining : row.amount;
           remaining -= amount;
+          trimmed.add(PayEntry(row.method, amount));
+        }
+        final cashRows = subtractLinkedPaid(trimmed, linkedPaid);
+        for (final row in cashRows) {
+          final amount = row.amount;
           final cashTx = CashTransaction(
             type: 'IN',
             method: row.method.toLowerCase(),
@@ -605,6 +698,8 @@ class SaleRepository {
       await txn.delete('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       await txn.delete('sales', where: 'invoice=?', whereArgs: [invoice]);
       await _deleteCashByReference(txn, invoice);
+      // Bill-linked payments must not survive as orphan standalone payments.
+      await _voidLinkedPayments(txn, invoice, now);
       await _enqueueSync(txn, 'sale', invoice, 'delete', {'invoice': invoice});
       deleted = sale;
     });
@@ -660,27 +755,9 @@ class SaleRepository {
 
       // Dated reversal instead of deleting the original cash rows: keeps the
       // sale day's history and leaves a visible trace of the return today.
-      if (sale.paid > 0.009) {
-        final cashRows = await txn.query('cash_transactions', where: 'reference=?', whereArgs: [invoice]);
-        final originalTotal = cashRows.fold<double>(0, (sum, r) => sum + (r['amount'] as num).toDouble());
-        if (originalTotal > 0.009) {
-          final ratio = (sale.paid / originalTotal).clamp(0.0, 1.0);
-          for (final r in cashRows) {
-            final portion = (r['amount'] as num).toDouble() * ratio;
-            if (portion <= 0.009) continue;
-            final reversal = CashTransaction(
-              type: 'OUT',
-              method: (r['method'] as String?) ?? 'cash',
-              amount: portion,
-              reason: 'Sale Return',
-              reference: 'return:$invoice',
-              createdAt: now,
-            );
-            final id = await txn.insert('cash_transactions', reversal.toMap());
-            await _enqueueSync(txn, 'cash_transaction', id.toString(), 'create', reversal.toMap());
-          }
-        }
-      }
+      await _reverseCash(txn, invoice, sale.paid, 'OUT', 'Sale Return', now);
+      // Bill-linked payments: refund (dated reversal) and drop the payment rows.
+      await _voidLinkedPayments(txn, invoice, now, refundType: 'OUT', refundLabel: 'Sale Return');
 
       await txn.update(
         'sales',

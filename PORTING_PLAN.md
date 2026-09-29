@@ -30,7 +30,7 @@
 ## 2. Phases (tarteeb)  — live status `PORT_STATUS.md` mein
 | Phase | Kya | Nota |
 |---|---|---|
-| 0-3 | Models/DB, Products, Purchase, Sale (naya) | ✅ ho chuka (Purchase/Sale ka edit-saved baaki) |
+| 0-3 | Models/DB, Products, Purchase, Sale | ✅ Sale mukammal (linked payments samet). Purchase mukammal (edit-saved-purchase, Delete, supplier comparison samet). Bluetooth/WhatsApp share = Phase 12 |
 | **4** | Login, roles (`RoleGuard`), Loc, Theme, Settings, Dashboard | **Sabse pehle** — baaki sab screens role/zabaan par depend karti hain |
 | 5 | Item Rate Search, Rate Comparison, Items, Bulk rates/units, SaleCart, Quick Sale, Hold/Recall | Spec: `docs/specs/item_rate_search.md` |
 | 6 | Parties (list, dashboard, transactions, reports), Due Reminders | |
@@ -59,7 +59,7 @@ Sale edit/delete sirf admin; History mein profit sirf admin; naye sale mein due 
 ## 5. Suggestions
 1. Phase 4 (login + roles) sabse pehle — warna Flutter ke saare screens sab ko khule honge.
 2. iPad par sab se pehle Phase 5 + Sale kaafi hai counter par kaam chalane ke liye; sync baad mein.
-3. `lib/AH-Developer-Purchase-Screen-Update.zip` repo se hata dein (lib mein zip nahi hoti, build slow karti hai).
+3. ~~`lib/AH-Developer-Purchase-Screen-Update.zip` repo se hata dein~~ — hata di gayi.
 4. `pubspec.yaml` mein aage chahiye: `local_auth` (app lock), `shared_preferences` (session/language),
    `crypto`+`encrypt` (password/backup), `flutter_blue_plus` ya `print_bluetooth_thermal` (printer),
    `google_mlkit_text_recognition` (bill scan), `workmanager` (background sync/backup).

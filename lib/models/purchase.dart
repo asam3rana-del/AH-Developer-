@@ -14,6 +14,9 @@ class Purchase {
   /// Supplier ko payment ki date (millis). 0 = set nahi (Kotlin Purchase.dueDate, DB v10).
   final int dueDate;
 
+  /// Supplier ka apna invoice / bill number (Kotlin Purchase.supplierInvoiceNo, DB v12). '' = nahi likha.
+  final String supplierInvoiceNo;
+
   const Purchase({
     required this.billNo,
     this.supplierId,
@@ -26,6 +29,7 @@ class Purchase {
     this.updatedAt = 0,
     this.dirty = true,
     this.dueDate = 0,
+    this.supplierInvoiceNo = '',
   });
 
   Map<String, Object?> toMap() => {
@@ -40,6 +44,7 @@ class Purchase {
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
         'dueDate': dueDate,
+        'supplierInvoiceNo': supplierInvoiceNo,
       };
 
   factory Purchase.fromMap(Map<String, Object?> m) => Purchase(
@@ -54,6 +59,7 @@ class Purchase {
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,
         dueDate: (m['dueDate'] as num?)?.toInt() ?? 0,
+        supplierInvoiceNo: (m['supplierInvoiceNo'] as String?) ?? '',
       );
 }
 
@@ -67,6 +73,17 @@ class PurchaseItem {
   final double amount;
   final String unit;
 
+  /// Khareed ke waqt ka "smallest units per 1 [unit]" (DB v12). Baad mein product ki unit ladder badal bhi
+  /// jaye to edit / return / delete wahi qty nikalte hain. 0 = purani row (maujuda ladder istemal hogi).
+  final double conversionFactor;
+
+  /// Khareed ke waqt ka item naam (snapshot). '' = purani row (live product naam).
+  final String itemName;
+
+  /// Purchase ke waqt set kiye gaye Retail / Wholesale rate (0 = product ka rate nahi badla).
+  final double retailRate;
+  final double wholesaleRate;
+
   const PurchaseItem({
     this.id,
     required this.billNo,
@@ -75,6 +92,10 @@ class PurchaseItem {
     required this.unitCost,
     required this.amount,
     this.unit = '',
+    this.conversionFactor = 0.0,
+    this.itemName = '',
+    this.retailRate = 0.0,
+    this.wholesaleRate = 0.0,
   });
 
   Map<String, Object?> toMap() => {
@@ -85,6 +106,10 @@ class PurchaseItem {
         'unitCost': unitCost,
         'amount': amount,
         'unit': unit,
+        'conversionFactor': conversionFactor,
+        'itemName': itemName,
+        'retailRate': retailRate,
+        'wholesaleRate': wholesaleRate,
       };
 
   factory PurchaseItem.fromMap(Map<String, Object?> m) => PurchaseItem(
@@ -95,5 +120,9 @@ class PurchaseItem {
         unitCost: (m['unitCost'] as num).toDouble(),
         amount: (m['amount'] as num).toDouble(),
         unit: (m['unit'] as String?) ?? '',
+        conversionFactor: (m['conversionFactor'] as num?)?.toDouble() ?? 0.0,
+        itemName: (m['itemName'] as String?) ?? '',
+        retailRate: (m['retailRate'] as num?)?.toDouble() ?? 0.0,
+        wholesaleRate: (m['wholesaleRate'] as num?)?.toDouble() ?? 0.0,
       );
 }

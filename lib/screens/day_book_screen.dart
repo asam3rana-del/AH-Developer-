@@ -5,15 +5,14 @@ import '../db/day_book_repository.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
+import 'purchase_screen.dart';
 import 'sale_screen.dart';
 
 /// Mirrors DayBookActivity.kt — one day's sales, purchases, expenses and
 /// manual cash entries, with Cash In / Cash Out / Net for that day.
 ///
-/// Roles: all (Day Book shows no cost/profit data). Tap-to-open on a sale row
-/// is admin only (it opens the saved-sale editor, same rule as History).
-/// TODO(Phase 7): purchase rows should open the saved purchase once
-/// "edit saved purchase" is ported.
+/// Roles: all (Day Book shows no cost/profit data). Tap-to-open on a sale or purchase row
+/// is admin only (it opens the saved-sale / saved-purchase editor, same rule as History).
 class DayBookScreen extends StatefulWidget {
   const DayBookScreen({super.key});
 
@@ -79,11 +78,13 @@ class _DayBookScreenState extends State<DayBookScreen> {
     return _day.year == n.year && _day.month == n.month && _day.day == n.day;
   }
 
-  bool _canOpen(DayBookEntry e) => e.refType == 'sale' && e.refId != null && Session.isAdmin;
+  bool _canOpen(DayBookEntry e) =>
+      (e.refType == 'sale' || e.refType == 'purchase') && e.refId != null && Session.isAdmin;
 
   Future<void> _open(DayBookEntry e) async {
     if (!_canOpen(e)) return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SaleScreen(editInvoice: e.refId)));
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => e.refType == 'purchase' ? PurchaseScreen(editBillNo: e.refId) : SaleScreen(editInvoice: e.refId)));
     if (mounted) _load(); // the bill may have been edited / returned / deleted
   }
 

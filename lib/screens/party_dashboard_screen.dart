@@ -31,7 +31,7 @@ import 'settings_screen.dart';
 ///  * Sale row tap (edit) sirf admin — Day Book jaisa.
 ///
 /// Abhi baaki (Phase 6 ke agle screens / Phase 7 / Phase 10):
-///  * Purchase row tap => edit-saved-purchase (Phase 7).
+///  * Purchase row tap => saved purchase edit (PurchaseScreen(editBillNo:), sirf admin).
 ///  * "+" menu: Sale/Purchase Return (History, Phase 7); Payment Received/Made abhi Payments
 ///    screen kholta hai (party picker + openPayment PartyQuickAddMenu.kt ke saath aayega).
 ///  * Overdue / Due Today badge: ab hai (DB v10 sales.dueDate).
@@ -197,8 +197,11 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
       }
       _push(SaleScreen(editInvoice: row.reference));
     } else {
-      // Edit-saved-purchase Phase 7 mein.
-      _comingSoon();
+      if (!Session.isAdmin) {
+        _toast(Loc.t('Only Admin can edit a purchase', 'صرف ایڈمن خریداری ایڈٹ کر سکتا ہے'));
+        return;
+      }
+      _push(PurchaseScreen(editBillNo: row.reference));
     }
   }
 

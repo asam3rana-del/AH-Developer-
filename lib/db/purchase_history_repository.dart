@@ -118,8 +118,10 @@ ReturnRequest parseReturnRequest(List<ReturnableLine> lines, Map<int, String> in
 double returnedLineAmount({required double lineQty, required double lineAmount, required double unitCost, required double returnQty}) =>
     lineQty > 0 ? lineAmount * (returnQty / lineQty) : unitCost * returnQty;
 
-/// Frozen conversionFactor (Flutter purchase_items mein column nahi) => product ki maujuda ladder.
+/// Wapas hone wali qty smallest units mein: bill par jama shuda conversionFactor (DB v12) pehle; sirf purani
+/// rows (factor == 0) ke liye product ki maujuda ladder.
 double partialSmallestQty(PurchaseItem item, Product? product, double returnQty) {
+  if (item.conversionFactor > 0) return returnQty * item.conversionFactor;
   if (product == null) return returnQty;
   return product.toSmallestUnits(returnQty, item.unit.isEmpty ? product.unit : item.unit);
 }
@@ -167,8 +169,8 @@ class PurchaseHistoryRepository {
     return r.map(PurchaseItem.fromMap).toList();
   }
 
-  /// Bill ki lines + naam/unit (Flutter mein purchase_items par naam snapshot nahi => live product,
-  /// warna barcode). Print aur Return dialog dono isi se.
+  /// Bill ki lines + naam/unit (line par jama shuda naam pehle, purani rows ke liye live product, warna
+  /// barcode). Print aur Return dialog dono isi se.
   Future<List<ReturnableLine>> linesForBill(String billNo) async {
     final db = await AppDatabase.instance.database;
     final items = await itemsForBill(billNo);
@@ -178,7 +180,9 @@ class PurchaseHistoryRepository {
       final product = pr.isEmpty ? null : Product.fromMap(pr.first);
       out.add(ReturnableLine(
         itemId: it.id ?? -1,
-        name: (product?.name.isNotEmpty ?? false) ? product!.name : it.barcode,
+        name: it.itemName.trim().isNotEmpty
+            ? it.itemName
+            : ((product?.name.isNotEmpty ?? false) ? product!.name : it.barcode),
         unit: it.unit.isNotEmpty ? it.unit : (product?.unit ?? ''),
         qty: it.qty,
       ));

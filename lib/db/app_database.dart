@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 11;
+  static const _dbVersion = 12;
 
   Database? _db;
 
@@ -171,7 +171,8 @@ class AppDatabase {
         status TEXT NOT NULL DEFAULT 'active',
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1,
-        dueDate INTEGER NOT NULL DEFAULT 0
+        dueDate INTEGER NOT NULL DEFAULT 0,
+        supplierInvoiceNo TEXT NOT NULL DEFAULT ''
       )
     ''');
 
@@ -183,7 +184,11 @@ class AppDatabase {
         qty REAL NOT NULL,
         unitCost REAL NOT NULL,
         amount REAL NOT NULL,
-        unit TEXT NOT NULL DEFAULT ''
+        unit TEXT NOT NULL DEFAULT '',
+        conversionFactor REAL NOT NULL DEFAULT 0,
+        itemName TEXT NOT NULL DEFAULT '',
+        retailRate REAL NOT NULL DEFAULT 0,
+        wholesaleRate REAL NOT NULL DEFAULT 0
       )
     ''');
 
@@ -360,6 +365,15 @@ class AppDatabase {
         await db.execute(sql);
       }
       await StockLedger.backfillOpening(db);
+    }
+    if (oldVersion < 12) {
+      // v12: Purchase edit (Kotlin PurchaseActivity edit mode) — supplier ka invoice no. aur purchase_items par
+      // frozen conversionFactor / item naam / retail + wholesale rate. Purani rows: 0 / '' = "captured nahi".
+      await _addColumnIfMissing(db, 'purchases', 'supplierInvoiceNo', "TEXT NOT NULL DEFAULT ''");
+      await _addColumnIfMissing(db, 'purchase_items', 'conversionFactor', 'REAL NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'purchase_items', 'itemName', "TEXT NOT NULL DEFAULT ''");
+      await _addColumnIfMissing(db, 'purchase_items', 'retailRate', 'REAL NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'purchase_items', 'wholesaleRate', 'REAL NOT NULL DEFAULT 0');
     }
   }
 

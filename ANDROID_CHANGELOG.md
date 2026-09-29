@@ -1,5 +1,24 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Purchase mukammal: saved purchase edit + Delete + supplier comparison (Phase 2)
+- [x] `PurchaseActivity.kt` / `RoomPurchaseRepository.savePurchase`: `PurchaseScreen(editBillNo:)` — History card tap, Day Book purchase row aur Party Dashboard purchase row (teeno sirf admin) saved bill ko edit mode mein kholte hain. Returned bill edit nahi hota.
+- [x] DB v12: `purchases.supplierInvoiceNo`; `purchase_items.conversionFactor / itemName / retailRate / wholesaleRate` (purani rows 0 / '' = "captured nahi"). `PurchaseItem.conversionFactor` khareed ke waqt freeze hota hai, is liye baad mein ladder badle to bhi edit / return / delete / party-transaction item edit wahi qty nikalte hain (`purchaseItemSmallestQty`, `partialSmallestQty`, `editPurchaseItem` — factor > 0 pehle, warna maujuda ladder).
+- [x] `purchaseEditDiff` (`lib/utils/stock_touch_policy.dart`, Kotlin `StockTouchPolicy.purchaseEditDiff`): edit par SIRF badli / nayi lines ka stock + weighted cost touch hota hai; jo line waisi hi rahi uska frozen factor carry aur na reverse na dobara add. Reverse hone wali line ka stock baad ki sale se kam ho chuka ho to poora edit rok diya jata hai.
+- [x] Edit save: purana bill utarna (supplier ka baaqi, payments, cash rows), phir naya; bill se linked payments (`billReference`) ki cash dobara nahi ginti (`planPurchaseCash` + `subtractLinkedPaid`); audit `purchase_edit`.
+- [x] Naya bill: supplier ka invoice no. + duplicate invoice alert + same supplier/total/din warning, pichla purchase rate auto-fill, Retail/Wholesale rate, margin/loss warning, naya product mid-purchase, Split Payment (Cash + Bank), Hold / Recall (`PHOLD...`), draft autosave, supplier ka live balance, bill preview.
+- [x] Edit screen par **Delete** button (confirm -> `PurchaseHistoryRepository.deletePurchase`: stock + cost, supplier balance, payments, cash sab wapas) aur item chun kar **Compare suppliers** popup (`RateComparisonRepository.compare`, sasta pehle; admin + manager).
+- [x] `PurchaseHistoryRepository.linesForBill` ab line par jama shuda naam dikhata hai; `lib/AH-Developer-Purchase-Screen-Update.zip` repo se hata di gayi.
+- Test: `test/purchase_screen_test.dart` (margin, duplicate rule, validation, cash plan, hold/recall, `purchaseEditDiff`, frozen factor, models).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/purchase_screen_test.dart test/purchase_history_test.dart test/party_transaction_test.dart`.
+
+## Flutter side (2026-09-29) — Phase 3 (Sale) ke baqi kaam: bill se linked payments
+- [x] `RoomSaleRepository.saveSale` (`linkedToSkip`): saved sale edit karte waqt `paid` mein wo payments pehle se shamil hain jo \"Receive Payment > link to bill\" se aayi thin aur jinki apni cash row hai. Pehle Flutter poora `paid` dobara cash-in kar deta tha (cash book mein double). Ab `SaleRepository._linkedPaidForBill()` (`billReference == bill AND reference != bill`) + pure `subtractLinkedPaid(rows, linkedPaid)` (`lib/db/sale_repository.dart`) — pehli rows se linked raqam kaat kar baqi cash-in banta hai, zero rows chhod di jati hain.
+- [x] `deleteSale`: `_voidLinkedPayments(txn, invoice, now)` — linked payment rows + unki cash rows hatti hain (aur sync_queue mein delete), pehle wo orphan \"standalone\" payments ban kar Fix Balances / Payments report / cash book bigaadti thin.
+- [x] `returnSale`: `_reverseCash(...)` (`return:<invoice>` dated OUT) + `_voidLinkedPayments(..., refundType: 'OUT', refundLabel: 'Sale Return')` — har linked payment ki cash row ka alag dated refund, phir payment row drop. Party balance ko haath nahi lagate (bill ka apna reversal `total - paid` se pehle hi theek hai, aur `paid` mein linked payments shamil hain).
+- Test: `test/sale_linked_payments_test.dart` (`subtractLinkedPaid`: koi linked nahi / ek row / agli row mein spill / poori dropped / total cash-in + linked == paid).
+- Phase 3 ab mukammal: `SaleActivity.kt` mein sirf Bluetooth/WhatsApp share baaki hai jo Phase 12 ka hissa hai. (`SaleCart` ka \"Billed Items\" popup Phase 5 mein tracked hai.)
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/sale_linked_payments_test.dart test/split_payment_test.dart test/sale_edit_and_draft_test.dart`.
+
 ## Flutter side (2026-09-29) — Inventory Insights: Reorder / Damage / Margin / Movers (Phase 9, aakhri screen)
 - [x] `InventoryInsightsActivity.kt`: `lib/screens/inventory_insights_screen.dart` (`InventoryInsightsScreen(initialMode: InsightsMode.reorder | damage | profit | movers)`) + `lib/db/inventory_insights_repository.dart` (pure `reorderCandidates`, `suggestedReorderQty`, `damageLossValue`, `totalDamageLoss`, `marginPercent`, `averageMargin`, `sortByMarginAsc`, `buildMovementRows`, `fastMovers`, `slowMovers`, `mergeItemHistory`; test `test/inventory_insights_test.dart`). Reports hub ki 4 rows (Reorder Suggestions, Damage / Loss Report, Profit Margin per Item, Fast / Slow Movers) ab chalti hain; \"Coming soon\" ka `_soon` hata diya. Admin/Manager only.
 - **Reorder:** `stock <= reorderLevel` aur `reorderLevel > 0`; tajweez = level ka DOUBLE tak wapas bharna (kam az kam level tak), smallest unit mein.
@@ -310,8 +329,8 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [x] Customer ka apna rate auto-suggest (`SaleRepository.lastRateForCustomerItem`).
 - [x] Rs (amount) mode, Bill Items mein inline line edit (tap / edit icon).
 - [x] Print: save ke baad + Print pill par text Bill Preview (Copy). Bluetooth print/WhatsApp share Phase 12.
-- [ ] Sale ke baqi chhote items: Split Payment dialog, naye sale par Cash/Bank picker, duplicate-bill warning, inline 'add customer' popup.
-- [ ] Bill se linked payments (`voidLinkedPayments` / `linkedPaidForBill`) — Phase 6/8 (Payments) ke saath.
+- [x] Sale ke baqi chhote items: Split Payment dialog, naye sale par Cash/Bank picker, duplicate-bill warning, inline 'add customer' popup (sab ho chuke — dekhein PORT_STATUS).
+- [x] Bill se linked payments (`voidLinkedPayments` / `linkedPaidForBill`) — Sale side ab done (upar 2026-09-29 Phase 3 entry).
 - [ ] `BulkDefaultUnitActivity.kt` / `BulkMissingRatesActivity.kt` (Phase 5) — default unit ab column mein hai, screen baaki.
 - Note: yeh code is session mein compile/test nahi hua (Flutter SDK maujood nahi tha) — `flutter analyze && flutter test` chalayein.
 

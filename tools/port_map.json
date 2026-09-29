@@ -1,674 +1,674 @@
 [
- {
-  "kotlin": "Database.kt",
-  "phase": 0,
-  "dart": "lib/models/*.dart + lib/db/app_database.dart",
-  "status": "done",
-  "note": "Entities + 3-tier unit ladder. Room migrations skip (fresh DB v1)."
- },
- {
-  "kotlin": "DiscountCalculator.kt",
-  "phase": 0,
-  "dart": "lib/utils/discount_calculator.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "AppColors.kt",
-  "phase": 0,
-  "dart": "lib/theme/app_colors.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "PremiumHeader.kt",
-  "phase": 0,
-  "dart": "lib/widgets/premium_header.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "UiHelpers.kt",
-  "phase": 0,
-  "dart": "lib/widgets/premium_widgets.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "ProductUnitDialog.kt",
-  "phase": 1,
-  "dart": "lib/widgets/unit_dialog.dart",
-  "status": "done",
-  "note": "3-tier + \"Default Unit for Sale / Quick Sale\" chips (lib/widgets/unit_dialog.dart)."
- },
- {
-  "kotlin": "ProductActivity.kt",
-  "phase": 1,
-  "dart": "lib/screens/product_screen.dart",
-  "status": "done",
-  "note": "Admin-only (role guard baad mein Phase 4 se)."
- },
- {
-  "kotlin": "PurchaseActivity.kt",
-  "phase": 2,
-  "dart": "lib/screens/purchase_screen.dart",
-  "status": "partial",
-  "note": "Sirf naya purchase; edit-saved-purchase baaki. Admin-only."
- },
- {
-  "kotlin": "PurchaseRepository.kt",
-  "phase": 2,
-  "dart": "lib/db/purchase_repository.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "RoomPurchaseRepository.kt",
-  "phase": 2,
-  "dart": "lib/db/purchase_repository.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "PurchaseUseCases.kt",
-  "phase": 2,
-  "dart": "lib/db/purchase_repository.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "PurchaseViewModel.kt",
-  "phase": 2,
-  "dart": "",
-  "status": "skip",
-  "note": "Flutter mein State/setState — alag ViewModel zaroori nahi."
- },
- {
-  "kotlin": "SaleActivity.kt",
-  "phase": 3,
-  "dart": "lib/screens/sale_screen.dart",
-  "status": "partial",
-  "note": "Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup. Baaki: Bluetooth/WhatsApp share (Phase 12)."
- },
- {
-  "kotlin": "SaleRepository.kt",
-  "phase": 3,
-  "dart": "lib/db/sale_repository.dart",
-  "status": "done",
-  "note": "Edit/delete/return + audit + frozen conversionFactor (DB v4) bhi done; linked-payment void Phase 6/8 mein."
- },
- {
-  "kotlin": "RoomSaleRepository.kt",
-  "phase": 3,
-  "dart": "lib/db/sale_repository.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "SaleUseCases.kt",
-  "phase": 3,
-  "dart": "lib/db/sale_repository.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "SaleViewModel.kt",
-  "phase": 3,
-  "dart": "",
-  "status": "skip",
-  "note": ""
- },
- {
-  "kotlin": "LoginActivity.kt",
-  "phase": 4,
-  "dart": "lib/screens/login_screen.dart",
-  "status": "partial",
-  "note": "Password / none / fingerprint / both done. OTP + phone link Phase 10 mein."
- },
- {
-  "kotlin": "PasswordHasher.kt",
-  "phase": 4,
-  "dart": "lib/utils/password_hasher.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "UserManagementActivity.kt",
-  "phase": 4,
-  "dart": "lib/screens/user_management_screen.dart",
-  "status": "partial",
-  "note": "Fingerprint lock done. Sync queue Phase 10 mein."
- },
- {
-  "kotlin": "AppLock.kt",
-  "phase": 4,
-  "dart": "lib/services/app_lock.dart",
-  "status": "done",
-  "note": "WidgetsBindingObserver + navigatorKey; pending re-lock prefs mein."
- },
- {
-  "kotlin": "Loc.kt",
-  "phase": 4,
-  "dart": "lib/utils/loc.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "ThemeManager.kt",
-  "phase": 4,
-  "dart": "lib/theme/theme_manager.dart",
-  "status": "partial",
-  "note": "Palette + dark toggle done. Purani screens abhi static AppColors par — migrate baaki."
- },
- {
-  "kotlin": "SettingsActivity.kt",
-  "phase": 4,
-  "dart": "lib/screens/settings_screen.dart",
-  "status": "partial",
-  "note": "Shop info, login method (password/fingerprint/both/none), dark mode, language, users. Printer/Backup/Sync/OTP baad ke phases."
- },
- {
-  "kotlin": "MainActivity.kt",
-  "phase": 4,
-  "dart": "lib/screens/dashboard_screen.dart",
-  "status": "partial",
-  "note": "Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Baaki: Backup tile (Phase 11), crash dialog + SyncWorker.schedulePeriodic (Phase 10/13), Items tile Kotlin mein sab roles ko (Flutter mein admin), MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart."
- },
- {
-  "kotlin": "InputValidation.kt",
-  "phase": 4,
-  "dart": "lib/utils/input_validation.dart",
-  "status": "done",
-  "note": ""
- },
- {
-  "kotlin": "Numerickeypad.kt",
-  "phase": 4,
-  "dart": "lib/widgets/numeric_keypad.dart",
-  "status": "done",
-  "note": "NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI."
- },
- {
-  "kotlin": "MenuRow.kt",
-  "phase": 4,
-  "dart": "lib/widgets/menu_row.dart",
-  "status": "done",
-  "note": "MenuRow / ExpandableMenuRow / IconBadge. Dashboard/Settings ko isi par lana baaki."
- },
- {
-  "kotlin": "ItemSearchActivity.kt",
-  "phase": 5,
-  "dart": "lib/screens/item_search_screen.dart",
-  "status": "done",
-  "note": "Spec item_rate_search.md ke mutabiq (3 sale rates, wholesale, cost gate)."
- },
- {
-  "kotlin": "RateComparisonActivity.kt",
-  "phase": 5,
-  "dart": "lib/screens/rate_comparison_screen.dart",
-  "status": "done",
-  "note": "Admin/manager only (RoleGuard + repository cashier ko khali deta hai). Rates primary unit par normalize. lib/db/rate_comparison_repository.dart (pure buildSupplierRateRows) + test/rate_comparison_test.dart. Dashboard tile."
- },
- {
-  "kotlin": "ItemsActivity.kt",
-  "phase": 5,
-  "dart": "lib/screens/items_screen.dart",
-  "status": "done",
-  "note": "Admin-only (RoleGuard). Products/Categories/Units tabs, category drill-down + rename/delete, Change Category, Delete, Edit -> ProductScreen(editBarcode). lib/db/items_repository.dart. Baaki: Import (Rate List CSV, file picker chahiye) aur Translate (Phase 13). Test: test/items_test.dart."
- },
- {
-  "kotlin": "BulkMissingRatesActivity.kt",
-  "phase": 5,
-  "dart": "lib/screens/bulk_missing_rates_screen.dart",
-  "status": "done",
-  "note": "Admin-only (Items se RoleGuard). Dono rate + unit chips (primary par convert), save + sync_queue ek transaction (ProductRepository.setRates)."
- },
- {
-  "kotlin": "BulkDefaultUnitActivity.kt",
-  "phase": 5,
-  "dart": "lib/screens/bulk_default_unit_screen.dart",
-  "status": "done",
-  "note": "Admin-only (Items se RoleGuard). Auto pehle se highlight; Auto par save = koi write nahi (ProductRepository.setDefaultUnitIndex)."
- },
- {
-  "kotlin": "SaleCart.kt",
-  "phase": 5,
-  "dart": "lib/utils/sale_cart.dart",
-  "status": "partial",
-  "note": "Done: default unit, reprice on sale type, margin check, Rs-amount mode, inline line edit, customer-rate suggest. Baaki: sirf 'Billed Items' popup (Flutter mein list seedhi screen par hai)."
- },
- {
-  "kotlin": "SaleQuickSale.kt",
-  "phase": 5,
-  "dart": "lib/screens/sale_quick_sale.dart",
-  "status": "done",
-  "note": "Dialog + saveQuickSale + credit-limit confirm + top-30-day items pehle. System keyboard (Kotlin bhi yahi)."
- },
- {
-  "kotlin": "SaleHoldRecall.kt",
-  "phase": 5,
-  "dart": "lib/services/sale_hold_recall.dart + lib/widgets/held_bills_dialog.dart",
-  "status": "done",
-  "note": "encode/decode + Held Bills dialog. Sale holds sirf HOLD% (PHOLD% purchase ke liye)."
- },
- {
-  "kotlin": "PartyActivity.kt",
-  "phase": 6,
-  "dart": "lib/screens/party_screen.dart",
-  "status": "partial",
-  "note": "Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Baaki: contact picker (flutter_contacts + permissions), row tap se Party Dashboard/Transaction."
- },
- {
-  "kotlin": "PartyDashboardActivity.kt",
-  "phase": 6,
-  "dart": "lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart",
-  "status": "partial",
-  "note": "Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Baaki: Purchase row edit (Phase 7). Test: test/party_dashboard_test.dart."
- },
- {
-  "kotlin": "PartyTransactionActivity.kt",
-  "phase": 6,
-  "dart": "lib/screens/party_transaction_screen.dart + lib/db/party_transaction_repository.dart",
-  "status": "done",
-  "note": "Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = clipboard, Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart."
- },
- {
-  "kotlin": "PartyReportsActivity.kt",
-  "phase": 6,
-  "dart": "lib/screens/party_reports_screen.dart + lib/db/party_reports_repository.dart",
-  "status": "done",
-  "note": "6 reports (Item, Ledger, Payment History, Statement, Sale/Purchase by Party, P&L / Purchase Summary) — returned bills bahar, general payments Ledger/Statement mein, stuck split. Admin/Manager only (RoleGuard). Farq: Material icons; purchase item naam live product se. Test: test/party_reports_test.dart."
- },
- {
-  "kotlin": "PartyRepository.kt",
-  "phase": 6,
-  "dart": "lib/db/party_repository.dart",
-  "status": "done",
-  "note": "lib/db/party_repository.dart: CRUD + live balances + recalc(dryRun) + merge + cleanup, sab ek transaction mein. PartyLedger/trueBalance/countBalanceDrift yahin (Balance Sheet bhi yahi istemal karta hai). Test: test/party_test.dart."
- },
- {
-  "kotlin": "PartyUseCases.kt",
-  "phase": 6,
-  "dart": "lib/db/party_repository.dart",
-  "status": "done",
-  "note": "Validation (naam zaroori) PartyRepository.addCustomer/editCustomer/... mein."
- },
- {
-  "kotlin": "PartyQuickAddMenu.kt",
-  "phase": 6,
-  "dart": "lib/widgets/party_quick_add_menu.dart",
-  "status": "done",
-  "note": "showPartyMenuSheet (Kotlin showPremiumMenuSheet) + PartyMenuItem + showPartyPickerForPayment (searchable, naam/phone) -> PartyTransactionScreen(openPayment: true). Dashboard '+' menu ab isi se. Payment Made cashier ko nahi (supplier screen band). Pure `pickerCandidates` test: test/party_quick_add_test.dart."
- },
- {
-  "kotlin": "DueRemindersActivity.kt",
-  "phase": 6,
-  "dart": "lib/screens/due_reminders_screen.dart + lib/db/due_reminders_repository.dart",
-  "status": "done",
-  "note": "Sales/Purchases tabs, Overdue + Total outstanding cards, badge (OVERDUE/DUE TODAY/DUE SOON/UPCOMING/No date), card tap = date picker (dirty + updatedAt + sync_queue), WhatsApp (wa.me, 0->92) + Call. DB v10: sales.dueDate + purchases.dueDate; sale edit dueDate carry karti hai. Admin/Manager only (Kotlin mein Reports ke andar). Test: test/due_reminders_test.dart."
- },
- {
-  "kotlin": "PartyViewModel.kt",
-  "phase": 6,
-  "dart": "",
-  "status": "skip",
-  "note": ""
- },
- {
-  "kotlin": "PartyViewModelFactory.kt",
-  "phase": 6,
-  "dart": "",
-  "status": "skip",
-  "note": ""
- },
- {
-  "kotlin": "HistoryActivity.kt",
-  "phase": 7,
-  "dart": "lib/screens/history_screen.dart",
-  "status": "done",
-  "note": "lib/screens/history_screen.dart — router: HistoryMode.sales/purchases => SaleHistoryScreen/PurchaseHistoryScreen; mode null => SALES/PURCHASES pills (Purchases sirf admin). Business logic dedicated screens mein (admin-only Return/Delete/profit)."
- },
- {
-  "kotlin": "SaleHistoryActivity.kt",
-  "phase": 7,
-  "dart": "lib/screens/sale_history_screen.dart",
-  "status": "done",
-  "note": "lib/db/sale_history_repository.dart (pure groupSalesByCustomer/summarizeSales/filterGroups). Sab roles dekh sakte hain; profit + Edit/Return/Delete sirf admin. Print = text Bill Preview. Test: test/sale_history_test.dart. Dashboard tile."
- },
- {
-  "kotlin": "PurchaseHistoryActivity.kt",
-  "phase": 7,
-  "dart": "lib/screens/purchase_history_screen.dart",
-  "status": "done",
-  "note": "lib/screens/purchase_history_screen.dart + lib/db/purchase_history_repository.dart (pure summarizePurchases/filterPurchaseRows/parseReturnRequest/returnedLineAmount). Admin-only. Partial return + delete ek transaction mein. Card tap = detail dialog (edit-saved-purchase Phase 2 baaki). Print = text preview, Share = clipboard. Test: test/purchase_history_test.dart."
- },
- {
-  "kotlin": "CashActivity.kt",
-  "phase": 8,
-  "dart": "lib/screens/cash_screen.dart + lib/db/cash_repository.dart",
-  "status": "done",
-  "note": "Sab roles. Cash Out + category => Expense + linked cash row (ek transaction). DB v6: expenses.method. Test: test/cash_test.dart."
- },
- {
-  "kotlin": "CashRegisterActivity.kt",
-  "phase": 8,
-  "dart": "lib/screens/cash_register_screen.dart + lib/db/cash_register_repository.dart",
-  "status": "done",
-  "note": "Sab roles. Open (check+insert ek transaction, create_if_absent) / edit opening / close (fresh expected confirm) / reopen + history. Test: test/cash_register_test.dart. Dashboard par \"Cash Register\" tile."
- },
- {
-  "kotlin": "ExpenseActivity.kt",
-  "phase": 8,
-  "dart": "lib/screens/expense_screen.dart + lib/db/expense_repository.dart",
-  "status": "done",
-  "note": "Sab roles. Save/Delete = Expense + linked cash OUT row ek transaction. CashRepository.save ab isi ExpenseRepository.insertExpenseWithCash ko use karta hai. Test: test/expense_test.dart. Dashboard par \"Expenses\" tile."
- },
- {
-  "kotlin": "DayBookActivity.kt",
-  "phase": 8,
-  "dart": "lib/screens/day_book_screen.dart + lib/db/day_book_repository.dart",
-  "status": "done",
-  "note": "Sab roles. Sale row tap = admin only (SaleScreen editInvoice). Purchase row tap Phase 7 (edit saved purchase) ke saath. Double-count fixes test/day_book_test.dart mein."
- },
- {
-  "kotlin": "PaymentsReportActivity.kt",
-  "phase": 8,
-  "dart": "lib/screens/payments_screen.dart (History tab)",
-  "status": "done",
-  "note": "History tab admin/manager only; edit/delete admin only. Record tab (Receive/Make Payment) for all roles."
- },
- {
-  "kotlin": "BalanceSheetActivity.kt",
-  "phase": 8,
-  "dart": "lib/screens/balance_sheet_screen.dart + lib/db/balance_sheet_repository.dart",
-  "status": "done",
-  "note": "Admin/Manager only (RoleGuard + role check in repository). Fix Balances dry-run warning: ledger logic ab PartyRepository (party_repository.dart) se aata hai. Tile abhi Dashboard par; Phase 9 mein Reports ke andar le jayen. Test: test/balance_sheet_test.dart."
- },
- {
-  "kotlin": "ZakatActivity.kt",
-  "phase": 8,
-  "dart": "lib/screens/zakat_screen.dart",
-  "status": "done",
-  "note": "lib/screens/zakat_screen.dart. admin/manager only (RoleGuard). Test: test/zakat_test.dart. Dashboard tile."
- },
- {
-  "kotlin": "ShellLedgerActivity.kt",
-  "phase": 8,
-  "dart": "lib/screens/shell_ledger_screen.dart",
-  "status": "done",
-  "note": "lib/screens/shell_ledger_screen.dart. Test: test/shell_test.dart. Dashboard tile."
- },
- {
-  "kotlin": "ReportsActivity.kt",
-  "phase": 9,
-  "dart": "lib/screens/reports_screen.dart",
-  "status": "partial",
-  "note": "lib/screens/reports_screen.dart + lib/db/reports_repository.dart. Admin/Manager only. Done: hub rows (Monthly, Stock Report, History, Party Reports, Payments, Due Reminders, Balance Sheet, Zakat), period filter, 7 summary cards, P&L, Top Products, Daily Sales. Baaki: Stock*/Insights rows abhi \"Coming soon\" — un screens ke saath jorna. Test: test/reports_test.dart. Dashboard tile."
- },
- {
-  "kotlin": "MonthlySalesPurchaseActivity.kt",
-  "phase": 9,
-  "dart": "lib/screens/monthly_sales_purchase_screen.dart",
-  "status": "done",
-  "note": "lib/screens/monthly_screen.dart + lib/db/monthly_repository.dart (pure selectEntries/groupPeriods). Admin/Manager only. Party id se match, item lines mein returned bills bahar. Test: test/monthly_test.dart. Reports hub row."
- },
- {
-  "kotlin": "StockReportActivity.kt",
-  "phase": 9,
-  "dart": "lib/screens/stock_report_screen.dart",
-  "status": "done",
-  "note": "lib/screens/stock_report_screen.dart + lib/db/stock_report_repository.dart (pure costPerSmallestUnit/summarizeStock/filterStock). Sab roles (dashboard Low Stock tile, StockReportScreen(lowStockOnly: true)); cashier ko cost data nahi. Test: test/stock_report_test.dart. Reports hub row."
- },
- {
-  "kotlin": "StockAuditActivity.kt",
-  "phase": 9,
-  "dart": "lib/screens/stock_audit_screen.dart",
-  "status": "done",
-  "note": "lib/screens/stock_audit_screen.dart + lib/db/stock_audit_repository.dart (pure buildAuditRows/filterAuditRows, reconcile = AUDIT_RECONCILE ledger rows ek transaction mein, live stock nahi chhoota). Admin/Manager only. Card tap = us product ki Stock History (StockMovementScreen(initialBarcode)). Test: test/stock_audit_test.dart. Reports hub row."
- },
- {
-  "kotlin": "StockTakingActivity.kt",
-  "phase": 9,
-  "dart": "lib/screens/stock_taking_screen.dart + lib/db/stock_taking_repository.dart",
-  "status": "done",
-  "note": "Admin/Manager only (RoleGuard + repository check). Poori list + search, gintee smallest unit mein, khali = nahi gina, Review dialog (15 lines + value impact), Confirm = STOCK_TAKE ledger + stock + sync_queue ek transaction mein + audit. Farq: negative/fraction gintee rad. Test: test/stock_taking_test.dart."
- },
- {
-  "kotlin": "StockAdjustmentActivity.kt",
-  "phase": 9,
-  "dart": "lib/screens/stock_adjustment_screen.dart",
-  "status": "done",
-  "note": "lib/screens/stock_adjustment_screen.dart + lib/db/stock_adjustment_repository.dart (pure adjustmentDelta/validateAdjustment/searchProductsForAdjustment). Damage/Loss (DAMAGE) + Correction +/- (ADJUSTMENT); stock + ledger + sync_queue ek transaction mein, SQL guard se negative stock nahi. Admin/Manager only. Test: test/stock_adjustment_test.dart. Reports hub row."
- },
- {
-  "kotlin": "StockMovementActivity.kt",
-  "phase": 9,
-  "dart": "lib/screens/stock_movement_screen.dart",
-  "status": "done",
-  "note": "lib/screens/stock_movement_screen.dart + lib/db/stock_ledger.dart + lib/models/stock_movement.dart. Stock History + Cost History (StockMovementMode). DB v11: stock_movements table + purane stock ka OPENING_STOCK backfill. StockLedger.log() har stock write ke transaction mein (sale/edit/delete/return/quick sale, purchase/edit/delete/return, party_transaction item edit/delete, naya product opening stock). Admin/Manager only. Test: test/stock_movement_test.dart. Reports hub rows."
- },
- {
-  "kotlin": "InventoryInsightsActivity.kt",
-  "phase": 9,
-  "dart": "lib/screens/inventory_insights_screen.dart + lib/db/inventory_insights_repository.dart",
-  "status": "done",
-  "note": "Admin/Manager only (RoleGuard + repository check). 4 tabs: Reorder / Damage / Margin / Movers (Reports hub ki 4 rows initialMode se). Pure: reorderCandidates, suggestedReorderQty, damageLossValue (cost/smallestUnitFactor FIX), marginPercent, fast/slowMovers, mergeItemHistory. Margin row tap = sale+purchase history dialog. Test: test/inventory_insights_test.dart."
- },
- {
-  "kotlin": "StockTouchPolicy.kt",
-  "phase": 9,
-  "dart": "lib/utils/stock_touch_policy.dart",
-  "status": "done",
-  "note": "Pehle se maujood (Sale edit ke saath port hui, test/sale_edit_and_draft_test.dart); port_map status purana tha."
- },
- {
-  "kotlin": "SyncApi.kt",
-  "phase": 10,
-  "dart": "lib/sync/sync_api.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "SyncQueueHelper.kt",
-  "phase": 10,
-  "dart": "lib/sync/sync_queue_helper.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "SyncRepository.kt",
-  "phase": 10,
-  "dart": "lib/sync/sync_repository.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "SyncWorker.kt",
-  "phase": 10,
-  "dart": "lib/sync/sync_worker.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "SettingsSync.kt",
-  "phase": 10,
-  "dart": "lib/sync/settings_sync.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "CloudConfigStore.kt",
-  "phase": 10,
-  "dart": "lib/sync/cloud_config_store.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "BranchConfigStore.kt",
-  "phase": 10,
-  "dart": "lib/sync/branch_config_store.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "DeviceTag.kt",
-  "phase": 10,
-  "dart": "lib/sync/device_tag.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "NetworkMonitor.kt",
-  "phase": 10,
-  "dart": "lib/sync/network_monitor.dart",
-  "status": "todo",
-  "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
- },
- {
-  "kotlin": "BackupHelper.kt",
-  "phase": 11,
-  "dart": "lib/backup/backup_helper.dart",
-  "status": "todo",
-  "note": "Backup format Android se compatible rakhna."
- },
- {
-  "kotlin": "BackupExportActivity.kt",
-  "phase": 11,
-  "dart": "lib/screens/backup_export_screen.dart",
-  "status": "todo",
-  "note": "Backup format Android se compatible rakhna."
- },
- {
-  "kotlin": "BackupCrypto.kt",
-  "phase": 11,
-  "dart": "lib/backup/backup_crypto.dart",
-  "status": "todo",
-  "note": "Backup format Android se compatible rakhna."
- },
- {
-  "kotlin": "BackupPasswordStore.kt",
-  "phase": 11,
-  "dart": "lib/backup/backup_password_store.dart",
-  "status": "todo",
-  "note": "Backup format Android se compatible rakhna."
- },
- {
-  "kotlin": "BackupScheduler.kt",
-  "phase": 11,
-  "dart": "lib/backup/backup_scheduler.dart",
-  "status": "todo",
-  "note": "Backup format Android se compatible rakhna."
- },
- {
-  "kotlin": "PrinterHelper.kt",
-  "phase": 12,
-  "dart": "lib/services/printer_helper.dart",
-  "status": "todo",
-  "note": "Bluetooth ESC/POS."
- },
- {
-  "kotlin": "BillPreviewActivity.kt",
-  "phase": 12,
-  "dart": "lib/screens/bill_preview_screen.dart",
-  "status": "todo",
-  "note": ""
- },
- {
-  "kotlin": "BillScanActivity.kt",
-  "phase": 12,
-  "dart": "lib/screens/bill_scan_screen.dart",
-  "status": "todo",
-  "note": "OCR (ML Kit)."
- },
- {
-  "kotlin": "BulkTranslateActivity.kt",
-  "phase": 13,
-  "dart": "lib/screens/bulk_translate_screen.dart",
-  "status": "todo",
-  "note": ""
- },
- {
-  "kotlin": "MergeDuplicateProductsFix.kt",
-  "phase": 13,
-  "dart": "lib/utils/merge_duplicate_products.dart",
-  "status": "todo",
-  "note": ""
- },
- {
-  "kotlin": "DuplicateUnitFix.kt",
-  "phase": 13,
-  "dart": "lib/utils/duplicate_unit_fix.dart",
-  "status": "todo",
-  "note": ""
- },
- {
-  "kotlin": "CrashHandler.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "EarlyCrashInitProvider.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "PosApplication.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "KeyboardInsets.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "ThemedActivity.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "FakeSaleRepository.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "ReportsScreens.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "PurchaseScreens.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "PurchaseViewModelFactory.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- },
- {
-  "kotlin": "SaleViewModelFactory.kt",
-  "phase": 99,
-  "dart": "",
-  "status": "skip",
-  "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
- }
+  {
+    "kotlin": "Database.kt",
+    "phase": 0,
+    "dart": "lib/models/*.dart + lib/db/app_database.dart",
+    "status": "done",
+    "note": "Entities + 3-tier unit ladder. Room migrations skip (fresh DB v1)."
+  },
+  {
+    "kotlin": "DiscountCalculator.kt",
+    "phase": 0,
+    "dart": "lib/utils/discount_calculator.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "AppColors.kt",
+    "phase": 0,
+    "dart": "lib/theme/app_colors.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "PremiumHeader.kt",
+    "phase": 0,
+    "dart": "lib/widgets/premium_header.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "UiHelpers.kt",
+    "phase": 0,
+    "dart": "lib/widgets/premium_widgets.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "ProductUnitDialog.kt",
+    "phase": 1,
+    "dart": "lib/widgets/unit_dialog.dart",
+    "status": "done",
+    "note": "3-tier + \"Default Unit for Sale / Quick Sale\" chips (lib/widgets/unit_dialog.dart)."
+  },
+  {
+    "kotlin": "ProductActivity.kt",
+    "phase": 1,
+    "dart": "lib/screens/product_screen.dart",
+    "status": "done",
+    "note": "Admin-only (role guard baad mein Phase 4 se)."
+  },
+  {
+    "kotlin": "PurchaseActivity.kt",
+    "phase": 2,
+    "dart": "lib/screens/purchase_screen.dart",
+    "status": "done",
+    "note": "lib/screens/purchase_screen.dart + lib/utils/purchase_calc.dart + lib/services/purchase_hold_recall.dart. Naya purchase + saved purchase edit (PurchaseScreen(editBillNo:), admin-only; sirf badli lines ka stock/cost), supplier invoice no. + duplicate alerts, qty/unit/rate + pichla rate auto-fill, Retail/Wholesale rate, margin warning, Split Payment, Hold/Recall (PHOLD) + draft autosave, Delete button (edit mode) aur supplier rate-comparison popup. Baaki: BillScan (Phase 13), Bluetooth print (Phase 12). Test: test/purchase_screen_test.dart."
+  },
+  {
+    "kotlin": "PurchaseRepository.kt",
+    "phase": 2,
+    "dart": "lib/db/purchase_repository.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "RoomPurchaseRepository.kt",
+    "phase": 2,
+    "dart": "lib/db/purchase_repository.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "PurchaseUseCases.kt",
+    "phase": 2,
+    "dart": "lib/db/purchase_repository.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "PurchaseViewModel.kt",
+    "phase": 2,
+    "dart": "",
+    "status": "skip",
+    "note": "Flutter mein State/setState — alag ViewModel zaroori nahi."
+  },
+  {
+    "kotlin": "SaleActivity.kt",
+    "phase": 3,
+    "dart": "lib/screens/sale_screen.dart",
+    "status": "partial",
+    "note": "Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup. Baaki: Bluetooth/WhatsApp share (Phase 12)."
+  },
+  {
+    "kotlin": "SaleRepository.kt",
+    "phase": 3,
+    "dart": "lib/db/sale_repository.dart",
+    "status": "done",
+    "note": "Edit/delete/return + audit + frozen conversionFactor (DB v4) done. Bill-linked payments bhi: edit par linkedPaidForBill cash-in mein dobara nahi ginta (subtractLinkedPaid), delete par linked payments + unki cash rows hatti hain, return par unka dated 'return:<ref>' refund + payment row hat'ta hai (voidLinkedPayments). Test: test/sale_linked_payments_test.dart."
+  },
+  {
+    "kotlin": "RoomSaleRepository.kt",
+    "phase": 3,
+    "dart": "lib/db/sale_repository.dart",
+    "status": "done",
+    "note": "linkedToSkip (edit) + voidLinkedPayments (delete) sale_repository.dart mein."
+  },
+  {
+    "kotlin": "SaleUseCases.kt",
+    "phase": 3,
+    "dart": "lib/db/sale_repository.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "SaleViewModel.kt",
+    "phase": 3,
+    "dart": "",
+    "status": "skip",
+    "note": ""
+  },
+  {
+    "kotlin": "LoginActivity.kt",
+    "phase": 4,
+    "dart": "lib/screens/login_screen.dart",
+    "status": "partial",
+    "note": "Password / none / fingerprint / both done. OTP + phone link Phase 10 mein."
+  },
+  {
+    "kotlin": "PasswordHasher.kt",
+    "phase": 4,
+    "dart": "lib/utils/password_hasher.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "UserManagementActivity.kt",
+    "phase": 4,
+    "dart": "lib/screens/user_management_screen.dart",
+    "status": "partial",
+    "note": "Fingerprint lock done. Sync queue Phase 10 mein."
+  },
+  {
+    "kotlin": "AppLock.kt",
+    "phase": 4,
+    "dart": "lib/services/app_lock.dart",
+    "status": "done",
+    "note": "WidgetsBindingObserver + navigatorKey; pending re-lock prefs mein."
+  },
+  {
+    "kotlin": "Loc.kt",
+    "phase": 4,
+    "dart": "lib/utils/loc.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "ThemeManager.kt",
+    "phase": 4,
+    "dart": "lib/theme/theme_manager.dart",
+    "status": "partial",
+    "note": "Palette + dark toggle done. Purani screens abhi static AppColors par — migrate baaki."
+  },
+  {
+    "kotlin": "SettingsActivity.kt",
+    "phase": 4,
+    "dart": "lib/screens/settings_screen.dart",
+    "status": "partial",
+    "note": "Shop info, login method (password/fingerprint/both/none), dark mode, language, users. Printer/Backup/Sync/OTP baad ke phases."
+  },
+  {
+    "kotlin": "MainActivity.kt",
+    "phase": 4,
+    "dart": "lib/screens/dashboard_screen.dart",
+    "status": "partial",
+    "note": "Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Baaki: Backup tile (Phase 11), crash dialog + SyncWorker.schedulePeriodic (Phase 10/13), Items tile Kotlin mein sab roles ko (Flutter mein admin), MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart."
+  },
+  {
+    "kotlin": "InputValidation.kt",
+    "phase": 4,
+    "dart": "lib/utils/input_validation.dart",
+    "status": "done",
+    "note": ""
+  },
+  {
+    "kotlin": "Numerickeypad.kt",
+    "phase": 4,
+    "dart": "lib/widgets/numeric_keypad.dart",
+    "status": "done",
+    "note": "NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI."
+  },
+  {
+    "kotlin": "MenuRow.kt",
+    "phase": 4,
+    "dart": "lib/widgets/menu_row.dart",
+    "status": "done",
+    "note": "MenuRow / ExpandableMenuRow / IconBadge. Dashboard/Settings ko isi par lana baaki."
+  },
+  {
+    "kotlin": "ItemSearchActivity.kt",
+    "phase": 5,
+    "dart": "lib/screens/item_search_screen.dart",
+    "status": "done",
+    "note": "Spec item_rate_search.md ke mutabiq (3 sale rates, wholesale, cost gate)."
+  },
+  {
+    "kotlin": "RateComparisonActivity.kt",
+    "phase": 5,
+    "dart": "lib/screens/rate_comparison_screen.dart",
+    "status": "done",
+    "note": "Admin/manager only (RoleGuard + repository cashier ko khali deta hai). Rates primary unit par normalize. lib/db/rate_comparison_repository.dart (pure buildSupplierRateRows) + test/rate_comparison_test.dart. Dashboard tile."
+  },
+  {
+    "kotlin": "ItemsActivity.kt",
+    "phase": 5,
+    "dart": "lib/screens/items_screen.dart",
+    "status": "done",
+    "note": "Admin-only (RoleGuard). Products/Categories/Units tabs, category drill-down + rename/delete, Change Category, Delete, Edit -> ProductScreen(editBarcode). lib/db/items_repository.dart. Baaki: Import (Rate List CSV, file picker chahiye) aur Translate (Phase 13). Test: test/items_test.dart."
+  },
+  {
+    "kotlin": "BulkMissingRatesActivity.kt",
+    "phase": 5,
+    "dart": "lib/screens/bulk_missing_rates_screen.dart",
+    "status": "done",
+    "note": "Admin-only (Items se RoleGuard). Dono rate + unit chips (primary par convert), save + sync_queue ek transaction (ProductRepository.setRates)."
+  },
+  {
+    "kotlin": "BulkDefaultUnitActivity.kt",
+    "phase": 5,
+    "dart": "lib/screens/bulk_default_unit_screen.dart",
+    "status": "done",
+    "note": "Admin-only (Items se RoleGuard). Auto pehle se highlight; Auto par save = koi write nahi (ProductRepository.setDefaultUnitIndex)."
+  },
+  {
+    "kotlin": "SaleCart.kt",
+    "phase": 5,
+    "dart": "lib/utils/sale_cart.dart",
+    "status": "partial",
+    "note": "Done: default unit, reprice on sale type, margin check, Rs-amount mode, inline line edit, customer-rate suggest. Baaki: sirf 'Billed Items' popup (Flutter mein list seedhi screen par hai)."
+  },
+  {
+    "kotlin": "SaleQuickSale.kt",
+    "phase": 5,
+    "dart": "lib/screens/sale_quick_sale.dart",
+    "status": "done",
+    "note": "Dialog + saveQuickSale + credit-limit confirm + top-30-day items pehle. System keyboard (Kotlin bhi yahi)."
+  },
+  {
+    "kotlin": "SaleHoldRecall.kt",
+    "phase": 5,
+    "dart": "lib/services/sale_hold_recall.dart + lib/widgets/held_bills_dialog.dart",
+    "status": "done",
+    "note": "encode/decode + Held Bills dialog. Sale holds sirf HOLD% (PHOLD% purchase ke liye)."
+  },
+  {
+    "kotlin": "PartyActivity.kt",
+    "phase": 6,
+    "dart": "lib/screens/party_screen.dart",
+    "status": "partial",
+    "note": "Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Baaki: contact picker (flutter_contacts + permissions), row tap se Party Dashboard/Transaction."
+  },
+  {
+    "kotlin": "PartyDashboardActivity.kt",
+    "phase": 6,
+    "dart": "lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart",
+    "status": "partial",
+    "note": "Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Purchase row tap = PurchaseScreen(editBillNo:) (admin only). Test: test/party_dashboard_test.dart."
+  },
+  {
+    "kotlin": "PartyTransactionActivity.kt",
+    "phase": 6,
+    "dart": "lib/screens/party_transaction_screen.dart + lib/db/party_transaction_repository.dart",
+    "status": "done",
+    "note": "Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = clipboard, Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart."
+  },
+  {
+    "kotlin": "PartyReportsActivity.kt",
+    "phase": 6,
+    "dart": "lib/screens/party_reports_screen.dart + lib/db/party_reports_repository.dart",
+    "status": "done",
+    "note": "6 reports (Item, Ledger, Payment History, Statement, Sale/Purchase by Party, P&L / Purchase Summary) — returned bills bahar, general payments Ledger/Statement mein, stuck split. Admin/Manager only (RoleGuard). Farq: Material icons; purchase item naam live product se. Test: test/party_reports_test.dart."
+  },
+  {
+    "kotlin": "PartyRepository.kt",
+    "phase": 6,
+    "dart": "lib/db/party_repository.dart",
+    "status": "done",
+    "note": "lib/db/party_repository.dart: CRUD + live balances + recalc(dryRun) + merge + cleanup, sab ek transaction mein. PartyLedger/trueBalance/countBalanceDrift yahin (Balance Sheet bhi yahi istemal karta hai). Test: test/party_test.dart."
+  },
+  {
+    "kotlin": "PartyUseCases.kt",
+    "phase": 6,
+    "dart": "lib/db/party_repository.dart",
+    "status": "done",
+    "note": "Validation (naam zaroori) PartyRepository.addCustomer/editCustomer/... mein."
+  },
+  {
+    "kotlin": "PartyQuickAddMenu.kt",
+    "phase": 6,
+    "dart": "lib/widgets/party_quick_add_menu.dart",
+    "status": "done",
+    "note": "showPartyMenuSheet (Kotlin showPremiumMenuSheet) + PartyMenuItem + showPartyPickerForPayment (searchable, naam/phone) -> PartyTransactionScreen(openPayment: true). Dashboard '+' menu ab isi se. Payment Made cashier ko nahi (supplier screen band). Pure `pickerCandidates` test: test/party_quick_add_test.dart."
+  },
+  {
+    "kotlin": "DueRemindersActivity.kt",
+    "phase": 6,
+    "dart": "lib/screens/due_reminders_screen.dart + lib/db/due_reminders_repository.dart",
+    "status": "done",
+    "note": "Sales/Purchases tabs, Overdue + Total outstanding cards, badge (OVERDUE/DUE TODAY/DUE SOON/UPCOMING/No date), card tap = date picker (dirty + updatedAt + sync_queue), WhatsApp (wa.me, 0->92) + Call. DB v10: sales.dueDate + purchases.dueDate; sale edit dueDate carry karti hai. Admin/Manager only (Kotlin mein Reports ke andar). Test: test/due_reminders_test.dart."
+  },
+  {
+    "kotlin": "PartyViewModel.kt",
+    "phase": 6,
+    "dart": "",
+    "status": "skip",
+    "note": ""
+  },
+  {
+    "kotlin": "PartyViewModelFactory.kt",
+    "phase": 6,
+    "dart": "",
+    "status": "skip",
+    "note": ""
+  },
+  {
+    "kotlin": "HistoryActivity.kt",
+    "phase": 7,
+    "dart": "lib/screens/history_screen.dart",
+    "status": "done",
+    "note": "lib/screens/history_screen.dart — router: HistoryMode.sales/purchases => SaleHistoryScreen/PurchaseHistoryScreen; mode null => SALES/PURCHASES pills (Purchases sirf admin). Business logic dedicated screens mein (admin-only Return/Delete/profit)."
+  },
+  {
+    "kotlin": "SaleHistoryActivity.kt",
+    "phase": 7,
+    "dart": "lib/screens/sale_history_screen.dart",
+    "status": "done",
+    "note": "lib/db/sale_history_repository.dart (pure groupSalesByCustomer/summarizeSales/filterGroups). Sab roles dekh sakte hain; profit + Edit/Return/Delete sirf admin. Print = text Bill Preview. Test: test/sale_history_test.dart. Dashboard tile."
+  },
+  {
+    "kotlin": "PurchaseHistoryActivity.kt",
+    "phase": 7,
+    "dart": "lib/screens/purchase_history_screen.dart",
+    "status": "done",
+    "note": "lib/screens/purchase_history_screen.dart + lib/db/purchase_history_repository.dart (pure summarizePurchases/filterPurchaseRows/parseReturnRequest/returnedLineAmount). Admin-only. Partial return + delete ek transaction mein. Card tap = PurchaseScreen(editBillNo:) (returned bill par detail dialog). Print = text preview, Share = clipboard. Test: test/purchase_history_test.dart."
+  },
+  {
+    "kotlin": "CashActivity.kt",
+    "phase": 8,
+    "dart": "lib/screens/cash_screen.dart + lib/db/cash_repository.dart",
+    "status": "done",
+    "note": "Sab roles. Cash Out + category => Expense + linked cash row (ek transaction). DB v6: expenses.method. Test: test/cash_test.dart."
+  },
+  {
+    "kotlin": "CashRegisterActivity.kt",
+    "phase": 8,
+    "dart": "lib/screens/cash_register_screen.dart + lib/db/cash_register_repository.dart",
+    "status": "done",
+    "note": "Sab roles. Open (check+insert ek transaction, create_if_absent) / edit opening / close (fresh expected confirm) / reopen + history. Test: test/cash_register_test.dart. Dashboard par \"Cash Register\" tile."
+  },
+  {
+    "kotlin": "ExpenseActivity.kt",
+    "phase": 8,
+    "dart": "lib/screens/expense_screen.dart + lib/db/expense_repository.dart",
+    "status": "done",
+    "note": "Sab roles. Save/Delete = Expense + linked cash OUT row ek transaction. CashRepository.save ab isi ExpenseRepository.insertExpenseWithCash ko use karta hai. Test: test/expense_test.dart. Dashboard par \"Expenses\" tile."
+  },
+  {
+    "kotlin": "DayBookActivity.kt",
+    "phase": 8,
+    "dart": "lib/screens/day_book_screen.dart + lib/db/day_book_repository.dart",
+    "status": "done",
+    "note": "Sab roles. Sale row tap = admin only (SaleScreen editInvoice). Purchase row tap = PurchaseScreen(editBillNo:) (admin only). Double-count fixes test/day_book_test.dart mein."
+  },
+  {
+    "kotlin": "PaymentsReportActivity.kt",
+    "phase": 8,
+    "dart": "lib/screens/payments_screen.dart (History tab)",
+    "status": "done",
+    "note": "History tab admin/manager only; edit/delete admin only. Record tab (Receive/Make Payment) for all roles."
+  },
+  {
+    "kotlin": "BalanceSheetActivity.kt",
+    "phase": 8,
+    "dart": "lib/screens/balance_sheet_screen.dart + lib/db/balance_sheet_repository.dart",
+    "status": "done",
+    "note": "Admin/Manager only (RoleGuard + role check in repository). Fix Balances dry-run warning: ledger logic ab PartyRepository (party_repository.dart) se aata hai. Tile abhi Dashboard par; Phase 9 mein Reports ke andar le jayen. Test: test/balance_sheet_test.dart."
+  },
+  {
+    "kotlin": "ZakatActivity.kt",
+    "phase": 8,
+    "dart": "lib/screens/zakat_screen.dart",
+    "status": "done",
+    "note": "lib/screens/zakat_screen.dart. admin/manager only (RoleGuard). Test: test/zakat_test.dart. Dashboard tile."
+  },
+  {
+    "kotlin": "ShellLedgerActivity.kt",
+    "phase": 8,
+    "dart": "lib/screens/shell_ledger_screen.dart",
+    "status": "done",
+    "note": "lib/screens/shell_ledger_screen.dart. Test: test/shell_test.dart. Dashboard tile."
+  },
+  {
+    "kotlin": "ReportsActivity.kt",
+    "phase": 9,
+    "dart": "lib/screens/reports_screen.dart",
+    "status": "partial",
+    "note": "lib/screens/reports_screen.dart + lib/db/reports_repository.dart. Admin/Manager only. Done: hub rows (Monthly, Stock Report, History, Party Reports, Payments, Due Reminders, Balance Sheet, Zakat), period filter, 7 summary cards, P&L, Top Products, Daily Sales. Baaki: Stock*/Insights rows abhi \"Coming soon\" — un screens ke saath jorna. Test: test/reports_test.dart. Dashboard tile."
+  },
+  {
+    "kotlin": "MonthlySalesPurchaseActivity.kt",
+    "phase": 9,
+    "dart": "lib/screens/monthly_sales_purchase_screen.dart",
+    "status": "done",
+    "note": "lib/screens/monthly_screen.dart + lib/db/monthly_repository.dart (pure selectEntries/groupPeriods). Admin/Manager only. Party id se match, item lines mein returned bills bahar. Test: test/monthly_test.dart. Reports hub row."
+  },
+  {
+    "kotlin": "StockReportActivity.kt",
+    "phase": 9,
+    "dart": "lib/screens/stock_report_screen.dart",
+    "status": "done",
+    "note": "lib/screens/stock_report_screen.dart + lib/db/stock_report_repository.dart (pure costPerSmallestUnit/summarizeStock/filterStock). Sab roles (dashboard Low Stock tile, StockReportScreen(lowStockOnly: true)); cashier ko cost data nahi. Test: test/stock_report_test.dart. Reports hub row."
+  },
+  {
+    "kotlin": "StockAuditActivity.kt",
+    "phase": 9,
+    "dart": "lib/screens/stock_audit_screen.dart",
+    "status": "done",
+    "note": "lib/screens/stock_audit_screen.dart + lib/db/stock_audit_repository.dart (pure buildAuditRows/filterAuditRows, reconcile = AUDIT_RECONCILE ledger rows ek transaction mein, live stock nahi chhoota). Admin/Manager only. Card tap = us product ki Stock History (StockMovementScreen(initialBarcode)). Test: test/stock_audit_test.dart. Reports hub row."
+  },
+  {
+    "kotlin": "StockTakingActivity.kt",
+    "phase": 9,
+    "dart": "lib/screens/stock_taking_screen.dart + lib/db/stock_taking_repository.dart",
+    "status": "done",
+    "note": "Admin/Manager only (RoleGuard + repository check). Poori list + search, gintee smallest unit mein, khali = nahi gina, Review dialog (15 lines + value impact), Confirm = STOCK_TAKE ledger + stock + sync_queue ek transaction mein + audit. Farq: negative/fraction gintee rad. Test: test/stock_taking_test.dart."
+  },
+  {
+    "kotlin": "StockAdjustmentActivity.kt",
+    "phase": 9,
+    "dart": "lib/screens/stock_adjustment_screen.dart",
+    "status": "done",
+    "note": "lib/screens/stock_adjustment_screen.dart + lib/db/stock_adjustment_repository.dart (pure adjustmentDelta/validateAdjustment/searchProductsForAdjustment). Damage/Loss (DAMAGE) + Correction +/- (ADJUSTMENT); stock + ledger + sync_queue ek transaction mein, SQL guard se negative stock nahi. Admin/Manager only. Test: test/stock_adjustment_test.dart. Reports hub row."
+  },
+  {
+    "kotlin": "StockMovementActivity.kt",
+    "phase": 9,
+    "dart": "lib/screens/stock_movement_screen.dart",
+    "status": "done",
+    "note": "lib/screens/stock_movement_screen.dart + lib/db/stock_ledger.dart + lib/models/stock_movement.dart. Stock History + Cost History (StockMovementMode). DB v11: stock_movements table + purane stock ka OPENING_STOCK backfill. StockLedger.log() har stock write ke transaction mein (sale/edit/delete/return/quick sale, purchase/edit/delete/return, party_transaction item edit/delete, naya product opening stock). Admin/Manager only. Test: test/stock_movement_test.dart. Reports hub rows."
+  },
+  {
+    "kotlin": "InventoryInsightsActivity.kt",
+    "phase": 9,
+    "dart": "lib/screens/inventory_insights_screen.dart + lib/db/inventory_insights_repository.dart",
+    "status": "done",
+    "note": "Admin/Manager only (RoleGuard + repository check). 4 tabs: Reorder / Damage / Margin / Movers (Reports hub ki 4 rows initialMode se). Pure: reorderCandidates, suggestedReorderQty, damageLossValue (cost/smallestUnitFactor FIX), marginPercent, fast/slowMovers, mergeItemHistory. Margin row tap = sale+purchase history dialog. Test: test/inventory_insights_test.dart."
+  },
+  {
+    "kotlin": "StockTouchPolicy.kt",
+    "phase": 9,
+    "dart": "lib/utils/stock_touch_policy.dart",
+    "status": "done",
+    "note": "Pehle se maujood (Sale edit ke saath port hui, test/sale_edit_and_draft_test.dart); port_map status purana tha."
+  },
+  {
+    "kotlin": "SyncApi.kt",
+    "phase": 10,
+    "dart": "lib/sync/sync_api.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "SyncQueueHelper.kt",
+    "phase": 10,
+    "dart": "lib/sync/sync_queue_helper.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "SyncRepository.kt",
+    "phase": 10,
+    "dart": "lib/sync/sync_repository.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "SyncWorker.kt",
+    "phase": 10,
+    "dart": "lib/sync/sync_worker.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "SettingsSync.kt",
+    "phase": 10,
+    "dart": "lib/sync/settings_sync.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "CloudConfigStore.kt",
+    "phase": 10,
+    "dart": "lib/sync/cloud_config_store.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "BranchConfigStore.kt",
+    "phase": 10,
+    "dart": "lib/sync/branch_config_store.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "DeviceTag.kt",
+    "phase": 10,
+    "dart": "lib/sync/device_tag.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "NetworkMonitor.kt",
+    "phase": 10,
+    "dart": "lib/sync/network_monitor.dart",
+    "status": "todo",
+    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+  },
+  {
+    "kotlin": "BackupHelper.kt",
+    "phase": 11,
+    "dart": "lib/backup/backup_helper.dart",
+    "status": "todo",
+    "note": "Backup format Android se compatible rakhna."
+  },
+  {
+    "kotlin": "BackupExportActivity.kt",
+    "phase": 11,
+    "dart": "lib/screens/backup_export_screen.dart",
+    "status": "todo",
+    "note": "Backup format Android se compatible rakhna."
+  },
+  {
+    "kotlin": "BackupCrypto.kt",
+    "phase": 11,
+    "dart": "lib/backup/backup_crypto.dart",
+    "status": "todo",
+    "note": "Backup format Android se compatible rakhna."
+  },
+  {
+    "kotlin": "BackupPasswordStore.kt",
+    "phase": 11,
+    "dart": "lib/backup/backup_password_store.dart",
+    "status": "todo",
+    "note": "Backup format Android se compatible rakhna."
+  },
+  {
+    "kotlin": "BackupScheduler.kt",
+    "phase": 11,
+    "dart": "lib/backup/backup_scheduler.dart",
+    "status": "todo",
+    "note": "Backup format Android se compatible rakhna."
+  },
+  {
+    "kotlin": "PrinterHelper.kt",
+    "phase": 12,
+    "dart": "lib/services/printer_helper.dart",
+    "status": "todo",
+    "note": "Bluetooth ESC/POS."
+  },
+  {
+    "kotlin": "BillPreviewActivity.kt",
+    "phase": 12,
+    "dart": "lib/screens/bill_preview_screen.dart",
+    "status": "todo",
+    "note": ""
+  },
+  {
+    "kotlin": "BillScanActivity.kt",
+    "phase": 12,
+    "dart": "lib/screens/bill_scan_screen.dart",
+    "status": "todo",
+    "note": "OCR (ML Kit)."
+  },
+  {
+    "kotlin": "BulkTranslateActivity.kt",
+    "phase": 13,
+    "dart": "lib/screens/bulk_translate_screen.dart",
+    "status": "todo",
+    "note": ""
+  },
+  {
+    "kotlin": "MergeDuplicateProductsFix.kt",
+    "phase": 13,
+    "dart": "lib/utils/merge_duplicate_products.dart",
+    "status": "todo",
+    "note": ""
+  },
+  {
+    "kotlin": "DuplicateUnitFix.kt",
+    "phase": 13,
+    "dart": "lib/utils/duplicate_unit_fix.dart",
+    "status": "todo",
+    "note": ""
+  },
+  {
+    "kotlin": "CrashHandler.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "EarlyCrashInitProvider.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "PosApplication.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "KeyboardInsets.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "ThemedActivity.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "FakeSaleRepository.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "ReportsScreens.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "PurchaseScreens.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "PurchaseViewModelFactory.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  },
+  {
+    "kotlin": "SaleViewModelFactory.kt",
+    "phase": 99,
+    "dart": "",
+    "status": "skip",
+    "note": "Android-specific ya test/stub; Flutter mein zaroorat nahi."
+  }
 ]
