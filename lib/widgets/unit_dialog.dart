@@ -9,12 +9,20 @@ class UnitSelection {
   final String tertiaryUnit; // 'None' if unused
   final double tertiaryQty;
 
+  /// Manual default unit for the Sale screen / Quick Sale dialog, as an index
+  /// into [primary, secondary, tertiary] (primary first). -1 = Auto.
+  /// See `defaultUnitIndexFor()` in lib/utils/sale_cart.dart.
+  final int defaultUnitIndex;
+  final int quickSaleDefaultUnitIndex;
+
   const UnitSelection({
     required this.primaryUnit,
     required this.secondaryUnit,
     required this.secondaryQty,
     required this.tertiaryUnit,
     required this.tertiaryQty,
+    this.defaultUnitIndex = -1,
+    this.quickSaleDefaultUnitIndex = -1,
   });
 }
 
@@ -54,7 +62,12 @@ Future<UnitSelection?> showUnitDialog(
   required double initialSecondaryQty,
   required String initialTertiary,
   required double initialTertiaryQty,
+  int initialDefaultUnitIndex = -1,
+  int initialQuickSaleDefaultUnitIndex = -1,
 }) {
+  var chosenDefaultUnitIndex = initialDefaultUnitIndex;
+  var chosenQuickSaleDefaultUnitIndex = initialQuickSaleDefaultUnitIndex;
+
   final primaryCtrl = TextEditingController(text: initialPrimary);
   final secondaryCtrl = TextEditingController(text: initialSecondary == 'None' ? '' : initialSecondary);
   final secondaryQtyCtrl =
@@ -114,6 +127,16 @@ Future<UnitSelection?> showUnitDialog(
                 ),
               );
 
+          // Unit names as Sale shows them: primary first, then secondary, then tertiary.
+          List<String> tierNames() {
+            final names = <String>[primaryCtrl.text.trim().isEmpty ? '—' : primaryCtrl.text.trim()];
+            final sec = secondaryCtrl.text.trim();
+            final ter = tertiaryCtrl.text.trim();
+            if (sec.isNotEmpty) names.add(sec);
+            if (sec.isNotEmpty && ter.isNotEmpty) names.add(ter);
+            return names;
+          }
+
           void trySave() {
             final p = primaryCtrl.text.trim();
             var s = secondaryCtrl.text.trim().isEmpty ? 'None' : secondaryCtrl.text.trim();
@@ -147,12 +170,23 @@ Future<UnitSelection?> showUnitDialog(
             }
             if (s == 'None') t = 'None';
 
+            // A pinned tier that no longer exists (units were shortened) goes back to Auto.
+            final tierCount = 1 + (s != 'None' ? 1 : 0) + (t != 'None' ? 1 : 0);
+            final defIdx = (chosenDefaultUnitIndex >= 0 && chosenDefaultUnitIndex < tierCount)
+                ? chosenDefaultUnitIndex
+                : -1;
+            final qsIdx = (chosenQuickSaleDefaultUnitIndex >= 0 && chosenQuickSaleDefaultUnitIndex < tierCount)
+                ? chosenQuickSaleDefaultUnitIndex
+                : -1;
+
             Navigator.of(ctx).pop(UnitSelection(
               primaryUnit: p,
               secondaryUnit: s,
               secondaryQty: s == 'None' ? 0.0 : sq,
               tertiaryUnit: t,
               tertiaryQty: t == 'None' ? 0.0 : tq,
+              defaultUnitIndex: defIdx,
+              quickSaleDefaultUnitIndex: qsIdx,
             ));
           }
 
@@ -237,6 +271,32 @@ Future<UnitSelection?> showUnitDialog(
                                 field(tertiaryQtyCtrl, '1 Secondary = how many Tertiary?',
                                     kb: const TextInputType.numberWithOptions(decimal: true)),
                               ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _UnitCard(
+                            emoji: '✔',
+                            label: 'Default Unit for Sale Screen',
+                            accent: AppColors.purple,
+                            child: _DefaultUnitChips(
+                              hint: 'Auto picks it for you. Choose one yourself if you want the Sale screen to always start with a specific unit.',
+                              tierNames: tierNames(),
+                              selected: chosenDefaultUnitIndex,
+                              accent: AppColors.purple,
+                              onSelected: (i) => setState(() => chosenDefaultUnitIndex = i),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _UnitCard(
+                            emoji: '⚡',
+                            label: 'Default Unit for Quick Sale',
+                            accent: AppColors.teal,
+                            child: _DefaultUnitChips(
+                              hint: 'Can differ from the Sale screen default — the smaller unit is often what is sold in Quick Sale.',
+                              tierNames: tierNames(),
+                              selected: chosenQuickSaleDefaultUnitIndex,
+                              accent: AppColors.teal,
+                              onSelected: (i) => setState(() => chosenQuickSaleDefaultUnitIndex = i),
                             ),
                           ),
                           if (errorText != null)
@@ -327,6 +387,70 @@ class _UnitCard extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+
+/// "Auto | Carton | Dozen | Pcs" chip row. Index -1 = Auto, otherwise an index
+/// into [tierNames] (primary first) — same order as `saleUnitChoices()`.
+class _DefaultUnitChips extends StatelessWidget {
+  final String hint;
+  final List<String> tierNames;
+  final int selected;
+  final Color accent;
+  final ValueChanged<int> onSelected;
+
+  const _DefaultUnitChips({
+    required this.hint,
+    required this.tierNames,
+    required this.selected,
+    required this.accent,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // A pinned tier that no longer exists shows as Auto.
+    final current = (selected >= 0 && selected < tierNames.length) ? selected : -1;
+    final options = <MapEntry<int, String>>[
+      const MapEntry(-1, 'Auto'),
+      for (var i = 0; i < tierNames.length; i++) MapEntry(i, tierNames[i]),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 12),
+          child: Text(hint, style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final o in options)
+              GestureDetector(
+                onTap: () => onSelected(o.key),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: o.key == current ? accent : AppColors.cardWhite,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: accent),
+                  ),
+                  child: Text(
+                    o.value,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: o.key == current ? Colors.white : accent,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

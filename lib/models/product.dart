@@ -23,6 +23,18 @@ class Product {
   final int updatedAt;
   final bool dirty;
 
+  final String searchTag;
+
+  /// Manual default-unit override for the Sale screen: index into the
+  /// product's unit list as shown in Sale (0 = primary, 1 = secondary,
+  /// 2 = tertiary). -1 = Auto (see `autoDefaultUnitIndexFor`). Mirrors
+  /// Product.defaultUnitIndex in Database.kt.
+  final int defaultUnitIndex;
+
+  /// Same idea as [defaultUnitIndex] but used only by the Quick Sale dialog.
+  /// Mirrors Product.quickSaleDefaultUnitIndex in Database.kt.
+  final int quickSaleDefaultUnitIndex;
+
   const Product({
     required this.barcode,
     required this.name,
@@ -43,9 +55,15 @@ class Product {
     this.tertiaryUnitQty = 0.0,
     this.updatedAt = 0,
     this.dirty = true,
+    this.searchTag = '',
+    this.defaultUnitIndex = -1,
+    this.quickSaleDefaultUnitIndex = -1,
   });
 
   Product copyWith({
+    String? searchTag,
+    int? defaultUnitIndex,
+    int? quickSaleDefaultUnitIndex,
     String? barcode,
     String? name,
     String? category,
@@ -86,6 +104,9 @@ class Product {
       tertiaryUnitQty: tertiaryUnitQty ?? this.tertiaryUnitQty,
       updatedAt: updatedAt ?? this.updatedAt,
       dirty: dirty ?? this.dirty,
+        searchTag: searchTag ?? this.searchTag,
+        defaultUnitIndex: defaultUnitIndex ?? this.defaultUnitIndex,
+        quickSaleDefaultUnitIndex: quickSaleDefaultUnitIndex ?? this.quickSaleDefaultUnitIndex,
     );
   }
 
@@ -109,6 +130,9 @@ class Product {
         'tertiaryUnitQty': tertiaryUnitQty,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
+        'searchTag': searchTag,
+        'defaultUnitIndex': defaultUnitIndex,
+        'quickSaleDefaultUnitIndex': quickSaleDefaultUnitIndex,
       };
 
   factory Product.fromMap(Map<String, Object?> m) => Product(
@@ -131,6 +155,9 @@ class Product {
         tertiaryUnitQty: (m['tertiaryUnitQty'] as num?)?.toDouble() ?? 0.0,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,
+        searchTag: (m['searchTag'] as String?) ?? '',
+        defaultUnitIndex: (m['defaultUnitIndex'] as num?)?.toInt() ?? -1,
+        quickSaleDefaultUnitIndex: (m['quickSaleDefaultUnitIndex'] as num?)?.toInt() ?? -1,
       );
 }
 
@@ -278,4 +305,16 @@ extension ProductUnitLogic on Product {
 String _trimNum(double value) {
   if (value == value.truncateToDouble()) return value.toInt().toString();
   return value.toString();
+}
+
+extension ProductSearch on Product {
+  /// Mirrors Product.matchesQuery() in Database.kt: har typed lafz
+  /// `name + searchTag` mein kahin hona chahiye (koi bhi tarteeb).
+  bool matchesQuery(String query) {
+    final q = query.trim();
+    if (q.isEmpty) return true;
+    final haystack = '$name $searchTag'.toLowerCase();
+    final terms = q.toLowerCase().split(RegExp(r'\s+')).where((t) => t.isNotEmpty);
+    return terms.every(haystack.contains);
+  }
 }

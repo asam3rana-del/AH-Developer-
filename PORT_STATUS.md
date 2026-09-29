@@ -35,7 +35,7 @@
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only, SaleScreen(editInvoice:)), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print (text bill preview + copy). Baaki: Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup, Bluetooth/WhatsApp share (Phase 12). |
+| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup. Baaki: Bluetooth/WhatsApp share (Phase 12). |
 | ✅ | SaleRepository.kt | 136 | lib/db/sale_repository.dart | Edit/delete/return + audit + frozen conversionFactor (DB v4) bhi done; linked-payment void Phase 6/8 mein. |
 | ✅ | RoomSaleRepository.kt | 563 | lib/db/sale_repository.dart |  |
 | ✅ | SaleUseCases.kt | 400 | lib/db/sale_repository.dart |  |

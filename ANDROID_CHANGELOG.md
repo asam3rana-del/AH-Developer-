@@ -1,5 +1,39 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Repo repair: Sale/Product/Purchase/main.dart wapas restore
+- **Masla mila**: is upload ke `lib/db/sale_repository.dart` (245 lines), `lib/screens/sale_screen.dart`
+  (488 lines), `lib/models/product.dart`, `lib/models/sale.dart`, `lib/widgets/unit_dialog.dart`,
+  `lib/widgets/premium_widgets.dart` aur `lib/main.dart` — sab EK PURANI (Phase 0-3) halat mein
+  the, jab ke `lib/db/app_database.dart` (v9), `lib/screens/day_book_screen.dart`,
+  `lib/screens/sale_quick_sale.dart`, `lib/widgets/held_bills_dialog.dart`,
+  `lib/screens/item_search_screen.dart`, `lib/screens/purchase_screen.dart` (item search line) —
+  in sab ne pehle se hi aage wali cheezein use karni shuru kar di thi (`Product.matchesQuery`,
+  `SaleItem.conversionFactor`, `SaleScreen(editInvoice:)`, `SaleRepository.saveQuickSale/holdBill/
+  loadForEdit/...`). Matlab **repo compile hi nahi hota** is halat mein — kisi purani commit se
+  in 6 files ka wapas aa jaana (galat merge/reset) lagta hai.
+- **Fix**: `lib/db/sale_repository.dart`, `lib/screens/sale_screen.dart`, `lib/screens/product_screen.dart`,
+  `lib/screens/purchase_screen.dart`, `lib/widgets/unit_dialog.dart`, `lib/main.dart` — is chat ki
+  pichli (sab se advanced) copy se wapas laga diye (Split Payment samet). `lib/models/product.dart`
+  (searchTag/defaultUnitIndex/quickSaleDefaultUnitIndex + `matchesQuery`), `lib/models/sale.dart`
+  (`conversionFactor`), `lib/widgets/premium_widgets.dart` (`PremiumLabeledField.enabled`) —
+  additively patch kiye taake naya `Customer.stuckBalance` waghera na chhute. `lib/utils/split_payment.dart`
+  bhi missing tha, wapas add kiya. `test/split_payment_test.dart` + `test/sale_edit_and_draft_test.dart`
+  wapas add kiye.
+- **DB migration ki zaroorat NAHI thi** — `app_database.dart` ka fresh-install schema (v9) mein
+  `products.searchTag/defaultUnitIndex/quickSaleDefaultUnitIndex` aur `sale_items.conversionFactor`
+  columns pehle se maujood the; sirf Dart model classes unhe padh/likh nahi rahe the.
+- Parties (Phase 6), Cash/Cash Register/Expenses/Day Book/Balance Sheet/Zakat/Shell Ledger/Payments
+  (Phase 8-9), Hijri calendar, dashboard tiles — yeh sab is upload ki halat mein hi (untouched) rakhe
+  gaye, kisi cheez ka koi nuksan nahi hua.
+- Cross-checked: har jagah jo `SaleRepository.instance.*` / `ProductRepository.instance.*` call
+  hoti hai (dashboard, day book, party repo) — sab methods restored `sale_repository.dart` mein
+  maujood hain. Manual brace/paren-balance check kiya (Flutter SDK sandbox mein nahi hai) —
+  `flutter analyze && flutter test` zaroor chalayein push karne se pehle.
+- Suggestion: GitHub par ab se force-push/reset se bachein jab tak commit history confirm na ho;
+  agli baar zip lene se pehle `git status`/`git log -1` check kar lein taake yeh dobara na ho.
+
+---
+
 Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho jaye to
 `[ ]` ko `[x]` karein aur `python3 tools/port_status.py --accept <File>.kt` chalayein.
 

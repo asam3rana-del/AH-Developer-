@@ -129,6 +129,9 @@ class PremiumLabeledField extends StatelessWidget {
   final FocusNode? focusNode;
   final VoidCallback? onSubmitted;
 
+  /// false greys the box out (e.g. Paid Amount while a Split Payment is active).
+  final bool enabled;
+
   const PremiumLabeledField({
     super.key,
     required this.emoji,
@@ -141,6 +144,7 @@ class PremiumLabeledField extends StatelessWidget {
     this.onChanged,
     this.focusNode,
     this.onSubmitted,
+    this.enabled = true,
   });
 
   @override
@@ -173,6 +177,7 @@ class PremiumLabeledField extends StatelessWidget {
                 TextField(
                   controller: controller,
                   focusNode: focusNode,
+                  enabled: enabled,
                   keyboardType: keyboardType,
                   textInputAction: textInputAction,
                   onChanged: onChanged,

@@ -19,6 +19,7 @@ class ProductScreen extends StatefulWidget {
 class _ProductScreenState extends State<ProductScreen> {
   final _nameCtrl = TextEditingController();
   final _categoryCtrl = TextEditingController();
+  final _tagCtrl = TextEditingController();
   final _costCtrl = TextEditingController();
   final _wholesaleCtrl = TextEditingController();
   final _saleCtrl = TextEditingController();
@@ -31,6 +32,9 @@ class _ProductScreenState extends State<ProductScreen> {
   double _secondaryQty = 0.0;
   String _tertiaryUnit = 'None';
   double _tertiaryQty = 0.0;
+  // Manual default-unit choices (-1 = Auto), set from the unit dialog.
+  int _defaultUnitIndex = -1;
+  int _quickSaleDefaultUnitIndex = -1;
   String _openingStockUnit = 'pcs';
 
   Product? _editing;
@@ -42,6 +46,7 @@ class _ProductScreenState extends State<ProductScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _categoryCtrl.dispose();
+    _tagCtrl.dispose();
     _costCtrl.dispose();
     _wholesaleCtrl.dispose();
     _saleCtrl.dispose();
@@ -108,6 +113,8 @@ class _ProductScreenState extends State<ProductScreen> {
       initialSecondaryQty: _secondaryQty,
       initialTertiary: _tertiaryUnit,
       initialTertiaryQty: _tertiaryQty,
+      initialDefaultUnitIndex: _defaultUnitIndex,
+      initialQuickSaleDefaultUnitIndex: _quickSaleDefaultUnitIndex,
     );
     if (result == null) return;
 
@@ -124,6 +131,8 @@ class _ProductScreenState extends State<ProductScreen> {
       _secondaryQty = result.secondaryQty;
       _tertiaryUnit = result.tertiaryUnit;
       _tertiaryQty = result.tertiaryQty;
+      _defaultUnitIndex = result.defaultUnitIndex;
+      _quickSaleDefaultUnitIndex = result.quickSaleDefaultUnitIndex;
       if (_openingStockUnit.isEmpty || _openingStockUnit == _primaryUnit) {
         _openingStockUnit = _primaryUnit;
       }
@@ -138,11 +147,14 @@ class _ProductScreenState extends State<ProductScreen> {
       _editing = p;
       _nameCtrl.text = p.name;
       _categoryCtrl.text = p.category;
+      _tagCtrl.text = p.searchTag;
       _primaryUnit = p.unit.isEmpty ? 'pcs' : p.unit;
       _secondaryUnit = p.secondaryUnit.isEmpty ? 'None' : p.secondaryUnit;
       _secondaryQty = p.secondaryUnitQty;
       _tertiaryUnit = p.tertiaryUnit.isEmpty ? 'None' : p.tertiaryUnit;
       _tertiaryQty = p.tertiaryUnitQty;
+      _defaultUnitIndex = p.defaultUnitIndex;
+      _quickSaleDefaultUnitIndex = p.quickSaleDefaultUnitIndex;
       _openingStockUnit = _primaryUnit;
       _costCtrl.text = p.cost > 0 ? p.cost.toString() : '';
       _wholesaleCtrl.text = p.wholesalePrice > 0 ? p.wholesalePrice.toString() : '';
@@ -156,6 +168,7 @@ class _ProductScreenState extends State<ProductScreen> {
     setState(() {
       _nameCtrl.clear();
       _categoryCtrl.clear();
+      _tagCtrl.clear();
       _costCtrl.clear();
       _wholesaleCtrl.clear();
       _saleCtrl.clear();
@@ -166,6 +179,8 @@ class _ProductScreenState extends State<ProductScreen> {
       _secondaryQty = 0.0;
       _tertiaryUnit = 'None';
       _tertiaryQty = 0.0;
+      _defaultUnitIndex = -1;
+      _quickSaleDefaultUnitIndex = -1;
       _openingStockUnit = 'pcs';
       _editing = null;
     });
@@ -218,6 +233,7 @@ class _ProductScreenState extends State<ProductScreen> {
       barcode: barcode,
       name: name,
       category: category,
+      searchTag: _tagCtrl.text.trim(),
       cost: double.tryParse(_costCtrl.text.trim()) ?? 0.0,
       salePrice: double.tryParse(_saleCtrl.text.trim()) ?? 0.0,
       wholesalePrice: double.tryParse(_wholesaleCtrl.text.trim()) ?? 0.0,
@@ -231,6 +247,10 @@ class _ProductScreenState extends State<ProductScreen> {
       reorderLevel: (double.tryParse(_reorderCtrl.text.trim()) ?? 0.0).clamp(0.0, double.infinity),
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       dirty: true,
+      // Manual default-unit choices (unit dialog). Loaded from the product on
+      // edit, so saving never silently resets them.
+      defaultUnitIndex: _defaultUnitIndex,
+      quickSaleDefaultUnitIndex: _quickSaleDefaultUnitIndex,
     );
 
     final categories = await CategoryRepository.instance.listAll();
@@ -282,7 +302,7 @@ class _ProductScreenState extends State<ProductScreen> {
   List<Product> _filter(List<Product> all) {
     final q = _search.trim().toLowerCase();
     if (q.isEmpty) return all;
-    return all.where((p) => p.name.toLowerCase().contains(q) || p.category.toLowerCase().contains(q)).toList();
+    return all.where((p) => p.matchesQuery(q) || p.category.toLowerCase().contains(q)).toList();
   }
 
   @override
@@ -392,6 +412,18 @@ class _ProductScreenState extends State<ProductScreen> {
                   onTap: _openUnitDialog,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _tagCtrl,
+            decoration: InputDecoration(
+              hintText: 'English search tag (optional) — e.g. Aloo Bukhara',
+              hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+              filled: true,
+              fillColor: AppColors.fieldFill,
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
             ),
           ),
         ],

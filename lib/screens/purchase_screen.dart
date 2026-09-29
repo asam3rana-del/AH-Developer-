@@ -290,7 +290,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                   displayStringForOption: (p) => p.name,
                   optionsBuilder: (text) {
                     if (text.text.isEmpty) return const Iterable<Product>.empty();
-                    return products.where((p) => p.name.toLowerCase().contains(text.text.toLowerCase()));
+                    return products.where((p) => p.matchesQuery(text.text));
                   },
                   onSelected: _onProductPicked,
                   fieldViewBuilder: (context, controller, focusNode, onSubmit) {

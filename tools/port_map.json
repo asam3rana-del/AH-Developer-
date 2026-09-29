@@ -81,14 +81,14 @@
   "phase": 2,
   "dart": "",
   "status": "skip",
-  "note": "Flutter mein State/setState — alag ViewModel zaroori nahi."
+  "note": "Flutter mein State/setState \u2014 alag ViewModel zaroori nahi."
  },
  {
   "kotlin": "SaleActivity.kt",
   "phase": 3,
   "dart": "lib/screens/sale_screen.dart",
   "status": "partial",
-  "note": "Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only, SaleScreen(editInvoice:)), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print (text bill preview + copy). Baaki: Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup, Bluetooth/WhatsApp share (Phase 12)."
+  "note": "Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup. Baaki: Bluetooth/WhatsApp share (Phase 12)."
  },
  {
   "kotlin": "SaleRepository.kt",
@@ -158,7 +158,7 @@
   "phase": 4,
   "dart": "lib/theme/theme_manager.dart",
   "status": "partial",
-  "note": "Palette + dark toggle done. Purani screens abhi static AppColors par — migrate baaki."
+  "note": "Palette + dark toggle done. Purani screens abhi static AppColors par \u2014 migrate baaki."
  },
  {
   "kotlin": "SettingsActivity.kt",
@@ -186,7 +186,7 @@
   "phase": 4,
   "dart": "lib/widgets/numeric_keypad.dart",
   "status": "done",
-  "note": "NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI."
+  "note": "NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai \u2014 Sale/Purchase ko keypad par lana ZAROORI NAHI."
  },
  {
   "kotlin": "MenuRow.kt",
