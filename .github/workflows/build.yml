@@ -58,9 +58,9 @@ jobs:
 
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
-      # Firebase needs Kotlin 1.9+; Flutter 3.24's template pins 1.7.10.
+      # firebase_auth plugin is built with Kotlin 2.1 metadata; Flutter 3.24's template pins 1.7.10.
       - name: Bump Kotlin plugin
-        run: sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"1.9.24"/' android/settings.gradle
+        run: sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
 
       - run: flutter pub get
       - run: bash tools/android_fix.sh
