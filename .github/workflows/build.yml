@@ -20,11 +20,11 @@ jobs:
       # Repo has no ios/ or android/ folders, so generate them.
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
-      # Firebase plugins need iOS 13+; Flutter's template defaults to 12.
-      - name: Set iOS deployment target to 13.0
+      # Firebase needs iOS 13+, google_mlkit_text_recognition (MLKit) needs iOS 15.5+; Flutter template defaults to 12.
+      - name: Set iOS deployment target to 15.5
         run: |
-          sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
-          sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g" ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' "s/^# platform :ios.*/platform :ios, '15.5'/" ios/Podfile
+          sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 15.5/g" ios/Runner.xcodeproj/project.pbxproj
 
       # Pods (e.g. resource bundles) otherwise ask for a Development Team even with --no-codesign.
       - name: Disable code signing for Pods
