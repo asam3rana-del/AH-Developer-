@@ -79,7 +79,9 @@ jobs:
 
   build-windows:
     name: Build Windows (exe)
-    runs-on: windows-latest
+    # windows-latest ab Visual Studio 2026 wala hai; Flutter 3.24.0 use nahi pehchanta
+    # ("Generator Visual Studio 16 2019 could not find any instance"). windows-2022 mein VS 2022 hai.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
