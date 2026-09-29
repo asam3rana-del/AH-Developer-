@@ -26,6 +26,12 @@ jobs:
           sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
           sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g" ios/Runner.xcodeproj/project.pbxproj
 
+      # Pods (e.g. resource bundles) otherwise ask for a Development Team even with --no-codesign.
+      - name: Disable code signing for Pods
+        run: |
+          perl -0pi -e 's/(flutter_additional_ios_build_settings\(target\)\n)/$1    target.build_configurations.each do |c|\n      c.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      c.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n      c.build_settings["EXPANDED_CODE_SIGN_IDENTITY"] = ""\n    end\n/' ios/Podfile
+          grep -n "CODE_SIGN" ios/Podfile
+
       - run: flutter pub get
 
       # Unsigned build — good enough to confirm it compiles for iOS.
