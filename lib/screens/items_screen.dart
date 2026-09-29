@@ -122,8 +122,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
   void _openProduct(Product p) => _push(RoleGuard(allowed: const {'admin'}, child: ProductScreen(editBarcode: p.barcode)));
 
   void _onFab() {
-    if (_tab == _Tab.categories && _openCategory == null) return _promptAddCategory();
-    if (_tab == _Tab.units) return _promptAddUnit();
+    if (_tab == _Tab.categories && _openCategory == null) {
+      _promptAddCategory();
+      return;
+    }
+    if (_tab == _Tab.units) {
+      _promptAddUnit();
+      return;
+    }
     _push(const RoleGuard(allowed: {'admin'}, child: ProductScreen()));
   }
 
