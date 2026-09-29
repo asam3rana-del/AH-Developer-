@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../db/category_unit_repository.dart';
@@ -11,14 +10,16 @@ import '../db/purchase_history_repository.dart' show PurchaseHistoryRepository;
 import '../db/purchase_repository.dart';
 import '../db/rate_comparison_repository.dart' show RateComparisonRepository, SupplierRateRow;
 import '../db/supplier_repository.dart';
-import '../db/user_repository.dart';
 import '../models/category_unit.dart' as models;
 import '../models/party.dart';
 import '../models/product.dart';
 import '../services/purchase_hold_recall.dart';
 import '../services/session.dart';
 import '../theme/app_colors.dart';
-import '../utils/bill_text.dart';
+import '../utils/bill_doc.dart';
+import '../utils/bill_scan_parser.dart';
+import 'bill_preview_screen.dart';
+import 'bill_scan_screen.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
 import '../utils/purchase_calc.dart';
@@ -39,7 +40,7 @@ import '../widgets/premium_widgets.dart';
 /// supplier ka live balance, bill preview.
 /// Edit mode mein DELETE button (poora bill: stock + cost + supplier balance + payments wapas, admin only) aur
 /// item chun kar "Compare suppliers" popup (har supplier ka last / lowest / highest rate, admin + manager).
-/// Baaki: BillScan (Phase 13), Bluetooth print (Phase 12).
+/// Bill Scan (OCR) + Bill Preview/Print (Phase 12) done.
 class PurchaseScreen extends StatefulWidget {
   final String? editBillNo;
 
@@ -538,6 +539,52 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _fillRetailWholesaleText();
   }
 
+  // ---------------------------------------------------------------- Scan Bill
+
+  /// Kotlin BillScan: photo -> OCR -> review -> har item ko product se milao (naam) ya naya product
+  /// banao, phir purchase lines mein daal do. Rate = primary unit par (jaisa scan mein likha).
+  Future<void> _scanBill() async {
+    final items = await Navigator.of(context).push<List<ScannedItem>>(
+      MaterialPageRoute(builder: (_) => const BillScanScreen()),
+    );
+    if (items == null || items.isEmpty || !mounted) return;
+    var created = 0;
+    final added = <PurchaseLine>[];
+    for (var i = 0; i < items.length; i++) {
+      final it = items[i];
+      var product = _productByName(it.name);
+      if (product == null) {
+        product = Product(
+          barcode: 'P${DateTime.now().millisecondsSinceEpoch}$i',
+          name: it.name,
+          category: 'General',
+          unit: 'pcs',
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+          dirty: true,
+        );
+        await ProductRepository.instance.upsert(product, isNew: true);
+        _products = [..._products, product];
+        created++;
+      }
+      added.add(PurchaseLine(
+        itemName: product.name,
+        barcode: product.barcode,
+        qty: it.qty,
+        unit: product.unit,
+        rate: it.rate,
+        amount: it.qty * it.rate,
+        retailRate: 0.0,
+        wholesaleRate: 0.0,
+      ));
+    }
+    if (!mounted) return;
+    setState(() => _lines.addAll(added));
+    _saveDraftSoon();
+    _toast(created == 0
+        ? Loc.t('${added.length} items added', '${added.length} آئٹمز شامل ہو گئے')
+        : Loc.t('${added.length} items added ($created new products created)', '${added.length} آئٹمز شامل ($created نئے پروڈکٹ بنے)'));
+  }
+
   // ------------------------------------------------------------- Hold / Recall
 
   Future<void> _holdBill() async {
@@ -1002,45 +1049,22 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     required double paid,
     required String method,
   }) async {
-    String shopName = '', shopPhone = '';
-    try {
-      shopName = await UserRepository.instance.getSetting('shop_name') ?? '';
-      shopPhone = await UserRepository.instance.getSetting('shop_phone') ?? '';
-    } catch (_) {}
     if (!mounted) return;
-    final text = buildPurchaseBillText(
-      shopName: shopName,
-      shopPhone: shopPhone,
-      billNo: billNo,
-      date: date,
-      supplier: supplier,
-      lines: [
-        for (final l in lines) (name: l.itemName, qty: l.qty, unit: l.unit, unitCost: l.rate, amount: l.amount),
-      ],
-      subtotal: lines.fold<double>(0, (s, l) => s + l.amount),
-      discount: 0.0,
-      total: total,
-      paid: paid,
-      paymentMethod: method,
-    );
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Bill Preview', 'بل پری ویو')),
-        content: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.3)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: text));
-              _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
-            },
-            child: Text(Loc.t('Copy', 'کاپی')),
-          ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
+    await BillPreviewScreen.open(
+      context,
+      BillDoc(
+        isPurchase: true,
+        ref: billNo,
+        date: date,
+        partyName: supplier,
+        items: [
+          for (final l in lines) BillItem(name: l.itemName, qty: l.qty, unit: l.unit, rate: l.rate, amount: l.amount),
         ],
+        subtotal: lines.fold<double>(0, (s, l) => s + l.amount),
+        discount: 0.0,
+        total: total,
+        paid: paid,
+        paymentMethod: method,
       ),
     );
   }
@@ -1112,6 +1136,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               onPressed: _openRecall,
               icon: const Icon(Icons.play_circle_outline, size: 18),
               label: Text(Loc.t('Recall Bill', 'بل ریکال کریں')),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _scanBill,
+              icon: const Icon(Icons.document_scanner_outlined, size: 18),
+              label: Text(Loc.t('Scan Bill', 'بل سکین')),
             ),
           ),
         ],

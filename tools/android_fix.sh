@@ -12,3 +12,15 @@ sed -i -E 's/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVe
 # AGP 8.3.2 only knows up to compileSdk 34 — silence its "unsupported" warning.
 echo "android.suppressUnsupportedCompileSdk=35" >> android/gradle.properties
 grep -n "ndkVersion\|compileSdk" "$GRADLE"
+
+# flutter_secure_storage (backup password) needs minSdk 23; Flutter 3.24 template default is 21.
+sed -i -E 's/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/minSdk = 23/' "$GRADLE"
+grep -n "minSdk" "$GRADLE"
+
+# Phase 12 (Print & Scan): Bluetooth printer + camera permissions. `flutter create` manifest mein
+# yeh nahi hoti; sirf tab jodo jab pehle se na hon.
+MANIFEST=android/app/src/main/AndroidManifest.xml
+if ! grep -q "BLUETOOTH_CONNECT" "$MANIFEST"; then
+  sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>/' "$MANIFEST"
+fi
+grep -n "uses-permission" "$MANIFEST"

@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../db/sale_history_repository.dart';
 import '../db/sale_repository.dart';
-import '../db/user_repository.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
-import '../utils/bill_text.dart';
+import '../utils/bill_doc.dart';
+import 'bill_preview_screen.dart';
 import '../utils/loc.dart';
 import 'sale_screen.dart';
 
@@ -21,7 +20,7 @@ import 'sale_screen.dart';
 /// hai — cashier ke liye cost load hi nahi hota); Edit / Return / Delete sirf admin
 /// (SaleRepository dobara check karta hai).
 ///
-/// Farq (Kotlin se): Material icons; Print = text Bill Preview (Copy) — Bluetooth Phase 12 mein.
+/// Farq (Kotlin se): Material icons; Print = Bill Preview screen (Bluetooth print / WhatsApp / Copy).
 class SaleHistoryScreen extends StatefulWidget {
   const SaleHistoryScreen({super.key});
 
@@ -165,46 +164,22 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
     final sale = await _repo.findSale(s.invoice);
     if (sale == null) return;
     final items = _items[s.invoice] ?? await _repo.itemsForInvoice(s.invoice);
-    String shopName = '', shopPhone = '';
-    try {
-      shopName = await UserRepository.instance.getSetting('shop_name') ?? '';
-      shopPhone = await UserRepository.instance.getSetting('shop_phone') ?? '';
-    } catch (_) {}
     if (!mounted) return;
-    final text = buildSaleBillText(
-      shopName: shopName,
-      shopPhone: shopPhone,
-      invoice: sale.invoice,
-      date: DateTime.fromMillisecondsSinceEpoch(sale.createdAt),
-      customer: s.customerName,
-      lines: [
-        for (final i in items)
-          SaleLine(itemName: i.product, barcode: i.barcode, qty: i.qty, unit: i.unit, unitPrice: i.unitPrice, cost: i.cost, amount: i.amount),
-      ],
-      subtotal: sale.subtotal,
-      discount: sale.discount,
-      total: sale.total,
-      paid: sale.paid,
-      paymentMethod: _methodLabel(sale.paymentMethod),
-    );
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Bill Preview', 'بل پری ویو')),
-        content: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.3)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: text));
-              _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
-            },
-            child: Text(Loc.t('Copy', 'کاپی')),
-          ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
+    await BillPreviewScreen.open(
+      context,
+      BillDoc(
+        isPurchase: false,
+        ref: sale.invoice,
+        date: DateTime.fromMillisecondsSinceEpoch(sale.createdAt),
+        partyName: s.customerName,
+        items: [
+          for (final i in items) BillItem(name: i.product, qty: i.qty, unit: i.unit, rate: i.unitPrice, amount: i.amount),
         ],
+        subtotal: sale.subtotal,
+        discount: sale.discount,
+        total: sale.total,
+        paid: sale.paid,
+        paymentMethod: _methodLabel(sale.paymentMethod),
       ),
     );
   }

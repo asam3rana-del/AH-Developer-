@@ -1,0 +1,235 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../theme/app_colors.dart';
+import '../utils/bill_scan_parser.dart';
+import '../utils/loc.dart';
+
+/// Kotlin BillScanActivity: bill ki photo -> OCR (on-device ML Kit) -> item rows review/edit ->
+/// "CONFIRM & ADD TO PURCHASE". Pop result: List<ScannedItem>.
+class BillScanScreen extends StatefulWidget {
+  const BillScanScreen({super.key});
+
+  @override
+  State<BillScanScreen> createState() => _BillScanScreenState();
+}
+
+class _BillScanScreenState extends State<BillScanScreen> {
+  final _picker = ImagePicker();
+  final List<ScannedLine> _lines = [];
+  String? _imagePath;
+  bool _busy = false;
+  bool _processed = false;
+  String _status = '';
+
+  Future<void> _pick(ImageSource source) async {
+    final XFile? file;
+    try {
+      file = await _picker.pickImage(source: source, imageQuality: 92, maxWidth: 2600);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _status = Loc.t('Could not open camera/gallery: $e', 'کیمرہ/گیلری نہیں کھلی: $e'));
+      return;
+    }
+    if (file == null) return;
+    setState(() {
+      _imagePath = file!.path;
+      _busy = true;
+      _processed = false;
+      _lines.clear();
+      _status = Loc.t('Reading bill…', 'بل پڑھا جا رہا ہے…');
+    });
+    final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    try {
+      final result = await recognizer.processImage(InputImage.fromFilePath(file.path));
+      final parsed = parseBillText(result.text);
+      if (!mounted) return;
+      setState(() {
+        _lines.addAll(parsed);
+        _processed = true;
+        _status = parsed.isEmpty
+            ? Loc.t('No items found. Add manually below or scan again.', 'کوئی آئٹم نہیں ملا۔ نیچے دستی طور پر شامل کریں یا دوبارہ سکین کریں۔')
+            : Loc.t('${parsed.length} lines detected — check qty/rate, then confirm.',
+                '${parsed.length} لائنیں ملیں — qty/rate چیک کر کے تصدیق کریں۔');
+      });
+    } catch (e) {
+      debugPrint('OCR failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _processed = true;
+        _status = Loc.t('OCR failed: $e. Try again.', 'OCR فیل: $e۔ دوبارہ کوشش کریں۔');
+      });
+    } finally {
+      await recognizer.close();
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _confirm() {
+    final items = confirmedItems(_lines);
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(Loc.t('Select at least one valid item (name, qty, rate)', 'کم از کم ایک درست آئٹم منتخب کریں'))));
+      return;
+    }
+    Navigator.of(context).pop(items);
+  }
+
+  InputDecoration _dec(String hint) => InputDecoration(
+        hintText: hint,
+        isDense: true,
+        filled: true,
+        fillColor: AppColors.fieldFill,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+      );
+
+  Widget _row(int index, ScannedLine line) => Container(
+        key: ObjectKey(line),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(8, 10, 8, 12),
+        decoration: BoxDecoration(
+          color: AppColors.cardWhite,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(children: [
+          Row(children: [
+            Checkbox(value: line.include, onChanged: (v) => setState(() => line.include = v ?? true)),
+            Expanded(
+              child: TextFormField(
+                initialValue: line.name,
+                onChanged: (v) => line.name = v,
+                decoration: _dec(Loc.t('Item name', 'آئٹم کا نام')),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: AppColors.red, size: 20),
+              onPressed: () => setState(() => _lines.removeAt(index)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: line.qty,
+                  onChanged: (v) => line.qty = v,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: _dec('Qty'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  initialValue: line.rate,
+                  onChanged: (v) => line.rate = v,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: _dec('Rate'),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final showReview = _processed;
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(backgroundColor: AppColors.navy, foregroundColor: Colors.white, title: Text(Loc.t('Scan Bill', 'بل سکین'))),
+      body: Column(children: [
+        Expanded(
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _busy ? null : () => _pick(ImageSource.camera),
+                    icon: const Icon(Icons.document_scanner_outlined, size: 18),
+                    label: Text(Loc.t('Scan Bill', 'بل سکین')),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.teal, padding: const EdgeInsets.symmetric(vertical: 14)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _busy ? null : () => _pick(ImageSource.gallery),
+                    icon: const Icon(Icons.image_outlined, size: 18),
+                    label: Text(Loc.t('Gallery', 'گیلری')),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.navy, padding: const EdgeInsets.symmetric(vertical: 14)),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Text(
+                Loc.t('Hold the bill flat, in good light, fully inside the frame for best reading.',
+                    'بہتر ریڈنگ کے لیے بل سیدھا، اچھی روشنی میں، پورا فریم میں رکھیں۔'),
+                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 16),
+              if (_imagePath != null)
+                Container(
+                  height: 180,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: AppColors.cardWhite,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Image.file(File(_imagePath!), fit: BoxFit.cover, width: double.infinity),
+                ),
+              if (_busy) const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator())),
+              if (_status.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
+                  child: Text(_status, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                ),
+              if (showReview && _lines.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(Loc.t('Detected Items — Review & Edit', 'ملے ہوئے آئٹمز — دیکھیں اور ایڈٹ کریں'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+                ),
+              for (var i = 0; i < _lines.length; i++) _row(i, _lines[i]),
+              if (showReview)
+                TextButton.icon(
+                  onPressed: () => setState(() => _lines.add(ScannedLine())),
+                  icon: const Icon(Icons.add),
+                  label: Text(Loc.t('Add row manually', 'دستی طور پر قطار شامل کریں')),
+                  style: TextButton.styleFrom(alignment: Alignment.centerLeft),
+                ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+        if (showReview)
+          Container(
+            color: AppColors.cardWhite,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _confirm,
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.navy, padding: const EdgeInsets.symmetric(vertical: 16)),
+                  child: Text(Loc.t('CONFIRM & ADD TO PURCHASE', 'تصدیق کریں اور خریداری میں شامل کریں'),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ),
+          ),
+      ]),
+    );
+  }
+}

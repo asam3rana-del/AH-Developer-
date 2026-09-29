@@ -30,7 +30,7 @@
 ## 2. Phases (tarteeb)  — live status `PORT_STATUS.md` mein
 | Phase | Kya | Nota |
 |---|---|---|
-| 0-3 | Models/DB, Products, Purchase, Sale | ✅ Sale mukammal (linked payments samet). Purchase mukammal (edit-saved-purchase, Delete, supplier comparison samet). Bluetooth/WhatsApp share = Phase 12 |
+| 0-3 | Models/DB, Products, Purchase, Sale | ✅ Sale mukammal (linked payments samet). Purchase mukammal (edit-saved-purchase, Delete, supplier comparison samet). Bluetooth/WhatsApp share = Phase 12 (done) |
 | **4** | Login, roles (`RoleGuard`), Loc, Theme, Settings, Dashboard | **Sabse pehle** — baaki sab screens role/zabaan par depend karti hain |
 | 5 | Item Rate Search, Rate Comparison, Items, Bulk rates/units, SaleCart, Quick Sale, Hold/Recall | Spec: `docs/specs/item_rate_search.md` |
 | 6 | Parties (list, dashboard, transactions, reports), Due Reminders | |
@@ -40,7 +40,7 @@
 | 10 | Cloud sync (SyncApi/Queue/Worker/Repository/Settings, Branch, DeviceTag) | Login ke OTP/phone-link yahin |
 | 11 | Backup/Export/Crypto/Scheduler | Format Android se compatible |
 | 12 | Bluetooth print, Bill Preview, Bill Scan (OCR) | iPad par printer alag plugin |
-| 13 | Bulk Translate, Merge Duplicates, Duplicate Unit Fix | |
+| 13 | Bulk Translate, Merge Duplicates, Duplicate Unit Fix | ✅ Mukammal (Merge par preview + backup) |
 
 Har phase ke baad: `flutter analyze`, `flutter test`, aur Android app ke saath ek sample bill/purchase ka number mila kar dekhein.
 
@@ -61,7 +61,7 @@ Sale edit/delete sirf admin; History mein profit sirf admin; naye sale mein due 
 2. iPad par sab se pehle Phase 5 + Sale kaafi hai counter par kaam chalane ke liye; sync baad mein.
 3. ~~`lib/AH-Developer-Purchase-Screen-Update.zip` repo se hata dein~~ — hata di gayi.
 4. `pubspec.yaml` mein aage chahiye: `local_auth` (app lock), `shared_preferences` (session/language),
-   `crypto`+`encrypt` (password/backup), `flutter_blue_plus` ya `print_bluetooth_thermal` (printer),
+   `crypto`+`cryptography` (password/backup), `flutter_blue_plus` ya `print_bluetooth_thermal` (printer),
    `google_mlkit_text_recognition` (bill scan), `workmanager` (background sync/backup).
 5. Android + Web dono mein badlav ho to changelog mein "Web" alag likhein (web ka apna code alag hai).
 6. Har phase par ek chhota Dart test likhein jo Kotlin test ke barabar ho — Android aur Flutter ke numbers mel khayenge.

@@ -2,7 +2,7 @@
 
 `python3 tools/port_status.py` chala kar dobara banayein.
 
-**Overall (lines of Kotlin ke hisaab se): 69%**  (34316/49102)
+**Overall (lines of Kotlin ke hisaab se): 78%**  (38677/49102)
 
 ## Phase 0: Foundation (models, DB, colors, widgets) — 100%
 
@@ -25,7 +25,7 @@
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ✅ | PurchaseActivity.kt | 2325 | lib/screens/purchase_screen.dart | lib/screens/purchase_screen.dart + lib/utils/purchase_calc.dart + lib/services/purchase_hold_recall.dart. Naya purchase + saved purchase edit (PurchaseScreen(editBillNo:), admin-only; sirf badli lines ka stock/cost), supplier invoice no. + duplicate alerts, qty/unit/rate + pichla rate auto-fill, Retail/Wholesale rate, margin warning, Split Payment, Hold/Recall (PHOLD) + draft autosave, Delete button (edit mode) aur supplier rate-comparison popup. Baaki: BillScan (Phase 13), Bluetooth print (Phase 12). Test: test/purchase_screen_test.dart. |
+| ✅ | PurchaseActivity.kt | 2325 | lib/screens/purchase_screen.dart | lib/screens/purchase_screen.dart + lib/utils/purchase_calc.dart + lib/services/purchase_hold_recall.dart. Naya purchase + saved purchase edit (PurchaseScreen(editBillNo:), admin-only; sirf badli lines ka stock/cost), supplier invoice no. + duplicate alerts, qty/unit/rate + pichla rate auto-fill, Retail/Wholesale rate, margin warning, Split Payment, Hold/Recall (PHOLD) + draft autosave, Delete button (edit mode) aur supplier rate-comparison popup. Scan Bill + Bill Preview/Print (Phase 12) done. Test: test/purchase_screen_test.dart. |
 | ✅ | PurchaseRepository.kt | 141 | lib/db/purchase_repository.dart |  |
 | ✅ | RoomPurchaseRepository.kt | 597 | lib/db/purchase_repository.dart |  |
 | ✅ | PurchaseUseCases.kt | 169 | lib/db/purchase_repository.dart |  |
@@ -35,7 +35,7 @@
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup. Baaki: Bluetooth/WhatsApp share (Phase 12). |
+| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup. Bill Preview: Bluetooth print + WhatsApp (Phase 12) done. |
 | ✅ | SaleRepository.kt | 136 | lib/db/sale_repository.dart | Edit/delete/return + audit + frozen conversionFactor (DB v4) done. Bill-linked payments bhi: edit par linkedPaidForBill cash-in mein dobara nahi ginta (subtractLinkedPaid), delete par linked payments + unki cash rows hatti hain, return par unka dated 'return:<ref>' refund + payment row hat'ta hai (voidLinkedPayments). Test: test/sale_linked_payments_test.dart. |
 | ✅ | RoomSaleRepository.kt | 563 | lib/db/sale_repository.dart | linkedToSkip (edit) + voidLinkedPayments (delete) sale_repository.dart mein. |
 | ✅ | SaleUseCases.kt | 400 | lib/db/sale_repository.dart |  |
@@ -52,7 +52,7 @@
 | ✅ | Loc.kt | 43 | lib/utils/loc.dart |  |
 | 🟡 | ThemeManager.kt | 125 | lib/theme/theme_manager.dart | Palette + dark toggle done. Purani screens abhi static AppColors par — migrate baaki. |
 | 🟡 | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart | Shop info, login method (password/fingerprint/both/none), dark mode, language, users. Printer/Backup/Sync/OTP baad ke phases. |
-| 🟡 | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Baaki: Backup tile (Phase 11), crash dialog + SyncWorker.schedulePeriodic (Phase 10/13), Items tile Kotlin mein sab roles ko (Flutter mein admin), MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart. |
+| 🟡 | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Backup tile (BackupExportScreen) done. Baaki: crash dialog + SyncWorker.schedulePeriodic (Phase 10/13), Items tile Kotlin mein sab roles ko (Flutter mein admin), MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart. |
 | ✅ | InputValidation.kt | 58 | lib/utils/input_validation.dart |  |
 | ✅ | Numerickeypad.kt | 214 | lib/widgets/numeric_keypad.dart | NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI. |
 | ✅ | MenuRow.kt | 196 | lib/widgets/menu_row.dart | MenuRow / ExpandableMenuRow / IconBadge. Dashboard/Settings ko isi par lana baaki. |
@@ -134,31 +134,31 @@
 | ⬜ | DeviceTag.kt | 45 | lib/sync/device_tag.dart | Firestore schema Android jaisa hi rakhna (dono apps ek backend). |
 | ⬜ | NetworkMonitor.kt | 52 | lib/sync/network_monitor.dart | Firestore schema Android jaisa hi rakhna (dono apps ek backend). |
 
-## Phase 11: Backup — 0%
+## Phase 11: Backup — 82%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ⬜ | BackupHelper.kt | 406 | lib/backup/backup_helper.dart | Backup format Android se compatible rakhna. |
-| ⬜ | BackupExportActivity.kt | 778 | lib/screens/backup_export_screen.dart | Backup format Android se compatible rakhna. |
-| ⬜ | BackupCrypto.kt | 123 | lib/backup/backup_crypto.dart | Backup format Android se compatible rakhna. |
-| ⬜ | BackupPasswordStore.kt | 90 | lib/backup/backup_password_store.dart | Backup format Android se compatible rakhna. |
-| ⬜ | BackupScheduler.kt | 147 | lib/backup/backup_scheduler.dart | Backup format Android se compatible rakhna. |
+| 🟡 | BackupHelper.kt | 406 | lib/backup/backup_helper.dart | backupNow/backupIfDue(30 min)/listBackups/restore/restoreFromPath + safe restore (temp -> header -> schema check -> replace) + purana CBC/plain .db restore + share. Farq: public Downloads ki MediaStore copy nahi (Share se); restore se pehle safety backup; restore par schema check. Baaki: Android Room DB ko Flutter mein restore karna schema-compatible nahi (fresh DB v12) — tables check se reject hota hai. |
+| ✅ | BackupExportActivity.kt | 778 | lib/screens/backup_export_screen.dart | lib/screens/backup_export_screen.dart + lib/backup/backup_export.dart: Full / Date-range CSV + PDF (Open/Print/Share), plus encrypted Backup Now / Password / Restore (admin only). Farq: date range ek picker se, CSV mein UTF-8 BOM, PDF mein Urdu ke liye assets/fonts/NotoNastaliqUrdu-Regular.ttf declare karna hoga. Test: test/backup_test.dart. |
+| ✅ | BackupCrypto.kt | 123 | lib/backup/backup_crypto.dart | IBB1 AES-256-GCM (magic + salt16 + iv12 + ct+tag16, PBKDF2-SHA256 120k) + purana IBAKV001 CBC decrypt. Java JCE se bane fixtures ke saath test/backup_test.dart. Farq: poori file memory mein, PBKDF2 alag isolate mein. |
+| ✅ | BackupPasswordStore.kt | 90 | lib/backup/backup_password_store.dart | flutter_secure_storage (Keystore/Keychain); getOrCreate (16 alnum) + setPassword (min 8). |
+| 🟡 | BackupScheduler.kt | 147 | lib/backup/backup_scheduler.dart | 12 PM / 9 PM checkpoint (din mein ek baar) + app-close backupIfDue(30 min) app zinda hone par (Timer 15 min + resume/paused). Baaki: band app ke liye WorkManager (workmanager plugin). |
 
-## Phase 12: Print & scan — 0%
-
-| | Kotlin | LOC | Flutter | Note |
-|---|---|---|---|---|
-| ⬜ | PrinterHelper.kt | 1661 | lib/services/printer_helper.dart | Bluetooth ESC/POS. |
-| ⬜ | BillPreviewActivity.kt | 840 | lib/screens/bill_preview_screen.dart |  |
-| ⬜ | BillScanActivity.kt | 493 | lib/screens/bill_scan_screen.dart | OCR (ML Kit). |
-
-## Phase 13: Maintenance tools — 0%
+## Phase 12: Print & scan — 72%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| ⬜ | BulkTranslateActivity.kt | 620 | lib/screens/bulk_translate_screen.dart |  |
-| ⬜ | MergeDuplicateProductsFix.kt | 187 | lib/utils/merge_duplicate_products.dart |  |
-| ⬜ | DuplicateUnitFix.kt | 124 | lib/utils/duplicate_unit_fix.dart |  |
+| 🟡 | PrinterHelper.kt | 1661 | lib/services/printer_service.dart + lib/services/receipt_renderer.dart + lib/utils/escpos.dart + lib/utils/receipt_lines.dart | Bluetooth 58/80mm ESC/POS raster (GS v 0 strips, Kotlin FIX 5 pacing), paged slips, test print, print width. Urdu TextPainter (RTL/shaping). Farq: USB printing nahi (plugin chahiye); text-only printText nahi. Test: test/print_scan_test.dart. |
+| ✅ | BillPreviewActivity.kt | 840 | lib/screens/bill_preview_screen.dart + lib/utils/bill_doc.dart | Receipt preview, PRINT, WhatsApp (wa.me text, number popup), Copy, DONE, + NAYA BILL, Prev/Net Balance. Sale/Purchase (save ke baad) aur dono History Print isi par. Farq: WhatsApp par bill TEXT jata hai (Kotlin image bhejta hai). |
+| ✅ | BillScanActivity.kt | 493 | lib/screens/bill_scan_screen.dart + lib/utils/bill_scan_parser.dart | Camera/Gallery -> ML Kit OCR -> review/edit rows -> Purchase screen "Scan Bill" (naam se product match, warna naya product). Test: test/print_scan_test.dart. |
+
+## Phase 13: Maintenance tools — 100%
+
+| | Kotlin | LOC | Flutter | Note |
+|---|---|---|---|---|
+| ✅ | BulkTranslateActivity.kt | 620 | lib/screens/bulk_translate_screen.dart + lib/db/bulk_translate_repository.dart | Admin-only (Items 'Translate' pill, RoleGuard). Categories/Units batch rename (master + products + sync_queue, ek transaction) + Items search-tag stepper (Save & Next, comma se kayi English naam). Yahin par 'Fix Duplicate Unit Names' aur 'Merge Duplicate Products' cards. Test: test/maintenance_test.dart. |
+| ✅ | MergeDuplicateProductsFix.kt | 187 | lib/utils/merge_duplicate_products.dart | planProductMerge (pure) + preview() + run() ek transaction (plan transaction ke andar dobara). Farq: pehle preview dialog + backup, khali naam merge nahi, stock_movements dirty=1, audit row. Test: test/maintenance_test.dart. |
+| ✅ | DuplicateUnitFix.kt | 124 | lib/utils/duplicate_unit_fix.dart | dedupedUnitName (pure) + run() ek transaction + sync_queue. Farq: units master list ki 'Box\nBox' rows bhi saaf. Test: test/maintenance_test.dart. |
 
 ## Phase 99: Android-only (skip)
 

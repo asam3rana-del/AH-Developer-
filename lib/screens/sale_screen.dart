@@ -1,13 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../db/customer_repository.dart';
 import '../db/product_repository.dart';
 import '../db/sale_repository.dart';
-import '../db/user_repository.dart';
 import '../models/party.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
@@ -15,7 +13,8 @@ import '../services/sale_draft.dart';
 import '../services/sale_hold_recall.dart';
 import '../services/session.dart';
 import '../theme/app_colors.dart';
-import '../utils/bill_text.dart';
+import '../utils/bill_doc.dart';
+import 'bill_preview_screen.dart';
 import '../utils/discount_calculator.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
@@ -696,6 +695,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         total: shownTotals.total,
         paid: shownTotals.paid,
         paymentLabel: previewMethod,
+        showNew: true,
       );
     } on SaleCreditLimitException catch (e) {
       if (!mounted) return;
@@ -817,8 +817,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Bill preview shown after a save and from Print. Until Bluetooth printing
-  /// (Phase 12) the bill can be copied as text (paste into WhatsApp/notes).
+  /// Bill Preview screen (print / WhatsApp / copy) — after a save and from Print.
   Future<void> _showBillPreview({
     required String invoice,
     required DateTime date,
@@ -829,46 +828,26 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     required double total,
     required double paid,
     required String paymentLabel,
+    bool showNew = false,
   }) async {
-    String shopName = '';
-    String shopPhone = '';
-    try {
-      shopName = await UserRepository.instance.getSetting('shop_name') ?? '';
-      shopPhone = await UserRepository.instance.getSetting('shop_phone') ?? '';
-    } catch (_) {}
     if (!mounted) return;
-    final text = buildSaleBillText(
-      shopName: shopName,
-      shopPhone: shopPhone,
-      invoice: invoice,
-      date: date,
-      customer: customer,
-      lines: lines,
-      subtotal: subtotal,
-      discount: discount,
-      total: total,
-      paid: paid,
-      paymentMethod: paymentLabel,
-    );
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Bill Preview', 'بل پری ویو')),
-        content: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.3)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: text));
-              _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
-            },
-            child: Text(Loc.t('Copy', 'کاپی')),
-          ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
+    await BillPreviewScreen.open(
+      context,
+      BillDoc(
+        isPurchase: false,
+        ref: invoice,
+        date: date,
+        partyName: customer,
+        items: [
+          for (final l in lines) BillItem(name: l.itemName, qty: l.qty, unit: l.unit, rate: l.unitPrice, amount: l.amount),
         ],
+        subtotal: subtotal,
+        discount: discount,
+        total: total,
+        paid: paid,
+        paymentMethod: paymentLabel,
       ),
+      showNewBill: showNew,
     );
   }
 

@@ -13,6 +13,7 @@ import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import 'bulk_default_unit_screen.dart';
 import 'bulk_missing_rates_screen.dart';
+import 'bulk_translate_screen.dart';
 import 'product_screen.dart';
 
 enum _Tab { products, categories, units }
@@ -22,8 +23,8 @@ enum _Tab { products, categories, units }
 /// products (Edit / Change Category / Delete) dekhe ja sakte hain; category rename/delete bhi.
 /// Sirf admin (Products ki tarah) — dashboard par RoleGuard ke saath.
 ///
-/// Abhi port nahi: "Import" (Rate List CSV — file picker plugin chahiye) aur "Translate"
-/// (BulkTranslateActivity, Phase 13).
+/// Abhi port nahi: "Import" (Rate List CSV — file picker plugin chahiye).
+/// "Translate" = BulkTranslateScreen (Phase 13; Duplicate Unit Fix + Merge Duplicate Products bhi wahin).
 class ItemsScreen extends StatefulWidget {
   const ItemsScreen({super.key});
 
@@ -264,7 +265,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
           child: Row(children: [
             _pill(Loc.t('Rate List', 'ریٹ لسٹ'), Icons.description_outlined,
                 () => _push(const RoleGuard(allowed: {'admin'}, child: BulkMissingRatesScreen()))),
-            _pill(Loc.t('Translate', 'ترجمہ'), Icons.language, () => _toast(Loc.t('Coming soon', 'جلد آ رہا ہے'))),
+            _pill(Loc.t('Translate', 'ترجمہ'), Icons.language,
+                () => _push(const RoleGuard(allowed: {'admin'}, child: BulkTranslateScreen()))),
             _pill(Loc.t('Units', 'یونٹس'), Icons.straighten,
                 () => _push(const RoleGuard(allowed: {'admin'}, child: BulkDefaultUnitScreen()))),
           ]),

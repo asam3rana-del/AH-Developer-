@@ -3,9 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../db/purchase_history_repository.dart';
-import '../db/user_repository.dart';
 import '../theme/theme_manager.dart';
+import '../utils/bill_doc.dart';
 import '../utils/bill_text.dart';
+import 'bill_preview_screen.dart';
 import '../utils/loc.dart';
 import '../widgets/role_guard.dart';
 import 'purchase_screen.dart';
@@ -21,7 +22,7 @@ import 'purchase_screen.dart';
 /// Farq (Kotlin se):
 ///  * Card tap = PurchaseScreen(editBillNo:) (saved purchase edit, Kotlin jaisa). Returned bill edit nahi
 ///    hota (Kotlin bhi rokta hai) — us par tap = bill ki lines ka detail dialog.
-///  * Print = text Bill Preview + Copy (Bluetooth Phase 12). Share = clipboard (share plugin nahi).
+///  * Print = Bill Preview screen (Bluetooth / WhatsApp / Copy). Share = clipboard (share plugin nahi).
 ///  * Line ka naam bill par jama shuda (purani rows ke liye live product).
 class PurchaseHistoryScreen extends StatelessWidget {
   const PurchaseHistoryScreen({super.key});
@@ -130,45 +131,22 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
     if (purchase == null) return;
     final items = await _repo.itemsForBill(r.billNo);
     final lines = await _repo.linesForBill(r.billNo);
-    String shopName = '', shopPhone = '';
-    try {
-      shopName = await UserRepository.instance.getSetting('shop_name') ?? '';
-      shopPhone = await UserRepository.instance.getSetting('shop_phone') ?? '';
-    } catch (_) {}
     if (!mounted) return;
-    final text = buildPurchaseBillText(
-      shopName: shopName,
-      shopPhone: shopPhone,
-      billNo: r.billNo,
-      date: DateTime.fromMillisecondsSinceEpoch(purchase.createdAt),
-      supplier: r.supplierName,
-      lines: [
-        for (var i = 0; i < items.length; i++)
-          (name: lines[i].name, qty: items[i].qty, unit: lines[i].unit, unitCost: items[i].unitCost, amount: items[i].amount),
-      ],
-      subtotal: purchase.subtotal,
-      discount: purchase.discount,
-      total: purchase.total,
-      paid: purchase.paid,
-    );
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Bill Preview', 'بل پری ویو')),
-        content: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.3)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: text));
-              _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
-            },
-            child: Text(Loc.t('Copy', 'کاپی')),
-          ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
+    await BillPreviewScreen.open(
+      context,
+      BillDoc(
+        isPurchase: true,
+        ref: r.billNo,
+        date: DateTime.fromMillisecondsSinceEpoch(purchase.createdAt),
+        partyName: r.supplierName,
+        items: [
+          for (var i = 0; i < items.length; i++)
+            BillItem(name: lines[i].name, qty: items[i].qty, unit: lines[i].unit, rate: items[i].unitCost, amount: items[i].amount),
         ],
+        subtotal: purchase.subtotal,
+        discount: purchase.discount,
+        total: purchase.total,
+        paid: purchase.paid,
       ),
     );
   }

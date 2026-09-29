@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'backup/backup_scheduler.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/app_lock.dart';
@@ -22,6 +23,8 @@ void main() async {
   await Session.load();
   // PosApplication.onCreate() mein AppLock.register(this) ke barabar.
   await AppLock.instance.register(loginBuilder: (_) => const LoginScreen());
+  // PosApplication.onCreate() mein BackupScheduler.register(this) ke barabar (12 PM / 9 PM / app-close backup).
+  BackupScheduler.instance.register();
   runApp(const AhDeveloperApp());
 }
 

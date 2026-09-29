@@ -9,6 +9,7 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/menu_row.dart' show IconBadge;
 import '../widgets/role_guard.dart';
+import 'backup_export_screen.dart';
 import 'balance_sheet_screen.dart';
 import 'cash_register_screen.dart';
 import 'cash_screen.dart';
@@ -345,7 +346,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _Action('Items', 'آئٹمز', 'Products, categories & units', 'پروڈکٹس، کیٹیگریز اور یونٹس', Icons.list_alt, p.flatBlueBg, p.flatBlueFg,
             open: () => const RoleGuard(allowed: _admin, child: ItemsScreen())),
       if (_am.contains(role))
-        _Action('Backup', 'بیک اپ', 'Export data (CSV + PDF)', 'ڈیٹا ایکسپورٹ', Icons.save_outlined, p.flatBlueBg, p.flatBlueFg),
+        _Action('Backup', 'بیک اپ', 'Export data (CSV + PDF)', 'ڈیٹا ایکسپورٹ', Icons.save_outlined, p.flatBlueBg, p.flatBlueFg,
+            open: () => const BackupExportScreen()),
       _Action('Day book', 'روزنامچہ', 'View daily ledger', 'روزانہ کھاتہ', Icons.menu_book_outlined, p.flatTealBg, p.flatTealFg,
           open: () => const DayBookScreen()),
       if (showsLogoutTile(role))

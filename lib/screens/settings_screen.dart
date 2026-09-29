@@ -4,6 +4,8 @@ import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
 import '../services/app_lock.dart';
 import '../services/biometric.dart';
+import '../services/printer_service.dart';
+import '../utils/escpos.dart';
 import '../services/session.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme_manager.dart';
@@ -16,7 +18,7 @@ import 'user_management_screen.dart';
 /// Mirrors SettingsActivity.kt (pehla hissa): Shop Info, Login method, Update Login,
 /// Language, Manage Users, Logout.
 /// Login method: password / fingerprint / both / none. Dark mode switch.
-/// TODO: Printer (Phase 12), Backup (Phase 11), Cloud Sync (Phase 10), OTP login (Phase 10).
+/// Printer (Phase 12) done — Bluetooth 58/80mm. TODO: Backup (Phase 11), Cloud Sync (Phase 10), OTP login (Phase 10).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -30,7 +32,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _shopPhone = TextEditingController();
   final _newUsername = TextEditingController();
   final _newPassword = TextEditingController();
+  final _footer = TextEditingController();
   String _loginMethod = 'password';
+  String _printerName = '';
+  int _dots = EscPos.defaultDotsWidth;
+  bool _testing = false;
 
   @override
   void initState() {
@@ -41,6 +47,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     _shopName.text = await _repo.getSetting('shop_name') ?? '';
     _shopPhone.text = await _repo.getSetting('shop_phone') ?? '';
+    _footer.text = await _repo.getSetting('receipt_footer') ?? '';
+    final pr = await PrinterService.instance.selected();
+    _printerName = pr?.name ?? '';
+    _dots = await PrinterService.instance.dotsWidth();
     final m = await _repo.getSetting('login_method') ?? 'password';
     if (mounted) setState(() => _loginMethod = const ['none', 'fingerprint', 'both'].contains(m) ? m : 'password');
   }
@@ -51,6 +61,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _repo.setSetting('shop_name', _shopName.text.trim());
     await _repo.setSetting('shop_phone', _shopPhone.text.trim());
     _toast(Loc.t('Settings saved', 'سیٹنگز محفوظ ہو گئیں'));
+  }
+
+
+  // ------------------------------------------------------------------ Printer
+
+  Future<void> _selectPrinter() async {
+    final svc = PrinterService.instance;
+    if (!PrinterService.supported) return _toast(Loc.t('Printing needs Android or iOS', 'پرنٹنگ کے لیے اینڈرائیڈ یا آئی او ایس چاہیے'));
+    if (!await svc.hasPermission()) {
+      return _toast(Loc.t('Bluetooth permission dein, phir dobara SELECT PRINTER dabayein', 'بلوٹوتھ کی اجازت دیں، پھر دوبارہ دبائیں'));
+    }
+    final devices = await svc.pairedPrinters();
+    if (!mounted) return;
+    if (devices.isEmpty) {
+      return _toast(Loc.t('Koi paired Bluetooth printer nahi mila. Pehle phone ki Bluetooth Settings se printer ko pair karein.',
+          'کوئی جوڑا ہوا پرنٹر نہیں ملا۔ پہلے فون کی بلوٹوتھ سیٹنگز سے پرنٹر جوڑیں۔'));
+    }
+    final picked = await showDialog<PrinterInfo>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(Loc.t('Select Printer', 'پرنٹر منتخب کریں')),
+        children: [
+          for (final d in devices) SimpleDialogOption(onPressed: () => Navigator.pop(ctx, d), child: Text(d.name)),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await svc.savePrinter(picked.name, picked.mac);
+    if (mounted) setState(() => _printerName = picked.name);
+    _toast(Loc.t('Printer saved: ${picked.name}', 'پرنٹر محفوظ: ${picked.name}'));
+  }
+
+  Future<void> _testPrint() async {
+    if (_testing) return;
+    setState(() => _testing = true);
+    final err = await PrinterService.instance.testPrint(shopName: _shopName.text.trim());
+    if (!mounted) return;
+    setState(() => _testing = false);
+    _toast(err ?? Loc.t('Test print sent', 'ٹیسٹ پرنٹ بھیج دیا'));
+  }
+
+  Future<void> _pickWidth() async {
+    final options = [384, 448, 512, 576];
+    final labels = {
+      384: '384 dots — standard 58mm (recommended)',
+      448: '448 dots',
+      512: '512 dots',
+      576: '576 dots — 80mm printer',
+    };
+    final v = await showDialog<int>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(Loc.t('Print Width', 'پرنٹ چوڑائی')),
+        children: [
+          for (final o in options)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, o),
+              child: Text('${o == _dots ? '● ' : '○ '}${labels[o]}'),
+            ),
+        ],
+      ),
+    );
+    if (v == null) return;
+    await PrinterService.instance.saveDotsWidth(v);
+    if (mounted) setState(() => _dots = v);
+    _toast(Loc.t('Print width $v dots saved. TEST PRINT karke check karein.', 'چوڑائی $v محفوظ۔ ٹیسٹ پرنٹ کر کے دیکھیں۔'));
+  }
+
+  Future<void> _saveFooter() async {
+    await _repo.setSetting('receipt_footer', _footer.text.trim());
+    _toast(Loc.t('Receipt footer saved', 'رسید کا فوٹر محفوظ'));
   }
 
   Future<void> _setLoginMethod(String m) async {
@@ -159,6 +240,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _tf(_newUsername, Loc.t('New Username', 'نیا یوزر نیم')),
           _tf(_newPassword, Loc.t('New Password', 'نیا پاس ورڈ'), obscure: true),
           FilledButton(onPressed: _updateLogin, child: Text(Loc.t('UPDATE LOGIN', 'لاگ اِن اپڈیٹ کریں'))),
+        ]),
+        _card(Loc.t('Printer Setup (58mm Bluetooth)', 'پرنٹر سیٹ اپ (58mm بلوٹوتھ)'), Icons.print, [
+          Row(children: [
+            Icon(Icons.circle, size: 12, color: _printerName.isEmpty ? AppColors.red : AppColors.teal),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(_printerName.isEmpty
+                  ? Loc.t('No printer selected', 'کوئی پرنٹر منتخب نہیں')
+                  : Loc.t('Selected: $_printerName', 'منتخب: $_printerName')),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: OutlinedButton(onPressed: _selectPrinter, child: Text(Loc.t('SELECT PRINTER', 'پرنٹر منتخب کریں')))),
+            const SizedBox(width: 10),
+            Expanded(child: OutlinedButton(onPressed: _testing ? null : _testPrint, child: Text(Loc.t('TEST PRINT', 'ٹیسٹ پرنٹ')))),
+          ]),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _pickWidth,
+            child: Text(Loc.t('PRINT WIDTH: $_dots (garbled print? try 384)', 'پرنٹ چوڑائی: $_dots')),
+          ),
+          const SizedBox(height: 8),
+          _tf(_footer, Loc.t('Receipt footer (optional)', 'رسید فوٹر (اختیاری)')),
+          FilledButton(onPressed: _saveFooter, child: Text(Loc.t('SAVE FOOTER', 'فوٹر محفوظ کریں'))),
         ]),
         _card(Loc.t('Appearance', 'ظاہری شکل'), Icons.dark_mode, [
           ValueListenableBuilder<bool>(

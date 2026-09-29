@@ -28,6 +28,21 @@ dependencies:
   uuid: ^4.4.0
   url_launcher: ^6.3.0  # Party screen: Call (tel:)
 
+  # Phase 11 — Backup / Export (Kotlin: BackupCrypto, BackupPasswordStore, BackupExportActivity)
+  cryptography: ^2.7.0            # AES-256-GCM + PBKDF2 (IBB1 format, Android jaisa)
+  flutter_secure_storage: ^9.2.2  # backup password (Android Keystore / iOS Keychain)
+  share_plus: ^10.0.0             # backup / PDF / CSV share
+  file_picker: ^8.1.2             # restore: file chunna
+  pdf: ^3.11.1                    # PDF report
+  printing: ^5.13.1               # PDF print / preview
+  open_filex: ^4.5.0              # PDF / CSV kholna
+
+  # Phase 12 — Print & Scan (Kotlin: PrinterHelper, BillPreviewActivity, BillScanActivity)
+  print_bluetooth_thermal: ^1.1.4          # 58/80mm Bluetooth ESC/POS printer
+  permission_handler: ^11.3.1              # Android 12+ Bluetooth permission
+  image_picker: ^1.1.2                     # Bill Scan: camera / gallery
+  google_mlkit_text_recognition: ^0.13.1   # Bill Scan: on-device OCR
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

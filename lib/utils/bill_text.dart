@@ -5,7 +5,7 @@ import '../db/sale_repository.dart' show SaleLine;
 String _qty(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
 
 /// Plain-text customer bill (32 columns — a standard 58mm thermal roll), used
-/// by the Print/Share preview until Bluetooth printing (Phase 12) lands.
+/// by the Print/Share preview and as the plain-text (Copy / WhatsApp) bill.
 /// Pure function so it is unit-tested.
 String buildSaleBillText({
   required String shopName,
@@ -58,7 +58,7 @@ String buildSaleBillText({
 }
 
 /// Plain-text supplier (purchase) bill — Kotlin BillPreviewActivity type "purchase" (party label
-/// "Supplier"). Print/Copy preview jab tak Bluetooth (Phase 12) nahi aata. Pure function => tested.
+/// "Supplier"). Copy / WhatsApp text. Pure function => tested.
 /// [lines] = (naam, qty, unit, unitCost, amount).
 String buildPurchaseBillText({
   required String shopName,

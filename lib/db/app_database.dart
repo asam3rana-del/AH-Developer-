@@ -21,9 +21,29 @@ class AppDatabase {
 
   Database? _db;
 
+  /// Backup/Restore (Phase 11) ko chahiye: schema version aur DB ka path.
+  static int get schemaVersion => _dbVersion;
+  static String get databaseFileName => _dbName;
+
   Future<Database> get database async {
     _db ??= await _open();
     return _db!;
+  }
+
+  /// Live DB file ka poora path (file abhi bani na ho tab bhi).
+  Future<String> get databasePath async => join(await getDatabasesPath(), _dbName);
+
+  /// Kotlin `PRAGMA wal_checkpoint(FULL)` — backup se pehle WAL ka data main file mein.
+  Future<void> checkpointWal() async {
+    final db = await database;
+    await db.rawQuery('PRAGMA wal_checkpoint(FULL)');
+  }
+
+  /// Kotlin `PosDatabase.closeInstance()` — restore se pehle. Agla `database` call dobara kholega.
+  Future<void> close() async {
+    final db = _db;
+    _db = null;
+    if (db != null && db.isOpen) await db.close();
   }
 
   Future<Database> _open() async {

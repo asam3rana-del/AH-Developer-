@@ -1,5 +1,36 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Phase 12: Print & Scan (Bluetooth print / Bill Preview / Bill Scan)
+- [x] `PrinterHelper.kt` -> `lib/services/printer_service.dart` + `receipt_renderer.dart` + `lib/utils/escpos.dart` + `receipt_lines.dart`. Bill `TextPainter` se bitmap banta hai (Urdu shaping/RTL Flutter khud), phir ESC/POS `GS v 0` raster chhoti strips (24px) mein, Kotlin FIX 5 wali pacing (200ms floor, 10ms/row, 128B pieces / 20ms gap, settle 150ms), `ESC @` + feed&cut. Lambi bill kai slips (18 item/slip): har slip par header + table header, "Continued on next slip", footer sirf aakhri par. Print width 384/448/512/576 (`printer_dots`). Settings keys Kotlin wali: `printer_name/mac/width/dots`, `receipt_footer`.
+- [x] `BillPreviewActivity.kt` -> `lib/screens/bill_preview_screen.dart` + `lib/utils/bill_doc.dart`. PRINT, WhatsApp (wa.me + bill text; number nahi to poochta hai), Copy, DONE, "+ NAYI SALE/PURCHASE BILL", Prev/Net Balance (party mile to). Sale/Purchase save ke baad aur Sale/Purchase History ke Print isi screen par.
+- [x] `BillScanActivity.kt` -> `lib/screens/bill_scan_screen.dart` + `lib/utils/bill_scan_parser.dart`. Purchase screen par "Scan Bill": photo -> ML Kit OCR -> review/edit -> naam se product match, warna naya product (pcs) -> purchase lines.
+- Settings: Printer Setup card (Select Printer / Test Print / Print Width / Receipt footer).
+- pubspec: `print_bluetooth_thermal`, `permission_handler`, `image_picker`, `google_mlkit_text_recognition`. CI: iOS deployment target 15.5 (ML Kit), Info.plist camera/photos/Bluetooth strings; `tools/android_fix.sh` Bluetooth + camera permissions manifest mein jodta hai.
+- Farq: USB printer nahi; WhatsApp par text jata hai (image nahi); OCR parser heuristic hai (har row review hoti hai).
+- Test: `test/print_scan_test.dart` (escpos raster/strips, paging, footer balance, scan parser).
+- Note: compile/test nahi hua (Flutter SDK nahi) aur asli printer par test nahi — `flutter pub get && flutter analyze && flutter test test/print_scan_test.dart`, phir TEST PRINT.
+- [ ] Agar print garbled/overlap ho: `EscPos.maxStripHeightPx` aur `btWritePieceGapMs` kam/zyada karein (Kotlin comments dekhein).
+
+## Flutter side (2026-09-29) — Phase 13: Maintenance tools (Bulk Translate / Merge Duplicates / Duplicate Unit Fix)
+- [x] `BulkTranslateActivity.kt` -> `lib/screens/bulk_translate_screen.dart` + `lib/db/bulk_translate_repository.dart`. Items screen ka "Translate" pill ab chalta hai (admin-only, RoleGuard). Categories / Units: Urdu values ek baar, English saamne; Save = master row + har product (category / unit / secondaryUnit / tertiaryUnit) + sync_queue, ek transaction. Items: ek waqt ek naam, "Save & Next" (comma se kayi English naam). Item tag sirf un products par lagta hai jin ka tag khali ho.
+- [x] `DuplicateUnitFix.kt` -> `lib/utils/duplicate_unit_fix.dart` ("Box\nBox" -> "Box", teeno unit columns, sab products). Farq: `units` master list ki gandi rows bhi saaf.
+- [x] `MergeDuplicateProductsFix.kt` -> `lib/utils/merge_duplicate_products.dart`. Sirf wahi merge jin ka naam AUR poora unit setup barabar ho; baqi "skipped". Farq (ehtiyat): pehle preview dialog, phir encrypted backup (fail ho to poochta hai), khali naam kabhi merge nahi, plan transaction ke andar taaza data se dobara banta hai, stock_movements par dirty=1, audit `merge_duplicate_products`. Sale/purchase items, returns, stock_movements keeper ke barcode par; held_bills nahi chhote (Kotlin jaisa).
+- Test: `test/maintenance_test.dart` (pure: dedupedUnitName, looksUrdu/urduValues, planProductMerge).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/maintenance_test.dart`.
+- [ ] Merge sirf EK device par chalayein aur pehle sync mukammal ho lene dein (Phase 10 mein loser barcodes ke sync-delete ke saath doosri device par purana stock wapas push ho sakta hai).
+- [ ] Phase 13 mukammal. Baqi: Phase 10 (Cloud sync).
+
+## Flutter side (2026-09-29) — Phase 11: Backup / Export / Crypto / Scheduler
+- [x] `BackupCrypto.kt` -> `lib/backup/backup_crypto.dart`: IBB1 AES-256-GCM (magic + salt16 + iv12 + ct+tag16, PBKDF2-HMAC-SHA256 120k) — Android ke saath byte-compatible; purana `IBAKV001` (AES-CBC, 100k) sirf restore ke liye. `test/backup_test.dart` mein asli Java JCE se bane fixtures (Dart <-> Android saboot).
+- [x] `BackupPasswordStore.kt` -> `lib/backup/backup_password_store.dart` (flutter_secure_storage; getOrCreate 16 alnum, setPassword min 8).
+- [x] `BackupHelper.kt` -> `lib/backup/backup_helper.dart`: backupNow (WAL checkpoint), backupIfDue(30 min), listBackups, share, safe restore (temp -> SQLite header -> schema check -> replace; ghalat password par live DB nahi chhuti), purana CBC / plain .db restore. Farq: restore se pehle safety backup; public Downloads copy nahi (Share se).
+- [x] `BackupScheduler.kt` -> `lib/backup/backup_scheduler.dart`: 12 PM / 9 PM checkpoint + app-close, `main()` mein `BackupScheduler.instance.register()`. Farq: WorkManager nahi — sirf app zinda hone par (Timer + resume/paused).
+- [x] `BackupExportActivity.kt` -> `lib/screens/backup_export_screen.dart` + `lib/backup/backup_export.dart`: Full / date-range CSV + PDF (Open / Print / Share). Dashboard Backup tile ab chalta hai. Encrypted Backup Now / Password / Restore sirf admin.
+- pubspec: `cryptography`, `flutter_secure_storage`, `share_plus`, `file_picker`, `pdf`, `printing`, `open_filex`. `tools/android_fix.sh` ab minSdk 23 karta hai.
+- PDF mein Urdu naam: `assets/fonts/NotoNastaliqUrdu-Regular.ttf` pubspec mein declare karein (warna Helvetica).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/backup_test.dart`.
+- [ ] Baaki: WorkManager background backup, Settings mein Backup row, Android Room DB ka Flutter mein import (schema alag).
+
 ## Flutter side (2026-09-29) — Purchase mukammal: saved purchase edit + Delete + supplier comparison (Phase 2)
 - [x] `PurchaseActivity.kt` / `RoomPurchaseRepository.savePurchase`: `PurchaseScreen(editBillNo:)` — History card tap, Day Book purchase row aur Party Dashboard purchase row (teeno sirf admin) saved bill ko edit mode mein kholte hain. Returned bill edit nahi hota.
 - [x] DB v12: `purchases.supplierInvoiceNo`; `purchase_items.conversionFactor / itemName / retailRate / wholesaleRate` (purani rows 0 / '' = "captured nahi"). `PurchaseItem.conversionFactor` khareed ke waqt freeze hota hai, is liye baad mein ladder badle to bhi edit / return / delete / party-transaction item edit wahi qty nikalte hain (`purchaseItemSmallestQty`, `partialSmallestQty`, `editPurchaseItem` — factor > 0 pehle, warna maujuda ladder).
@@ -189,7 +220,7 @@
 - `ProductRepository`: `needingDefaultUnitReview()`, `withMissingRates()`, `setDefaultUnitIndex()`, `setRates()`.
 - Farq (Kotlin jaisa hi rakha): unit delete sirf local hai (sync delete nahi). Farq (Kotlin se behtar): "Change Category" ab sync queue mein bhi jati hai (Kotlin sirf upsert karta tha).
 - [ ] Items ka "Import" (Rate List CSV): `file_picker` dependency + CSV parse chahiye — abhi nahi.
-- [ ] Items ka "Translate" button: BulkTranslateActivity (Phase 13) port hone par jorein (abhi "Coming soon").
+- [x] Items ka "Translate" button: BulkTranslateScreen se jur gaya (Phase 13).
 - [ ] `ProductScreen` ka apna save/delete abhi bhi sync queue mein nahi likhta (TODO wahan maujood) — Phase 10 mein.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
 
