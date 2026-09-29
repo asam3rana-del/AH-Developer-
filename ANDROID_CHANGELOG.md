@@ -1,5 +1,42 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Phase 10 (5/x): SyncApi — PULL + apply hissa 1
+- [x] `SyncApi.pull()` -> `lib/sync/sync_api.dart` (+ `sync_pull_plan.dart`): 20 collections `branchId == current && updatedAt > since` (server se), checkpoint = sab se bara `updatedAt`. Branch code na ho => `BranchNotConfiguredException` pehle (farq: Kotlin mein khali "Already up to date" aata tha).
+- [x] `applyServerChanges` hissa 1 -> `lib/sync/sync_apply.dart`: customers, suppliers, products, users. Server snapshot ke upar abhi tak na bheje gaye local deltas (increment_balance / increment_stock, stuck samet), pending "upsert" ho to us row ko skip, dirty row ka naam/qeemat badle to `sync_conflict` audit, `_deleted` tombstone se hata do. Naye user ka password bekaar random hash. Sab ek transaction mein.
+- Naye supplier par pending delta nahi lagta (Kotlin jaisa jaan boojh kar).
+- **Guard:** baaki collections (sales, purchases, payments, expenses, cash_transactions, units, categories, zakat*, returns, stock_movements, shell*, app_settings, cash_register) mein data aaye to `UnimplementedError`, kuch likhe baghair. `SyncRepository.backend = SyncApi.instance` abhi mat lagayein.
+- Test: `test/sync_apply_test.dart`. Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/sync_apply_test.dart`.
+
+## Flutter side (2026-09-29) — Phase 10 (4/4): SyncApi — PUSH hissa
+- [x] `SyncApi.kt` (header + push) -> `lib/sync/sync_api.dart` (`SyncApi.instance`, `SyncBackend` implement): `firestoreFor()` (branch configure + custom/default Firebase app + anonymous sign-in), `isPermissionDenied` / `permissionDeniedMessage` (Eng/Urdu) / `currentUid()` (async), `push()`.
+- Push ops: `delete` (tombstone `_deleted:true`, transaction, sirf jab deleteAt >= server updatedAt), `create_if_absent` (cash register), `increment_stock` / `increment_balance` (transaction + `appliedOps` opId = `<DeviceTag>-<queueId>-<createdAt>`, 30 din / 999 ki safai; naya doc seedFields ke saath — customer/supplier/product ki pehchan, serverId khali ho to entityId se local id), baaki upsert (last-write-wins, payload par hamesha maujooda branchId). Fail par audit `sync_push_failed`.
+- Saaf hissa (Firestore ke baghair test ho sake): `lib/sync/sync_push_plan.dart`; local lookup `lib/sync/sync_seed_fields.dart`.
+- pubspec: `firebase_auth`. Test: `test/sync_push_test.dart`.
+- **ZAROORI:** `pull()` / `applyServerChanges()` abhi `UnimplementedError` — `SyncRepository.backend = SyncApi.instance` abhi mat lagayein (agla hissa).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/sync_push_test.dart`. Asli Firestore transactions ke liye Firebase project + Firestore rules (Kotlin `firestore.rules`) chahiye.
+
+## Flutter side (2026-09-29) — Phase 10 (3/4): SyncWorker
+- [x] `SyncWorker.kt` -> `lib/sync/sync_worker.dart` (`SyncWorker.instance`): `schedulePeriodic()` (15 min, dobara bulane par duplicate nahi), `triggerNow()` (KEEP — chalti sync par no-op, offline par skip; NetworkMonitor.onOnline yahin jura), `syncNowOnce()` (manual; chalti sync khatam hone ke baad taaza run, kabhi overlap nahi), `isRunning` / `lastOutcome` (Kotlin `observeManualSync` + KEY_SUMMARY).
+- Kotlin ka `NetworkType.CONNECTED` constraint: offline par sync nahi chalti (warna push fail hoke entries retryCount 10 par "stuck" ho jati).
+- Farq: `workmanager` plugin nahi — sirf app zinda ho (Timer + resume). Band app ka background sync baad ka optional hissa (BackupScheduler jaisa).
+- `main()`: `NetworkMonitor.onOnline = SyncWorker.instance.triggerNow`, `SyncWorker.instance.schedulePeriodic()`.
+- Test: `test/sync_worker_test.dart`. Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/sync_worker_test.dart`.
+- Baaki jorna: SyncQueueHelper enqueue ke baad `triggerNow()`; Settings "Sync Now" par `syncNowOnce()` + `lastOutcome`.
+
+## Flutter side (2026-09-29) — Phase 10 (2/4): SyncRepository (+ SyncQueueDao, SyncBackend)
+- [x] `SyncRepository.kt` -> `lib/sync/sync_repository.dart`: `syncNow()` = PUSH (200 pending, kamyab => markSynced, nakaam => markFailed) -> PULL (last_sync_time checkpoint) -> APPLY -> 7 din se purani synced rows saaf. Branch code/permission-denied/koi bhi ghalti => `SyncResult(pulledOk:false, error)`; `summary()` Kotlin jaisi line. `resetSyncCheckpoint()` (Resync from a specific time).
+- [x] `SyncQueueDao` (Database.kt) -> `lib/sync/sync_queue_dao.dart` (enqueue/pending/pendingForEntity/AnyRetry/pendingCountForEntity/markSynced/markFailed/pruneSynced/pendingCount/stuck/resetRetry/resetAllStuck; db ya txn dono par).
+- [x] `lib/sync/sync_types.dart`: `PullResult`, `BranchNotConfiguredException`, `SyncBackend` (SyncApi isay implement karegi).
+- Jorna baaki (agli files ke saath): `SyncRepository.backend = SyncApi`, `SyncRepository.afterApply = SyncQueueHelper.mergeOwnDuplicateExpenses`.
+- pubspec dev: `sqflite_common_ffi`. Test: `test/sync_repository_test.dart`.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/sync_repository_test.dart`.
+
+## Flutter side (2026-09-29) — Phase 10 (1/4): DeviceTag / BranchConfigStore / CloudConfigStore / NetworkMonitor
+- [x] `DeviceTag.kt` -> `lib/sync/device_tag.dart`, `BranchConfigStore.kt` -> `lib/sync/branch_config_store.dart`, `CloudConfigStore.kt` -> `lib/sync/cloud_config_store.dart` (custom `custom_cloud` FirebaseApp), `NetworkMonitor.kt` -> `lib/sync/network_monitor.dart` (20 s debounce). `main()` mein DeviceTag/BranchConfigStore init + NetworkMonitor.register.
+- pubspec: `connectivity_plus`. Test: `test/sync_config_test.dart`.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/sync_config_test.dart`.
+- [ ] Agla (one by one): `SyncApi` applyServerChanges ke baaki hisse (sales, purchases ... cashRegisters) -> `SyncQueueHelper` -> `SettingsSync`; phir Settings ka Cloud Sync Setup screen.
+
 ## Flutter side (2026-09-29) — Phase 12: Print & Scan (Bluetooth print / Bill Preview / Bill Scan)
 - [x] `PrinterHelper.kt` -> `lib/services/printer_service.dart` + `receipt_renderer.dart` + `lib/utils/escpos.dart` + `receipt_lines.dart`. Bill `TextPainter` se bitmap banta hai (Urdu shaping/RTL Flutter khud), phir ESC/POS `GS v 0` raster chhoti strips (24px) mein, Kotlin FIX 5 wali pacing (200ms floor, 10ms/row, 128B pieces / 20ms gap, settle 150ms), `ESC @` + feed&cut. Lambi bill kai slips (18 item/slip): har slip par header + table header, "Continued on next slip", footer sirf aakhri par. Print width 384/448/512/576 (`printer_dots`). Settings keys Kotlin wali: `printer_name/mac/width/dots`, `receipt_footer`.
 - [x] `BillPreviewActivity.kt` -> `lib/screens/bill_preview_screen.dart` + `lib/utils/bill_doc.dart`. PRINT, WhatsApp (wa.me + bill text; number nahi to poochta hai), Copy, DONE, "+ NAYI SALE/PURCHASE BILL", Prev/Net Balance (party mile to). Sale/Purchase save ke baad aur Sale/Purchase History ke Print isi screen par.

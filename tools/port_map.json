@@ -464,9 +464,9 @@
   {
     "kotlin": "SyncApi.kt",
     "phase": 10,
-    "dart": "lib/sync/sync_api.dart",
-    "status": "todo",
-    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+    "dart": "lib/sync/sync_api.dart + sync_push_plan.dart + sync_seed_fields.dart + sync_pull_plan.dart + sync_apply.dart",
+    "status": "partial",
+    "note": "HEADER + PUSH + PULL done. pull(): 20 collections (branchId + updatedAt>since, Source.server), serverTime = max updatedAt; branch code na ho => BranchNotConfiguredException PEHLE (Kotlin mein firestoreFor null => khali \"up to date\" dikhata tha). applyServerChanges HISSA 1 (sync_apply.dart, ek transaction): customers, suppliers, products, users — pendingDelta layering, pending-upsert skip, sync_conflict audit, tombstone delete. BAAKI apply: sales, purchases, expenses, payments, cashTransactions, units, categories, zakatYears/Payments, returns, stockMovements, shell*, appSettings, cashRegisters (in mein data ho to UnimplementedError, kuch likhe baghair — checkpoint nahi barhta). Utility: countDocsByBranchId/deleteDocsByBranchId (lines 1424+) bhi baaki. SyncRepository.backend = SyncApi.instance abhi NA lagayein. Test: test/sync_push_test.dart, test/sync_apply_test.dart."
   },
   {
     "kotlin": "SyncQueueHelper.kt",
@@ -478,16 +478,16 @@
   {
     "kotlin": "SyncRepository.kt",
     "phase": 10,
-    "dart": "lib/sync/sync_repository.dart",
-    "status": "todo",
-    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+    "dart": "lib/sync/sync_repository.dart + lib/sync/sync_queue_dao.dart + lib/sync/sync_types.dart",
+    "status": "done",
+    "note": "syncNow: cloud-ready check -> PUSH (pending 200, markSynced/markFailed \"push failed\") -> PULL (checkpoint prefs) -> APPLY -> afterApply hook -> pruneSynced 7 din; SyncResult.summary(). resetSyncCheckpoint. SyncQueueDao = Kotlin SyncQueueDao (retryCount<10, stuck, resetRetry...). SyncBackend abstract (SyncApi implement karegi) + PullResult + BranchNotConfiguredException. Baaki jorna: SyncRepository.backend = SyncApi (SyncApi ke saath), afterApply = mergeOwnDuplicateExpenses (SyncQueueHelper ke saath). Test: test/sync_repository_test.dart (sqflite_common_ffi in-memory)."
   },
   {
     "kotlin": "SyncWorker.kt",
     "phase": 10,
     "dart": "lib/sync/sync_worker.dart",
-    "status": "todo",
-    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+    "status": "done",
+    "note": "SyncWorker.instance: doWork (SyncRepository.syncNow, exception => \"Sync failed: msg\"), schedulePeriodic (Timer 15 min + resume, KEEP), triggerNow (KEEP: chalti sync par no-op; offline par skip), syncNowOnce (chalti khatam hone ke baad taaza run), isRunning/lastOutcome notifiers (observeManualSync). Farq: workmanager plugin nahi — sirf app zinda hone par; band app ke liye baad mein. main() mein NetworkMonitor.onOnline -> triggerNow + schedulePeriodic. Baaki: SyncQueueHelper enqueue ke baad triggerNow, Settings \"Sync Now\" UI. Test: test/sync_worker_test.dart."
   },
   {
     "kotlin": "SettingsSync.kt",
@@ -500,29 +500,29 @@
     "kotlin": "CloudConfigStore.kt",
     "phase": 10,
     "dart": "lib/sync/cloud_config_store.dart",
-    "status": "todo",
-    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+    "status": "done",
+    "note": "CloudConfig + save/get/clear (trim), effectiveOptions/firebaseApp: custom config => alag FirebaseApp 'custom_cloud', warna default Firebase.app(), warna null (sync band). Farq: Flutter mein messagingSenderId khali. Test: test/sync_config_test.dart (prefs + toOptions; asli Firebase init device par)."
   },
   {
     "kotlin": "BranchConfigStore.kt",
     "phase": 10,
     "dart": "lib/sync/branch_config_store.dart",
-    "status": "todo",
-    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+    "status": "done",
+    "note": "init/current/isConfigured/isValid/set/clear; branch code [A-Za-z0-9_-]{2,50}; ghalat par ArgumentError (Kotlin require). Test: test/sync_config_test.dart."
   },
   {
     "kotlin": "DeviceTag.kt",
     "phase": 10,
     "dart": "lib/sync/device_tag.dart",
-    "status": "todo",
-    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+    "status": "done",
+    "note": "SharedPreferences 4-akhsar UPPERCASE tag (UUID ke pehle 4), main() mein DeviceTag.init(); fallback '0000'. Test: test/sync_config_test.dart."
   },
   {
     "kotlin": "NetworkMonitor.kt",
     "phase": 10,
     "dart": "lib/sync/network_monitor.dart",
-    "status": "todo",
-    "note": "Firestore schema Android jaisa hi rakhna (dono apps ek backend)."
+    "status": "done",
+    "note": "connectivity_plus (pubspec mein naya); 20 s debounce, onOnline callback (SyncWorker.triggerNow yahan jorna baaki, SyncWorker ke saath). Test: test/sync_config_test.dart."
   },
   {
     "kotlin": "BackupHelper.kt",

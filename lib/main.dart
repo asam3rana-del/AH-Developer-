@@ -5,6 +5,10 @@ import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/app_lock.dart';
 import 'services/session.dart';
+import 'sync/branch_config_store.dart';
+import 'sync/device_tag.dart';
+import 'sync/network_monitor.dart';
+import 'sync/sync_worker.dart';
 import 'theme/app_colors.dart';
 import 'theme/theme_manager.dart';
 import 'utils/loc.dart';
@@ -17,6 +21,9 @@ import 'utils/loc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // PosApplication.onCreate() ka pehla kaam: DeviceTag / BranchConfigStore (IDs mein zaroorat).
+  await DeviceTag.init();
+  await BranchConfigStore.init();
   // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await Loc.load();
   await ThemeManager.load();
@@ -25,6 +32,12 @@ void main() async {
   await AppLock.instance.register(loginBuilder: (_) => const LoginScreen());
   // PosApplication.onCreate() mein BackupScheduler.register(this) ke barabar (12 PM / 9 PM / app-close backup).
   BackupScheduler.instance.register();
+  // NetworkMonitor.register(this): internet wapas aane par sync (SyncWorker aane par onOnline jurega).
+  // NetworkMonitor.onAvailable -> SyncWorker.triggerNow (20 s debounce + KEEP: retry-storm FIX).
+  NetworkMonitor.onOnline = () => SyncWorker.instance.triggerNow();
+  await NetworkMonitor.register();
+  // PosApplication.onCreate() mein SyncWorker.schedulePeriodic(this) (har 15 min, app zinda ho tab).
+  SyncWorker.instance.schedulePeriodic();
   runApp(const AhDeveloperApp());
 }
 

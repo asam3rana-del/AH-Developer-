@@ -1,0 +1,353 @@
+import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
+
+import '../db/maintenance_sync.dart';
+import '../utils/password_hasher.dart';
+import 'sync_push_plan.dart' show decodePayload;
+import 'sync_queue_dao.dart';
+import 'sync_types.dart';
+
+/// Kotlin `SyncApi.applyServerChanges()` — pull ki hui changes local tables mein merge.
+///
+/// STATUS (hissa 1): customers, suppliers, products, users port hain. Baaki collections agle hisson
+/// mein; tab tak agar pull mein un ka koi document ho to [applyServerChangesToDb] kuch bhi likhne se PEHLE
+/// `UnimplementedError` fenkta hai — taake checkpoint aage na barhe aur wo changes hamesha ke liye na
+/// chhoot jayein.
+///
+/// FARQ: sab kuch EK transaction mein (Kotlin har DAO call alag) — beech mein ghalti ho to kuch nahi
+/// likha jata, checkpoint nahi barhta, agli sync wohi dobara lagati hai.
+
+typedef PasswordHashFn = Future<String> Function(String plain);
+
+double? _d(Object? v) => v is num ? v.toDouble() : null;
+int? _i(Object? v) => v is num ? v.toInt() : null;
+String? _s(Object? v) => v is String ? v : null;
+double _dbl(Object? v) => v is num ? v.toDouble() : 0.0;
+
+/// Abhi port NA hui collections jin mein data ho => unke naam (khali = sab theek).
+List<String> unportedCollectionsWithData(PullResult c) {
+  final m = <String, List<SyncDoc>>{
+    'sales': c.sales,
+    'purchases': c.purchases,
+    'payments': c.payments,
+    'expenses': c.expenses,
+    'cash_transactions': c.cashTransactions,
+    'units': c.units,
+    'categories': c.categories,
+    'zakat_years': c.zakatYears,
+    'zakat_payments': c.zakatPayments,
+    'returns': c.returns,
+    'stock_movements': c.stockMovements,
+    'app_settings': c.appSettings,
+    'cash_register': c.cashRegisters,
+    'shell_customers': c.shellCustomers,
+    'shell_transactions': c.shellTransactions,
+    'shop_empty_shell_log': c.shopEmptyShellLogs,
+  };
+  return [
+    for (final e in m.entries)
+      if (e.value.isNotEmpty) e.key
+  ];
+}
+
+Future<void> applyServerChangesToDb(
+  Database db,
+  PullResult changes, {
+  PasswordHashFn? hashPassword,
+  int Function()? nowMs,
+}) async {
+  final pending = unportedCollectionsWithData(changes);
+  if (pending.isNotEmpty) {
+    throw UnimplementedError(
+        'SyncApi.applyServerChanges: yeh collections abhi port nahi hui: ${pending.join(', ')}');
+  }
+  final hasher = hashPassword ?? PasswordHasher.hash;
+  final clock = nowMs ?? () => DateTime.now().millisecondsSinceEpoch;
+  await db.transaction((txn) async {
+    await applyCustomers(txn, changes.customers, nowMs: clock);
+    await applySuppliers(txn, changes.suppliers, nowMs: clock);
+    await applyProducts(txn, changes.products, nowMs: clock);
+    await applyUsers(txn, changes.users, hashPassword: hasher);
+  });
+}
+
+/// Abhi tak queue mein baithe (bheje na gaye) local deltas — pull ke server snapshot ke UPAR lagte hain,
+/// warna offline sale/purchase queue tak pahunchne se pehle pull mein gayab ho jata. Har retryCount ki
+/// entries ginti hain (stuck entry ka asar local total se ghaib na ho).
+Future<double> pendingDelta(
+    SyncQueueDao q, String entityType, String entityId, String operation) async {
+  var sum = 0.0;
+  for (final row in await q.pendingForEntityAnyRetry(entityType, entityId, operation)) {
+    try {
+      sum += _d(decodePayload(row.payloadJson)['delta']) ?? 0.0;
+    } catch (_) {/* kharab payload = 0 (Kotlin runCatching) */}
+  }
+  return sum;
+}
+
+Future<void> _conflict(DatabaseExecutor db, String reference, String was, String now) =>
+    logMaintenanceAudit(
+      db,
+      username: 'sync',
+      action: 'sync_conflict',
+      reference: reference,
+      details:
+          'Your unsynced edit ("$was") was overwritten by a newer cloud update ("$now").',
+    );
+
+// ---------------------------------------------------------------- customers
+
+Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    if (row['_deleted'] == true) {
+      final sid = _s(row['serverId']);
+      if (sid != null) await _deleteFirst(db, 'customers', 'serverId', sid);
+      continue;
+    }
+    final serverId = _s(row['serverId']);
+    final name = _s(row['name']);
+    if (serverId == null || name == null) continue;
+    final phone = _s(row['phone']) ?? '';
+    final balance = _d(row['balance']) ?? 0.0;
+    final creditLimit = _d(row['creditLimit']) ?? 0.0;
+    final openingBalance = _d(row['openingBalance']) ?? 0.0;
+    // Purani build ka doc (stuckBalance nahi) => apna stuck amount na todo.
+    final stuckRemote = _d(row['stuckBalance']);
+    final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
+    final localPending = await pendingDelta(q, 'customer', serverId, 'increment_balance');
+    // 2-device FIX: is device ka apna naam/phone edit abhi push nahi hua => server ki purani copy se
+    // overwrite na karo.
+    if ((await q.pendingForEntityAnyRetry('customer', serverId, 'upsert')).isNotEmpty) continue;
+
+    final existing = await _findBy(db, 'customers', 'serverId', serverId);
+    if (existing != null) {
+      if (existing['dirty'] == 1 && (existing['name'] != name || existing['phone'] != phone)) {
+        await _conflict(db, 'customer:$serverId', '${existing['name']} / ${existing['phone']}', '$name / $phone');
+      }
+      await db.update(
+        'customers',
+        {
+          'name': name,
+          'phone': phone,
+          'balance': balance + localPending,
+          'creditLimit': creditLimit,
+          'openingBalance': openingBalance,
+          'stuckBalance': stuckRemote ?? _dbl(existing['stuckBalance']),
+          'updatedAt': serverUpdatedAt,
+          'dirty': localPending != 0.0 ? 1 : 0,
+        },
+        where: 'id = ?',
+        whereArgs: [existing['id']],
+      );
+    } else {
+      await db.insert('customers', {
+        'name': name,
+        'phone': phone,
+        'balance': balance + localPending,
+        'creditLimit': creditLimit,
+        'openingBalance': openingBalance,
+        'stuckBalance': stuckRemote ?? 0.0,
+        'serverId': serverId,
+        'updatedAt': serverUpdatedAt,
+        'dirty': localPending != 0.0 ? 1 : 0,
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------- suppliers
+
+Future<void> applySuppliers(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    if (row['_deleted'] == true) {
+      final sid = _s(row['serverId']);
+      if (sid != null) await _deleteFirst(db, 'suppliers', 'serverId', sid);
+      continue;
+    }
+    final serverId = _s(row['serverId']);
+    final name = _s(row['name']);
+    if (serverId == null || name == null) continue;
+    final phone = _s(row['phone']) ?? '';
+    final balance = _d(row['balance']) ?? 0.0;
+    final openingBalance = _d(row['openingBalance']) ?? 0.0;
+    final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
+    final localPending = await pendingDelta(q, 'supplier', serverId, 'increment_balance');
+    // 2-device FIX (customer jaisa): pending rename ("Cash Purchase" -> asli naam) pull se wapas na ho.
+    if ((await q.pendingForEntityAnyRetry('supplier', serverId, 'upsert')).isNotEmpty) continue;
+
+    final existing = await _findBy(db, 'suppliers', 'serverId', serverId);
+    if (existing != null) {
+      if (existing['dirty'] == 1 && (existing['name'] != name || existing['phone'] != phone)) {
+        await _conflict(db, 'supplier:$serverId', '${existing['name']} / ${existing['phone']}', '$name / $phone');
+      }
+      await db.update(
+        'suppliers',
+        {
+          'name': name,
+          'phone': phone,
+          'balance': balance + localPending,
+          'openingBalance': openingBalance,
+          'updatedAt': serverUpdatedAt,
+          'dirty': localPending != 0.0 ? 1 : 0,
+        },
+        where: 'id = ?',
+        whereArgs: [existing['id']],
+      );
+    } else {
+      // Kotlin jaisa (jaan boojh kar): naye supplier par local pending delta nahi lagta, updatedAt = abhi,
+      // dirty = false.
+      await db.insert('suppliers', {
+        'name': name,
+        'phone': phone,
+        'balance': balance,
+        'openingBalance': openingBalance,
+        'serverId': serverId,
+        'updatedAt': nowMs(),
+        'dirty': 0,
+      });
+    }
+  }
+}
+
+// ----------------------------------------------------------------- products
+
+Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    if (row['_deleted'] == true) {
+      final bc = _s(row['barcode']);
+      if (bc != null) await db.delete('products', where: 'barcode = ?', whereArgs: [bc]);
+      continue;
+    }
+    final barcode = _s(row['barcode']);
+    final name = _s(row['name']);
+    if (barcode == null || name == null) continue;
+    final category = _s(row['category']) ?? '';
+    final cost = _d(row['cost']) ?? 0.0;
+    final salePrice = _d(row['salePrice']) ?? 0.0;
+    final wholesalePrice = _d(row['wholesalePrice']) ?? 0.0;
+    final reorderLevel = _d(row['reorderLevel']) ?? 0.0;
+    final expiry = _s(row['expiry']) ?? '';
+    final unit = _s(row['unit']) ?? 'pcs';
+    final unitSize = _i(row['unitSize']) ?? 1;
+    final unitNote = _s(row['unitNote']) ?? '';
+    final secondaryUnit = _s(row['secondaryUnit']) ?? '';
+    final secondaryUnitQty = _d(row['secondaryUnitQty']) ?? 0.0;
+    final tertiaryUnit = _s(row['tertiaryUnit']) ?? '';
+    final tertiaryUnitQty = _d(row['tertiaryUnitQty']) ?? 0.0;
+    final defaultUnitIndex = _i(row['defaultUnitIndex']) ?? -1;
+    final quickSaleDefaultUnitIndex = _i(row['quickSaleDefaultUnitIndex']) ?? -1;
+    final searchTag = _s(row['searchTag']) ?? '';
+    // Server doc ka "stock" wahi sab devices ke increment_stock ka jama shuda total hai (productJson
+    // mein stock jaan boojh kar nahi hota). Doc mein na ho to local stock barqarar.
+    final stock = _d(row['stock']);
+    final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
+    final localPendingStock = await pendingDelta(q, 'product', barcode, 'increment_stock');
+    // Sirf pending "upsert" (naam/qeemat) rokta hai — pending increment_stock nahi (warna product sync
+    // hamesha atka rahe).
+    if ((await q.pendingForEntityAnyRetry('product', barcode, 'upsert')).isNotEmpty) continue;
+
+    final existing = await _findBy(db, 'products', 'barcode', barcode);
+    final common = <String, Object?>{
+      'name': name,
+      'category': category,
+      'cost': cost,
+      'salePrice': salePrice,
+      'wholesalePrice': wholesalePrice,
+      'reorderLevel': reorderLevel,
+      'expiry': expiry,
+      'unit': unit,
+      'unitSize': unitSize,
+      'unitNote': unitNote,
+      'secondaryUnit': secondaryUnit,
+      'secondaryUnitQty': secondaryUnitQty,
+      'tertiaryUnit': tertiaryUnit,
+      'tertiaryUnitQty': tertiaryUnitQty,
+      'defaultUnitIndex': defaultUnitIndex,
+      'quickSaleDefaultUnitIndex': quickSaleDefaultUnitIndex,
+      'searchTag': searchTag,
+      'dirty': localPendingStock != 0.0 ? 1 : 0,
+      'updatedAt': serverUpdatedAt,
+    };
+    if (existing != null) {
+      if (existing['dirty'] == 1 && (existing['name'] != name || _dbl(existing['salePrice']) != salePrice)) {
+        await _conflict(db, 'product:$barcode', '${existing['name']} / ${_dbl(existing['salePrice'])}',
+            '$name / $salePrice');
+      }
+      await db.update(
+        'products',
+        {...common, 'stock': (stock ?? _dbl(existing['stock'])) + localPendingStock},
+        where: 'barcode = ?',
+        whereArgs: [barcode],
+      );
+    } else {
+      await db.insert(
+        'products',
+        {'barcode': barcode, ...common, 'stock': (stock ?? 0.0) + localPendingStock},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+}
+
+// -------------------------------------------------------------------- users
+
+Future<void> applyUsers(DatabaseExecutor db, List<SyncDoc> rows, {required PasswordHashFn hashPassword}) async {
+  for (final row in rows) {
+    if (row['_deleted'] == true) {
+      final u = _s(row['username']);
+      if (u != null) await db.delete('users', where: 'username = ?', whereArgs: [u]);
+      continue;
+    }
+    final username = _s(row['username']);
+    final displayName = _s(row['displayName']);
+    if (username == null || displayName == null) continue;
+    final role = _s(row['role']) ?? 'cashier';
+    final phone = _s(row['phone']) ?? '';
+    final active = row['active'] is bool ? row['active'] as bool : true;
+
+    final existing = await _findBy(db, 'users', 'username', username);
+    if (existing != null) {
+      // passwordHash kabhi cloud se nahi aata/badalta.
+      await db.update(
+        'users',
+        {'displayName': displayName, 'role': role, 'phone': phone, 'active': active ? 1 : 0},
+        where: 'username = ?',
+        whereArgs: [username],
+      );
+    } else {
+      // Naye user ka password cloud par nahi: bekaar random hash — admin ko is device par password set
+      // karna hoga.
+      await db.insert(
+        'users',
+        {
+          'username': username,
+          'displayName': displayName,
+          'role': role,
+          'passwordHash': await hashPassword(_randomSecret()),
+          'active': active ? 1 : 0,
+          'phone': phone,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+}
+
+// ------------------------------------------------------------------ helpers
+
+Future<Map<String, Object?>?> _findBy(DatabaseExecutor db, String table, String col, String value) async {
+  final rows = await db.query(table, where: '$col = ?', whereArgs: [value], limit: 1);
+  return rows.isEmpty ? null : rows.first;
+}
+
+/// Kotlin `findByServerId(..)?.let { delete }` — pehli match hatao.
+Future<void> _deleteFirst(DatabaseExecutor db, String table, String col, String value) async {
+  final row = await _findBy(db, table, col, value);
+  if (row == null) return;
+  await db.delete(table, where: 'id = ?', whereArgs: [row['id']]);
+}
+
+String _randomSecret() => const Uuid().v4();

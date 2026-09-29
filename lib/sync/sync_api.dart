@@ -1,0 +1,227 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../db/app_database.dart';
+import '../db/maintenance_sync.dart';
+import '../models/misc_entities.dart';
+import '../utils/loc.dart';
+import 'branch_config_store.dart';
+import 'cloud_config_store.dart';
+import 'device_tag.dart';
+import 'sync_apply.dart';
+import 'sync_pull_plan.dart';
+import 'sync_push_plan.dart';
+import 'sync_seed_fields.dart';
+import 'sync_types.dart';
+
+/// Kotlin `SyncApi.kt` — Firebase Firestore sync layer.
+///
+/// Collections: customers, suppliers, products(barcode), users, sales, purchases, payments, expenses,
+/// cash_transactions, units(name), categories(name), zakat_years, zakat_payments, returns,
+/// stock_movements, app_settings(key), cash_register(date), shell_customers, shell_transactions,
+/// shop_empty_shell_log — schema Android jaisa (dono apps ek backend).
+///
+/// STATUS: HEADER + PUSH + PULL port ho chuke; `applyServerChanges` ka HISSA 1 (customers, suppliers,
+/// products, users) — baaki collections ke data par UnimplementedError (kuch likhe baghair), is liye
+/// `SyncRepository.backend = SyncApi.instance` jab tak apply poora na ho NA karein.
+class SyncApi implements SyncBackend {
+  SyncApi._();
+  static final SyncApi instance = SyncApi._();
+
+  /// Tests badalte hain.
+  Future<Database> Function() openDb = () => AppDatabase.instance.database;
+  int Function() nowMs = () => DateTime.now().millisecondsSinceEpoch;
+
+  // ---------- helpers (Kotlin ke upar ke hisse) ----------
+
+  /// Kotlin `isPermissionDenied`: Firestore ne security rules ki wajah se rad kiya.
+  @override
+  bool isPermissionDenied(Object e) => e is FirebaseException && e.code == 'permission-denied';
+
+  /// Kotlin `permissionDeniedMessage` (English/Urdu).
+  @override
+  String permissionDeniedMessage() => Loc.t(
+        "Cloud sync was rejected by the server (permission denied) — check that this device's Firebase project's Security Rules allow signed-in access, or re-check your Cloud Sync Setup in Settings.",
+        'کلاؤڈ سنک سرور نے مسترد کر دیا (اجازت نہیں) — چیک کریں کہ اس ڈیوائس کے Firebase پراجیکٹ کے Security Rules سائن اِن رسائی کی اجازت دیتے ہیں، یا Settings میں Cloud Sync Setup دوبارہ دیکھیں۔',
+      );
+
+  /// Kotlin `currentUid`: is device ka Firebase (anonymous) UID, agar pehle sign-in ho chuka; kabhi
+  /// naya sign-in shuru nahi karta. Cloud Sync Setup "Device ID" dikhane ke liye. FARQ: async (Flutter
+  /// mein FirebaseApp async milta hai).
+  Future<String?> currentUid() async {
+    final app = await CloudConfigStore.firebaseApp();
+    if (app == null) return null;
+    return FirebaseAuth.instanceFor(app: app).currentUser?.uid;
+  }
+
+  /// Kotlin `firestoreFor`: branch configure nahi / cloud project nahi / sign-in nahi ho saka => null
+  /// (caller isay "sync nahi ho sakta" samjhe). Anonymous Auth: Firestore rules `request.auth != null`
+  /// maangte hain — sirf API key wala koi bhi bahar wala data nahi chhoo sakta.
+  Future<FirebaseFirestore?> firestoreFor() async {
+    // Branch ke baghair kabhi cloud request nahi (galat/khali tenant mein likhne se bachao).
+    if (!BranchConfigStore.isConfigured()) return null;
+    final app = await CloudConfigStore.firebaseApp();
+    if (app == null) return null;
+    final auth = FirebaseAuth.instanceFor(app: app);
+    if (auth.currentUser == null) {
+      try {
+        await auth.signInAnonymously();
+      } catch (_) {
+        return null;
+      }
+    }
+    return FirebaseFirestore.instanceFor(app: app);
+  }
+
+  // ---------- PUSH ----------
+
+  /// Kotlin `push(context, entry)`: ek queue entry Firestore par. true = kamyab. Kisi bhi ghalti par
+  /// audit row `sync_push_failed` aur false (SyncRepository markFailed karta hai).
+  ///
+  /// Operations:
+  ///  * `delete` — tombstone (`_deleted:true`), transaction mein, sirf jab deleteAt >= server updatedAt.
+  ///  * `create_if_absent` — cash register: pehla likhne wala jeetta hai (doc na ho / tombstone ho).
+  ///  * `increment_stock` / `increment_balance` — transaction + `appliedOps` (retry par dobara nahi lagta).
+  ///  * baaki (`upsert`...) — last-write-wins merge, branchId hamesha maujooda.
+  @override
+  Future<bool> push(SyncQueueEntry entry) async {
+    final fs = await firestoreFor();
+    if (fs == null) return false;
+    final localDb = await openDb();
+    try {
+      final collection = collectionFor(entry.entityType);
+      if (collection == null) return false;
+      final docRef = fs.collection(collection).doc(entry.entityId);
+      final branch = BranchConfigStore.current;
+
+      switch (entry.operation) {
+        case 'delete':
+          // Clock-skew FIX (Kotlin): tombstone ka faisla server updatedAt se; local action hamesha
+          // laagu jab tak server par isse naya na ho.
+          final deleteAt = nowMs();
+          await fs.runTransaction((tx) async {
+            final snap = await tx.get(docRef);
+            final serverUpdatedAt = asMillis(snap.data()?['updatedAt']);
+            if (shouldApplyDelete(deleteAt, serverUpdatedAt)) {
+              tx.set(docRef, tombstone(entry.entityId, deleteAt, branch), SetOptions(merge: true));
+            }
+          });
+          break;
+
+        case 'create_if_absent':
+          final st = stampPayload(decodePayload(entry.payloadJson), branch, nowMs());
+          await fs.runTransaction((tx) async {
+            final snap = await tx.get(docRef);
+            if (canCreateIfAbsent(exists: snap.exists, data: snap.data())) {
+              tx.set(docRef, st.map, SetOptions(merge: true));
+            }
+          });
+          break;
+
+        case 'increment_stock':
+        case 'increment_balance':
+          final map = decodePayload(entry.payloadJson);
+          final delta = (map['delta'] as num?)?.toDouble() ?? 0.0;
+          final opId = buildOpId(DeviceTag.current, entry.id, entry.createdAt);
+          final ts = nowMs();
+          final updatedAtValue = map['updatedAt'] ?? ts;
+          // Transaction ke bahar (local DB async): naye doc ko is device ke record ki pehchan dene ke liye.
+          final seed = await loadSeedFields(localDb,
+              entityType: entry.entityType, entityId: entry.entityId);
+          await fs.runTransaction((tx) async {
+            final snap = await tx.get(docRef);
+            final plan = planIncrement(
+              exists: snap.exists,
+              data: snap.data(),
+              operation: entry.operation,
+              delta: delta,
+              updatedAtValue: updatedAtValue,
+              branchId: branch,
+              opId: opId,
+              nowTs: ts,
+              entityId: entry.entityId,
+              seedFields: seed,
+            );
+            if (plan.skip) return;
+            final write = <String, Object?>{
+              plan.incrementField: FieldValue.increment(plan.delta),
+              ...plan.otherFields,
+            };
+            tx.set(docRef, write, SetOptions(mergeFields: plan.mergeFields));
+          });
+          break;
+
+        default:
+          // upsert & baaki: last-write-wins; der se aane wali entry naye cloud edit ko nahi todti.
+          final st = stampPayload(decodePayload(entry.payloadJson), branch, nowMs());
+          await fs.runTransaction((tx) async {
+            final snap = await tx.get(docRef);
+            final serverUpdatedAt = asMillis(snap.data()?['updatedAt']);
+            if (shouldApplyUpsert(st.incomingUpdatedAt, serverUpdatedAt)) {
+              tx.set(docRef, st.map, SetOptions(merge: true));
+            }
+          });
+      }
+      return true;
+    } catch (e) {
+      await logMaintenanceAudit(
+        localDb,
+        username: 'sync',
+        action: 'sync_push_failed',
+        reference: '${entry.entityType}:${entry.entityId}',
+        details: _messageOf(e),
+      );
+      return false;
+    }
+  }
+
+  static String _messageOf(Object e) {
+    if (e is FirebaseException) return e.message ?? e.code;
+    final s = e.toString();
+    return s.isEmpty ? 'unknown error' : s;
+  }
+
+  // ---------- PULL ----------
+
+  /// Kotlin `pull(context, since)`: is branch ke wo sab documents jin ka `updatedAt > since`, 20
+  /// collections se (server se seedha, cache nahi). Cloud project nahi/ sign-in nahi ho saka => khali
+  /// result (`serverTime = since`, "sync set up nahi" ki normal halat).
+  ///
+  /// FARQ (Kotlin ke comment ki niyyat ke mutabiq): branch code na ho to [BranchNotConfiguredException]
+  /// PEHLE — Kotlin mein `firestoreFor` branch na hone par null lauta kar khali (kamyab) result de deta
+  /// tha, is liye wo exception kabhi pohanchti hi nahi thi aur user ko "Already up to date" dikhta tha.
+  @override
+  Future<PullResult> pull(int since) async {
+    final branch = BranchConfigStore.current;
+    if (branch.trim().isEmpty) {
+      throw BranchNotConfiguredException(Loc.t(
+        'No branch code is configured on this device — open Settings > Cloud Sync Setup and save a branch code before syncing.',
+        'اس ڈیوائس پر برانچ کوڈ سیٹ نہیں ہے — Sync سے پہلے Settings > Cloud Sync Setup میں برانچ کوڈ محفوظ کریں۔',
+      ));
+    }
+    final fs = await firestoreFor();
+    if (fs == null) return PullResult(serverTime: since);
+
+    Future<MapEntry<String, List<SyncDoc>>> load(String collection) async {
+      final snap = await fs
+          .collection(collection)
+          .where('branchId', isEqualTo: branch)
+          .where('updatedAt', isGreaterThan: since)
+          .get(const GetOptions(source: Source.server));
+      return MapEntry(collection, [for (final d in snap.docs) Map<String, Object?>.from(d.data())]);
+    }
+
+    final loaded = await Future.wait(pullCollections.map(load));
+    return assemblePullResult(Map.fromEntries(loaded), since);
+  }
+
+  // ---------- APPLY ----------
+
+  /// Kotlin `applyServerChanges` — logic `sync_apply.dart` mein. HISSA 1: customers, suppliers,
+  /// products, users; baaki collections mein data ho to kuch likhe baghair UnimplementedError.
+  @override
+  Future<void> applyServerChanges(Database db, PullResult changes) =>
+      applyServerChangesToDb(db, changes, nowMs: nowMs);
+}

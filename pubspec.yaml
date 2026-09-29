@@ -19,6 +19,8 @@ dependencies:
   # Cloud sync (mirrors SyncApi.kt / SyncRepository.kt — Firestore backend)
   firebase_core: ^3.1.0
   cloud_firestore: ^5.0.1
+  firebase_auth: ^5.1.0       # SyncApi: anonymous sign-in (Firestore rules request.auth != null)
+  connectivity_plus: ^6.0.3   # NetworkMonitor: internet wapas aane par sync trigger
 
   # Misc
   intl: ^0.19.0
@@ -47,6 +49,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  sqflite_common_ffi: ^2.3.3   # Phase 10 tests: sync_queue / SyncRepository in-memory SQLite
 
 flutter:
   uses-material-design: true
