@@ -10,7 +10,10 @@ import '../widgets/premium_widgets.dart';
 import '../widgets/unit_dialog.dart';
 
 class ProductScreen extends StatefulWidget {
-  const ProductScreen({super.key});
+  /// Items screen se edit: is barcode ka product form mein khul jata hai
+  /// (Kotlin ProductActivity.EXTRA_EDIT_BARCODE).
+  final String? editBarcode;
+  const ProductScreen({super.key, this.editBarcode});
 
   @override
   State<ProductScreen> createState() => _ProductScreenState();
@@ -41,6 +44,17 @@ class _ProductScreenState extends State<ProductScreen> {
   String _search = '';
   bool _showList = false;
   String? _justSavedBarcode;
+
+  @override
+  void initState() {
+    super.initState();
+    final b = widget.editBarcode;
+    if (b != null) {
+      ProductRepository.instance.find(b).then((p) {
+        if (p != null && mounted) _loadForEdit(p);
+      });
+    }
+  }
 
   @override
   void dispose() {

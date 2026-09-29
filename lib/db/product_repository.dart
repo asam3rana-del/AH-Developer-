@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import '../models/product.dart';
 import 'app_database.dart';
@@ -57,6 +58,58 @@ class ProductRepository {
   Future<void> delete(Product product) async {
     final db = await AppDatabase.instance.database;
     await db.delete('products', where: 'barcode=?', whereArgs: [product.barcode]);
+    await _notify();
+  }
+
+  // ---------- Bulk review queues (BulkDefaultUnitActivity / BulkMissingRatesActivity) ----------
+
+  /// productsNeedingDefaultUnitReview(): 2+ tiers, koi manual default abhi nahi.
+  Future<List<Product>> needingDefaultUnitReview() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query('products',
+        where: "secondaryUnit != '' AND defaultUnitIndex = -1", orderBy: 'name COLLATE NOCASE ASC');
+    return rows.map(Product.fromMap).toList();
+  }
+
+  /// productsWithMissingRates(): Retail ya Wholesale abhi 0.
+  Future<List<Product>> withMissingRates() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query('products',
+        where: 'salePrice <= 0 OR wholesalePrice <= 0', orderBy: 'name COLLATE NOCASE ASC');
+    return rows.map(Product.fromMap).toList();
+  }
+
+  /// updateDefaultUnitIndex + enqueueProduct, ek transaction mein.
+  Future<void> setDefaultUnitIndex(String barcode, int index) => _updateAndEnqueue(
+        barcode, {'defaultUnitIndex': index});
+
+  /// updateRatesReview + enqueueProduct, ek transaction mein. Rates PRIMARY unit par.
+  Future<void> setRates(String barcode, {required double salePrice, required double wholesalePrice}) =>
+      _updateAndEnqueue(barcode, {'salePrice': salePrice, 'wholesalePrice': wholesalePrice});
+
+  /// Party Dashboard "Edit Rates": cost + retail + wholesale, sab PRIMARY unit par + sync_queue,
+  /// ek transaction mein (Kotlin: productDao().upsert + SyncQueueHelper.enqueueProduct).
+  Future<void> setAllRates(String barcode,
+          {required double cost, required double salePrice, required double wholesalePrice}) =>
+      _updateAndEnqueue(barcode, {'cost': cost, 'salePrice': salePrice, 'wholesalePrice': wholesalePrice});
+
+  Future<void> _updateAndEnqueue(String barcode, Map<String, Object?> changes) async {
+    final db = await AppDatabase.instance.database;
+    await db.transaction((txn) async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await txn.update('products', {...changes, 'dirty': 1, 'updatedAt': now},
+          where: 'barcode=?', whereArgs: [barcode]);
+      final rows = await txn.query('products', where: 'barcode=?', whereArgs: [barcode], limit: 1);
+      if (rows.isEmpty) return;
+      await txn.insert('sync_queue', {
+        'entityType': 'product',
+        'entityId': barcode,
+        'operation': 'update',
+        'payloadJson': jsonEncode(rows.first),
+        'createdAt': now,
+        'retryCount': 0,
+      });
+    });
     await _notify();
   }
 

@@ -1,5 +1,43 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-29) — Party Dashboard (Phase 6, pehla screen)
+- [x] `PartyDashboardActivity.kt`: `lib/screens/party_dashboard_screen.dart` + `lib/db/party_dashboard_repository.dart`
+  (pure `partyTotals`, `filterPartyRows`, `sortPartyRows`, `filterTxRows`, `filterItemAggs`; test `test/party_dashboard_test.dart`).
+  You'll Get / You'll Give cards (tap se receivable/payable filter), Parties / Transactions / Items tabs, search, filter dialog,
+  item detail + Edit Rates, main menu, "+" quick add, neeche Add Purchase / Add Sale. Dashboard par "Party Dashboard" tile.
+- Closing hamesha live ledger se (`PartyRepository.liveCustomerBalances`); customer aur supplier ka sign rule ulta (Kotlin FIX jaisa).
+- `ProductRepository.setAllRates()` naya (cost + retail + wholesale + sync_queue, ek transaction). Edit Rates sirf admin; cashier ko cost / purchase data load hi nahi hota.
+- Farq: transaction item-name search ka key `S:<invoice>` / `P:<billNo>` (Kotlin sirf reference); Share summary clipboard mein copy hota hai (share plugin nahi).
+- [ ] Party row tap => `PartyTransactionScreen` (`_openParty` mein TODO) — PartyTransactionActivity port hone par.
+- [ ] Overdue / Due Today badge: `sales` table mein `dueDate` column nahi — Due Reminders (DueRemindersActivity) ke saath.
+- [ ] Transactions tab mein Purchase row tap = edit-saved-purchase (Phase 7). "+" menu: Sale/Purchase Return (Phase 7 History).
+- [ ] "+" menu ka Payment Received/Made abhi Payments screen kholta hai; party picker + openPayment PartyQuickAddMenu.kt ke saath.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
+
+## Flutter side (2026-09-29) — Items + Bulk Missing Rates + Bulk Default Unit (Phase 5 mukammal)
+- [x] `ItemsActivity.kt`: `lib/screens/items_screen.dart` + `lib/db/items_repository.dart` (pure `buildCategoryRows`, `filterProducts`; test `test/items_test.dart`).
+  3 tabs (Products / Categories / Units), search (200ms debounce), category drill-down (Edit / Change Category / Delete), category rename/delete
+  (products "Items Not in Any Category" mein), unit add/delete. Dashboard par "Items" tile (admin-only, RoleGuard). Har write + sync_queue entry ek transaction mein.
+- [x] `BulkMissingRatesActivity.kt`: `lib/screens/bulk_missing_rates_screen.dart` — queue = salePrice<=0 ya wholesalePrice<=0; dono rate + unit chips (typed rate primary unit par convert).
+- [x] `BulkDefaultUnitActivity.kt`: `lib/screens/bulk_default_unit_screen.dart` — queue = secondaryUnit!='' aur defaultUnitIndex=-1; Auto (`autoDefaultUnitIndexFor`) pehle se highlight.
+- `ProductScreen(editBarcode:)` naya (Kotlin EXTRA_EDIT_BARCODE) — Items se edit seedha form mein khulta hai.
+- `ProductRepository`: `needingDefaultUnitReview()`, `withMissingRates()`, `setDefaultUnitIndex()`, `setRates()`.
+- Farq (Kotlin jaisa hi rakha): unit delete sirf local hai (sync delete nahi). Farq (Kotlin se behtar): "Change Category" ab sync queue mein bhi jati hai (Kotlin sirf upsert karta tha).
+- [ ] Items ka "Import" (Rate List CSV): `file_picker` dependency + CSV parse chahiye — abhi nahi.
+- [ ] Items ka "Translate" button: BulkTranslateActivity (Phase 13) port hone par jorein (abhi "Coming soon").
+- [ ] `ProductScreen` ka apna save/delete abhi bhi sync queue mein nahi likhta (TODO wahan maujood) — Phase 10 mein.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
+
+## Flutter side (2026-09-29) — Rate Comparison (Phase 5)
+- [x] `RateComparisonActivity.kt`: `lib/screens/rate_comparison_screen.dart` + `lib/db/rate_comparison_repository.dart`
+  (pure `buildSupplierRateRows()`, test `test/rate_comparison_test.dart`). Dashboard par "Rate Comparison" tile (sirf admin/manager, RoleGuard).
+- Rate hamesha product ke PRIMARY unit par normalize (`toPrimaryUnitRate`); supplier ke hisaab se Last/Lowest/Highest/kitni dafa;
+  sab se sasta last-rate "Best Rate". Kotlin ki tarah sirf supplier wali purchases (Cash Purchase shamil nahi), status filter nahi (returned bhi).
+- Cashier ke liye repository `[]` deta hai (data layer par role check, spec jaisa).
+- Kotlin mein yeh Reports ke andar hai; Reports (Phase 9) port hone par tile wahan shift karein.
+- [ ] Web `rateComparison.js` abhi baaki (upar wali Android entry dekhein).
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
+
 ## Flutter side (2026-09-29) — Repo repair: Sale/Product/Purchase/main.dart wapas restore
 - **Masla mila**: is upload ke `lib/db/sale_repository.dart` (245 lines), `lib/screens/sale_screen.dart`
   (488 lines), `lib/models/product.dart`, `lib/models/sale.dart`, `lib/widgets/unit_dialog.dart`,

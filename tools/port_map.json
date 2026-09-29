@@ -81,7 +81,7 @@
   "phase": 2,
   "dart": "",
   "status": "skip",
-  "note": "Flutter mein State/setState \u2014 alag ViewModel zaroori nahi."
+  "note": "Flutter mein State/setState — alag ViewModel zaroori nahi."
  },
  {
   "kotlin": "SaleActivity.kt",
@@ -158,7 +158,7 @@
   "phase": 4,
   "dart": "lib/theme/theme_manager.dart",
   "status": "partial",
-  "note": "Palette + dark toggle done. Purani screens abhi static AppColors par \u2014 migrate baaki."
+  "note": "Palette + dark toggle done. Purani screens abhi static AppColors par — migrate baaki."
  },
  {
   "kotlin": "SettingsActivity.kt",
@@ -186,7 +186,7 @@
   "phase": 4,
   "dart": "lib/widgets/numeric_keypad.dart",
   "status": "done",
-  "note": "NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai \u2014 Sale/Purchase ko keypad par lana ZAROORI NAHI."
+  "note": "NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI."
  },
  {
   "kotlin": "MenuRow.kt",
@@ -206,29 +206,29 @@
   "kotlin": "RateComparisonActivity.kt",
   "phase": 5,
   "dart": "lib/screens/rate_comparison_screen.dart",
-  "status": "todo",
-  "note": "Purchase-side => admin/manager only."
+  "status": "done",
+  "note": "Admin/manager only (RoleGuard + repository cashier ko khali deta hai). Rates primary unit par normalize. lib/db/rate_comparison_repository.dart (pure buildSupplierRateRows) + test/rate_comparison_test.dart. Dashboard tile."
  },
  {
   "kotlin": "ItemsActivity.kt",
   "phase": 5,
   "dart": "lib/screens/items_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "Admin-only (RoleGuard). Products/Categories/Units tabs, category drill-down + rename/delete, Change Category, Delete, Edit -> ProductScreen(editBarcode). lib/db/items_repository.dart. Baaki: Import (Rate List CSV, file picker chahiye) aur Translate (Phase 13). Test: test/items_test.dart."
  },
  {
   "kotlin": "BulkMissingRatesActivity.kt",
   "phase": 5,
   "dart": "lib/screens/bulk_missing_rates_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "Admin-only (Items se RoleGuard). Dono rate + unit chips (primary par convert), save + sync_queue ek transaction (ProductRepository.setRates)."
  },
  {
   "kotlin": "BulkDefaultUnitActivity.kt",
   "phase": 5,
   "dart": "lib/screens/bulk_default_unit_screen.dart",
-  "status": "todo",
-  "note": ""
+  "status": "done",
+  "note": "Admin-only (Items se RoleGuard). Auto pehle se highlight; Auto par save = koi write nahi (ProductRepository.setDefaultUnitIndex)."
  },
  {
   "kotlin": "SaleCart.kt",
@@ -261,9 +261,9 @@
  {
   "kotlin": "PartyDashboardActivity.kt",
   "phase": 6,
-  "dart": "lib/screens/party_dashboard_screen.dart",
-  "status": "todo",
-  "note": ""
+  "dart": "lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart",
+  "status": "partial",
+  "note": "Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Baaki: party row tap -> PartyTransaction, Overdue/Due Today badge (sales mein dueDate nahi), Purchase row edit (Phase 7), Payment Received/Made party picker (PartyQuickAddMenu). Test: test/party_dashboard_test.dart."
  },
  {
   "kotlin": "PartyTransactionActivity.kt",

@@ -2,7 +2,7 @@
 
 `python3 tools/port_status.py` chala kar dobara banayein.
 
-**Overall (lines of Kotlin ke hisaab se): 37%**  (18187/49102)
+**Overall (lines of Kotlin ke hisaab se): 44%**  (21628/49102)
 
 ## Phase 0: Foundation (models, DB, colors, widgets) — 100%
 
@@ -57,25 +57,25 @@
 | ✅ | Numerickeypad.kt | 214 | lib/widgets/numeric_keypad.dart | NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI. |
 | ✅ | MenuRow.kt | 196 | lib/widgets/menu_row.dart | MenuRow / ExpandableMenuRow / IconBadge. Dashboard/Settings ko isi par lana baaki. |
 
-## Phase 5: Item search, rates, items, sale extras — 37%
+## Phase 5: Item search, rates, items, sale extras — 92%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
 | ✅ | ItemSearchActivity.kt | 842 | lib/screens/item_search_screen.dart | Spec item_rate_search.md ke mutabiq (3 sale rates, wholesale, cost gate). |
-| ⬜ | RateComparisonActivity.kt | 537 | lib/screens/rate_comparison_screen.dart | Purchase-side => admin/manager only. |
-| ⬜ | ItemsActivity.kt | 1300 | lib/screens/items_screen.dart |  |
-| ⬜ | BulkMissingRatesActivity.kt | 525 | lib/screens/bulk_missing_rates_screen.dart |  |
-| ⬜ | BulkDefaultUnitActivity.kt | 318 | lib/screens/bulk_default_unit_screen.dart |  |
+| ✅ | RateComparisonActivity.kt | 537 | lib/screens/rate_comparison_screen.dart | Admin/manager only (RoleGuard + repository cashier ko khali deta hai). Rates primary unit par normalize. lib/db/rate_comparison_repository.dart (pure buildSupplierRateRows) + test/rate_comparison_test.dart. Dashboard tile. |
+| ✅ | ItemsActivity.kt | 1300 | lib/screens/items_screen.dart | Admin-only (RoleGuard). Products/Categories/Units tabs, category drill-down + rename/delete, Change Category, Delete, Edit -> ProductScreen(editBarcode). lib/db/items_repository.dart. Baaki: Import (Rate List CSV, file picker chahiye) aur Translate (Phase 13). Test: test/items_test.dart. |
+| ✅ | BulkMissingRatesActivity.kt | 525 | lib/screens/bulk_missing_rates_screen.dart | Admin-only (Items se RoleGuard). Dono rate + unit chips (primary par convert), save + sync_queue ek transaction (ProductRepository.setRates). |
+| ✅ | BulkDefaultUnitActivity.kt | 318 | lib/screens/bulk_default_unit_screen.dart | Admin-only (Items se RoleGuard). Auto pehle se highlight; Auto par save = koi write nahi (ProductRepository.setDefaultUnitIndex). |
 | 🟡 | SaleCart.kt | 685 | lib/utils/sale_cart.dart | Done: default unit, reprice on sale type, margin check, Rs-amount mode, inline line edit, customer-rate suggest. Baaki: sirf 'Billed Items' popup (Flutter mein list seedhi screen par hai). |
 | ✅ | SaleQuickSale.kt | 404 | lib/screens/sale_quick_sale.dart | Dialog + saveQuickSale + credit-limit confirm + top-30-day items pehle. System keyboard (Kotlin bhi yahi). |
 | ✅ | SaleHoldRecall.kt | 199 | lib/services/sale_hold_recall.dart + lib/widgets/held_bills_dialog.dart | encode/decode + Held Bills dialog. Sale holds sirf HOLD% (PHOLD% purchase ke liye). |
 
-## Phase 6: Parties (customer/supplier) — 17%
+## Phase 6: Parties (customer/supplier) — 27%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
 | 🟡 | PartyActivity.kt | 1359 | lib/screens/party_screen.dart | Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Baaki: contact picker (flutter_contacts + permissions), row tap se Party Dashboard/Transaction. |
-| ⬜ | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart |  |
+| 🟡 | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart | Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu, '+' quick add, Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Baaki: party row tap -> PartyTransaction, Overdue/Due Today badge (sales mein dueDate nahi), Purchase row edit (Phase 7), Payment Received/Made party picker (PartyQuickAddMenu). Test: test/party_dashboard_test.dart. |
 | ⬜ | PartyTransactionActivity.kt | 2219 | lib/screens/party_transaction_screen.dart | Edit/delete items admin-only. |
 | ⬜ | PartyReportsActivity.kt | 1034 | lib/screens/party_reports_screen.dart |  |
 | ✅ | PartyRepository.kt | 444 | lib/db/party_repository.dart | lib/db/party_repository.dart: CRUD + live balances + recalc(dryRun) + merge + cleanup, sab ek transaction mein. PartyLedger/trueBalance/countBalanceDrift yahin (Balance Sheet bhi yahi istemal karta hai). Test: test/party_test.dart. |

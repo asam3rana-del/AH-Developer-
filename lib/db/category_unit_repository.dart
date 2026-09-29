@@ -23,6 +23,8 @@ class CategoryRepository {
     if (!_controller.isClosed) _controller.add(rows);
   }
 
+  Future<void> refreshList() => _notify();
+
   Future<List<models.Category>> listAll() async {
     final db = await AppDatabase.instance.database;
     final rows = await db.query('categories', orderBy: 'name COLLATE NOCASE ASC');
@@ -55,6 +57,8 @@ class UnitRepository {
     final rows = await listAll();
     if (!_controller.isClosed) _controller.add(rows);
   }
+
+  Future<void> refreshList() => _notify();
 
   Future<List<models.UnitType>> listAll() async {
     final db = await AppDatabase.instance.database;
