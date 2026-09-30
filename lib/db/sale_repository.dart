@@ -387,6 +387,9 @@ class SaleRepository {
     List<PayEntry> payments = const [],
     bool overrideCreditLimit = false,
     String? editInvoice,
+    // Kotlin SaleSaveResult.stockWarnings: agar kisi line ka stock update na ho saka
+    // (product nahi mila / 0 rows) to yahan warning aati hai; caller dikhata hai.
+    List<String>? stockWarnings,
   }) async {
     final isEdit = editInvoice != null;
     if (isEdit) _requireAdmin();
@@ -593,10 +596,13 @@ class SaleRepository {
         final product = productByBarcode[line.barcode];
         if (product == null) continue;
         final smallest = product.toSmallestUnits(line.qty, line.unit);
-        await txn.rawUpdate(
+        final rowsAffected = await txn.rawUpdate(
           'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
           [smallest, now, line.barcode],
         );
+        if (rowsAffected == 0) {
+          stockWarnings?.add('Warning: "${line.itemName}" ka stock update nahi ho saka — check karen.');
+        }
         await SyncQueueHelper.enqueueStockDelta(txn, line.barcode, -smallest);
         await StockLedger.log(txn,
             barcode: line.barcode,

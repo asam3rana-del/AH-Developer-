@@ -661,6 +661,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     final previewMethod = _paymentLabel(totals.paid);
 
     setState(() => _saving = true);
+    final stockWarnings = <String>[];
     try {
       final invoice = await SaleRepository.instance.saveSale(
         lines: _lines,
@@ -673,8 +674,13 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         payments: _splitPayments,
         overrideCreditLimit: overrideCreditLimit,
         editInvoice: widget.editInvoice,
+        stockWarnings: stockWarnings,
       );
       if (!mounted) return;
+      // Kotlin SaleSaveSuccess: har stock warning alag toast (save phir bhi ho chuka hai).
+      for (final w in stockWarnings) {
+        _toast(w);
+      }
       if (_isEdit) {
         _toast(Loc.t('Sale updated: $invoice', 'سیل اپ ڈیٹ ہو گئی: $invoice'));
         Navigator.of(context).pop(true);

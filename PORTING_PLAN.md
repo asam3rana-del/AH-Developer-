@@ -30,10 +30,10 @@
 ## 2. Phases (tarteeb)  — live status `PORT_STATUS.md` mein
 | Phase | Kya | Nota |
 |---|---|---|
-| 0-3 | Models/DB, Products, Purchase, Sale | ✅ Sale mukammal (linked payments samet). Purchase mukammal (edit-saved-purchase, Delete, supplier comparison samet). Bluetooth/WhatsApp share = Phase 12 (done) |
-| **4** | Login, roles (`RoleGuard`), Loc, Theme, Settings, Dashboard | **Sabse pehle** — baaki sab screens role/zabaan par depend karti hain |
+| 0-3 | Models/DB, Products, Purchase, Sale | ✅ Mukammal. Sale mukammal (linked payments samet). Purchase mukammal (edit-saved-purchase, Delete, supplier comparison samet). Bluetooth/WhatsApp share = Phase 12 (done) |
+| 4 | Login, roles (`RoleGuard`), Loc, Theme, Settings, Dashboard | ✅ Mukammal (device par nazar-e-saani baaki). Pehle sabse zaroori tha — baaki sab screens role/zabaan par depend karti hain |
 | 5 | Item Rate Search, Rate Comparison, Items, Bulk rates/units, SaleCart, Quick Sale, Hold/Recall | Spec: `docs/specs/item_rate_search.md` |
-| 6 | Parties (list, dashboard, transactions, reports), Due Reminders | |
+| 6 | Parties (list, dashboard, transactions, reports), Due Reminders | ✅ Mukammal |
 | 7 | Sale/Purchase History (edit/return/delete admin-only) | |
 | 8 | Cash, Cash Register, Expense, Day Book, Payments, Balance Sheet, Zakat, Shell Ledger | |
 | 9 | Reports, Monthly, Stock Report/Audit/Taking/Adjustment/Movement, Inventory Insights | |

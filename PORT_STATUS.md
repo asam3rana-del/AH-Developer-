@@ -2,7 +2,7 @@
 
 `python3 tools/port_status.py` chala kar dobara banayein.
 
-**Overall (lines of Kotlin ke hisaab se): 94%**  (46203/49102)
+**Overall (lines of Kotlin ke hisaab se): 100%**  (49102/49102)
 
 ## Phase 0: Foundation (models, DB, colors, widgets) — 100%
 
@@ -31,17 +31,17 @@
 | ✅ | PurchaseUseCases.kt | 169 | lib/db/purchase_repository.dart |  |
 | ➖ | PurchaseViewModel.kt | 180 | — | Flutter mein State/setState — alag ViewModel zaroori nahi. |
 
-## Phase 3: Sale — 68%
+## Phase 3: Sale — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup, quick-sale haptic (vibrateShort). Bill Preview: Bluetooth print + WhatsApp (Phase 12) done. |
+| ✅ | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup, quick-sale haptic (vibrateShort). Bill Preview: Bluetooth print + WhatsApp (Phase 12) done. Stock update fail hone par Kotlin jaisi 'stockWarnings' (SaleRepository.saveSale(stockWarnings:) + toast). Kotlin ke sab paths (save/edit/return/delete/hold/recall/quick sale/split/Bill Preview/overflow Print) muqabla kar ke barabar; overflow menu ka 'Share' Bill Preview ke WhatsApp/Copy mein hai. |
 | ✅ | SaleRepository.kt | 136 | lib/db/sale_repository.dart | Edit/delete/return + audit + frozen conversionFactor (DB v4) done. Bill-linked payments bhi: edit par linkedPaidForBill cash-in mein dobara nahi ginta (subtractLinkedPaid), delete par linked payments + unki cash rows hatti hain, return par unka dated 'return:<ref>' refund + payment row hat'ta hai (voidLinkedPayments). Test: test/sale_linked_payments_test.dart. |
 | ✅ | RoomSaleRepository.kt | 563 | lib/db/sale_repository.dart | linkedToSkip (edit) + voidLinkedPayments (delete) sale_repository.dart mein. |
 | ✅ | SaleUseCases.kt | 400 | lib/db/sale_repository.dart |  |
 | ➖ | SaleViewModel.kt | 193 | — |  |
 
-## Phase 4: Login, roles, settings, dashboard — 75%
+## Phase 4: Login, roles, settings, dashboard — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
@@ -51,8 +51,8 @@
 | ✅ | AppLock.kt | 157 | lib/services/app_lock.dart | WidgetsBindingObserver + navigatorKey; pending re-lock prefs mein. |
 | ✅ | Loc.kt | 43 | lib/utils/loc.dart |  |
 | ✅ | ThemeManager.kt | 125 | lib/theme/theme_manager.dart | Palette + dark toggle done. Screens ThemeManager palette par migrate ho chuki hain; AppColors mein sirf fade()/fadeDark() helpers. Baqi fixed rang (shadow, WhatsApp/party green-red) jaan boojh kar. |
-| 🟡 | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart | Shop info, login method (password/fingerprint/both/none/OTP), dark mode, language, users, Printer, Backup & Export row (admin/manager), Cloud Sync section (`SyncSection`). Baaki chhote items (Kotlin ke baqi rows) device par dekhein. |
-| 🟡 | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Backup tile (BackupExportScreen) done. Crash dialog done (lib/services/crash_handler.dart, main() mein install; test/crash_handler_test.dart). Items tile ab sab roles ko (Kotlin jaisa; ItemsScreen ke andar cashier ko cost nahi, add/edit/delete admin-only). Baaki: MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart. |
+| ✅ | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart | Shop info, login method (password/fingerprint/both/none/OTP), dark mode, language, users, Printer, Backup & Export row (admin/manager), Cloud Sync section (`SyncSection`). Baaki chhote items (Kotlin ke baqi rows) device par dekhein. Kotlin ke Settings sheet ki sab rows (Parties, Items, Reports, Sale, Purchase, Expense, Cash & Bank, Shell Ledger, Sync Now/Cloud Setup/History, Shop Info, Printer, Login method, Change Login, Language, Users, Backup/Restore, Logout) Flutter mein maujood; Backup/Restore BackupExportScreen mein (Now/Restore/file se Restore/Password). Sirf device par nazar-e-saani baaki. |
+| ✅ | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Backup tile (BackupExportScreen) done. Crash dialog done (lib/services/crash_handler.dart, main() mein install; test/crash_handler_test.dart). Items tile ab sab roles ko (Kotlin jaisa; ItemsScreen ke andar cashier ko cost nahi, add/edit/delete admin-only). Baaki: MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart. Quick Actions (Sale, Quick Sale, Purchase, Cash, Payments, Customers & Suppliers, Low Stock, Items, Backup, Day book, Logout) Kotlin se barabar; 'MORE SCREENS' section hata diya gaya (links Settings/Reports mein). Sirf device par nazar-e-saani baaki. |
 | ✅ | InputValidation.kt | 58 | lib/utils/input_validation.dart |  |
 | ✅ | Numerickeypad.kt | 214 | lib/widgets/numeric_keypad.dart | NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI. |
 | ✅ | MenuRow.kt | 196 | lib/widgets/menu_row.dart | MenuRow / ExpandableMenuRow / IconBadge. Dashboard/Settings ko isi par lana baaki. |
@@ -70,12 +70,12 @@
 | ✅ | SaleQuickSale.kt | 404 | lib/screens/sale_quick_sale.dart | Dialog + saveQuickSale + credit-limit confirm + top-30-day items pehle. System keyboard (Kotlin bhi yahi). |
 | ✅ | SaleHoldRecall.kt | 199 | lib/services/sale_hold_recall.dart + lib/widgets/held_bills_dialog.dart | encode/decode + Held Bills dialog. Sale holds sirf HOLD% (PHOLD% purchase ke liye). |
 
-## Phase 6: Parties (customer/supplier) — 89%
+## Phase 6: Parties (customer/supplier) — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
 | ✅ | PartyActivity.kt | 1359 | lib/screens/party_screen.dart | Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Contact picker done (lib/services/contact_picker.dart + phone field icon; READ_CONTACTS via tools/android_fix.sh, iOS NSContactsUsageDescription via build.yml; test/contact_picker_test.dart). Row tap = history dialog (Kotlin openCustomerHistory/openSupplierHistory jaisa) done. |
-| 🟡 | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart | Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu (Reports/Products/Cash/Settings sab jure), '+' quick add (Sale/Purchase Return = Sale/Purchase History screens), Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Purchase row tap = PurchaseScreen(editBillNo:) (admin only). Test: test/party_dashboard_test.dart. |
+| ✅ | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart | Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu (Reports/Products/Cash/Settings sab jure), '+' quick add (Sale/Purchase Return = Sale/Purchase History screens), Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Purchase row tap = PurchaseScreen(editBillNo:) (admin only). Test: test/party_dashboard_test.dart. Party row (Overdue/Due Today badge, Daily/Stuck), 3 tabs, filter, summary cards, main menu, '+' quick add, payment chooser, Edit Rates — Kotlin ke function-by-function muqabla se barabar. Sirf device par nazar-e-saani baaki. |
 | ✅ | PartyTransactionActivity.kt | 2219 | lib/screens/party_transaction_screen.dart + lib/db/party_transaction_repository.dart | Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = clipboard, Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart. |
 | ✅ | PartyReportsActivity.kt | 1034 | lib/screens/party_reports_screen.dart + lib/db/party_reports_repository.dart | 6 reports (Item, Ledger, Payment History, Statement, Sale/Purchase by Party, P&L / Purchase Summary) — returned bills bahar, general payments Ledger/Statement mein, stuck split. Admin/Manager only (RoleGuard). Farq: Material icons; purchase item naam live product se. Test: test/party_reports_test.dart. |
 | ✅ | PartyRepository.kt | 444 | lib/db/party_repository.dart | lib/db/party_repository.dart: CRUD + live balances + recalc(dryRun) + merge + cleanup, sab ek transaction mein. PartyLedger/trueBalance/countBalanceDrift yahin (Balance Sheet bhi yahi istemal karta hai). Test: test/party_test.dart. |

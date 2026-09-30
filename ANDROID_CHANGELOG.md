@@ -1,5 +1,11 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-30) — Phase 3 / 4 / 6 band (baqi partial rows)
+- [x] `SaleActivity.kt`: Kotlin `SaleSaveResult.stockWarnings` — `SaleRepository.saveSale(stockWarnings:)` ab stock update na hone (0 rows) par warning jama karta hai, `sale_screen.dart` har warning toast mein dikhata hai (save phir bhi ho jata hai).
+- [x] `SettingsActivity.kt`, `MainActivity.kt`, `PartyDashboardActivity.kt`: function-by-function muqabla — sab rows/tiles/tabs Flutter mein maujood; `tools/port_map.json` mein `partial` -> `done`. PORT_STATUS ab 100%.
+- [ ] Ab bhi baaki (code nahi, verification): `flutter pub get && flutter analyze && flutter test`; device par Firebase setup + 2-device sync test; asli USB/Bluetooth printer test; Xiaomi/Oppo par background backup.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha).
+
 ## Flutter side (2026-09-30) — USB printing (Phase 12, PrinterHelper USB hissa)
 - [x] `PrinterHelper.kt` USB: `lib/services/usb_printer.dart` + `tools/android_fix.sh` MainActivity.kt mein dusra MethodChannel `ah_developer/usb` (list / permission / open / write / close; plugin nahi, Kotlin jaisa `UsbManager`, bulk OUT endpoint, 4096-byte `bulkTransfer`, Android 14 ke liye explicit-package PendingIntent). Manifest mein `usb.host` feature `required=false`.
 - Flow: Settings > SELECT PRINTER ab Bluetooth (paired) + jude USB printers ek list mein; USB chunte hi ijazat dialog. Address `usb:<vid>:<pid>` (`printer_mac` setting) — replug par deviceName badalta hai, vid:pid nahi. Print: `PrinterService._sendUsb` = init -> strips (Bluetooth wali pacing) -> feed+cut, har qadam par saaf error message.
