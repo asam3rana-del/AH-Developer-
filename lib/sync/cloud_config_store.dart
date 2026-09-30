@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -91,8 +93,13 @@ class CloudConfigStore {
     }
   }
 
-  /// Sync ke liye asli FirebaseApp. Custom config hone par alag naam ("custom_cloud") ka app
-  /// runtime par banta hai; kuch nahi to null (sync skip karein).
+  static bool _sameOptions(FirebaseOptions a, FirebaseOptions b) =>
+      a.projectId == b.projectId && a.appId == b.appId && a.apiKey == b.apiKey;
+
+  /// Sync ke liye asli FirebaseApp. Custom config hone par pehle [DEFAULT] app isi config se banta hai
+  /// (Firebase plugins kabhi kabhi andar se [DEFAULT] maangte hain — "[core/no-app] No Firebase App
+  /// '[DEFAULT]'" isi se aata tha). Agar [DEFAULT] kisi aur config par ban chuka (config badli) to alag
+  /// naam ("custom_cloud") ka app. Kuch nahi to null (sync skip karein).
   static Future<FirebaseApp?> firebaseApp() async {
     final custom = await get();
     if (custom == null) {
@@ -102,19 +109,72 @@ class CloudConfigStore {
         return null;
       }
     }
+    final opts = toOptions(custom);
+
+    FirebaseApp? def;
     try {
-      return Firebase.app(customAppName);
-    } catch (_) {
-      // Pehli baar: banao.
+      def = Firebase.app();
+    } catch (_) {}
+    if (def != null && _sameOptions(def.options, opts)) return def;
+
+    // [DEFAULT] abhi bana hi nahi => is config se banao.
+    if (def == null) {
+      try {
+        return await Firebase.initializeApp(options: opts);
+      } catch (_) {
+        try {
+          final d = Firebase.app();
+          if (_sameOptions(d.options, opts)) return d;
+        } catch (_) {}
+      }
     }
-    return Firebase.initializeApp(name: customAppName, options: toOptions(custom));
+
+    // [DEFAULT] kisi aur config par (ya ban nahi saka) => alag naam ka app; purani config ka ho to badlo.
+    try {
+      final named = Firebase.app(customAppName);
+      if (_sameOptions(named.options, opts)) return named;
+      await named.delete();
+    } catch (_) {}
+    return Firebase.initializeApp(name: customAppName, options: opts);
+  }
+
+  /// App ID ("1:675436217091:android:...") mein dusra hissa project number = messagingSenderId.
+  static String senderIdFromAppId(String appId) {
+    final m = RegExp(r'^\d+:(\d+):').firstMatch(appId.trim());
+    return m?.group(1) ?? '';
   }
 
   static FirebaseOptions toOptions(CloudConfig c) => FirebaseOptions(
         apiKey: c.apiKey,
         appId: c.appId,
-        messagingSenderId: '',
+        messagingSenderId: senderIdFromAppId(c.appId),
         projectId: c.projectId,
         storageBucket: c.storageBucket.isEmpty ? null : c.storageBucket,
       );
+}
+
+/// `google-services.json` (Firebase Console se / Kotlin app ki `app/google-services.json`) ka text parh kar
+/// Project ID, API Key, App ID aur Storage Bucket nikalta hai — taake lambi values tablet par type na karni paren.
+/// Ghalat / khali / adhoora JSON => null.
+CloudConfig? parseGoogleServicesJson(String text) {
+  try {
+    final d = json.decode(text.trim());
+    if (d is! Map) return null;
+    final info = d['project_info'];
+    final clients = d['client'];
+    if (info is! Map || clients is! List || clients.isEmpty) return null;
+    final projectId = (info['project_id'] ?? '').toString().trim();
+    final bucket = (info['storage_bucket'] ?? '').toString().trim();
+    for (final c in clients) {
+      if (c is! Map) continue;
+      final ci = c['client_info'];
+      final keys = c['api_key'];
+      if (ci is! Map || keys is! List || keys.isEmpty) continue;
+      final appId = (ci['mobilesdk_app_id'] ?? '').toString().trim();
+      final key = (keys.first is Map ? (keys.first as Map)['current_key'] : '').toString().trim();
+      if (projectId.isEmpty || appId.isEmpty || key.isEmpty) continue;
+      return CloudConfig(projectId: projectId, apiKey: key, appId: appId, storageBucket: bucket);
+    }
+  } catch (_) {}
+  return null;
 }

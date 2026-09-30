@@ -524,6 +524,24 @@ class _CloudSyncSetupDialogState extends State<CloudSyncSetupDialog> {
     super.dispose();
   }
 
+  /// Clipboard mein google-services.json ho to 4 fields khud bhar do (Branch Code alag rehta hai).
+  Future<void> _pasteGoogleServices() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final cfg = parseGoogleServicesJson(data?.text ?? '');
+    if (!mounted) return;
+    if (cfg == null) {
+      return _toast(Loc.t('Clipboard mein google-services.json nahi mili — poora text copy karke dobara try karein',
+          'کلپ بورڈ میں google-services.json نہیں ملی — پورا متن کاپی کر کے دوبارہ کوشش کریں'));
+    }
+    setState(() {
+      _projectId.text = cfg.projectId;
+      _apiKey.text = cfg.apiKey;
+      _appId.text = cfg.appId;
+      _bucket.text = cfg.storageBucket;
+    });
+    _toast(Loc.t('Fields filled — now enter Branch Code and Save', 'فیلڈز بھر گئیں — اب برانچ کوڈ لکھیں اور محفوظ کریں'));
+  }
+
   Future<void> _load() async {
     final existing = await CloudConfigStore.get();
     final uid = await SettingsSync.deviceId();
@@ -672,6 +690,17 @@ class _CloudSyncSetupDialogState extends State<CloudSyncSetupDialog> {
                           'اس بلڈ کا ڈیفالٹ پراجیکٹ (اگر ہو) استعمال ہوگا۔',
                     ),
                     style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 6),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _pasteGoogleServices,
+                    icon: const Icon(Icons.content_paste, size: 18),
+                    label: Text(Loc.t('Paste google-services.json', 'google-services.json پیسٹ کریں')),
+                  ),
+                  Text(
+                    Loc.t('Copy the full text of google-services.json (e.g. from the Kotlin app repo: app/google-services.json), then tap this button.',
+                        'google-services.json کا پورا متن کاپی کریں (مثلاً Kotlin ایپ ریپو: app/google-services.json)، پھر یہ بٹن دبائیں۔'),
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                   ),
                   _field('Project ID', _projectId),
                   _field('API Key', _apiKey),
