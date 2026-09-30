@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../models/party.dart';
 import 'app_database.dart';
+import 'watch_util.dart';
 
 class SupplierRepository {
   SupplierRepository._();
@@ -12,10 +13,7 @@ class SupplierRepository {
   /// Har naya subscriber ko PEHLE current list milti hai, phir live updates.
   /// (Pehle sirf pehli dafa emit hota tha — screen dobara khulti to list khali rehti
   /// aur supplier ka naam search mein nahi aata tha.)
-  Stream<List<Supplier>> watchAll() async* {
-    yield await listAll();
-    yield* _controller.stream;
-  }
+  Stream<List<Supplier>> watchAll() => watchWithInitial(_controller, listAll);
 
   Future<void> _notify() async {
     final rows = await listAll();

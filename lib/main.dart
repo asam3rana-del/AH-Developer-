@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -14,6 +15,7 @@ import 'sync/branch_config_store.dart';
 import 'sync/device_tag.dart';
 import 'sync/network_monitor.dart';
 import 'sync/settings_sync.dart';
+import 'sync/sync_keepalive.dart';
 import 'sync/sync_worker.dart';
 import 'theme/app_colors.dart';
 import 'theme/theme_manager.dart';
@@ -49,6 +51,8 @@ void main() async {
   await NetworkMonitor.register();
   // PosApplication.onCreate() mein SyncWorker.schedulePeriodic(this) (har 5 min, app zinda ho tab — screen par ya background mein).
   SyncWorker.instance.schedulePeriodic();
+  // Android: minimize / back ke baad bhi sync na ruke (foreground service). Fail ho to app chalti rahe.
+  unawaited(SyncKeepAlive.start());
   runApp(const AhDeveloperApp());
 }
 

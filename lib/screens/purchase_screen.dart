@@ -25,7 +25,6 @@ import '../utils/loc.dart';
 import '../utils/purchase_calc.dart';
 import '../utils/split_payment.dart';
 import '../widgets/autocomplete_options.dart';
-import '../widgets/held_bills_dialog.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 
@@ -36,7 +35,7 @@ import '../widgets/premium_widgets.dart';
 /// Done: naya purchase + saved purchase edit (sirf badli hui lines ka stock/cost touch), supplier ka apna
 /// invoice no. + duplicate-invoice alert + same supplier/amount/date warning, item par qty+unit+rate
 /// (pichli khareedi ka rate auto-fill), Retail/Wholesale rate purchase ke waqt set, margin/loss warning,
-/// inline line edit, naya product mid-purchase, Split Payment (Cash + Bank), Hold / Recall, draft autosave,
+/// inline line edit, naya product mid-purchase, Split Payment (Cash + Bank), draft autosave,
 /// supplier ka live balance, bill preview.
 /// Edit mode mein DELETE button (poora bill: stock + cost + supplier balance + payments wapas, admin only) aur
 /// item chun kar "Compare suppliers" popup (har supplier ka last / lowest / highest rate, admin + manager).
@@ -103,6 +102,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ProductRepository.instance.listAll().then((v) {
+      if (mounted) setState(() => _products = v);
+    });
     _productSub = ProductRepository.instance.watchAll().listen((v) {
       if (mounted) setState(() => _products = v);
     });
@@ -621,85 +623,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _fillRetailWholesaleText();
   }
 
-  // ------------------------------------------------------------- Hold / Recall
-
-  Future<void> _holdBill() async {
-    if (_lines.isEmpty) {
-      _toast('Add items pehle, phir hold karen');
-      return;
-    }
-    try {
-      final draft = PurchaseDraft(
-        supplier: _supplierCtrl.text,
-        supplierInvoiceNo: _invoiceCtrl.text,
-        paidText: _paidCtrl.text,
-        dateMillis: _purchaseDate.millisecondsSinceEpoch,
-        lines: List<PurchaseLine>.of(_lines),
-      );
-      await _repo.holdPurchase(encodePurchaseHold(draft));
-      await PurchaseDraftStore.clear();
-      if (!mounted) return;
-      setState(() {
-        _lines.clear();
-        _clearItemEntry();
-        _supplierCtrl.clear();
-        _invoiceCtrl.clear();
-        _paidCtrl.clear();
-        _splitPayments = [];
-        _supplierBalance = null;
-        _purchaseDate = DateTime.now();
-      });
-      _toast('Purchase hold ho gayi');
-    } catch (e) {
-      _toast('Hold nahi ho saki: $e');
-    }
-  }
-
-  Future<void> _openRecall() async {
-    final held = await _repo.heldPurchases();
-    if (!mounted) return;
-    final choice = await showHeldBillsDialog(context, held);
-    if (choice == null || !mounted) return;
-
-    if (choice.action == HeldBillAction.delete) {
-      await _repo.deleteHeld(choice.bill);
-      _toast('Held bill hata di');
-      return;
-    }
-
-    // Recall current bill ko replace karta hai — chalti hui entry chupke se na phenko.
-    if (_lines.isNotEmpty) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Recall'),
-          content: const Text('Current bill ki items replace ho jayengi. Recall karen?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Recall')),
-          ],
-        ),
-      );
-      if (ok != true || !mounted) return;
-    }
-
-    final d = decodePurchaseHold(choice.bill.payload);
-    setState(() {
-      _clearItemEntry();
-      _supplierCtrl.text = d.supplier;
-      _invoiceCtrl.text = d.supplierInvoiceNo;
-      _paidCtrl.text = d.paidText;
-      if (d.dateMillis > 0) _purchaseDate = DateTime.fromMillisecondsSinceEpoch(d.dateMillis);
-      _splitPayments = [];
-      _lines
-        ..clear()
-        ..addAll(d.lines);
-    });
-    _refreshSupplierBalance(d.supplier);
-    await _repo.deleteHeld(choice.bill);
-    _saveDraftSoon();
-  }
-
   // -------------------------------------------------------------- Split payment
 
   void _applySplitPayments(List<PayEntry> entries) {
@@ -936,19 +859,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       if (!mounted) return;
       _toast(_isEdit ? 'Purchase updated: $billNo' : 'Purchase saved: $billNo');
 
-      // Edit mode mein preview dikhao; NAYE bill par seedha naya khali bill (copy-text/preview nahi).
-      if (_isEdit) {
-        await _showBillPreview(
-          billNo: billNo,
-          supplier: party,
-          date: snapshotDate,
-          lines: snapshotLines,
-          total: grandTotal,
-          paid: paid.clamp(0.0, grandTotal).toDouble(),
-          method: snapshotMethod == 'credit' ? 'Credit' : snapshotMethod,
-        );
-        if (!mounted) return;
-      }
+      // Bill Preview (print / WhatsApp / share) pehle jaisa: edit ho ya naya bill, dono par dikhao.
+      await _showBillPreview(
+        billNo: billNo,
+        supplier: party,
+        date: snapshotDate,
+        lines: snapshotLines,
+        total: grandTotal,
+        paid: paid.clamp(0.0, grandTotal).toDouble(),
+        method: snapshotMethod == 'credit' ? 'Credit' : snapshotMethod,
+      );
+      if (!mounted) return;
 
       if (_isEdit) {
         Navigator.of(context).pop(true);
@@ -1132,7 +1053,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                             title: _isEdit ? 'Edit Purchase' : 'New Purchase',
                             subtitle: _isEdit ? 'Bill ${widget.editBillNo}' : 'Stock In / Supplier Bill',
                           ),
-                          _buildHoldRecallRow(),
+                          _buildDateRow(),
                           _buildSupplierCard(),
                           _buildItemEntryCard(),
                           _buildLinesList(),
@@ -1158,40 +1079,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         child: child,
       );
 
-  Widget _buildHoldRecallRow() {
+  /// Upar ki row: sirf Date button (Hold / Recall / Scan Bill purchase se hata diye gaye).
+  Widget _buildDateRow() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        children: [
-          if (!_isEdit) ...[
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _holdBill,
-              icon: const Icon(Icons.pause_circle_outline, size: 18),
-              label: Text(Loc.t('Hold Bill', 'بل ہولڈ کریں')),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _openRecall,
-              icon: const Icon(Icons.play_circle_outline, size: 18),
-              label: Text(Loc.t('Recall Bill', 'بل ریکال کریں')),
-            ),
-          ),
-          const SizedBox(width: 10),
-          ],
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _pickDate,
-              icon: const Icon(Icons.calendar_today_outlined, size: 18),
-              label: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(DateFormat('dd MMM yyyy').format(_purchaseDate)),
-              ),
-            ),
-          ),
-        ],
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _pickDate,
+          icon: const Icon(Icons.calendar_today_outlined, size: 18),
+          label: Text(DateFormat('dd MMM yyyy').format(_purchaseDate)),
+        ),
       ),
     );
   }
@@ -1455,7 +1353,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               _saveEntrySoon();
             },
             textInputAction: picked != null ? TextInputAction.next : TextInputAction.done,
-            onSubmitted: () => picked != null ? _retailFocus.requestFocus() : _addLine(),
+            onSubmitted: () {
+              if (picked != null) {
+                _retailFocus.requestFocus();
+              } else {
+                _addLine();
+              }
+            },
           ),
           _marginLabel(margin),
           if (picked != null) ...[

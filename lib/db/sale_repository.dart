@@ -15,6 +15,7 @@ import 'customer_repository.dart';
 import 'product_repository.dart';
 import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
+import 'watch_util.dart';
 
 /// One line the user has added to the sale bill before saving — mirrors
 /// `SaleLine` (domain) used by SaleActivity.kt's `lines` list. The unit
@@ -141,15 +142,10 @@ class SaleRepository {
   static final SaleRepository instance = SaleRepository._();
 
   final _controller = StreamController<List<Sale>>.broadcast();
-  bool _primed = false;
 
-  Stream<List<Sale>> watchAll() {
-    if (!_primed) {
-      _primed = true;
-      _notify();
-    }
-    return _controller.stream;
-  }
+  /// Har naye subscriber ko PEHLE current list milti hai, phir live updates.
+  /// (Pehle sirf pehla subscriber list pata tha — screen dobara khulne par list khali reh jati thi.)
+  Stream<List<Sale>> watchAll() => watchWithInitial(_controller, listAll);
 
   Future<void> _notify() async {
     final rows = await listAll();

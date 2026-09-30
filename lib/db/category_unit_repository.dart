@@ -2,21 +2,17 @@ import 'dart:async';
 
 import '../models/category_unit.dart' as models;
 import 'app_database.dart';
+import 'watch_util.dart';
 
 class CategoryRepository {
   CategoryRepository._();
   static final CategoryRepository instance = CategoryRepository._();
 
   final _controller = StreamController<List<models.Category>>.broadcast();
-  bool _primed = false;
 
-  Stream<List<models.Category>> watchAll() {
-    if (!_primed) {
-      _primed = true;
-      _notify();
-    }
-    return _controller.stream;
-  }
+  /// Har naye subscriber ko PEHLE current list milti hai, phir live updates.
+  /// (Pehle sirf pehla subscriber list pata tha — screen dobara khulne par list khali reh jati thi.)
+  Stream<List<models.Category>> watchAll() => watchWithInitial(_controller, listAll);
 
   Future<void> _notify() async {
     final rows = await listAll();
@@ -43,15 +39,10 @@ class UnitRepository {
   static final UnitRepository instance = UnitRepository._();
 
   final _controller = StreamController<List<models.UnitType>>.broadcast();
-  bool _primed = false;
 
-  Stream<List<models.UnitType>> watchAll() {
-    if (!_primed) {
-      _primed = true;
-      _notify();
-    }
-    return _controller.stream;
-  }
+  /// Har naye subscriber ko PEHLE current list milti hai, phir live updates.
+  /// (Pehle sirf pehla subscriber list pata tha — screen dobara khulne par list khali reh jati thi.)
+  Stream<List<models.UnitType>> watchAll() => watchWithInitial(_controller, listAll);
 
   Future<void> _notify() async {
     final rows = await listAll();

@@ -2,21 +2,17 @@ import 'dart:async';
 
 import '../models/party.dart';
 import 'app_database.dart';
+import 'watch_util.dart';
 
 class CustomerRepository {
   CustomerRepository._();
   static final CustomerRepository instance = CustomerRepository._();
 
   final _controller = StreamController<List<Customer>>.broadcast();
-  bool _primed = false;
 
-  Stream<List<Customer>> watchAll() {
-    if (!_primed) {
-      _primed = true;
-      _notify();
-    }
-    return _controller.stream;
-  }
+  /// Har naye subscriber ko PEHLE current list milti hai, phir live updates.
+  /// (Pehle sirf pehla subscriber list pata tha — screen dobara khulne par list khali reh jati thi.)
+  Stream<List<Customer>> watchAll() => watchWithInitial(_controller, listAll);
 
   Future<void> _notify() async {
     final rows = await listAll();

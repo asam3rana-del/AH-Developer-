@@ -6,6 +6,7 @@ import '../models/product.dart';
 import 'app_database.dart';
 import 'stock_ledger.dart';
 import '../sync/sync_queue_helper.dart';
+import 'watch_util.dart';
 
 /// Dart port of ProductDao (Database.kt). Room's `Flow<List<Product>>` is
 /// mirrored here with a broadcast StreamController that re-queries and
@@ -15,16 +16,11 @@ class ProductRepository {
   static final ProductRepository instance = ProductRepository._();
 
   final _controller = StreamController<List<Product>>.broadcast();
-  bool _primed = false;
 
   /// Mirrors `@Query("SELECT * FROM products ORDER BY name") fun all(): Flow<List<Product>>`.
-  Stream<List<Product>> watchAll() {
-    if (!_primed) {
-      _primed = true;
-      _notify();
-    }
-    return _controller.stream;
-  }
+  /// Har naye subscriber ko PEHLE current list milti hai, phir live updates.
+  /// (Pehle sirf pehla subscriber list pata tha — screen dobara khulne par list khali reh jati thi.)
+  Stream<List<Product>> watchAll() => watchWithInitial(_controller, listAll);
 
   Future<void> _notify() async {
     final rows = await listAll();

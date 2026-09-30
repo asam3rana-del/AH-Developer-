@@ -77,3 +77,14 @@ for f in android/app/src/main/res/values/styles.xml android/app/src/main/res/val
   sed -i 's#@android:style/Theme.Light.NoTitleBar#Theme.AppCompat.Light.NoActionBar#g; s#@android:style/Theme.Black.NoTitleBar#Theme.AppCompat.DayNight.NoActionBar#g' "$f"
   echo "=== $f ==="; cat "$f"
 done
+
+# --- Background sync (SyncKeepAlive / flutter_foreground_task): app minimize hone par bhi sync chale. ---
+for perm in FOREGROUND_SERVICE FOREGROUND_SERVICE_DATA_SYNC POST_NOTIFICATIONS WAKE_LOCK; do
+  if ! grep -q "android.permission.$perm\"" "$MANIFEST"; then
+    sed -i "0,/<manifest[^>]*>/s//&\n    <uses-permission android:name=\"android.permission.$perm\" \/>/" "$MANIFEST"
+  fi
+done
+if ! grep -q "flutter_foreground_task.service.ForegroundService" "$MANIFEST"; then
+  sed -i 's#</application>#    <service android:name="com.pravera.flutter_foreground_task.service.ForegroundService" android:foregroundServiceType="dataSync" android:exported="false" \/>\n    </application>#' "$MANIFEST"
+fi
+grep -n "FOREGROUND_SERVICE\|ForegroundService" "$MANIFEST" || { echo "ERROR: foreground service not added to manifest"; exit 1; }
