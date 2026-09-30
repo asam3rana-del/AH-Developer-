@@ -97,3 +97,23 @@ both apps pointed at the same Firestore backend for sync rather than a
 one-time file copy. If you want your existing product/customer data
 carried over, say so and we can add a one-time import routine (e.g. reading
 the exported Android backup format your app already produces).
+
+
+## Windows build
+
+Windows PC par: Flutter SDK + Visual Studio 2022 ("Desktop development with C++" aur "C++ ATL" components), phir:
+
+```
+flutter config --enable-windows-desktop
+flutter create --platforms=windows --project-name ah_developer_kiryana_store .
+flutter pub get
+flutter build windows --release
+```
+
+Output: `build\windows\x64\runner\Release\` — poora folder copy karein. Ya GitHub Actions ka `build-windows` job (artifact `windows-build`).
+
+Windows par: database `%APPDATA%` mein (`lib/db/desktop_db_init.dart`), backups `Documents\IBTISAAM POS Backups` mein.
+Printer (Windows): Settings > Printer Setup > SELECT PRINTER — installed Windows printer (driver ke zariye, 58/80mm roll PDF) ya Network printer (IP, raw ESC/POS, port 9100). 58mm ke liye PRINT WIDTH 384, 80mm ke liye 576.
+Firebase sync: Settings > Cloud Sync Setup (Windows par firebase_core/auth/firestore chalte hain; pehla build C++ SDK download karta hai, is liye lamba ho sakta hai).
+Nahi chalte (Android/iOS-only): Bill Scan OCR, Bluetooth printer, fingerprint login aur Phone OTP login (password se login hota hai).
+Layout: desktop window mein screens 900 px chauri column mein beech mein dikhti hain.

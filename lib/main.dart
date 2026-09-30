@@ -1,6 +1,11 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
 import 'backup/backup_scheduler.dart';
+import 'db/desktop_db_init.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/app_lock.dart';
@@ -22,6 +27,8 @@ import 'utils/loc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Windows: DB factory sab se pehle (DeviceTag/BranchConfigStore ke liye nahi, lekin koi bhi DB call se pehle).
+  await initDesktopDatabase();
   // PosApplication.onCreate() ka pehla kaam: DeviceTag / BranchConfigStore (IDs mein zaroorat).
   await DeviceTag.init();
   await BranchConfigStore.init();
@@ -69,9 +76,11 @@ class AhDeveloperApp extends StatelessWidget {
             colorSchemeSeed: AppColors.navy,
             fontFamily: 'Roboto',
           ),
+          // Desktop: mouse se bhi drag-scroll (touch-screen POS jaisa).
+          scrollBehavior: const _DesktopScrollBehavior(),
           builder: (context, child) => Directionality(
             textDirection: lang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
-            child: child!,
+            child: _DesktopFrame(background: dark ? p.bg : AppColors.bg, child: child!),
           ),
           // Session hai to seedha dashboard, warna login/setup.
           home: Session.isLoggedIn ? const DashboardScreen() : const LoginScreen(),
@@ -79,4 +88,37 @@ class AhDeveloperApp extends StatelessWidget {
       },
     );
   }
+}
+
+bool get _isDesktop => !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
+/// Screens mobile ke liye bani hain. Bari (desktop) window mein unhein khinchne ke bajaye beech mein
+/// aik hadd (900 px) tak chaura rakhte hain; phone / tablet par kuch nahi badalta.
+class _DesktopFrame extends StatelessWidget {
+  const _DesktopFrame({required this.child, required this.background});
+  final Widget child;
+  final Color background;
+
+  static const double maxWidth = 900;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isDesktop) return child;
+    return ColoredBox(
+      color: background,
+      child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: maxWidth), child: child)),
+    );
+  }
+}
+
+class _DesktopScrollBehavior extends MaterialScrollBehavior {
+  const _DesktopScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+      };
 }

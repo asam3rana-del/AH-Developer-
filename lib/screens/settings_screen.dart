@@ -71,7 +71,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _selectPrinter() async {
     final svc = PrinterService.instance;
-    if (!PrinterService.supported) return _toast(Loc.t('Printing needs Android or iOS', 'پرنٹنگ کے لیے اینڈرائیڈ یا آئی او ایس چاہیے'));
+    if (PrinterService.isDesktop) return _selectDesktopPrinter();
+    if (!PrinterService.supported) return _toast(Loc.t('Printing needs Android, iOS or Windows', 'پرنٹنگ کے لیے اینڈرائیڈ، آئی او ایس یا ونڈوز چاہیے'));
     if (!await svc.hasPermission()) {
       return _toast(Loc.t('Bluetooth permission dein, phir dobara SELECT PRINTER dabayein', 'بلوٹوتھ کی اجازت دیں، پھر دوبارہ دبائیں'));
     }
@@ -94,6 +95,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await svc.savePrinter(picked.name, picked.mac);
     if (mounted) setState(() => _printerName = picked.name);
     _toast(Loc.t('Printer saved: ${picked.name}', 'پرنٹر محفوظ: ${picked.name}'));
+  }
+
+  /// Windows: installed printers ki list + "Network printer (IP)".
+  Future<void> _selectDesktopPrinter() async {
+    final svc = PrinterService.instance;
+    List<PrinterInfo> installed = [];
+    try {
+      installed = await svc.systemPrinters();
+    } catch (_) {}
+    if (!mounted) return;
+    const networkMarker = PrinterInfo('__network__', '');
+    final picked = await showDialog<PrinterInfo>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(Loc.t('Select Printer', 'پرنٹر منتخب کریں')),
+        children: [
+          for (final d in installed)
+            SimpleDialogOption(onPressed: () => Navigator.pop(ctx, d), child: Text('🖨  ${d.name}')),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, networkMarker),
+            child: Text(Loc.t('🌐  Network printer (IP address)…', '🌐  نیٹ ورک پرنٹر (IP)…')),
+          ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    if (picked.name != networkMarker.name) {
+      await svc.savePrinter(picked.name, picked.mac);
+      if (mounted) setState(() => _printerName = picked.name);
+      return _toast(Loc.t('Printer saved: ${picked.name}', 'پرنٹر محفوظ: ${picked.name}'));
+    }
+    final ctrl = TextEditingController();
+    final input = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Network printer', 'نیٹ ورک پرنٹر')),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '192.168.1.50  (ya 192.168.1.50:9100)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text(Loc.t('Save', 'محفوظ'))),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (input == null) return;
+    final addr = PrinterService.tcpAddress(input);
+    if (addr == null) {
+      return _toast(Loc.t('IP address theek nahi (misaal: 192.168.1.50 ya 192.168.1.50:9100)', 'IP ایڈریس درست نہیں'));
+    }
+    final label = 'Network ${addr.substring(PrinterService.tcpPrefix.length)}';
+    await svc.savePrinter(label, addr);
+    if (mounted) setState(() => _printerName = label);
+    _toast(Loc.t('Printer saved: $label', 'پرنٹر محفوظ: $label'));
   }
 
   Future<void> _testPrint() async {
@@ -249,7 +307,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _tf(_newPassword, Loc.t('New Password', 'نیا پاس ورڈ'), obscure: true),
           FilledButton(onPressed: _updateLogin, child: Text(Loc.t('UPDATE LOGIN', 'لاگ اِن اپڈیٹ کریں'))),
         ]),
-        _card(Loc.t('Printer Setup (58mm Bluetooth)', 'پرنٹر سیٹ اپ (58mm بلوٹوتھ)'), Icons.print, [
+        _card(
+          PrinterService.isDesktop
+              ? Loc.t('Printer Setup (Windows / Network)', 'پرنٹر سیٹ اپ (ونڈوز / نیٹ ورک)')
+              : Loc.t('Printer Setup (58mm Bluetooth)', 'پرنٹر سیٹ اپ (58mm بلوٹوتھ)'),
+          Icons.print,
+          [
           Row(children: [
             Icon(Icons.circle, size: 12, color: _printerName.isEmpty ? AppColors.red : AppColors.teal),
             const SizedBox(width: 8),

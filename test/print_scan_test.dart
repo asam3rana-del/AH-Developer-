@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ah_developer_kiryana_store/services/printer_service.dart';
 import 'package:ah_developer_kiryana_store/utils/bill_doc.dart';
 import 'package:ah_developer_kiryana_store/utils/bill_scan_parser.dart';
 import 'package:ah_developer_kiryana_store/utils/escpos.dart';
@@ -20,6 +21,7 @@ BillDoc _doc(int n, {bool purchase = false}) => BillDoc(
     );
 
 void main() {
+  _desktopPrinterTests();
   group('EscPos', () {
     test('normalizeDotsWidth clamps and rounds to a multiple of 8', () {
       expect(EscPos.normalizeDotsWidth(null), 384);
@@ -167,6 +169,31 @@ void main() {
       expect(items.length, 1);
       expect(items.single.name, 'A');
       expect(items.single.qty, 2);
+    });
+  });
+}
+
+// Windows / desktop printer transport (Network IP printer address parsing).
+void _desktopPrinterTests() {
+  group('PrinterService.tcpAddress', () {
+    test('IP => default port 9100', () {
+      expect(PrinterService.tcpAddress('192.168.1.50'), 'tcp:192.168.1.50:9100');
+    });
+    test('IP:port', () {
+      expect(PrinterService.tcpAddress(' 192.168.1.50:9101 '), 'tcp:192.168.1.50:9101');
+    });
+    test('ghalat input => null', () {
+      expect(PrinterService.tcpAddress(''), isNull);
+      expect(PrinterService.tcpAddress('abc def'), isNull);
+      expect(PrinterService.tcpAddress('1.2.3.4:99999'), isNull);
+      expect(PrinterService.tcpAddress('1.2.3.4:x'), isNull);
+      expect(PrinterService.tcpAddress('1.2.3.4:1:2'), isNull);
+    });
+    test('transport prefix pehchan', () {
+      expect(PrinterService.isTcp('tcp:1.2.3.4:9100'), isTrue);
+      expect(PrinterService.isSystem('sys:Receipt Printer'), isTrue);
+      expect(PrinterService.isTcp('AA:BB:CC:DD:EE:FF'), isFalse); // Bluetooth MAC
+      expect(PrinterService.isSystem('AA:BB:CC:DD:EE:FF'), isFalse);
     });
   });
 }

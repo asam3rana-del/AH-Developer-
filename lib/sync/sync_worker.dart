@@ -131,9 +131,20 @@ class SyncWorker {
     try {
       final r = await runSync();
       outcome = SyncOutcome(success: r.pulledOk, summary: r.summary(), result: r);
-    } catch (e) {
+    } catch (e, st) {
       var msg = e.toString();
       if (msg.startsWith('Exception: ')) msg = msg.substring(11);
+      // Firebase plugin ki ghalti ([core/...]) mein andar ki jagah bhi dikhao — dhoondne mein aasani.
+      if (msg.contains('[core/')) {
+        final where = st
+            .toString()
+            .split('\n')
+            .map((l) => l.trim())
+            .where((l) => l.contains('package:'))
+            .take(3)
+            .join(' | ');
+        if (where.isNotEmpty) msg = '$msg  @ $where';
+      }
       outcome = SyncOutcome(success: false, summary: 'Sync failed: $msg');
     }
     lastOutcome.value = outcome;

@@ -15,6 +15,9 @@ dependencies:
   sqflite: ^2.3.3
   path: ^1.9.0
   path_provider: ^2.1.3
+  # Windows (desktop): sqflite wahan nahi chalta — FFI wala SQLite + sqlite3.dll bundle.
+  sqflite_common_ffi: ^2.3.3
+  sqlite3_flutter_libs: ^0.5.24
 
   # Cloud sync (mirrors SyncApi.kt / SyncRepository.kt — Firestore backend)
   firebase_core: ^3.1.0
@@ -49,7 +52,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  sqflite_common_ffi: ^2.3.3   # Phase 10 tests: sync_queue / SyncRepository in-memory SQLite
 
 flutter:
   uses-material-design: true

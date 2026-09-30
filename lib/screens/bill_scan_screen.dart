@@ -140,6 +140,22 @@ class _BillScanScreenState extends State<BillScanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      // OCR (ML Kit) sirf Android / iOS par hai.
+      return Scaffold(
+        appBar: AppBar(title: Text(Loc.t('Scan Bill', 'بل سکین'))),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              Loc.t('Bill scan is available only on the Android / iOS app. Add the purchase items manually here.',
+                  'بل سکین صرف اینڈرائیڈ / آئی او ایس ایپ میں دستیاب ہے۔ یہاں آئٹم دستی طور پر شامل کریں۔'),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
     final showReview = _processed;
     return Scaffold(
       backgroundColor: AppColors.bg,

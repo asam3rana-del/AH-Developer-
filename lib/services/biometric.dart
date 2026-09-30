@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 
@@ -10,6 +13,8 @@ class Biometric {
 
   /// Device par fingerprint/face enrolled hai? (Kotlin: canAuthenticate == BIOMETRIC_SUCCESS)
   static Future<bool> isAvailable() async {
+    // Windows / Linux: fingerprint login nahi — login screen password par wapas chali jati hai.
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return false;
     try {
       if (!await _auth.canCheckBiometrics) return false;
       return (await _auth.getAvailableBiometrics()).isNotEmpty;
@@ -23,6 +28,7 @@ class Biometric {
 
   /// 2 dafa fingerprint fail hone par agli dafa device PIN/pattern/password bhi qubool (lockout se bachao).
   static Future<bool> authenticate({required String reason}) async {
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return false;
     final allowDeviceCredential = _fails >= 2;
     AppLock.instance.suspendLock = true; // prompt ke apne lifecycle events lock arm na karein
     try {
@@ -42,6 +48,7 @@ class Biometric {
 
   /// Sirf phone ka PIN / pattern / password (ya fingerprint) — "Forgot password" ke liye.
   static Future<bool> authenticateDeviceOwner({required String reason}) async {
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return false;
     AppLock.instance.suspendLock = true;
     try {
       return await _auth.authenticate(
