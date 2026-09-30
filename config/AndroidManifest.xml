@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <!-- FIX (Improvement Pack P5 — Android backup policy for POS business data):
+         allowBackup deliberately set to false. This app's Room database and
+         SharedPreferences hold live business data (sales, purchases, customer/
+         supplier balances) plus several device-scoped values that must never be
+         silently copied onto another device or restored from an OS/cloud backup:
+           - device_prefs (DeviceTag): a per-installation random tag that keeps
+             two devices' sync IDs/invoice numbers from colliding (see DeviceTag.kt,
+             Improvement Pack P2). Restoring it onto a second device would hand
+             that device the SAME tag as the original, silently reintroducing the
+             exact multi-device collision bug P2 fixed.
+           - backup_prefs (BackupPasswordStore): the local backup password,
+             encrypted with an Android Keystore key that is hardware-bound to the
+             ORIGINAL device. Restored on another device it decrypts to garbage.
+           - session / sync_prefs: per-device login session and sync cursor state
+             that would leave a restored device logged in as the wrong user or
+             pointing at a stale sync position.
+         The app already ships its own explicit, owner-password-protected backup/
+         restore flow (BackupHelper, BackupExportActivity, BackupCrypto) which is
+         the only supported way to move or archive this business data — so
+         implicit OS-level Auto Backup (Google Drive/cloud), adb backup, and the
+         Android device-to-device migration wizard are all disabled here rather
+         than partially allow-listed, since none of them are how this app can
+         safely reconstruct its cross-device-unique state. See
+         SECURITY-FIX-README.md / IMPROVEMENTS_APPLIED.md for the full writeup. -->
+    <application
+        android:name=".PosApplication"
+        android:theme="@style/Theme.GroceryPOS"
+        android:label="IBTISAAM TRADERS POS"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
+
+        <activity android:name=".ui.SettingsActivity" android:theme="@style/Theme.SettingsSheet" />
+        <activity android:name=".ui.LoginActivity" />
+        <activity android:name=".ui.ProductActivity" />
+        <activity android:name=".ui.ReportsActivity" />
+        <activity android:name=".ui.StockReportActivity" android:exported="false" />
+        <activity android:name=".ui.StockMovementActivity" android:exported="false" />
+        <activity android:name=".ui.StockAuditActivity" android:exported="false" />
+        <activity android:name=".ui.StockAdjustmentActivity" android:exported="false" />
+        <activity android:name=".ui.StockTakingActivity" android:exported="false" />
+        <activity android:name=".ui.InventoryInsightsActivity" android:exported="false" />
+        <activity android:name=".ui.DueRemindersActivity" android:exported="false" />
+        <activity android:name=".ui.BalanceSheetActivity" android:exported="false" />
+        <activity android:name=".ui.ZakatActivity" android:exported="false" />
+        <activity android:name=".ui.PurchaseActivity" android:windowSoftInputMode="adjustResize" />
+
+        <!-- FIX (Phase 5 - Stability): removed .ui.PurchaseAddItemWindowActivity — this
+             class does not exist anywhere in the source, so this entry crashed the app
+             (ActivityNotFoundException) the moment anything tried to launch it. Nothing
+             in the codebase actually starts it (item-adding already happens inline
+             inside PurchaseActivity's own screen), so it's dead config, not a missing
+             feature — safe to drop. -->
+
+        <activity android:name=".ui.SaleActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.CashActivity" />
+        <activity android:name=".ui.HistoryActivity" />
+        <activity android:name=".ui.PurchaseHistoryActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.SaleHistoryActivity" />
+        <activity android:name=".ui.ItemSearchActivity" />
+        <activity android:name=".ui.PartyActivity" />
+        <activity android:name=".ui.PartyDashboardActivity" android:exported="false" />
+        <activity android:name=".ui.UserManagementActivity" />
+        <activity android:name=".ui.PartyReportsActivity" />
+        <activity android:name=".ui.PaymentsReportActivity" />
+        <activity android:name=".ui.MonthlySalesPurchaseActivity" android:exported="false" />
+        <activity android:name=".ui.PartyTransactionActivity" android:exported="false" />
+        <activity android:name=".ui.ItemsActivity" android:exported="false" />
+        <activity android:name=".ui.BillPreviewActivity" android:exported="false" />
+        <activity android:name=".ui.BillScanActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.ExpenseActivity" android:exported="false" />
+
+        <!-- FIX: Bottle Shell Ledger — screen existed (ShellLedgerActivity.kt) with a
+             full Room-backed backend (ShellCustomer/ShellTransaction/ShopEmptyShellLog)
+             but was never declared here, so it was unreachable — no manifest entry
+             meant it couldn't be launched from anywhere in the app. -->
+        <activity android:name=".ui.ShellLedgerActivity" android:exported="false" />
+
+        <!-- NEW: Day Book (Roznamcha) - merged daily ledger -->
+        <activity android:name=".ui.DayBookActivity" android:exported="false" />
+
+        <!-- NEW: Bulk Translate — one-time Urdu -> English rename tool for
+             Category and Unit values, applied to the master tables and cascaded
+             into every product row (category/unit/secondaryUnit/tertiaryUnit). -->
+        <activity android:name=".ui.BulkTranslateActivity" android:exported="false" />
+        <activity android:name=".ui.BulkDefaultUnitActivity" android:exported="false" />
+        <activity android:name=".ui.BulkMissingRatesActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+
+        <!-- NEW: Backup & Reports — combined CSV + PDF export (full data or custom
+             date range), with Open/Print/Share from the result screen. -->
+        <activity android:name=".ui.BackupExportActivity" android:exported="false" />
+
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <!-- FIX (white-screen-no-log, take 2): installs the crash-catcher earlier than
+             Application.onCreate() — see EarlyCrashInitProvider.kt for why. initOrder is
+             set high so Android creates this provider before other providers (including
+             Firebase's own auto-added init provider). -->
+        <provider
+            android:name=".EarlyCrashInitProvider"
+            android:authorities="${applicationId}.earlycrash"
+            android:exported="false"
+            android:initOrder="100" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>
