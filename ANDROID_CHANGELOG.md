@@ -451,4 +451,4 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
 
 ## Purchase → Add New Product (Sep 30)
-- Dialog mein Category dropdown + "✚ New category" (naya naam likho, categories table mein save), English tag, aur "More units / default unit" (Sale + Quick Sale default unit) add.
+- Dialog mein Category (likho ya chuno; nayi ho to save par khud add), English tag, aur Sale / Quick Sale ke alag alag Default unit dropdowns add.

@@ -519,9 +519,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   /// Kotlin openAddProductDialog(): purchase ke beech mein naya product (naam, unit, retail, wholesale).
   /// Cost isi purchase se banti hai; stock isi bill ke save par lagta hai.
   Future<void> _promptAddProduct(String prefillName) async {
-    const newCategoryKey = '__new_category__';
     final nameCtrl = TextEditingController(text: prefillName);
     final tagCtrl = TextEditingController();
+    final categoryCtrl = TextEditingController(text: 'General');
     final retailCtrl = TextEditingController(text: _retailCtrl.text);
     final wholesaleCtrl = TextEditingController(text: _wholesaleCtrl.text);
     final unitNames = <String>{};
@@ -540,7 +540,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         if (n.isNotEmpty && !categoryNames.any((e) => e.toLowerCase() == n.toLowerCase())) categoryNames.add(n);
       }
     } catch (_) {}
-    var category = 'General';
     var unit = unitNames.contains(_selectedUnit) ? _selectedUnit : unitNames.first;
     var secondaryUnit = 'None';
     var secondaryQty = 0.0;
@@ -550,44 +549,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     var quickSaleDefaultIdx = -1;
     if (!mounted) return;
 
-    String defaultLabel(int idx) {
-      final tiers = <String>[
-        unit,
-        if (secondaryUnit != 'None') secondaryUnit,
-        if (secondaryUnit != 'None' && tertiaryUnit != 'None') tertiaryUnit,
-      ];
-      if (idx < 0 || idx >= tiers.length) return Loc.t('Auto', 'آٹو');
-      return tiers[idx];
-    }
-
-    Future<void> addCategory(void Function(void Function()) setD, BuildContext dctx) async {
-      final ctrl = TextEditingController();
-      final value = await showDialog<String>(
-        context: dctx,
-        builder: (c2) => AlertDialog(
-          title: Text(Loc.t('New Category', 'نئی کیٹیگری')),
-          content: TextField(controller: ctrl, autofocus: true, textCapitalization: TextCapitalization.words),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(c2).pop(), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
-            TextButton(onPressed: () => Navigator.of(c2).pop(ctrl.text.trim()), child: Text(Loc.t('Add', 'شامل کریں'))),
-          ],
-        ),
-      );
-      ctrl.dispose();
-      if (value == null || value.isEmpty) return;
-      final existing = categoryNames.where((e) => e.toLowerCase() == value.toLowerCase());
-      if (existing.isNotEmpty) {
-        setD(() => category = existing.first);
-        return;
-      }
-      try {
-        await CategoryRepository.instance.insert(models.Category(value));
-      } catch (_) {}
-      setD(() {
-        categoryNames.add(value);
-        category = value;
-      });
-    }
+    List<String> tiers() => <String>[
+          unit,
+          if (secondaryUnit != 'None') secondaryUnit,
+          if (secondaryUnit != 'None' && tertiaryUnit != 'None') tertiaryUnit,
+        ];
 
     final ok = await showDialog<bool>(
       context: context,
@@ -609,26 +575,21 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                   ),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: category,
-                  isExpanded: true,
-                  decoration: InputDecoration(labelText: Loc.t('Category', 'کیٹیگری')),
-                  items: [
-                    for (final c in categoryNames) DropdownMenuItem(value: c, child: Text(c)),
-                    DropdownMenuItem(
-                      value: newCategoryKey,
-                      child: Text(Loc.t('✚  New category', '✚  نئی کیٹیگری'),
-                          style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.bold)),
+                TextField(
+                  controller: categoryCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: Loc.t('Category', 'کیٹیگری'),
+                    hintText: Loc.t('Type new or pick — new is added automatically', 'نئی لکھیں یا چنیں — نئی خود شامل ہو جائے گی'),
+                    suffixIcon: PopupMenuButton<String>(
+                      icon: const Icon(Icons.arrow_drop_down),
+                      tooltip: Loc.t('Pick category', 'کیٹیگری چنیں'),
+                      onSelected: (v) => setD(() => categoryCtrl.text = v),
+                      itemBuilder: (_) => [
+                        for (final c in categoryNames) PopupMenuItem(value: c, child: Text(c)),
+                      ],
                     ),
-                  ],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    if (v == newCategoryKey) {
-                      addCategory(setD, ctx);
-                    } else {
-                      setD(() => category = v);
-                    }
-                  },
+                  ),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -676,25 +637,35 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          Loc.t('✚  More units / default unit', '✚  مزید یونٹس / ڈیفالٹ یونٹ'),
-                          style: const TextStyle(color: AppColors.teal, fontSize: 12.5, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          Loc.t(
-                            'Sale default: ${defaultLabel(saleDefaultIdx)}  •  Quick Sale default: ${defaultLabel(quickSaleDefaultIdx)}',
-                            'سیل ڈیفالٹ: ${defaultLabel(saleDefaultIdx)}  •  کوئیک سیل ڈیفالٹ: ${defaultLabel(quickSaleDefaultIdx)}',
-                          ),
-                          style: const TextStyle(fontSize: 11.5, color: Colors.black54),
-                        ),
-                      ],
+                    child: Text(
+                      Loc.t('✚  Add more units (dozen, carton…)', '✚  مزید یونٹس (درجن، کارٹن…)'),
+                      style: const TextStyle(color: AppColors.teal, fontSize: 12.5, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  key: ValueKey('sale_$saleDefaultIdx${tiers().length}'),
+                  value: saleDefaultIdx < tiers().length ? saleDefaultIdx : -1,
+                  decoration: InputDecoration(labelText: Loc.t('Default unit — Sale', 'ڈیفالٹ یونٹ — سیل')),
+                  items: [
+                    DropdownMenuItem(value: -1, child: Text(Loc.t('Auto', 'آٹو'))),
+                    for (var i = 0; i < tiers().length; i++) DropdownMenuItem(value: i, child: Text(tiers()[i])),
+                  ],
+                  onChanged: (v) => setD(() => saleDefaultIdx = v ?? -1),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  key: ValueKey('qs_$quickSaleDefaultIdx${tiers().length}'),
+                  value: quickSaleDefaultIdx < tiers().length ? quickSaleDefaultIdx : -1,
+                  decoration: InputDecoration(labelText: Loc.t('Default unit — Quick Sale', 'ڈیفالٹ یونٹ — کوئیک سیل')),
+                  items: [
+                    DropdownMenuItem(value: -1, child: Text(Loc.t('Auto', 'آٹو'))),
+                    for (var i = 0; i < tiers().length; i++) DropdownMenuItem(value: i, child: Text(tiers()[i])),
+                  ],
+                  onChanged: (v) => setD(() => quickSaleDefaultIdx = v ?? -1),
+                ),
+                const SizedBox(height: 12),
                 const SizedBox(height: 4),
                 TextField(
                   controller: retailCtrl,
@@ -729,6 +700,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
 
     final name = nameCtrl.text.trim();
     final tag = tagCtrl.text.trim();
+    var category = categoryCtrl.text.trim();
+    categoryCtrl.dispose();
     final retail = double.tryParse(retailCtrl.text.trim()) ?? 0.0;
     final wholesale = double.tryParse(wholesaleCtrl.text.trim()) ?? 0.0;
     nameCtrl.dispose();
@@ -742,6 +715,16 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _toast(Loc.t('A product with this name already exists — picked it', 'اس نام کا پروڈکٹ پہلے سے ہے — وہی چن لیا'));
       await _onProductPicked(existing);
       return;
+    }
+    // Category maujood nahi to khud add karo.
+    if (category.isEmpty) category = 'General';
+    final sameCat = categoryNames.where((e) => e.toLowerCase() == category.toLowerCase());
+    if (sameCat.isNotEmpty) {
+      category = sameCat.first;
+    } else {
+      try {
+        await CategoryRepository.instance.insert(models.Category(category));
+      } catch (_) {}
     }
     // Nayi units (dialog mein likhi hui) units table mein bhi save karo.
     try {
