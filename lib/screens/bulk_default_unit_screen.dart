@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../db/product_repository.dart';
 import '../models/product.dart';
-import '../theme/app_colors.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart';
+import '../theme/theme_manager.dart';
 
 /// Mirrors BulkDefaultUnitActivity.kt — ek waqt mein ek product: 2+ unit tiers wale
 /// products jin ka default sale unit abhi manual set nahi. Auto jo chunta hai wahi
@@ -76,12 +76,12 @@ class _BulkDefaultUnitScreenState extends State<BulkDefaultUnitScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            color: selected ? AppColors.navy : AppColors.cardWhite,
+            color: selected ? ThemeManager.palette.navyInk : ThemeManager.palette.cardWhite,
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: AppColors.navy),
+            border: Border.all(color: ThemeManager.palette.navyInk),
           ),
           child: Text(label,
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: selected ? Colors.white : AppColors.navy)),
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: selected ? Colors.white : ThemeManager.palette.navyInk)),
         ),
       );
 
@@ -90,7 +90,7 @@ class _BulkDefaultUnitScreenState extends State<BulkDefaultUnitScreen> {
         padding: const EdgeInsets.fromLTRB(8, 18, 22, 20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          gradient: const LinearGradient(colors: [AppColors.navy, AppColors.navyLight]),
+          gradient: LinearGradient(colors: [ThemeManager.palette.navy, ThemeManager.palette.navyLight]),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.of(context).maybePop()),
@@ -107,7 +107,7 @@ class _BulkDefaultUnitScreenState extends State<BulkDefaultUnitScreen> {
                   'Products with more than one unit already have a suggestion picked for you below — tap Save & Next to confirm it, or pick a different unit first. One product at a time, no need to open each one from Items.',
                   'ایک سے زیادہ یونٹ والی پروڈکٹس کے لیے نیچے پہلے سے تجویز چنی گئی ہے — تصدیق کے لیے Save & Next دبائیں، یا پہلے دوسرا یونٹ چنیں۔ ایک وقت میں ایک پروڈکٹ۔',
                 ),
-                style: const TextStyle(color: AppColors.headerSubtitle, fontSize: 12),
+                style: TextStyle(color: ThemeManager.palette.headerSubtitleColor, fontSize: 12),
               ),
             ]),
           ),
@@ -120,20 +120,20 @@ class _BulkDefaultUnitScreenState extends State<BulkDefaultUnitScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 10),
-        child: Text('${done + 1} ${Loc.t('of', 'از')} $_total', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+        child: Text('${done + 1} ${Loc.t('of', 'از')} $_total', style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
       ),
       Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.cardWhite,
+          color: ThemeManager.palette.cardWhite,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: ThemeManager.palette.border),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(p.name, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          Text(p.name, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
           Padding(
             padding: const EdgeInsets.only(top: 3),
-            child: Text(p.category.isEmpty ? 'General' : p.category, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            child: Text(p.category.isEmpty ? 'General' : p.category, style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
           ),
           const SizedBox(height: 14),
           Wrap(spacing: 8, runSpacing: 8, children: [
@@ -145,7 +145,7 @@ class _BulkDefaultUnitScreenState extends State<BulkDefaultUnitScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.teal,
+                backgroundColor: ThemeManager.palette.teal,
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -162,22 +162,22 @@ class _BulkDefaultUnitScreenState extends State<BulkDefaultUnitScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(14), children: [
           _header(),
           if (_loading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: Text(Loc.t('Loading…', 'لوڈ ہو رہا ہے…'), style: const TextStyle(color: AppColors.textMuted))),
+              child: Center(child: Text(Loc.t('Loading…', 'لوڈ ہو رہا ہے…'), style: TextStyle(color: ThemeManager.palette.textMuted))),
             )
           else if (_queue.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(Loc.t('All products reviewed', 'تمام پروڈکٹس دیکھ لی گئیں'), style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                Text(Loc.t('All products reviewed', 'تمام پروڈکٹس دیکھ لی گئیں'), style: TextStyle(fontSize: 14, color: ThemeManager.palette.textMuted)),
                 const SizedBox(width: 6),
-                const Icon(Icons.check, size: 16, color: AppColors.teal),
+                Icon(Icons.check, size: 16, color: ThemeManager.palette.teal),
               ]),
             )
           else

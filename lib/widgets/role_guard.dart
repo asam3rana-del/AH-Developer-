@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/session.dart';
-import '../theme/app_colors.dart';
 import '../utils/loc.dart';
+import '../theme/theme_manager.dart';
 
 /// Screen ke andar role check (sirf UI hide karna kaafi nahi).
 /// `RoleGuard(allowed: {'admin'}, child: ProductScreen())`
@@ -20,14 +20,14 @@ class RoleGuard extends StatelessWidget {
         ? Loc.t('Only Admin can access this screen', 'صرف ایڈمن اس اسکرین کو استعمال کر سکتا ہے')
         : Loc.t('Only Admin/Manager can access this screen', 'صرف ایڈمن/منیجر اس اسکرین کو استعمال کر سکتا ہے');
     return Scaffold(
-      appBar: AppBar(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
+      appBar: AppBar(backgroundColor: ThemeManager.palette.navy, foregroundColor: Colors.white),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(28),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.lock_outline, size: 56, color: AppColors.textMuted),
+            Icon(Icons.lock_outline, size: 56, color: ThemeManager.palette.textMuted),
             const SizedBox(height: 14),
-            Text(msg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: AppColors.textDark)),
+            Text(msg, textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: ThemeManager.palette.textDark)),
           ]),
         ),
       ),

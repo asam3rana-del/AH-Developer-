@@ -6,8 +6,8 @@ import '../sync/branch_config_store.dart';
 import '../sync/cloud_config_store.dart';
 import '../sync/settings_sync.dart';
 import '../sync/sync_worker.dart';
-import '../theme/app_colors.dart';
 import '../utils/loc.dart';
+import '../theme/theme_manager.dart';
 
 /// Kotlin `SettingsSync.kt` ka UI: "Sync Now" (live status dot), long-press tools, "Cloud Sync Setup",
 /// "Sync History". Logic `lib/sync/settings_sync.dart` mein (test: `test/settings_sync_test.dart`).
@@ -116,9 +116,9 @@ class _SyncSectionState extends State<SyncSection> {
               title: Text(Loc.t('Recalculate party balances (Customers/Suppliers)', 'پارٹی بیلنس دوبارہ حساب کریں')),
               onTap: () => Navigator.pop(ctx, 3)),
           ListTile(
-              leading: const Icon(Icons.delete_sweep_outlined, color: AppColors.red),
+              leading: Icon(Icons.delete_sweep_outlined, color: ThemeManager.palette.red),
               title: Text(Loc.t('Delete cloud data with a wrong Branch ID (admin cleanup)', 'غلط برانچ آئی ڈی کا کلاؤڈ ڈیٹا حذف کریں'),
-                  style: const TextStyle(color: AppColors.red)),
+                  style: TextStyle(color: ThemeManager.palette.red)),
               onTap: () => Navigator.pop(ctx, 4)),
         ]),
       ),
@@ -290,19 +290,19 @@ class _SyncSectionState extends State<SyncSection> {
     final admin = SettingsSync.requireAdmin(Session.role);
     final s = _status;
     final Color dot = s == null
-        ? AppColors.textMuted
+        ? ThemeManager.palette.textMuted
         : s.needsSetup
-            ? AppColors.amber
+            ? ThemeManager.palette.amber
             : s.kind == SyncStatusKind.connected
-                ? AppColors.teal
-                : AppColors.red;
+                ? ThemeManager.palette.teal
+                : ThemeManager.palette.red;
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Icons.sync, color: AppColors.navy),
+            Icon(Icons.sync, color: ThemeManager.palette.navyInk),
             const SizedBox(width: 8),
             Text(Loc.t('Cloud Sync', 'کلاؤڈ سنک'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ]),
@@ -318,7 +318,7 @@ class _SyncSectionState extends State<SyncSection> {
                   valueListenable: SyncWorker.instance.isRunning,
                   builder: (_, running, __) => running
                       ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))
-                      : const Icon(Icons.sync, color: AppColors.teal),
+                      : Icon(Icons.sync, color: ThemeManager.palette.teal),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -329,12 +329,12 @@ class _SyncSectionState extends State<SyncSection> {
                       Icon(Icons.circle, size: 9, color: dot),
                       const SizedBox(width: 5),
                       Expanded(
-                        child: Text(s?.label ?? '…', style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+                        child: Text(s?.label ?? '…', style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
                       ),
                     ]),
                   ]),
                 ),
-                if (admin) const Icon(Icons.more_horiz, color: AppColors.textMuted),
+                if (admin) Icon(Icons.more_horiz, color: ThemeManager.palette.textMuted),
               ]),
             ),
           ),
@@ -342,7 +342,7 @@ class _SyncSectionState extends State<SyncSection> {
             const Divider(height: 1),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.cloud_outlined, color: AppColors.navy),
+              leading: Icon(Icons.cloud_outlined, color: ThemeManager.palette.navyInk),
               title: const Text('Cloud Sync Setup'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
@@ -354,7 +354,7 @@ class _SyncSectionState extends State<SyncSection> {
           const Divider(height: 1),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.receipt_long_outlined, color: AppColors.navy),
+            leading: Icon(Icons.receipt_long_outlined, color: ThemeManager.palette.navyInk),
             title: const Text('Sync History'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showDialog<void>(context: context, builder: (_) => const SyncHistoryDialog()),
@@ -405,23 +405,23 @@ class _SyncHistoryDialogState extends State<SyncHistoryDialog> {
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.amber.withOpacity(0.12),
-                      border: Border.all(color: AppColors.amber),
+                      color: ThemeManager.palette.amber.withOpacity(0.12),
+                      border: Border.all(color: ThemeManager.palette.amber),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(children: [
-                      const Icon(Icons.warning_amber_rounded, color: AppColors.amber, size: 18),
+                      Icon(Icons.warning_amber_rounded, color: ThemeManager.palette.amber, size: 18),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           Loc.t('${h.stuckCount} item(s) stopped after failing 10 times',
                               '${h.stuckCount} آئٹم 10 بار ناکام ہو کر رک گئے'),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.amber),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeManager.palette.amber),
                         ),
                       ),
                       const SizedBox(width: 6),
                       FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: AppColors.amber),
+                        style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.amber),
                         onPressed: () async {
                           await SettingsSync.retryStuck();
                           if (!context.mounted) return;
@@ -437,7 +437,7 @@ class _SyncHistoryDialogState extends State<SyncHistoryDialog> {
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: Text(Loc.t('No sync activity or conflict recorded yet.', 'ابھی تک کوئی سنک سرگرمی یا ٹکراؤ ریکارڈ نہیں ہوا۔'),
-                        style: const TextStyle(color: AppColors.textMuted)),
+                        style: TextStyle(color: ThemeManager.palette.textMuted)),
                   ),
                 for (final e in h.entries) _row(e),
               ]),
@@ -460,13 +460,13 @@ class _SyncHistoryDialogState extends State<SyncHistoryDialog> {
 
   Widget _row(AuditEntry e) {
     final flagged = e.isConflict || e.isPushFailure;
-    final color = e.isConflict ? AppColors.amber : (e.isPushFailure ? AppColors.red : AppColors.textMuted);
+    final color = e.isConflict ? ThemeManager.palette.amber : (e.isPushFailure ? ThemeManager.palette.red : ThemeManager.palette.textMuted);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: flagged ? AppColors.amber.withOpacity(0.08) : AppColors.cardWhite,
-        border: Border.all(color: AppColors.border),
+        color: flagged ? ThemeManager.palette.amber.withOpacity(0.08) : ThemeManager.palette.cardWhite,
+        border: Border.all(color: ThemeManager.palette.border),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -480,7 +480,7 @@ class _SyncHistoryDialogState extends State<SyncHistoryDialog> {
           Padding(padding: const EdgeInsets.only(top: 4), child: Text(e.details, style: const TextStyle(fontSize: 11.5))),
         Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text(formatSyncTime(e.createdAt), style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted)),
+          child: Text(formatSyncTime(e.createdAt), style: TextStyle(fontSize: 10.5, color: ThemeManager.palette.textMuted)),
         ),
       ]),
     );
@@ -689,7 +689,7 @@ class _CloudSyncSetupDialogState extends State<CloudSyncSetupDialog> {
                       'Firebase Console → Project Settings → General → Your apps → Config میں یہ 4 ویلیوز ملیں گی۔ خالی چھوڑنے پر '
                           'اس بلڈ کا ڈیفالٹ پراجیکٹ (اگر ہو) استعمال ہوگا۔',
                     ),
-                    style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted),
                   ),
                   const SizedBox(height: 6),
                   OutlinedButton.icon(
@@ -700,7 +700,7 @@ class _CloudSyncSetupDialogState extends State<CloudSyncSetupDialog> {
                   Text(
                     Loc.t('Copy the full text of google-services.json (e.g. from the Kotlin app repo: app/google-services.json), then tap this button.',
                         'google-services.json کا پورا متن کاپی کریں (مثلاً Kotlin ایپ ریپو: app/google-services.json)، پھر یہ بٹن دبائیں۔'),
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
                   ),
                   _field('Project ID', _projectId),
                   _field('API Key', _apiKey),
@@ -714,21 +714,21 @@ class _CloudSyncSetupDialogState extends State<CloudSyncSetupDialog> {
                       'اس ڈیوائس کا برانچ کوڈ — ہر برانچ کا الگ، جیسے "main-branch" یا "dusri-branch"۔ ایک ہی برانچ کا ڈیٹا شیئر '
                           'کرنے والے سب ڈیوائسز کا کوڈ ایک جیسا ہونا چاہیے۔',
                     ),
-                    style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted),
                   ),
                   _field('Branch Code', _branch),
                   const SizedBox(height: 14),
                   Text(
                     Loc.t('Device ID (share with admin so this device can be approved for branch access)',
                         'ڈیوائس آئی ڈی (ایڈمن کو دیں تاکہ یہ ڈیوائس برانچ رسائی کے لیے منظور ہو سکے)'),
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
                   ),
                   const SizedBox(height: 4),
                   Row(children: [
                     Expanded(
                       child: SelectableText(
                         _uid ?? Loc.t('Save first — the ID appears after the first sync attempt', 'پہلے محفوظ کریں — پہلی سنک کوشش کے بعد آئی ڈی یہاں آئے گی'),
-                        style: TextStyle(fontSize: 12.5, color: _uid != null ? AppColors.textDark : AppColors.textMuted),
+                        style: TextStyle(fontSize: 12.5, color: _uid != null ? ThemeManager.palette.textDark : ThemeManager.palette.textMuted),
                       ),
                     ),
                     if (_uid != null)

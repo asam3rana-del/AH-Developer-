@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../models/category_unit.dart' as models;
 import '../models/product.dart';
+import '../services/session.dart';
 import 'app_database.dart';
 import 'category_unit_repository.dart';
 import 'product_repository.dart';
@@ -46,6 +47,20 @@ List<Product> filterProducts(List<Product> all, String query) {
 
 /// ItemsActivity ke write-paths (category/unit/product). Har write + uski sync_queue
 /// entry ek DB transaction mein (Kotlin SyncQueueHelper.enqueue* jaisa).
+/// Cashier ko cost (purchase price) load hi na ho — data layer par bhi (PORTING_PLAN rule).
+/// Admin/Manager ke liye list jaisi hai waisi.
+List<Product> productsForRole(List<Product> all, String role) {
+  if (role == 'admin' || role == 'manager') return all;
+  return [for (final p in all) p.copyWith(cost: 0)];
+}
+
+/// Items ke badalne wale kaam sirf admin (Products ki tarah). UI ke saath data layer par bhi.
+void requireItemsAdmin() {
+  if (!Session.isAdmin) {
+    throw StateError('Only Admin can change items');
+  }
+}
+
 class ItemsRepository {
   ItemsRepository._();
   static final ItemsRepository instance = ItemsRepository._();
@@ -69,6 +84,7 @@ class ItemsRepository {
   // ---------- categories ----------
 
   Future<void> addCategory(String name) async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await txn.insert('categories', {'name': name}, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -80,6 +96,7 @@ class ItemsRepository {
   /// Rename: naya category banta hai, products ki category badalti hai, purani hatti hai,
   /// aur badle hue products sync queue mein jate hain.
   Future<void> renameCategory(String oldName, String newName) async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       final touched = (await txn.query('products', columns: ['barcode'], where: 'category=?', whereArgs: [oldName]))
@@ -98,6 +115,7 @@ class ItemsRepository {
 
   /// Delete: is category ke products "Items Not in Any Category" (category = '') mein jate hain.
   Future<void> deleteCategory(String name) async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       final touched = (await txn.query('products', columns: ['barcode'], where: 'category=?', whereArgs: [name]))
@@ -117,6 +135,7 @@ class ItemsRepository {
   // ---------- units ----------
 
   Future<void> addUnit(String name) async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await txn.insert('units', {'name': name}, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -127,6 +146,7 @@ class ItemsRepository {
 
   /// Kotlin confirmDeleteUnit bhi sirf local delete karta hai (koi sync delete nahi).
   Future<void> deleteUnit(String name) async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     await db.delete('units', where: 'name=?', whereArgs: [name]);
     await _refresh();
@@ -135,6 +155,7 @@ class ItemsRepository {
   // ---------- products ----------
 
   Future<void> moveProductToCategory(String barcode, String category) async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await txn.update('products', {'category': category, 'dirty': 1, 'updatedAt': DateTime.now().millisecondsSinceEpoch},
@@ -145,6 +166,7 @@ class ItemsRepository {
   }
 
   Future<void> deleteProduct(String barcode) async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await txn.delete('products', where: 'barcode=?', whereArgs: [barcode]);

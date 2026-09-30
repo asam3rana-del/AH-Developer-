@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
 import '../widgets/premium_widgets.dart';
+import '../theme/theme_manager.dart';
 
 class UnitSelection {
   final String primaryUnit;
@@ -106,9 +106,9 @@ Future<UnitSelection?> showUnitDialog(
                 margin: const EdgeInsets.only(top: 10),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.fieldFill,
+                  color: ThemeManager.palette.fieldFill,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 1.2),
+                  border: Border.all(color: ThemeManager.palette.border, width: 1.2),
                 ),
                 child: TextField(
                   controller: c,
@@ -119,7 +119,7 @@ Future<UnitSelection?> showUnitDialog(
                   }),
                   decoration: InputDecoration(
                     hintText: hint,
-                    hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                    hintStyle: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 13),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -201,9 +201,9 @@ Future<UnitSelection?> showUnitDialog(
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                      gradient: LinearGradient(colors: [AppColors.navy, AppColors.navyLight]),
+                      gradient: LinearGradient(colors: [ThemeManager.palette.navy, ThemeManager.palette.navyLight]),
                     ),
                     child: Row(
                       children: [
@@ -211,14 +211,14 @@ Future<UnitSelection?> showUnitDialog(
                           width: 46,
                           height: 46,
                           alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: AppColors.headerBadgeOverlay,
+                          decoration: BoxDecoration(
+                            color: ThemeManager.palette.headerBadgeOverlay,
                             shape: BoxShape.circle,
                           ),
                           child: const Text('📏', style: TextStyle(fontSize: 20)),
                         ),
                         const SizedBox(width: 14),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -227,7 +227,7 @@ Future<UnitSelection?> showUnitDialog(
                               SizedBox(height: 5),
                               Text(
                                 "Set how this product's units convert into each other",
-                                style: TextStyle(color: AppColors.headerSubtitle, fontSize: 11.5),
+                                style: TextStyle(color: ThemeManager.palette.headerSubtitleColor, fontSize: 11.5),
                               ),
                             ],
                           ),
@@ -244,14 +244,14 @@ Future<UnitSelection?> showUnitDialog(
                           _UnitCard(
                             emoji: '📏',
                             label: 'Primary Unit',
-                            accent: AppColors.teal,
+                            accent: ThemeManager.palette.teal,
                             child: field(primaryCtrl, 'e.g. pcs, kg, box'),
                           ),
                           const SizedBox(height: 16),
                           _UnitCard(
                             emoji: '🔹',
                             label: 'Secondary Unit (optional)',
-                            accent: AppColors.blue,
+                            accent: ThemeManager.palette.blue,
                             child: Column(
                               children: [
                                 field(secondaryCtrl, 'Leave blank if not needed'),
@@ -264,7 +264,7 @@ Future<UnitSelection?> showUnitDialog(
                           _UnitCard(
                             emoji: '🔸',
                             label: 'Tertiary Unit (optional)',
-                            accent: AppColors.orange,
+                            accent: ThemeManager.palette.orange,
                             child: Column(
                               children: [
                                 field(tertiaryCtrl, 'Leave blank if not needed'),
@@ -277,12 +277,12 @@ Future<UnitSelection?> showUnitDialog(
                           _UnitCard(
                             emoji: '✔',
                             label: 'Default Unit for Sale Screen',
-                            accent: AppColors.purple,
+                            accent: ThemeManager.palette.purple,
                             child: _DefaultUnitChips(
                               hint: 'Auto picks it for you. Choose one yourself if you want the Sale screen to always start with a specific unit.',
                               tierNames: tierNames(),
                               selected: chosenDefaultUnitIndex,
-                              accent: AppColors.purple,
+                              accent: ThemeManager.palette.purple,
                               onSelected: (i) => setState(() => chosenDefaultUnitIndex = i),
                             ),
                           ),
@@ -290,19 +290,19 @@ Future<UnitSelection?> showUnitDialog(
                           _UnitCard(
                             emoji: '⚡',
                             label: 'Default Unit for Quick Sale',
-                            accent: AppColors.teal,
+                            accent: ThemeManager.palette.teal,
                             child: _DefaultUnitChips(
                               hint: 'Can differ from the Sale screen default — the smaller unit is often what is sold in Quick Sale.',
                               tierNames: tierNames(),
                               selected: chosenQuickSaleDefaultUnitIndex,
-                              accent: AppColors.teal,
+                              accent: ThemeManager.palette.teal,
                               onSelected: (i) => setState(() => chosenQuickSaleDefaultUnitIndex = i),
                             ),
                           ),
                           if (errorText != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 12),
-                              child: Text(errorText!, style: const TextStyle(color: AppColors.red, fontSize: 12)),
+                              child: Text(errorText!, style: TextStyle(color: ThemeManager.palette.red, fontSize: 12)),
                             ),
                         ],
                       ),
@@ -311,7 +311,7 @@ Future<UnitSelection?> showUnitDialog(
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
                     decoration: BoxDecoration(
-                      color: AppColors.cardWhite,
+                      color: ThemeManager.palette.cardWhite,
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -2))],
                     ),
                     child: Row(
@@ -321,10 +321,10 @@ Future<UnitSelection?> showUnitDialog(
                             onPressed: () => Navigator.of(ctx).pop(),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: const BorderSide(color: AppColors.border),
+                              side: BorderSide(color: ThemeManager.palette.border),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
-                            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                            child: Text('Cancel', style: TextStyle(color: ThemeManager.palette.textMuted, fontWeight: FontWeight.bold)),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -332,8 +332,8 @@ Future<UnitSelection?> showUnitDialog(
                           child: GradientButton(
                             label: 'Save',
                             emoji: '✓',
-                            start: AppColors.teal,
-                            end: AppColors.tealDark,
+                            start: ThemeManager.palette.teal,
+                            end: ThemeManager.palette.tealDark,
                             radius: 14,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             onTap: trySave,
@@ -365,9 +365,9 @@ class _UnitCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: ThemeManager.palette.cardWhite,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border, width: 1.2),
+        border: Border.all(color: ThemeManager.palette.border, width: 1.2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -379,7 +379,7 @@ class _UnitCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label.toUpperCase(),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 0.3),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: ThemeManager.palette.navyInk, letterSpacing: 0.3),
                 ),
               ),
             ],
@@ -422,7 +422,7 @@ class _DefaultUnitChips extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 10, bottom: 12),
-          child: Text(hint, style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+          child: Text(hint, style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
         ),
         Wrap(
           spacing: 8,
@@ -434,7 +434,7 @@ class _DefaultUnitChips extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
-                    color: o.key == current ? accent : AppColors.cardWhite,
+                    color: o.key == current ? accent : ThemeManager.palette.cardWhite,
                     borderRadius: BorderRadius.circular(30),
                     border: Border.all(color: accent),
                   ),

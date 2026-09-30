@@ -17,7 +17,6 @@ import '../models/party.dart';
 import '../models/product.dart';
 import '../services/purchase_hold_recall.dart';
 import '../services/session.dart';
-import '../theme/app_colors.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
 import '../utils/input_validation.dart';
@@ -28,6 +27,7 @@ import '../widgets/autocomplete_options.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/unit_dialog.dart';
+import '../theme/theme_manager.dart';
 
 /// Mirrors PurchaseActivity.kt.
 ///
@@ -639,7 +639,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Text(
                       Loc.t('✚  Add more units (dozen, carton…)', '✚  مزید یونٹس (درجن، کارٹن…)'),
-                      style: const TextStyle(color: AppColors.teal, fontSize: 12.5, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: ThemeManager.palette.teal, fontSize: 12.5, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -844,7 +844,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                         ),
                         IconButton(
                           tooltip: Loc.t('Remove', 'ہٹائیں'),
-                          icon: const Icon(Icons.close, color: AppColors.red, size: 20),
+                          icon: Icon(Icons.close, color: ThemeManager.palette.red, size: 20),
                           onPressed: () => setD(() {
                             amountCtrls[i].dispose();
                             amountCtrls.removeAt(i);
@@ -1127,9 +1127,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                  color: AppColors.teal.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-                              child: const Text('CHEAPEST',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.teal)),
+                                  color: ThemeManager.palette.teal.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                              child: Text('CHEAPEST',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
                             ),
                         ]),
                         const SizedBox(height: 2),
@@ -1139,7 +1139,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                         ),
                         Text(
                           'Low ${r(row.minRate)}  •  High ${r(row.maxRate)}  •  ${row.timesPurchased}x',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                          style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted),
                         ),
                       ],
                     );
@@ -1185,7 +1185,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -1221,9 +1221,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   Widget _fieldBox({required Widget child}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.fieldFill,
+          color: ThemeManager.palette.fieldFill,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 1.2),
+          border: Border.all(color: ThemeManager.palette.border, width: 1.2),
         ),
         child: child,
       );
@@ -1246,11 +1246,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   Widget _buildSupplierCard() {
     final bal = _supplierBalance;
     return PremiumCard(
-      accentTop: AppColors.teal,
+      accentTop: ThemeManager.palette.teal,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionLabel(emoji: '🧾', label: 'Supplier', accent: AppColors.teal),
+          SectionLabel(emoji: '🧾', label: 'Supplier', accent: ThemeManager.palette.teal),
           _fieldBox(
             child: RawAutocomplete<String>(
               textEditingController: _supplierCtrl,
@@ -1302,14 +1302,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                 bal > 0
                     ? Loc.t('You owe: Rs ${bal.toStringAsFixed(0)}', 'آپ پر واجب الادا: Rs ${bal.toStringAsFixed(0)}')
                     : Loc.t('Advance with supplier: Rs ${(-bal).toStringAsFixed(0)}', 'سپلائر کے پاس ایڈوانس: Rs ${(-bal).toStringAsFixed(0)}'),
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: bal > 0 ? AppColors.red : AppColors.teal),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: bal > 0 ? ThemeManager.palette.red : ThemeManager.palette.teal),
               ),
             ),
           const SizedBox(height: 12),
           PremiumLabeledField(
             emoji: '📄',
             label: "Supplier's Invoice No. (optional)",
-            accent: AppColors.teal,
+            accent: ThemeManager.palette.teal,
             controller: _invoiceCtrl,
             focusNode: _invoiceFocus,
             keyboardType: TextInputType.text,
@@ -1327,19 +1327,19 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     Color color;
     String text;
     if (m.level == MarginLevel.loss) {
-      color = AppColors.red;
+      color = ThemeManager.palette.red;
       text = Loc.t(
         '⚠ Loss! Purchase rate ≥ current Sale Rate (Rs ${m.salePrice.toStringAsFixed(2)})',
         '⚠ نقصان! خریداری ریٹ موجودہ سیل ریٹ (روپے ${m.salePrice.toStringAsFixed(2)}) کے برابر یا زیادہ ہے',
       );
     } else if (m.level == MarginLevel.low) {
-      color = AppColors.orange;
+      color = ThemeManager.palette.orange;
       text = Loc.t(
         '⚠ Low margin: Rs ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) vs Sale Rate Rs ${m.salePrice.toStringAsFixed(2)}',
         '⚠ کم منافع: روپے ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) بمقابلہ سیل ریٹ روپے ${m.salePrice.toStringAsFixed(2)}',
       );
     } else {
-      color = AppColors.teal;
+      color = ThemeManager.palette.teal;
       text = Loc.t(
         'Margin: Rs ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) vs Sale Rate Rs ${m.salePrice.toStringAsFixed(2)}',
         'منافع: روپے ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) بمقابلہ سیل ریٹ روپے ${m.salePrice.toStringAsFixed(2)}',
@@ -1361,11 +1361,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     final editing = _editingIndex != null;
 
     return PremiumCard(
-      accentTop: AppColors.amber,
+      accentTop: ThemeManager.palette.amber,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionLabel(emoji: editing ? '✏️' : '➕', label: editing ? 'Edit Line' : 'Add Item', accent: AppColors.amber),
+          SectionLabel(emoji: editing ? '✏️' : '➕', label: editing ? 'Edit Line' : 'Add Item', accent: ThemeManager.palette.amber),
           Row(
             children: [
               Expanded(
@@ -1427,7 +1427,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               const SizedBox(width: 8),
               IconButton.filled(
                 tooltip: Loc.t('New product', 'نیا پروڈکٹ'),
-                style: IconButton.styleFrom(backgroundColor: AppColors.teal),
+                style: IconButton.styleFrom(backgroundColor: ThemeManager.palette.teal),
                 icon: const Icon(Icons.add),
                 onPressed: () => _promptAddProduct(_itemCtrl.text.trim()),
               ),
@@ -1439,7 +1439,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               child: Text(
                 'In stock: ${picked.formatStockBreakdown()}'
                 '${_lastPurchaseMainRate > 0 ? '   •   Last purchase: Rs ${picked.fromPrimaryUnitRate(_lastPurchaseMainRate, unitValue).toStringAsFixed(2)} / $unitValue' : ''}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted),
               ),
             ),
           if (picked != null && Session.isAdminOrManager)
@@ -1448,9 +1448,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               child: TextButton.icon(
                 style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(0, 32)),
                 onPressed: _showSupplierComparison,
-                icon: const Icon(Icons.compare_arrows, size: 18, color: AppColors.purple),
+                icon: Icon(Icons.compare_arrows, size: 18, color: ThemeManager.palette.purple),
                 label: Text(Loc.t('Compare suppliers', 'سپلائر موازنہ'),
-                    style: const TextStyle(fontSize: 12.5, color: AppColors.purple)),
+                    style: TextStyle(fontSize: 12.5, color: ThemeManager.palette.purple)),
               ),
             ),
           const SizedBox(height: 12),
@@ -1460,7 +1460,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                 child: PremiumLabeledField(
                   emoji: '🔢',
                   label: 'Quantity',
-                  accent: AppColors.amber,
+                  accent: ThemeManager.palette.amber,
                   controller: _qtyCtrl,
                   focusNode: _qtyFocus,
                   hint: '0',
@@ -1475,9 +1475,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: AppColors.fieldFill,
+                  color: ThemeManager.palette.fieldFill,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border, width: 1.2),
+                  border: Border.all(color: ThemeManager.palette.border, width: 1.2),
                 ),
                 child: DropdownButton<String>(
                   value: unitValue,
@@ -1494,7 +1494,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           PremiumLabeledField(
             emoji: '💵',
             label: 'Rate (per $unitValue)',
-            accent: AppColors.orange,
+            accent: ThemeManager.palette.orange,
             controller: _rateCtrl,
             focusNode: _rateFocus,
             onChanged: (v) {
@@ -1519,7 +1519,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                   child: PremiumLabeledField(
                     emoji: '🏷️',
                     label: 'Retail Rate',
-                    accent: AppColors.teal,
+                    accent: ThemeManager.palette.teal,
                     controller: _retailCtrl,
                     focusNode: _retailFocus,
                     onChanged: (v) {
@@ -1534,7 +1534,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                   child: PremiumLabeledField(
                     emoji: '📦',
                     label: 'Wholesale Rate',
-                    accent: AppColors.blue,
+                    accent: ThemeManager.palette.blue,
                     controller: _wholesaleCtrl,
                     focusNode: _wholesaleFocus,
                     textInputAction: TextInputAction.done,
@@ -1553,7 +1553,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               padding: const EdgeInsets.only(top: 10, left: 4),
               child: Text(
                 'Line total: Rs ${(qty * rate).toStringAsFixed(2)}',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textDark),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark),
               ),
             ),
           const SizedBox(height: 12),
@@ -1573,8 +1573,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                 child: GradientButton(
                   label: editing ? 'Update Line' : 'Add to Bill',
                   emoji: editing ? '✔' : '✚',
-                  start: AppColors.teal,
-                  end: AppColors.tealDark,
+                  start: ThemeManager.palette.teal,
+                  end: ThemeManager.palette.tealDark,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   onTap: _addLine,
                 ),
@@ -1589,11 +1589,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   Widget _buildLinesList() {
     if (_lines.isEmpty) return const SizedBox.shrink();
     return PremiumCard(
-      accentTop: AppColors.navy,
+      accentTop: ThemeManager.palette.navy,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionLabel(emoji: '🧾', label: 'Bill Items', accent: AppColors.navy),
+          SectionLabel(emoji: '🧾', label: 'Bill Items', accent: ThemeManager.palette.navyInk),
           ..._lines.asMap().entries.map((entry) {
             final i = entry.key;
             final line = entry.value;
@@ -1605,9 +1605,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isEditing ? AppColors.savedHighlightBg : AppColors.fieldFill,
+                  color: isEditing ? ThemeManager.palette.savedHighlightBg : ThemeManager.palette.fieldFill,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isEditing ? AppColors.teal : AppColors.border),
+                  border: Border.all(color: isEditing ? ThemeManager.palette.teal : ThemeManager.palette.border),
                 ),
                 child: Row(
                   children: [
@@ -1615,17 +1615,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(line.itemName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                          Text(line.itemName, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
                           Text(
                             '${qtyText(line.qty)} ${line.unit}  ×  ${line.rate.toStringAsFixed(2)}',
-                            style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                            style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted),
                           ),
                         ],
                       ),
                     ),
-                    Text(line.amount.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.teal)),
+                    Text(line.amount.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: AppColors.red),
+                      icon: Icon(Icons.close, size: 18, color: ThemeManager.palette.red),
                       onPressed: () => _removeLine(i),
                     ),
                   ],
@@ -1644,31 +1644,31 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     final due = (total - paid) < 0 ? 0.0 : (total - paid);
     final split = _splitPayments.isNotEmpty;
     return PremiumCard(
-      accentTop: AppColors.purple,
+      accentTop: ThemeManager.palette.purple,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionLabel(emoji: '💰', label: 'Payment', accent: AppColors.purple),
+          SectionLabel(emoji: '💰', label: 'Payment', accent: ThemeManager.palette.purple),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Subtotal', style: TextStyle(color: AppColors.textMuted)),
-              Text(_subtotal.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textDark)),
+              Text('Subtotal', style: TextStyle(color: ThemeManager.palette.textMuted)),
+              Text(_subtotal.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: ThemeManager.palette.textDark)),
             ],
           ),
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total (rounded)', style: TextStyle(color: AppColors.textMuted)),
-              Text(total.toStringAsFixed(0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textDark)),
+              Text('Total (rounded)', style: TextStyle(color: ThemeManager.palette.textMuted)),
+              Text(total.toStringAsFixed(0), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: ThemeManager.palette.textDark)),
             ],
           ),
           const SizedBox(height: 12),
           PremiumLabeledField(
             emoji: '💵',
             label: 'Paid Amount (leave 0 for credit)',
-            accent: AppColors.purple,
+            accent: ThemeManager.palette.purple,
             controller: _paidCtrl,
             focusNode: _paidFocus,
             enabled: !split,
@@ -1707,13 +1707,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                 Expanded(
                   child: Text(
                     '${Loc.t('Split', 'تقسیم')}: ${splitBreakdown(_splitPayments)}',
-                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.purple),
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.purple),
                   ),
                 ),
                 TextButton(onPressed: _openSplitPaymentDialog, child: Text(Loc.t('Edit', 'ترمیم'))),
                 IconButton(
                   tooltip: Loc.t('Remove split', 'تقسیم ہٹائیں'),
-                  icon: const Icon(Icons.close, size: 18, color: AppColors.red),
+                  icon: Icon(Icons.close, size: 18, color: ThemeManager.palette.red),
                   onPressed: _clearSplitPayments,
                 ),
               ],
@@ -1725,7 +1725,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                 due > 0.009
                     ? Loc.t('Due to supplier: Rs ${due.toStringAsFixed(0)}', 'سپلائر کو باقی: Rs ${due.toStringAsFixed(0)}')
                     : Loc.t('Fully paid', 'مکمل ادا'),
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: due > 0.009 ? AppColors.red : AppColors.teal),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: due > 0.009 ? ThemeManager.palette.red : ThemeManager.palette.teal),
               ),
             ),
         ],
@@ -1737,7 +1737,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: ThemeManager.palette.cardWhite,
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, -3))],
       ),
       child: SafeArea(
@@ -1747,8 +1747,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             if (_isEdit && Session.isAdmin) ...[
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.red,
-                  side: const BorderSide(color: AppColors.red),
+                  foregroundColor: ThemeManager.palette.red,
+                  side: BorderSide(color: ThemeManager.palette.red),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
@@ -1762,8 +1762,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               child: GradientButton(
                 label: _saving ? 'SAVING…' : (_isEdit ? 'UPDATE PURCHASE' : 'SAVE PURCHASE'),
                 emoji: '💾',
-                start: AppColors.navy,
-                end: AppColors.navyLight,
+                start: ThemeManager.palette.navy,
+                end: ThemeManager.palette.navyLight,
                 radius: 16,
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 onTap: _saving ? () {} : _save,

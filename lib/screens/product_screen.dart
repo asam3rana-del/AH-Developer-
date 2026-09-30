@@ -4,10 +4,10 @@ import '../db/category_unit_repository.dart';
 import '../db/product_repository.dart';
 import '../models/category_unit.dart' as models;
 import '../models/product.dart';
-import '../theme/app_colors.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/unit_dialog.dart';
+import '../theme/theme_manager.dart';
 
 class ProductScreen extends StatefulWidget {
   /// Items screen se edit: is barcode ka product form mein khul jata hai
@@ -290,7 +290,7 @@ class _ProductScreenState extends State<ProductScreen> {
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: AppColors.red)),
+            child: Text('Delete', style: TextStyle(color: ThemeManager.palette.red)),
           ),
         ],
       ),
@@ -319,7 +319,7 @@ class _ProductScreenState extends State<ProductScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -361,7 +361,7 @@ class _ProductScreenState extends State<ProductScreen> {
         Expanded(
           child: Text(
             isEditing ? '✏️  Editing: ${_editing!.name}' : '✚  New Product',
-            style: const TextStyle(color: AppColors.teal, fontSize: 14.5, fontWeight: FontWeight.bold),
+            style: TextStyle(color: ThemeManager.palette.teal, fontSize: 14.5, fontWeight: FontWeight.bold),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -369,8 +369,8 @@ class _ProductScreenState extends State<ProductScreen> {
           GradientButton(
             label: 'Delete',
             emoji: '🗑️',
-            start: AppColors.red,
-            end: AppColors.redDark,
+            start: ThemeManager.palette.red,
+            end: ThemeManager.palette.redDark,
             onTap: () => _confirmDelete(_editing!),
           ),
           const SizedBox(width: 8),
@@ -378,7 +378,7 @@ class _ProductScreenState extends State<ProductScreen> {
             onTap: _clearForm,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(color: AppColors.textMuted, borderRadius: BorderRadius.circular(30)),
+              decoration: BoxDecoration(color: ThemeManager.palette.textMuted, borderRadius: BorderRadius.circular(30)),
               child: const Text('✕  Cancel Edit', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
             ),
           ),
@@ -389,27 +389,27 @@ class _ProductScreenState extends State<ProductScreen> {
 
   Widget _buildNameCard() {
     return PremiumCard(
-      accentTop: AppColors.teal,
+      accentTop: ThemeManager.palette.teal,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionLabel(emoji: '🏷️', label: 'Product Name', accent: AppColors.teal),
+          SectionLabel(emoji: '🏷️', label: 'Product Name', accent: ThemeManager.palette.teal),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.fieldFill,
+              color: ThemeManager.palette.fieldFill,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 1.2),
+              border: Border.all(color: ThemeManager.palette.border, width: 1.2),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _nameCtrl,
-                    style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: AppColors.textDark),
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark),
                     decoration: InputDecoration(
                       hintText: 'Product Name',
-                      hintStyle: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.normal),
+                      hintStyle: TextStyle(color: ThemeManager.palette.textMuted, fontWeight: FontWeight.normal),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -418,8 +418,8 @@ class _ProductScreenState extends State<ProductScreen> {
                 GradientButton(
                   label: 'Select Unit',
                   emoji: '📏',
-                  start: AppColors.teal,
-                  end: AppColors.tealDark,
+                  start: ThemeManager.palette.teal,
+                  end: ThemeManager.palette.tealDark,
                   onTap: _openUnitDialog,
                 ),
               ],
@@ -430,11 +430,11 @@ class _ProductScreenState extends State<ProductScreen> {
             controller: _tagCtrl,
             decoration: InputDecoration(
               hintText: 'English search tag (optional) — e.g. Aloo Bukhara',
-              hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+              hintStyle: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 13),
               filled: true,
-              fillColor: AppColors.fieldFill,
+              fillColor: ThemeManager.palette.fieldFill,
               isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: ThemeManager.palette.border)),
             ),
           ),
         ],
@@ -444,7 +444,7 @@ class _ProductScreenState extends State<ProductScreen> {
 
   Widget _buildCategoryCard() {
     return PremiumCard(
-      accentTop: AppColors.purple,
+      accentTop: ThemeManager.palette.purple,
       child: StreamBuilder<List<models.Category>>(
         stream: CategoryRepository.instance.watchAll(),
         builder: (context, snapshot) {
@@ -452,13 +452,13 @@ class _ProductScreenState extends State<ProductScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SectionLabel(emoji: '🗂️', label: 'Category', accent: AppColors.purple),
+              SectionLabel(emoji: '🗂️', label: 'Category', accent: ThemeManager.palette.purple),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.fieldFill,
+                  color: ThemeManager.palette.fieldFill,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border, width: 1.2),
+                  border: Border.all(color: ThemeManager.palette.border, width: 1.2),
                 ),
                 child: Autocomplete<String>(
                   optionsBuilder: (text) {
@@ -472,10 +472,10 @@ class _ProductScreenState extends State<ProductScreen> {
                     return TextField(
                       controller: controller,
                       focusNode: focusNode,
-                      style: const TextStyle(fontSize: 15, color: AppColors.textDark),
+                      style: TextStyle(fontSize: 15, color: ThemeManager.palette.textDark),
                       decoration: InputDecoration(
                         hintText: 'Type or pick a category',
-                        hintStyle: TextStyle(color: AppColors.textMuted),
+                        hintStyle: TextStyle(color: ThemeManager.palette.textMuted),
                         border: InputBorder.none,
                         isDense: true,
                       ),
@@ -486,9 +486,9 @@ class _ProductScreenState extends State<ProductScreen> {
               const SizedBox(height: 10),
               GestureDetector(
                 onTap: () => _promptAddCategory(categories),
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.all(4),
-                  child: Text('✚  Add New Category', style: TextStyle(color: AppColors.teal, fontSize: 12.5, fontWeight: FontWeight.bold)),
+                  child: Text('✚  Add New Category', style: TextStyle(color: ThemeManager.palette.teal, fontSize: 12.5, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -518,46 +518,46 @@ class _ProductScreenState extends State<ProductScreen> {
 
   Widget _buildPricingCard() {
     return PremiumCard(
-      accentTop: AppColors.amber,
+      accentTop: ThemeManager.palette.amber,
       child: StreamBuilder<List<models.UnitType>>(
         stream: UnitRepository.instance.watchAll(),
         builder: (context, snapshot) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SectionLabel(emoji: '💰', label: 'Pricing', accent: AppColors.amber),
-              PremiumLabeledField(emoji: '🛒', label: 'Purchase Rate', accent: AppColors.amber, controller: _costCtrl),
+              SectionLabel(emoji: '💰', label: 'Pricing', accent: ThemeManager.palette.amber),
+              PremiumLabeledField(emoji: '🛒', label: 'Purchase Rate', accent: ThemeManager.palette.amber, controller: _costCtrl),
               const SizedBox(height: 12),
-              PremiumLabeledField(emoji: '📦', label: 'Wholesale Sale Rate', accent: AppColors.blue, controller: _wholesaleCtrl),
+              PremiumLabeledField(emoji: '📦', label: 'Wholesale Sale Rate', accent: ThemeManager.palette.blue, controller: _wholesaleCtrl),
               const SizedBox(height: 12),
-              PremiumLabeledField(emoji: '🏪', label: 'Retail Sale Rate', accent: AppColors.teal, controller: _saleCtrl),
+              PremiumLabeledField(emoji: '🏪', label: 'Retail Sale Rate', accent: ThemeManager.palette.teal, controller: _saleCtrl),
               const SizedBox(height: 12),
               _buildOpeningStockRow(),
               if (_stockPreview.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8, left: 6),
-                  child: Text(_stockPreview, style: const TextStyle(color: AppColors.teal, fontSize: 11.5, fontWeight: FontWeight.bold)),
+                  child: Text(_stockPreview, style: TextStyle(color: ThemeManager.palette.teal, fontSize: 11.5, fontWeight: FontWeight.bold)),
                 ),
               if (_editing != null)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 8, left: 6),
                   child: Text(
                     'Stock is locked while editing — change it via Purchase/Sale instead.',
-                    style: TextStyle(color: AppColors.amber, fontSize: 11),
+                    style: TextStyle(color: ThemeManager.palette.amber, fontSize: 11),
                   ),
                 ),
               const SizedBox(height: 12),
               PremiumLabeledField(
                 emoji: '⚠️',
                 label: 'Reorder Level (smallest unit)',
-                accent: AppColors.red,
+                accent: ThemeManager.palette.red,
                 controller: _reorderCtrl,
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 6, left: 6),
                 child: Text(
                   'Alert when stock falls to/below this many smallest units (e.g. pcs). Leave 0 for no alert.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                  style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 11),
                 ),
               ),
             ],
@@ -573,26 +573,26 @@ class _ProductScreenState extends State<ProductScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.fieldFill,
+        color: ThemeManager.palette.fieldFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 1.2),
+        border: Border.all(color: ThemeManager.palette.border, width: 1.2),
       ),
       child: Row(
         children: [
-          const BadgeIcon(emoji: '🔢', color: AppColors.navy),
+          BadgeIcon(emoji: '🔢', color: ThemeManager.palette.navyInk),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('OPENING STOCK', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.navy, letterSpacing: 0.3)),
+                Text('OPENING STOCK', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk, letterSpacing: 0.3)),
                 TextField(
                   controller: _stockCtrl,
                   enabled: _editing == null,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textDark),
-                  decoration: InputDecoration(hintText: '0', hintStyle: TextStyle(color: AppColors.textMuted), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark),
+                  decoration: InputDecoration(hintText: '0', hintStyle: TextStyle(color: ThemeManager.palette.textMuted), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
                 ),
               ],
             ),
@@ -617,14 +617,14 @@ class _ProductScreenState extends State<ProductScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 4),
-        const SectionLabel(emoji: '🗃️', label: 'Products', accent: AppColors.navy),
+        SectionLabel(emoji: '🗃️', label: 'Products', accent: ThemeManager.palette.navyInk),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           margin: const EdgeInsets.only(bottom: 14),
           decoration: BoxDecoration(
-            color: AppColors.cardWhite,
+            color: ThemeManager.palette.cardWhite,
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: AppColors.border, width: 1.2),
+            border: Border.all(color: ThemeManager.palette.border, width: 1.2),
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 1))],
           ),
           child: Row(
@@ -636,7 +636,7 @@ class _ProductScreenState extends State<ProductScreen> {
                   onChanged: (v) => setState(() => _search = v),
                   decoration: InputDecoration(
                     hintText: 'Search products by name or category…',
-                    hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14.5),
+                    hintStyle: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 14.5),
                     border: InputBorder.none,
                     isDense: true,
                   ),
@@ -648,9 +648,9 @@ class _ProductScreenState extends State<ProductScreen> {
                     _searchCtrl.clear();
                     _search = '';
                   }),
-                  child: const Padding(
+                  child: Padding(
                     padding: EdgeInsets.all(8),
-                    child: Text('✕', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                    child: Text('✕', style: TextStyle(color: ThemeManager.palette.textMuted, fontWeight: FontWeight.bold)),
                   ),
                 ),
             ],
@@ -666,15 +666,15 @@ class _ProductScreenState extends State<ProductScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 30),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.cardWhite,
+                  color: ThemeManager.palette.cardWhite,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border, width: 1.2),
+                  border: Border.all(color: ThemeManager.palette.border, width: 1.2),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
                     Text('🔍', style: TextStyle(fontSize: 26)),
                     SizedBox(height: 10),
-                    Text('No matching products', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                    Text('No matching products', style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 13)),
                   ],
                 ),
               );
@@ -698,7 +698,7 @@ class _ProductScreenState extends State<ProductScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: ThemeManager.palette.cardWhite,
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, -3))],
       ),
       child: SafeArea(
@@ -708,8 +708,8 @@ class _ProductScreenState extends State<ProductScreen> {
           child: GradientButton(
             label: _editing != null ? 'UPDATE PRODUCT' : 'SAVE PRODUCT',
             emoji: '💾',
-            start: AppColors.navy,
-            end: AppColors.navyLight,
+            start: ThemeManager.palette.navy,
+            end: ThemeManager.palette.navyLight,
             radius: 16,
             padding: const EdgeInsets.symmetric(vertical: 18),
             onTap: _save,
@@ -730,14 +730,14 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = isJustSaved ? AppColors.teal : AppColors.navy;
+    final accent = isJustSaved ? ThemeManager.palette.teal : ThemeManager.palette.navyInk;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isJustSaved ? AppColors.savedHighlightBg : AppColors.cardWhite,
+        color: isJustSaved ? ThemeManager.palette.savedHighlightBg : ThemeManager.palette.cardWhite,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isJustSaved ? AppColors.teal : AppColors.border, width: 1.2),
+        border: Border.all(color: isJustSaved ? ThemeManager.palette.teal : ThemeManager.palette.border, width: 1.2),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(
@@ -751,7 +751,7 @@ class _ProductCard extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [accent, isJustSaved ? AppColors.tealDark : AppColors.navyLight]),
+                  gradient: LinearGradient(colors: [accent, isJustSaved ? ThemeManager.palette.tealDark : ThemeManager.palette.navyLight]),
                 ),
                 child: Text(
                   product.name.trim().isNotEmpty ? product.name.trim()[0].toUpperCase() : '?',
@@ -765,16 +765,16 @@ class _ProductCard extends StatelessWidget {
                   children: [
                     Text(
                       isJustSaved ? '✓ ${product.name}' : product.name,
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isJustSaved ? AppColors.teal : AppColors.textDark),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isJustSaved ? ThemeManager.palette.teal : ThemeManager.palette.textDark),
                     ),
-                    Text(product.category, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                    Text(product.category, style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted)),
                   ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppColors.teal, AppColors.tealDark]),
+                  gradient: LinearGradient(colors: [ThemeManager.palette.teal, ThemeManager.palette.tealDark]),
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Text('📊 ${product.formatStockBreakdown()}', style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold)),
@@ -782,26 +782,26 @@ class _ProductCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: ThemeManager.palette.border),
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: _priceChip('🛒', 'Purchase', product.cost, AppColors.textMuted)),
+              Expanded(child: _priceChip('🛒', 'Purchase', product.cost, ThemeManager.palette.textMuted)),
               const SizedBox(width: 6),
-              Expanded(child: _priceChip('📦', 'Wholesale', product.wholesalePrice, AppColors.blue)),
+              Expanded(child: _priceChip('📦', 'Wholesale', product.wholesalePrice, ThemeManager.palette.blue)),
               const SizedBox(width: 6),
-              Expanded(child: _priceChip('🏪', 'Retail', product.salePrice, AppColors.teal)),
+              Expanded(child: _priceChip('🏪', 'Retail', product.salePrice, ThemeManager.palette.teal)),
             ],
           ),
           if (product.secondaryUnit.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+              decoration: BoxDecoration(color: ThemeManager.palette.fieldFill, borderRadius: BorderRadius.circular(10), border: Border.all(color: ThemeManager.palette.border)),
               child: Text(
                 '📏 1 ${product.unit} = ${_trimNum(product.secondaryUnitQty)} ${product.secondaryUnit}'
                 '${product.tertiaryUnit.isNotEmpty && product.tertiaryUnitQty > 0 ? "   •   1 ${product.secondaryUnit} = ${_trimNum(product.tertiaryUnitQty)} ${product.tertiaryUnit}" : ""}',
-                style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted),
               ),
             ),
           ],
@@ -812,8 +812,8 @@ class _ProductCard extends StatelessWidget {
                 child: GradientButton(
                   label: 'Edit',
                   emoji: '✏️',
-                  start: AppColors.navy,
-                  end: AppColors.navyLight,
+                  start: ThemeManager.palette.navy,
+                  end: ThemeManager.palette.navyLight,
                   onTap: onEdit,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -823,8 +823,8 @@ class _ProductCard extends StatelessWidget {
                 child: GradientButton(
                   label: 'Delete',
                   emoji: '🗑️',
-                  start: AppColors.red,
-                  end: AppColors.redDark,
+                  start: ThemeManager.palette.red,
+                  end: ThemeManager.palette.redDark,
                   onTap: onDelete,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -839,11 +839,11 @@ class _ProductCard extends StatelessWidget {
   Widget _priceChip(String emoji, String label, double value, Color accent) {
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(color: ThemeManager.palette.fieldFill, borderRadius: BorderRadius.circular(12), border: Border.all(color: ThemeManager.palette.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$emoji $label', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
+          Text('$emoji $label', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textMuted)),
           const SizedBox(height: 3),
           Text(value.toStringAsFixed(2), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: accent)),
         ],

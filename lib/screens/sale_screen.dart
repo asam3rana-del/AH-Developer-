@@ -12,7 +12,6 @@ import '../models/sale.dart';
 import '../services/sale_draft.dart';
 import '../services/sale_hold_recall.dart';
 import '../services/session.dart';
-import '../theme/app_colors.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
 import '../utils/discount_calculator.dart';
@@ -27,6 +26,7 @@ import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/role_guard.dart';
 import 'sale_quick_sale.dart';
+import '../theme/theme_manager.dart';
 
 class SaleScreen extends StatefulWidget {
   /// null = new sale. An invoice number re-opens that SAVED bill for
@@ -746,7 +746,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         'آئٹمز واپس اسٹاک میں جائیں گے، کسٹمر بیلنس واپس ہوگا اور سیل "واپس" نشان زد ہوگی۔ جاری رکھیں؟',
       ),
       Loc.t('Return', 'واپس'),
-      okColor: AppColors.amber,
+      okColor: ThemeManager.palette.amber,
     );
     if (!ok || !mounted) return;
     setState(() => _saving = true);
@@ -774,7 +774,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         'یہ بل حذف کر دے گا اور اس کا اسٹاک اور کسٹمر بیلنس پر اثر واپس کر دے گا۔ جاری رکھیں؟',
       ),
       Loc.t('Delete', 'حذف کریں'),
-      okColor: AppColors.red,
+      okColor: ThemeManager.palette.red,
     );
     if (!ok || !mounted) return;
     setState(() => _saving = true);
@@ -866,7 +866,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+            style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.red),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں')),
           ),
@@ -1096,7 +1096,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                         ),
                         IconButton(
                           tooltip: Loc.t('Remove', 'ہٹائیں'),
-                          icon: const Icon(Icons.close, color: AppColors.red, size: 20),
+                          icon: Icon(Icons.close, color: ThemeManager.palette.red, size: 20),
                           onPressed: () => setD(() {
                             rows[i].amount.dispose();
                             rows.removeAt(i);
@@ -1240,14 +1240,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       return const RoleGuard(allowed: {'admin'}, child: SizedBox.shrink());
     }
     if (_isEdit && _originalSale == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.bg,
+      return Scaffold(
+        backgroundColor: ThemeManager.palette.bg,
         body: Center(child: CircularProgressIndicator()),
       );
     }
     final returned = _originalSale?.status == 'returned';
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -1267,7 +1267,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
                           Loc.t('This sale is already Returned', 'یہ سیل پہلے ہی واپس ہو چکی ہے'),
-                          style: const TextStyle(color: AppColors.red, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: ThemeManager.palette.red, fontWeight: FontWeight.bold),
                         ),
                       ),
                     _buildActionRow(),
@@ -1314,13 +1314,13 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         runSpacing: 8,
         children: [
           if (!_isEdit) ...[
-            _pill('⚡', Loc.t('Quick Sale', 'فوری سیل'), AppColors.teal, _openQuickSale),
-            _pill('⏸', Loc.t('Hold', 'ہولڈ'), AppColors.amber, _holdBill),
-            _pill('▶', Loc.t('Recall', 'ریکال'), AppColors.blue, _openRecall),
+            _pill('⚡', Loc.t('Quick Sale', 'فوری سیل'), ThemeManager.palette.teal, _openQuickSale),
+            _pill('⏸', Loc.t('Hold', 'ہولڈ'), ThemeManager.palette.amber, _holdBill),
+            _pill('▶', Loc.t('Recall', 'ریکال'), ThemeManager.palette.blue, _openRecall),
           ],
-          _pill('🖨', Loc.t('Print', 'پرنٹ'), AppColors.navy, _printCurrent),
-          if (_isEdit && !returned) _pill('↩', Loc.t('Return', 'واپس'), AppColors.orange, _saving ? () {} : _returnSale),
-          if (_isEdit) _pill('🗑', Loc.t('Delete', 'حذف'), AppColors.red, _saving ? () {} : _deleteSale),
+          _pill('🖨', Loc.t('Print', 'پرنٹ'), ThemeManager.palette.navyInk, _printCurrent),
+          if (_isEdit && !returned) _pill('↩', Loc.t('Return', 'واپس'), ThemeManager.palette.orange, _saving ? () {} : _returnSale),
+          if (_isEdit) _pill('🗑', Loc.t('Delete', 'حذف'), ThemeManager.palette.red, _saving ? () {} : _deleteSale),
         ],
       ),
     );
@@ -1328,23 +1328,23 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   Widget _buildTopRow() {
     return PremiumCard(
-      accentTop: AppColors.blue,
+      accentTop: ThemeManager.palette.blue,
       child: Row(
         children: [
           Expanded(
             child: Row(
               children: [
-                const BadgeIcon(emoji: '📅', color: AppColors.blue, size: 38),
+                BadgeIcon(emoji: '📅', color: ThemeManager.palette.blue, size: 38),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('DATE', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.blue)),
+                      Text('DATE', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue)),
                       GestureDetector(
                         onTap: _pickDate,
                         child: Text(DateFormat('dd MMM yyyy').format(_saleDate),
-                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
                       ),
                     ],
                   ),
@@ -1355,13 +1355,13 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(30), border: Border.all(color: AppColors.border)),
+            decoration: BoxDecoration(color: ThemeManager.palette.fieldFill, borderRadius: BorderRadius.circular(30), border: Border.all(color: ThemeManager.palette.border)),
             child: ToggleButtons(
               isSelected: [!_isWholesale, _isWholesale],
               borderRadius: BorderRadius.circular(30),
               selectedColor: Colors.white,
-              fillColor: AppColors.teal,
-              color: AppColors.textMuted,
+              fillColor: ThemeManager.palette.teal,
+              color: ThemeManager.palette.textMuted,
               constraints: const BoxConstraints(minHeight: 36, minWidth: 72),
               onPressed: _onSaleTypeChanged,
               children: const [Text('Retail'), Text('Wholesale')],
@@ -1374,17 +1374,17 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   Widget _fieldBox({required Widget child}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        decoration: BoxDecoration(color: ThemeManager.palette.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: ThemeManager.palette.border)),
         child: child,
       );
 
   Widget _buildCustomerCard() {
     return PremiumCard(
-      accentTop: AppColors.purple,
+      accentTop: ThemeManager.palette.purple,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionLabel(emoji: '🧑‍🤝‍🧑', label: 'Customer (optional unless on credit)', accent: AppColors.purple),
+          SectionLabel(emoji: '🧑‍🤝‍🧑', label: 'Customer (optional unless on credit)', accent: ThemeManager.palette.purple),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -1414,7 +1414,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               const SizedBox(width: 8),
               IconButton.filled(
                 tooltip: Loc.t('New customer', 'نیا کسٹمر'),
-                style: IconButton.styleFrom(backgroundColor: AppColors.teal),
+                style: IconButton.styleFrom(backgroundColor: ThemeManager.palette.teal),
                 icon: const Icon(Icons.add),
                 onPressed: _promptAddCustomer,
               ),
@@ -1453,14 +1453,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     late final Color color;
     switch (m.level) {
       case MarginLevel.loss:
-        color = AppColors.red;
+        color = ThemeManager.palette.red;
         text = showFigures
             ? Loc.t('⚠ Loss! Sale rate ≤ Cost (Rs ${m.costInUnit.toStringAsFixed(2)})',
                 '⚠ نقصان! سیل ریٹ لاگت (روپے ${m.costInUnit.toStringAsFixed(2)}) کے برابر یا کم ہے')
             : Loc.t('⚠ Loss! Rate is too low', '⚠ نقصان! ریٹ بہت کم ہے');
         break;
       case MarginLevel.low:
-        color = AppColors.amber;
+        color = ThemeManager.palette.amber;
         text = showFigures
             ? Loc.t('⚠ Low margin: Rs ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) vs Cost Rs ${m.costInUnit.toStringAsFixed(2)}',
                 '⚠ کم منافع: روپے ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) بمقابلہ لاگت روپے ${m.costInUnit.toStringAsFixed(2)}')
@@ -1468,7 +1468,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         break;
       default:
         if (!showFigures) return const SizedBox.shrink();
-        color = AppColors.teal;
+        color = ThemeManager.palette.teal;
         text = Loc.t('Margin: Rs ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) vs Cost Rs ${m.costInUnit.toStringAsFixed(2)}',
             'منافع: روپے ${m.margin.toStringAsFixed(2)} (${m.marginPct.toStringAsFixed(1)}%) بمقابلہ لاگت روپے ${m.costInUnit.toStringAsFixed(2)}');
     }
@@ -1499,11 +1499,11 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
 
     return PremiumCard(
-      accentTop: AppColors.amber,
+      accentTop: ThemeManager.palette.amber,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionLabel(emoji: '➕', label: 'Add Item', accent: AppColors.amber),
+          SectionLabel(emoji: '➕', label: 'Add Item', accent: ThemeManager.palette.amber),
           _fieldBox(
             child: RawAutocomplete<Product>(
               textEditingController: _itemCtrl,
@@ -1540,7 +1540,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.only(top: 8, left: 4),
               child: Text(
                 'In stock: ${picked.formatStockBreakdown()}',
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
               ),
             ),
           const SizedBox(height: 12),
@@ -1550,7 +1550,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 child: PremiumLabeledField(
                   emoji: _qtyIsAmountMode ? '₨' : '🔢',
                   label: _qtyIsAmountMode ? Loc.t('Amount (Rs)', 'رقم (روپے)') : 'Quantity',
-                  accent: AppColors.amber,
+                  accent: ThemeManager.palette.amber,
                   controller: _qtyCtrl,
                   hint: _qtyIsAmountMode ? Loc.t('Amount in Rs', 'روپے میں رقم') : '0',
                   onChanged: (_) => setState(() {}),
@@ -1563,15 +1563,15 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: _qtyIsAmountMode ? AppColors.teal : AppColors.cardWhite,
+                    color: _qtyIsAmountMode ? ThemeManager.palette.teal : ThemeManager.palette.cardWhite,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _qtyIsAmountMode ? AppColors.teal : AppColors.border),
+                    border: Border.all(color: _qtyIsAmountMode ? ThemeManager.palette.teal : ThemeManager.palette.border),
                   ),
                   child: Text(
                     'Rs',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: _qtyIsAmountMode ? Colors.white : AppColors.textMuted,
+                      color: _qtyIsAmountMode ? Colors.white : ThemeManager.palette.textMuted,
                     ),
                   ),
                 ),
@@ -1579,7 +1579,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                decoration: BoxDecoration(color: ThemeManager.palette.fieldFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: ThemeManager.palette.border)),
                 child: DropdownButton<String>(
                   value: unitValue,
                   underline: const SizedBox.shrink(),
@@ -1600,13 +1600,13 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           if (picked != null && _conversionInfo(picked).isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8, left: 4),
-              child: Text(_conversionInfo(picked), style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+              child: Text(_conversionInfo(picked), style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
             ),
           const SizedBox(height: 12),
           PremiumLabeledField(
             emoji: '💵',
             label: 'Unit Price (auto-filled, editable)',
-            accent: AppColors.teal,
+            accent: ThemeManager.palette.teal,
             controller: _priceCtrl,
             onChanged: _onPriceChanged,
           ),
@@ -1618,14 +1618,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   "$_customerRateName's usual rate applied: Rs ${price.toStringAsFixed(2)} / $unitValue",
                   '$_customerRateName کا معمول کا ریٹ لگا دیا گیا: روپے ${price.toStringAsFixed(2)} / $unitValue',
                 ),
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.blue),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue),
               ),
             ),
           _buildMarginWarning(),
           Padding(
             padding: const EdgeInsets.only(top: 10, left: 4),
             child: Text(_itemTotalText(qty, price, unitValue),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -1633,8 +1633,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             child: GradientButton(
               label: _editingIndex != null ? Loc.t('UPDATE ITEM', 'آئٹم اپ ڈیٹ کریں') : 'Add to Bill',
               emoji: _editingIndex != null ? '✔' : '✚',
-              start: _editingIndex != null ? AppColors.amber : AppColors.teal,
-              end: _editingIndex != null ? AppColors.orange : AppColors.tealDark,
+              start: _editingIndex != null ? ThemeManager.palette.amber : ThemeManager.palette.teal,
+              end: _editingIndex != null ? ThemeManager.palette.orange : ThemeManager.palette.tealDark,
               padding: const EdgeInsets.symmetric(vertical: 14),
               onTap: _addLine,
             ),
@@ -1644,7 +1644,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.only(top: 6),
               child: TextButton(
                 onPressed: _cancelLineEdit,
-                child: Text(Loc.t('Cancel edit', 'ترمیم منسوخ کریں'), style: const TextStyle(color: AppColors.red)),
+                child: Text(Loc.t('Cancel edit', 'ترمیم منسوخ کریں'), style: TextStyle(color: ThemeManager.palette.red)),
               ),
             ),
         ],
@@ -1652,48 +1652,119 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Compact trigger (Kotlin `billedItemsTrigger`): the full list lives in a popup
+  /// so the entry fields and totals stay on screen while items are added.
   Widget _buildLinesList() {
     if (_lines.isEmpty) return const SizedBox.shrink();
     return PremiumCard(
-      accentTop: AppColors.navy,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SectionLabel(emoji: '🧾', label: 'Bill Items', accent: AppColors.navy),
-          ..._lines.asMap().entries.map((entry) {
-            final i = entry.key;
-            final line = entry.value;
-            final beingEdited = _editingIndex == i;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: beingEdited ? AppColors.amber.withOpacity(0.12) : AppColors.fieldFill,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: beingEdited ? AppColors.amber : AppColors.border),
+      accentTop: ThemeManager.palette.navy,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _openBilledItemsDialog,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              const Text('🧾', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${Loc.t('Billed Items', 'بل کردہ آئٹمز')}  (${_lines.length})  ·  Rs ${_subtotal.toStringAsFixed(0)}',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk),
+                ),
               ),
-              child: Row(
+              Icon(Icons.keyboard_arrow_down, color: ThemeManager.palette.navyInk),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Kotlin `openBilledItemsDialog()`: closing it just returns to where the
+  /// cashier was (no focus jump to Paid).
+  Future<void> _openBilledItemsDialog() async {
+    if (_lines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(Loc.t('No items added yet', 'ابھی تک کوئی آئٹم شامل نہیں'))),
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          if (_lines.isEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (Navigator.of(dialogCtx).canPop()) Navigator.of(dialogCtx).pop();
+            });
+          }
+          return AlertDialog(
+            title: Text(Loc.t('Billed Items', 'بل کردہ آئٹمز')),
+            contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < _lines.length; i++)
+                      _billedLineTile(
+                        i,
+                        _lines[i],
+                        onEdit: () {
+                          Navigator.of(dialogCtx).pop();
+                          _editLine(i); // refills the entry fields + scrolls up
+                        },
+                        onDelete: () {
+                          _removeLine(i);
+                          setDialogState(() {});
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(),
+                child: Text(Loc.t('Close', 'بند کریں')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _billedLineTile(int i, SaleLine line, {required VoidCallback onEdit, required VoidCallback onDelete}) {
+    final beingEdited = _editingIndex == i;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: beingEdited ? ThemeManager.palette.amber.withOpacity(0.12) : ThemeManager.palette.fieldFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: beingEdited ? ThemeManager.palette.amber : ThemeManager.palette.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: onEdit,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => _editLine(i),
-                      child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(line.itemName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
-                        Text('${formatQty(line.qty)} ${line.unit}  ×  ${line.unitPrice.toStringAsFixed(2)}',
-                            style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
-                      ],
-                    ),
-                    ),
-                  ),
-                  Text(line.amount.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.teal)),
-                  IconButton(icon: const Icon(Icons.edit, size: 18, color: AppColors.blue), tooltip: 'Edit', onPressed: () => _editLine(i)),
-                  IconButton(icon: const Icon(Icons.close, size: 18, color: AppColors.red), onPressed: () => _removeLine(i)),
+                  Text(line.itemName, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+                  Text('${formatQty(line.qty)} ${line.unit}  ×  ${line.unitPrice.toStringAsFixed(2)}',
+                      style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
                 ],
               ),
-            );
-          }),
+            ),
+          ),
+          Text(line.amount.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
+          IconButton(icon: Icon(Icons.edit, size: 18, color: ThemeManager.palette.blue), tooltip: 'Edit', onPressed: onEdit),
+          IconButton(icon: Icon(Icons.close, size: 18, color: ThemeManager.palette.red), onPressed: onDelete),
         ],
       ),
     );
@@ -1702,30 +1773,30 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   Widget _buildTotalsCard() {
     final totals = _totals;
     return PremiumCard(
-      accentTop: AppColors.purple,
+      accentTop: ThemeManager.palette.purple,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionLabel(emoji: '💰', label: 'Billing', accent: AppColors.purple),
+          SectionLabel(emoji: '💰', label: 'Billing', accent: ThemeManager.palette.purple),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Subtotal', style: TextStyle(color: AppColors.textMuted)),
-              Text(totals.subtotal.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+              Text('Subtotal', style: TextStyle(color: ThemeManager.palette.textMuted)),
+              Text(totals.subtotal.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
             ],
           ),
           const SizedBox(height: 12),
-          PremiumLabeledField(emoji: '➖', label: 'Discount', accent: AppColors.orange, controller: _discountCtrl, onChanged: (_) => setState(() {})),
+          PremiumLabeledField(emoji: '➖', label: 'Discount', accent: ThemeManager.palette.orange, controller: _discountCtrl, onChanged: (_) => setState(() {})),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
-              Text(totals.total.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: AppColors.navy)),
+              Text('Total', style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+              Text(totals.total.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: ThemeManager.palette.navyInk)),
             ],
           ),
           const SizedBox(height: 12),
-          PremiumLabeledField(emoji: '💵', label: 'Paid Amount', accent: AppColors.purple, controller: _paidCtrl, enabled: _splitPayments.isEmpty, onChanged: (_) => setState(() {})),
+          PremiumLabeledField(emoji: '💵', label: 'Paid Amount', accent: ThemeManager.palette.purple, controller: _paidCtrl, enabled: _splitPayments.isEmpty, onChanged: (_) => setState(() {})),
           const SizedBox(height: 8),
           if (_splitPayments.isEmpty)
             Row(
@@ -1775,14 +1846,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Text(
                   '${Loc.t('Split', 'تقسیم')}: ${splitBreakdown(_splitPayments)}   ✕',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk, fontSize: 13),
                 ),
               ),
             ),
           if (totals.due > 0.009)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Text('Due: ${totals.due.toStringAsFixed(2)} — customer required', style: const TextStyle(color: AppColors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+              child: Text('Due: ${totals.due.toStringAsFixed(2)} — customer required', style: TextStyle(color: ThemeManager.palette.red, fontSize: 12, fontWeight: FontWeight.bold)),
             ),
         ],
       ),
@@ -1792,7 +1863,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   Widget _buildSaveBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-      decoration: BoxDecoration(color: AppColors.cardWhite, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, -3))]),
+      decoration: BoxDecoration(color: ThemeManager.palette.cardWhite, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, -3))]),
       child: SafeArea(
         top: false,
         child: SizedBox(
@@ -1800,8 +1871,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           child: GradientButton(
             label: _saving ? 'SAVING…' : (_isEdit ? Loc.t('UPDATE SALE', 'سیل اپ ڈیٹ کریں') : 'SAVE SALE'),
             emoji: '💾',
-            start: AppColors.navy,
-            end: AppColors.navyLight,
+            start: ThemeManager.palette.navy,
+            end: ThemeManager.palette.navyLight,
             radius: 16,
             padding: const EdgeInsets.symmetric(vertical: 18),
             onTap: _saving ? () {} : _save,

@@ -22,10 +22,14 @@ class IconBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Dark mode: safed-ki-taraf lighten se chamakta hua halka circle banta tha — wahan card ke rang mein
+    // [color] ki halki jhalak milate hain, taake badge dark card par bhi jaisa hi lage.
+    final dark = ThemeManager.isDark.value;
+    final fill = bg ?? (dark ? Color.lerp(ThemeManager.palette.cardWhite, color, 0.22)! : lightenColor(color));
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: bg ?? lightenColor(color)),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: fill),
       child: Icon(icon, size: iconSize, color: color),
     );
   }
@@ -72,6 +76,7 @@ class MenuRow extends StatelessWidget {
   final Color? chevronColor;
   final Color? cardColor;
   final Color? borderColor;
+  final IconData? chevronIcon; // link rows ke liye Icons.chevron_right
   final VoidCallback onTap;
 
   const MenuRow({
@@ -86,6 +91,7 @@ class MenuRow extends StatelessWidget {
     this.chevronColor,
     this.cardColor,
     this.borderColor,
+    this.chevronIcon,
   });
 
   @override
@@ -105,7 +111,7 @@ class MenuRow extends StatelessWidget {
         if (trailingText != null)
           Text(trailingText!, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: chev))
         else if (showChevron)
-          Icon(Icons.keyboard_arrow_down, size: 18, color: chev),
+          Icon(chevronIcon ?? Icons.keyboard_arrow_down, size: 18, color: chev),
       ]),
     );
   }

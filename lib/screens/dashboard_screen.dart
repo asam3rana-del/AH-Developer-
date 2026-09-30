@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:share_plus/share_plus.dart';
 
 import '../db/dashboard_repository.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../services/biometric.dart';
+import '../services/crash_handler.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
@@ -91,6 +94,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _refresh();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkLastCrash());
+  }
+
+  /// Kotlin `showCrashDialog`: pichli baar crash hui ho to log dikhao (Share / Copy / Dismiss).
+  Future<void> _checkLastCrash() async {
+    final text = await CrashHandler.getLastCrash();
+    if (text == null || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('App crashed last time', 'پچھلی بار ایپ کریش ہوئی تھی')),
+        content: SingleChildScrollView(
+          child: SelectableText(CrashHandler.preview(text), style: const TextStyle(fontSize: 12)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Share.share(text, subject: 'IBTISAAM POS Crash Log');
+              await CrashHandler.clearLastCrash();
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: const Text('Share'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text(Loc.t('Copied', 'کاپی ہو گیا'))),
+                );
+              }
+            },
+            child: Text(Loc.t('Copy', 'کاپی')),
+          ),
+          TextButton(
+            onPressed: () async {
+              await CrashHandler.clearLastCrash();
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: Text(Loc.t('Dismiss', 'برخاست کریں')),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -341,10 +389,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _Action('Low Stock', 'کم اسٹاک', 'Items needing restock', 'دوبارہ منگوانے والی اشیاء', Icons.warning_amber_rounded, _partyRedBg,
           _partyRed,
           open: () => const StockReportScreen(lowStockOnly: true)),
-      // Items abhi Flutter mein admin tak (Kotlin ka tile sab ko dikhta hai) — ItemsScreen ka RoleGuard barqarar.
-      if (role == 'admin')
-        _Action('Items', 'آئٹمز', 'Products, categories & units', 'پروڈکٹس، کیٹیگریز اور یونٹس', Icons.list_alt, p.flatBlueBg, p.flatBlueFg,
-            open: () => const RoleGuard(allowed: _admin, child: ItemsScreen())),
+      // Kotlin jaisa: Items tile sab roles ko (koi gate nahi). ItemsScreen ke andar cashier ko cost nahi
+      // dikhta aur add/edit/delete sirf admin (lib/screens/items_screen.dart, items_repository.dart).
+      _Action('Items', 'آئٹمز', 'Products, categories & units', 'پروڈکٹس، کیٹیگریز اور یونٹس', Icons.list_alt, p.flatBlueBg, p.flatBlueFg,
+          open: () => const ItemsScreen()),
       if (_am.contains(role))
         _Action('Backup', 'بیک اپ', 'Export data (CSV + PDF)', 'ڈیٹا ایکسپورٹ', Icons.save_outlined, p.flatBlueBg, p.flatBlueFg,
             open: () => const BackupExportScreen()),

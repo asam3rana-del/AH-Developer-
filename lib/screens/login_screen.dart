@@ -10,10 +10,10 @@ import '../services/app_lock.dart';
 import '../services/biometric.dart';
 import '../services/otp_login.dart';
 import '../services/session.dart';
-import '../theme/app_colors.dart';
 import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
 import 'dashboard_screen.dart';
+import '../theme/theme_manager.dart';
 
 /// Mirrors LoginActivity.kt (password + "none" login method + pehli dafa admin setup).
 /// Login methods: password, none, fingerprint, both (local_auth), otp (Firebase Phone Auth — `lib/services/otp_login.dart`).
@@ -397,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: double.infinity,
           height: 50,
           child: FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
             onPressed: _busy ? null : _sendOtp,
             child: Text(_verificationId == null ? Loc.t('SEND OTP', 'OTP بھیجیں') : Loc.t('RESEND OTP', 'دوبارہ OTP بھیجیں')),
           ),
@@ -416,7 +416,7 @@ class _LoginScreenState extends State<LoginScreen> {
             width: double.infinity,
             height: 50,
             child: FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.navy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.navy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
               onPressed: _busy ? null : _verifyOtp,
               child: _busy
                   ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -432,15 +432,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   InputDecoration _dec(String label, IconData icon, {Widget? suffix}) => InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: AppColors.textMuted),
+        prefixIcon: Icon(icon, color: ThemeManager.palette.textMuted),
         suffixIcon: suffix,
         filled: true,
-        fillColor: AppColors.fieldFill,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+        fillColor: ThemeManager.palette.fieldFill,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: ThemeManager.palette.border)),
       );
 
   Widget _fingerprintPanel() => Column(children: [
-        const Icon(Icons.fingerprint, size: 72, color: AppColors.teal),
+        Icon(Icons.fingerprint, size: 72, color: ThemeManager.palette.teal),
         const SizedBox(height: 8),
         Text(Loc.t('Verify with your fingerprint', 'اپنی فنگر پرنٹ سے تصدیق کریں'), textAlign: TextAlign.center),
         const SizedBox(height: 16),
@@ -448,7 +448,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: double.infinity,
           height: 50,
           child: FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
             onPressed: _triggerFingerprintUnlock,
             icon: const Icon(Icons.fingerprint),
             label: Text(Loc.t('FINGERPRINT', 'فنگر پرنٹ')),
@@ -463,8 +463,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.navy, AppColors.navyLight]),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [ThemeManager.palette.navy, ThemeManager.palette.navyLight]),
         ),
         child: SafeArea(
           child: Center(
@@ -473,12 +473,12 @@ class _LoginScreenState extends State<LoginScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const CircleAvatar(radius: 40, backgroundColor: Colors.white, child: Icon(Icons.lock, size: 36, color: AppColors.navy)),
+                  CircleAvatar(radius: 40, backgroundColor: Colors.white, child: Icon(Icons.lock, size: 36, color: ThemeManager.palette.navyInk)),
                   const SizedBox(height: 16),
                   const Text('AH Developer — Kiryana Store', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text(_setupMode ? Loc.t('First-time setup', 'پہلی دفعہ سیٹ اپ') : Loc.t('Sign in to continue', 'جاری رکھنے کے لیے لاگ اِن کریں'),
-                      style: const TextStyle(color: AppColors.headerSubtitle)),
+                      style: TextStyle(color: ThemeManager.palette.headerSubtitleColor)),
                   const SizedBox(height: 26),
                   Card(
                     elevation: 8,
@@ -511,14 +511,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                         if (_error != null) ...[
                           const SizedBox(height: 12),
-                          Text(_error!, style: const TextStyle(color: AppColors.red)),
+                          Text(_error!, style: TextStyle(color: ThemeManager.palette.red)),
                         ],
                         const SizedBox(height: 18),
                         SizedBox(
                           width: double.infinity,
                           height: 50,
                           child: FilledButton(
-                            style: FilledButton.styleFrom(backgroundColor: AppColors.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                            style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                             onPressed: _busy ? null : (_setupMode ? _createAdmin : _login),
                             child: _busy
                                 ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

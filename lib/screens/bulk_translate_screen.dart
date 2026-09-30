@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../backup/backup_helper.dart';
 import '../db/bulk_translate_repository.dart';
 import '../models/product.dart';
-import '../theme/app_colors.dart';
 import '../utils/duplicate_unit_fix.dart';
 import '../utils/loc.dart';
 import '../utils/merge_duplicate_products.dart';
+import '../theme/theme_manager.dart';
 
 /// Mirrors BulkTranslateActivity.kt — Urdu -> English ek dafa ka tool.
 /// Categories / Units: har Urdu value ek baar, saamne English field; "Save" master table aur har product
@@ -193,20 +193,20 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
                   Text(g.keeper.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
                   Text(
                     '${g.all.length} ${Loc.t('rows', 'قطاریں')} → ${g.keeper.copyWith(stock: g.combinedStock).formatStockBreakdown()}',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted),
                   ),
                 ]),
               ),
             if (plan.groups.length > shown.length)
               Text(Loc.t('…and ${plan.groups.length - shown.length} more', '…اور ${plan.groups.length - shown.length} مزید'),
-                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                  style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
             if (plan.skippedUnitMismatch > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   Loc.t('${plan.skippedUnitMismatch} name match(es) skipped — different unit setup.',
                       '${plan.skippedUnitMismatch} نام ملتے ہیں مگر یونٹ سیٹ اپ مختلف — چھوڑ دیے گئے۔'),
-                  style: const TextStyle(fontSize: 12, color: AppColors.orange),
+                  style: TextStyle(fontSize: 12, color: ThemeManager.palette.orange),
                 ),
               ),
           ]),
@@ -214,7 +214,7 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
+            style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal),
             onPressed: () => Navigator.pop(c, true),
             child: Text(Loc.t('Backup & Merge', 'بیک اپ اور ملائیں')),
           ),
@@ -277,7 +277,7 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
         padding: const EdgeInsets.fromLTRB(8, 18, 22, 20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          gradient: const LinearGradient(colors: [AppColors.navy, AppColors.navyLight]),
+          gradient: LinearGradient(colors: [ThemeManager.palette.navy, ThemeManager.palette.navyLight]),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.of(context).maybePop()),
@@ -294,7 +294,7 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
                   'Type the English name once for each Urdu value — it applies to every product using it. For items, you can type more than one English name separated by a comma (e.g. "sugar, chini").',
                   'ہر اردو ویلیو کا English نام ایک بار لکھیں — یہ ہر متعلقہ پروڈکٹ پر لاگو ہوگا۔ آئٹمز کے لیے کاما سے ایک سے زیادہ English نام لکھ سکتے ہیں (مثلاً "sugar, chini")۔',
                 ),
-                style: const TextStyle(color: AppColors.headerSubtitle, fontSize: 12),
+                style: TextStyle(color: ThemeManager.palette.headerSubtitleColor, fontSize: 12),
               ),
             ]),
           ),
@@ -312,25 +312,25 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.cardWhite,
+          color: ThemeManager.palette.cardWhite,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.teal, width: 1.4),
+          border: Border.all(color: ThemeManager.palette.teal, width: 1.4),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(icon, size: 16, color: AppColors.teal),
+            Icon(icon, size: 16, color: ThemeManager.palette.teal),
             const SizedBox(width: 6),
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.textDark))),
+            Expanded(child: Text(title, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark))),
           ]),
           Padding(
             padding: const EdgeInsets.only(top: 6, bottom: 14),
-            child: Text(body, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            child: Text(body, style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
           ),
           SizedBox(
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.teal,
+                backgroundColor: ThemeManager.palette.teal,
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -344,20 +344,20 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
   Widget _sectionHeader(String t) => Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 10),
         child: Text(t.toUpperCase(),
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.navy, letterSpacing: 0.4)),
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk, letterSpacing: 0.4)),
       );
 
   Widget _valueRow(String old, TextEditingController c) => Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.cardWhite,
+          color: ThemeManager.palette.cardWhite,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border, width: 1.4),
+          border: Border.all(color: ThemeManager.palette.border, width: 1.4),
         ),
         child: Row(children: [
-          Expanded(child: Text(old, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.textDark))),
-          const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('→', style: TextStyle(fontSize: 15, color: AppColors.textMuted))),
+          Expanded(child: Text(old, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark))),
+          Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('→', style: TextStyle(fontSize: 15, color: ThemeManager.palette.textMuted))),
           Expanded(
             child: TextField(
               controller: c,
@@ -376,9 +376,9 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(Loc.t('All items tagged', 'تمام آئٹمز ٹیگ ہو گئیں'), style: const TextStyle(fontSize: 13.5, color: AppColors.textMuted)),
+          Text(Loc.t('All items tagged', 'تمام آئٹمز ٹیگ ہو گئیں'), style: TextStyle(fontSize: 13.5, color: ThemeManager.palette.textMuted)),
           const SizedBox(width: 6),
-          const Icon(Icons.check, size: 16, color: AppColors.teal),
+          Icon(Icons.check, size: 16, color: ThemeManager.palette.teal),
         ]),
       );
     }
@@ -386,17 +386,17 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 10),
-        child: Text('${done + 1} ${Loc.t('of', 'از')} $_untaggedTotal', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+        child: Text('${done + 1} ${Loc.t('of', 'از')} $_untaggedTotal', style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
       ),
       Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.cardWhite,
+          color: ThemeManager.palette.cardWhite,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: ThemeManager.palette.border),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_untaggedQueue.first, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          Text(_untaggedQueue.first, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
           const SizedBox(height: 12),
           TextField(
             controller: _itemTag,
@@ -409,8 +409,8 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
             decoration: InputDecoration(
               hintText: Loc.t('English name(s), e.g. sugar, chini', 'English نام، مثلاً sugar, chini'),
               filled: true,
-              fillColor: AppColors.fieldFill,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+              fillColor: ThemeManager.palette.fieldFill,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeManager.palette.border)),
             ),
           ),
           const SizedBox(height: 14),
@@ -418,7 +418,7 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.teal,
+                backgroundColor: ThemeManager.palette.teal,
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -437,7 +437,7 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
     final catsUnitsEmpty = _catFields.isEmpty && _unitFields.isEmpty;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(14), children: [
           _header(),
@@ -464,16 +464,16 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
           if (_loading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: Text(Loc.t('Loading…', 'لوڈ ہو رہا ہے…'), style: const TextStyle(color: AppColors.textMuted))),
+              child: Center(child: Text(Loc.t('Loading…', 'لوڈ ہو رہا ہے…'), style: TextStyle(color: ThemeManager.palette.textMuted))),
             )
           else ...[
             if (catsUnitsEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 30),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(Loc.t('Nothing left to translate', 'ترجمے کے لیے کچھ باقی نہیں'), style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                  Text(Loc.t('Nothing left to translate', 'ترجمے کے لیے کچھ باقی نہیں'), style: TextStyle(fontSize: 14, color: ThemeManager.palette.textMuted)),
                   const SizedBox(width: 6),
-                  const Icon(Icons.check, size: 16, color: AppColors.teal),
+                  Icon(Icons.check, size: 16, color: ThemeManager.palette.teal),
                 ]),
               ),
             if (_catFields.isNotEmpty) ...[
@@ -494,7 +494,7 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
                 width: double.infinity,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.navy,
+                    backgroundColor: ThemeManager.palette.navy,
                     padding: const EdgeInsets.symmetric(vertical: 22),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),

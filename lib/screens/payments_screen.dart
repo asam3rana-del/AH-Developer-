@@ -6,8 +6,8 @@ import '../db/payment_repository.dart';
 import '../db/supplier_repository.dart';
 import '../models/misc_entities.dart';
 import '../services/session.dart';
-import '../theme/app_colors.dart';
 import '../utils/loc.dart';
+import '../theme/theme_manager.dart';
 
 /// Home-screen "Payments" tile (Kotlin: PartyDashboardActivity quickPayment +
 /// PartyTransactionActivity.showPaymentDialog + PaymentsReportActivity).
@@ -43,16 +43,16 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
-        backgroundColor: AppColors.bg,
+        backgroundColor: ThemeManager.palette.bg,
         appBar: AppBar(
-          backgroundColor: AppColors.navy,
+          backgroundColor: ThemeManager.palette.navy,
           foregroundColor: Colors.white,
           title: Text(Loc.t('Payments', 'ادائیگیاں')),
           bottom: showHistory
               ? TabBar(
-                  indicatorColor: AppColors.teal,
+                  indicatorColor: ThemeManager.palette.teal,
                   labelColor: Colors.white,
-                  unselectedLabelColor: AppColors.headerSubtitle,
+                  unselectedLabelColor: ThemeManager.palette.headerSubtitleColor,
                   tabs: tabs,
                 )
               : null,
@@ -110,7 +110,7 @@ Future<bool> showPaymentDialog(
         title: Text(title),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(partyName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+            Text(partyName, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
             const SizedBox(height: 10),
             TextField(
               controller: amountCtrl,
@@ -162,7 +162,7 @@ Future<bool> showPaymentDialog(
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
+            style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal),
             onPressed: () async {
               final amt = double.tryParse(amountCtrl.text.trim());
               if (amt == null || amt <= 0) {
@@ -244,7 +244,7 @@ class _RecordTabState extends State<_RecordTab> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _isCustomer ? AppColors.teal : AppColors.orange;
+    final accent = _isCustomer ? ThemeManager.palette.teal : ThemeManager.palette.orange;
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -269,7 +269,7 @@ class _RecordTabState extends State<_RecordTab> {
             alignment: Alignment.centerLeft,
             child: Text(
               _isCustomer ? Loc.t('From a customer', 'کسٹمر سے') : Loc.t('To a supplier', 'سپلائر کو'),
-              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted),
             ),
           ),
           const SizedBox(height: 8),
@@ -279,8 +279,8 @@ class _RecordTabState extends State<_RecordTab> {
               prefixIcon: const Icon(Icons.search),
               hintText: Loc.t('Search party by name or phone', 'نام یا فون سے تلاش کریں'),
               filled: true,
-              fillColor: AppColors.fieldFill,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+              fillColor: ThemeManager.palette.fieldFill,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeManager.palette.border)),
               isDense: true,
             ),
           ),
@@ -318,7 +318,7 @@ class _RecordTabState extends State<_RecordTab> {
           all.isEmpty
               ? (_isCustomer ? Loc.t('No customers yet', 'ابھی کوئی کسٹمر نہیں') : Loc.t('No suppliers yet', 'ابھی کوئی سپلائر نہیں'))
               : Loc.t('No matching party', 'کوئی مماثل پارٹی نہیں'),
-          style: const TextStyle(color: AppColors.textMuted),
+          style: TextStyle(color: ThemeManager.palette.textMuted),
         ),
       );
     }
@@ -344,21 +344,21 @@ class _RecordTabState extends State<_RecordTab> {
           child: Ink(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.cardWhite,
+              color: ThemeManager.palette.cardWhite,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: ThemeManager.palette.border),
             ),
             child: Row(children: [
               CircleAvatar(backgroundColor: accent.withOpacity(0.15), child: Icon(_isCustomer ? Icons.person : Icons.local_shipping, color: accent)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
-                  if (p.phone.isNotEmpty) Text(p.phone, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                  Text(p.name, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+                  if (p.phone.isNotEmpty) Text(p.phone, style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
                 ]),
               ),
               Text(label,
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: owes ? AppColors.redDark : AppColors.textMuted)),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: owes ? ThemeManager.palette.redDark : ThemeManager.palette.textMuted)),
             ]),
           ),
         );
@@ -440,8 +440,8 @@ class _HistoryTabState extends State<_HistoryTab> {
             onTap: () => Navigator.pop(ctx, 'edit'),
           ),
           ListTile(
-            leading: const Icon(Icons.delete, color: AppColors.red),
-            title: Text(Loc.t('Delete', 'حذف کریں'), style: const TextStyle(color: AppColors.red)),
+            leading: Icon(Icons.delete, color: ThemeManager.palette.red),
+            title: Text(Loc.t('Delete', 'حذف کریں'), style: TextStyle(color: ThemeManager.palette.red)),
             onTap: () => Navigator.pop(ctx, 'delete'),
           ),
         ]),
@@ -465,7 +465,7 @@ class _HistoryTabState extends State<_HistoryTab> {
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
             TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: Text(Loc.t('Delete', 'حذف کریں'), style: const TextStyle(color: AppColors.red))),
+                child: Text(Loc.t('Delete', 'حذف کریں'), style: TextStyle(color: ThemeManager.palette.red))),
           ],
         ),
       );
@@ -514,8 +514,8 @@ class _HistoryTabState extends State<_HistoryTab> {
               child: ChoiceChip(
                 label: SizedBox(width: double.infinity, child: Text(e.value, textAlign: TextAlign.center)),
                 selected: _period == e.key,
-                selectedColor: AppColors.teal,
-                labelStyle: TextStyle(color: _period == e.key ? Colors.white : AppColors.textMuted, fontWeight: FontWeight.bold, fontSize: 12),
+                selectedColor: ThemeManager.palette.teal,
+                labelStyle: TextStyle(color: _period == e.key ? Colors.white : ThemeManager.palette.textMuted, fontWeight: FontWeight.bold, fontSize: 12),
                 showCheckmark: false,
                 onSelected: (_) {
                   setState(() => _period = e.key);
@@ -527,20 +527,20 @@ class _HistoryTabState extends State<_HistoryTab> {
       ]),
       const SizedBox(height: 12),
       Row(children: [
-        Expanded(child: _summary(Loc.t('Received', 'وصول ہوئی'), received, AppColors.teal)),
+        Expanded(child: _summary(Loc.t('Received', 'وصول ہوئی'), received, ThemeManager.palette.teal)),
         const SizedBox(width: 10),
-        Expanded(child: _summary(Loc.t('Made', 'ادا ہوئی'), made, AppColors.redDark)),
+        Expanded(child: _summary(Loc.t('Made', 'ادا ہوئی'), made, ThemeManager.palette.redDark)),
       ]),
       const SizedBox(height: 10),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(color: AppColors.cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        decoration: BoxDecoration(color: ThemeManager.palette.cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: ThemeManager.palette.border)),
         child: Row(children: [
           Expanded(
               child: Text(Loc.t('Net (Received − Made)', 'خالص (وصول − ادا)'),
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textMuted))),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textMuted))),
           Text(_rs(net.abs()),
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: net >= 0 ? AppColors.teal : AppColors.redDark)),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: net >= 0 ? ThemeManager.palette.teal : ThemeManager.palette.redDark)),
         ]),
       ),
       const SizedBox(height: 14),
@@ -550,24 +550,24 @@ class _HistoryTabState extends State<_HistoryTab> {
           prefixIcon: const Icon(Icons.search),
           hintText: Loc.t('Search by party, note, or method', 'پارٹی، نوٹ یا ذریعہ سے تلاش کریں'),
           filled: true,
-          fillColor: AppColors.fieldFill,
+          fillColor: ThemeManager.palette.fieldFill,
           isDense: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeManager.palette.border)),
         ),
       ),
       const SizedBox(height: 8),
       Wrap(spacing: 8, children: [
         for (final e in {
-          _Filter.all: (Loc.t('All', 'سب'), AppColors.teal),
-          _Filter.received: (Loc.t('Received', 'وصول ہوئی'), AppColors.teal),
-          _Filter.made: (Loc.t('Made', 'ادا ہوئی'), AppColors.redDark),
+          _Filter.all: (Loc.t('All', 'سب'), ThemeManager.palette.teal),
+          _Filter.received: (Loc.t('Received', 'وصول ہوئی'), ThemeManager.palette.teal),
+          _Filter.made: (Loc.t('Made', 'ادا ہوئی'), ThemeManager.palette.redDark),
         }.entries)
           ChoiceChip(
             label: Text(e.value.$1),
             selected: _filter == e.key,
             selectedColor: e.value.$2,
             showCheckmark: false,
-            labelStyle: TextStyle(color: _filter == e.key ? Colors.white : AppColors.textMuted, fontWeight: FontWeight.bold, fontSize: 12),
+            labelStyle: TextStyle(color: _filter == e.key ? Colors.white : ThemeManager.palette.textMuted, fontWeight: FontWeight.bold, fontSize: 12),
             onSelected: (_) => setState(() => _filter = e.key),
           ),
       ]),
@@ -580,7 +580,7 @@ class _HistoryTabState extends State<_HistoryTab> {
               _rows.isEmpty
                   ? Loc.t('No payments in this period', 'اس مدت میں کوئی ادائیگی نہیں')
                   : Loc.t('No matching payments', 'کوئی مماثل ادائیگی نہیں'),
-              style: const TextStyle(color: AppColors.textMuted),
+              style: TextStyle(color: ThemeManager.palette.textMuted),
             ),
           ),
         )
@@ -593,28 +593,28 @@ class _HistoryTabState extends State<_HistoryTab> {
               onTap: () => _rowActions(r),
               child: Ink(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: AppColors.cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                decoration: BoxDecoration(color: ThemeManager.palette.cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: ThemeManager.palette.border)),
                 child: Row(children: [
                   CircleAvatar(
                     radius: 19,
-                    backgroundColor: (r.isCustomer ? AppColors.teal : AppColors.redDark).withOpacity(0.13),
-                    child: Icon(r.isCustomer ? Icons.trending_up : Icons.trending_down, size: 18, color: r.isCustomer ? AppColors.teal : AppColors.redDark),
+                    backgroundColor: (r.isCustomer ? ThemeManager.palette.teal : ThemeManager.palette.redDark).withOpacity(0.13),
+                    child: Icon(r.isCustomer ? Icons.trending_up : Icons.trending_down, size: 18, color: r.isCustomer ? ThemeManager.palette.teal : ThemeManager.palette.redDark),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(r.partyName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: AppColors.textDark)),
+                      Text(r.partyName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: ThemeManager.palette.textDark)),
                       Text(
                         fmt.format(DateTime.fromMillisecondsSinceEpoch(r.payment.createdAt)) +
                             '  \u2022  ${r.payment.method.toUpperCase()}' +
                             (r.payment.billReference.isNotEmpty ? '  \u2022  ${r.payment.billReference}' : '') +
                             (r.payment.note.isNotEmpty ? '  \u2022  ${r.payment.note}' : ''),
-                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
                       ),
                     ]),
                   ),
                   Text(_rs(r.payment.amount),
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: r.isCustomer ? AppColors.teal : AppColors.redDark)),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: r.isCustomer ? ThemeManager.palette.teal : ThemeManager.palette.redDark)),
                 ]),
               ),
             ),
@@ -624,9 +624,9 @@ class _HistoryTabState extends State<_HistoryTab> {
 
   Widget _summary(String label, double v, Color color) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        decoration: BoxDecoration(color: ThemeManager.palette.cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: ThemeManager.palette.border)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          Text(label, style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted)),
           const SizedBox(height: 6),
           Text(_rs(v), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
         ]),

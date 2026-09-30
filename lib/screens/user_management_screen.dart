@@ -4,11 +4,11 @@ import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
 import '../services/biometric.dart';
 import '../services/session.dart';
-import '../theme/app_colors.dart';
 import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
+import '../theme/theme_manager.dart';
 
 /// Mirrors UserManagementActivity.kt — Admin-only, pehle admin ka password verify.
 /// Lock: fingerprint pehle khud khulta hai, password hamesha fallback.
@@ -186,7 +186,7 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
   }
 
   // ---------- UI ----------
-  Color _roleColor(String r) => r == 'admin' ? AppColors.red : r == 'manager' ? AppColors.blue : AppColors.teal;
+  Color _roleColor(String r) => r == 'admin' ? ThemeManager.palette.red : r == 'manager' ? ThemeManager.palette.blue : ThemeManager.palette.teal;
 
   Widget _field(TextEditingController c, String label, {bool obscure = false, TextInputType? type}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
@@ -195,8 +195,8 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
           obscureText: obscure,
           keyboardType: type,
           decoration: InputDecoration(
-            labelText: label, filled: true, fillColor: AppColors.fieldFill,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+            labelText: label, filled: true, fillColor: ThemeManager.palette.fieldFill,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeManager.palette.border)),
           ),
         ),
       );
@@ -205,20 +205,20 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
   Widget build(BuildContext context) {
     if (!_unlocked) {
       return Scaffold(
-        appBar: AppBar(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
+        appBar: AppBar(backgroundColor: ThemeManager.palette.navy, foregroundColor: Colors.white),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.lock_outline, size: 52, color: AppColors.navy),
+                Icon(Icons.lock_outline, size: 52, color: ThemeManager.palette.navyInk),
                 const SizedBox(height: 10),
                 Text(Loc.t('Manage Users Locked', 'یوزرز لاک ہیں'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                Text(Loc.t('Verify to continue', 'جاری رکھنے کے لیے تصدیق کریں'), style: const TextStyle(color: AppColors.textMuted)),
+                Text(Loc.t('Verify to continue', 'جاری رکھنے کے لیے تصدیق کریں'), style: TextStyle(color: ThemeManager.palette.textMuted)),
                 const SizedBox(height: 18),
                 _field(_lockPass, Loc.t('Enter your password', 'اپنا پاس ورڈ لکھیں'), obscure: true),
-                if (_lockError != null) Text(_lockError!, style: const TextStyle(color: AppColors.red)),
+                if (_lockError != null) Text(_lockError!, style: TextStyle(color: ThemeManager.palette.red)),
                 const SizedBox(height: 8),
                 SizedBox(width: double.infinity, child: FilledButton(onPressed: _verify, child: Text(Loc.t('Unlock', 'کھولیں')))),
                 const SizedBox(height: 8),
@@ -235,8 +235,8 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
-      appBar: AppBar(backgroundColor: AppColors.navy, foregroundColor: Colors.white, title: Text(Loc.t('Manage Users', 'یوزرز'))),
+      backgroundColor: ThemeManager.palette.bg,
+      appBar: AppBar(backgroundColor: ThemeManager.palette.navy, foregroundColor: Colors.white, title: Text(Loc.t('Manage Users', 'یوزرز'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         PremiumHeader(
           title: Loc.t('Manage Users', 'یوزرز'),
@@ -273,17 +273,17 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
               padding: const EdgeInsets.all(14),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${u.displayName}  (${u.username})', style: const TextStyle(fontWeight: FontWeight.bold)),
-                if (u.phone.isNotEmpty) Text(u.phone, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                if (u.phone.isNotEmpty) Text(u.phone, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 12)),
                 const SizedBox(height: 6),
                 Wrap(spacing: 8, children: [
                   Chip(label: Text(u.role[0].toUpperCase() + u.role.substring(1)), labelStyle: TextStyle(color: _roleColor(u.role), fontSize: 11)),
                   Chip(label: Text(u.active ? Loc.t('Active', 'فعال') : Loc.t('Inactive', 'غیر فعال')),
-                      labelStyle: TextStyle(color: u.active ? AppColors.teal : AppColors.textMuted, fontSize: 11)),
+                      labelStyle: TextStyle(color: u.active ? ThemeManager.palette.teal : ThemeManager.palette.textMuted, fontSize: 11)),
                 ]),
                 Wrap(spacing: 8, children: [
                   TextButton.icon(onPressed: () => _resetPassword(u), icon: const Icon(Icons.key, size: 16), label: Text(Loc.t('Reset PW', 'پاس ورڈ ری سیٹ'))),
                   TextButton(onPressed: () => _toggleActive(u), child: Text(u.active ? Loc.t('Deactivate', 'غیر فعال') : Loc.t('Activate', 'فعال'))),
-                  TextButton(onPressed: () => _delete(u), child: Text(Loc.t('Delete', 'حذف'), style: const TextStyle(color: AppColors.red))),
+                  TextButton(onPressed: () => _delete(u), child: Text(Loc.t('Delete', 'حذف'), style: TextStyle(color: ThemeManager.palette.red))),
                 ]),
               ]),
             ),

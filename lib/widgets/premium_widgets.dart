@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/theme_manager.dart';
 
 /// Mirrors `premiumCard()` in ProductActivity.kt: white rounded card with an
 /// optional colored two-tone gradient accent strip along the top edge.
@@ -20,9 +21,9 @@ class PremiumCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: ThemeManager.palette.cardWhite,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border, width: 1.2),
+        border: Border.all(color: ThemeManager.palette.border, width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.06),
@@ -104,7 +105,7 @@ class SectionLabel extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
+              color: ThemeManager.palette.textDark,
               letterSpacing: 0.4,
             ),
           ),
@@ -152,9 +153,9 @@ class PremiumLabeledField extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.fieldFill,
+        color: ThemeManager.palette.fieldFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 1.2),
+        border: Border.all(color: ThemeManager.palette.border, width: 1.2),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -185,11 +186,11 @@ class PremiumLabeledField extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
+                    color: ThemeManager.palette.textDark,
                   ),
                   decoration: InputDecoration(
                     hintText: hint,
-                    hintStyle: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.normal),
+                    hintStyle: TextStyle(color: ThemeManager.palette.textMuted, fontWeight: FontWeight.normal),
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
                     border: InputBorder.none,

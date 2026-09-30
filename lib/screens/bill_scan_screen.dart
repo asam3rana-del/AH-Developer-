@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../theme/app_colors.dart';
 import '../utils/bill_scan_parser.dart';
 import '../utils/loc.dart';
+import '../theme/theme_manager.dart';
 
 /// Kotlin BillScanActivity: bill ki photo -> OCR (on-device ML Kit) -> item rows review/edit ->
 /// "CONFIRM & ADD TO PURCHASE". Pop result: List<ScannedItem>.
@@ -84,8 +84,8 @@ class _BillScanScreenState extends State<BillScanScreen> {
         hintText: hint,
         isDense: true,
         filled: true,
-        fillColor: AppColors.fieldFill,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+        fillColor: ThemeManager.palette.fieldFill,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeManager.palette.border)),
       );
 
   Widget _row(int index, ScannedLine line) => Container(
@@ -93,9 +93,9 @@ class _BillScanScreenState extends State<BillScanScreen> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.fromLTRB(8, 10, 8, 12),
         decoration: BoxDecoration(
-          color: AppColors.cardWhite,
+          color: ThemeManager.palette.cardWhite,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: ThemeManager.palette.border),
         ),
         child: Column(children: [
           Row(children: [
@@ -108,7 +108,7 @@ class _BillScanScreenState extends State<BillScanScreen> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.close, color: AppColors.red, size: 20),
+              icon: Icon(Icons.close, color: ThemeManager.palette.red, size: 20),
               onPressed: () => setState(() => _lines.removeAt(index)),
             ),
           ]),
@@ -158,8 +158,8 @@ class _BillScanScreenState extends State<BillScanScreen> {
     }
     final showReview = _processed;
     return Scaffold(
-      backgroundColor: AppColors.bg,
-      appBar: AppBar(backgroundColor: AppColors.navy, foregroundColor: Colors.white, title: Text(Loc.t('Scan Bill', 'بل سکین'))),
+      backgroundColor: ThemeManager.palette.bg,
+      appBar: AppBar(backgroundColor: ThemeManager.palette.navy, foregroundColor: Colors.white, title: Text(Loc.t('Scan Bill', 'بل سکین'))),
       body: Column(children: [
         Expanded(
           child: ListView(
@@ -172,7 +172,7 @@ class _BillScanScreenState extends State<BillScanScreen> {
                     onPressed: _busy ? null : () => _pick(ImageSource.camera),
                     icon: const Icon(Icons.document_scanner_outlined, size: 18),
                     label: Text(Loc.t('Scan Bill', 'بل سکین')),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.teal, padding: const EdgeInsets.symmetric(vertical: 14)),
+                    style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal, padding: const EdgeInsets.symmetric(vertical: 14)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -181,7 +181,7 @@ class _BillScanScreenState extends State<BillScanScreen> {
                     onPressed: _busy ? null : () => _pick(ImageSource.gallery),
                     icon: const Icon(Icons.image_outlined, size: 18),
                     label: Text(Loc.t('Gallery', 'گیلری')),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.navy, padding: const EdgeInsets.symmetric(vertical: 14)),
+                    style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.navy, padding: const EdgeInsets.symmetric(vertical: 14)),
                   ),
                 ),
               ]),
@@ -189,7 +189,7 @@ class _BillScanScreenState extends State<BillScanScreen> {
               Text(
                 Loc.t('Hold the bill flat, in good light, fully inside the frame for best reading.',
                     'بہتر ریڈنگ کے لیے بل سیدھا، اچھی روشنی میں، پورا فریم میں رکھیں۔'),
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
               ),
               const SizedBox(height: 16),
               if (_imagePath != null)
@@ -198,9 +198,9 @@ class _BillScanScreenState extends State<BillScanScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: AppColors.cardWhite,
+                    color: ThemeManager.palette.cardWhite,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(color: ThemeManager.palette.border),
                   ),
                   child: Image.file(File(_imagePath!), fit: BoxFit.cover, width: double.infinity),
                 ),
@@ -208,13 +208,13 @@ class _BillScanScreenState extends State<BillScanScreen> {
               if (_status.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
-                  child: Text(_status, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                  child: Text(_status, style: TextStyle(fontSize: 13, color: ThemeManager.palette.textMuted)),
                 ),
               if (showReview && _lines.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Text(Loc.t('Detected Items — Review & Edit', 'ملے ہوئے آئٹمز — دیکھیں اور ایڈٹ کریں'),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: ThemeManager.palette.navyInk)),
                 ),
               for (var i = 0; i < _lines.length; i++) _row(i, _lines[i]),
               if (showReview)
@@ -230,7 +230,7 @@ class _BillScanScreenState extends State<BillScanScreen> {
         ),
         if (showReview)
           Container(
-            color: AppColors.cardWhite,
+            color: ThemeManager.palette.cardWhite,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: SafeArea(
               top: false,
@@ -238,7 +238,7 @@ class _BillScanScreenState extends State<BillScanScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _confirm,
-                  style: FilledButton.styleFrom(backgroundColor: AppColors.navy, padding: const EdgeInsets.symmetric(vertical: 16)),
+                  style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.navy, padding: const EdgeInsets.symmetric(vertical: 16)),
                   child: Text(Loc.t('CONFIRM & ADD TO PURCHASE', 'تصدیق کریں اور خریداری میں شامل کریں'),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),

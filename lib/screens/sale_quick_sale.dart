@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/party.dart';
 import '../models/product.dart';
-import '../theme/app_colors.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart';
 import '../widgets/autocomplete_options.dart';
+import '../theme/theme_manager.dart';
 
 /// What the Quick Sale dialog hands back when the cashier taps SAVE.
 /// The caller saves it (SaleRepository.saveQuickSale) so it can also handle
@@ -173,15 +173,15 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
         hintText: hint,
         isDense: true,
         filled: true,
-        fillColor: AppColors.cardWhite,
+        fillColor: ThemeManager.palette.cardWhite,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeManager.palette.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeManager.palette.border)),
       );
 
   Widget _label(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+        child: Text(text, style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted)),
       );
 
   @override
@@ -231,14 +231,14 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
                   child: Text(
                     Loc.t('Available: ${formatQty(availableInUnit(p, unitValue))} $unitValue',
                         'دستیاب: ${formatQty(availableInUnit(p, unitValue))} $unitValue'),
-                    style: const TextStyle(fontSize: 12, color: AppColors.teal),
+                    style: TextStyle(fontSize: 12, color: ThemeManager.palette.teal),
                   ),
                 ),
               const SizedBox(height: 12),
               _label(Loc.t('Unit', 'یونٹ')),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(color: AppColors.cardWhite, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+                decoration: BoxDecoration(color: ThemeManager.palette.cardWhite, borderRadius: BorderRadius.circular(12), border: Border.all(color: ThemeManager.palette.border)),
                 child: DropdownButton<String>(
                   value: unitValue,
                   isExpanded: true,
@@ -279,7 +279,7 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
                       width: 36,
                       height: 36,
                       alignment: Alignment.center,
-                      decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: ThemeManager.palette.teal, shape: BoxShape.circle),
                       child: const Text('+', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     ),
                   ),
@@ -320,11 +320,11 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
               ),
               const SizedBox(height: 12),
               Text('Total: Rs ${total.toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text(_error!, style: const TextStyle(color: AppColors.red, fontSize: 12.5, fontWeight: FontWeight.bold)),
+                  child: Text(_error!, style: TextStyle(color: ThemeManager.palette.red, fontSize: 12.5, fontWeight: FontWeight.bold)),
                 ),
             ],
           ),
@@ -333,7 +333,7 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(Loc.t('Cancel', 'منسوخ'))),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
+          style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal),
           onPressed: _save,
           child: Text(Loc.t('SAVE', 'محفوظ کریں')),
         ),

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ah_developer_kiryana_store/db/items_repository.dart';
 import 'package:ah_developer_kiryana_store/models/category_unit.dart';
 import 'package:ah_developer_kiryana_store/models/product.dart';
+import 'package:ah_developer_kiryana_store/services/session.dart';
 
 void main() {
   const products = [
@@ -38,5 +39,23 @@ void main() {
   test('categoryKey treats blank as empty', () {
     expect(categoryKey(products[3]), '');
     expect(categoryKey(products[0]), 'Grocery');
+  });
+
+  test('productsForRole: cashier ko cost zero, admin/manager ko asal', () {
+    const withCost = [Product(barcode: '1', name: 'Rice', cost: 90, salePrice: 100)];
+    expect(productsForRole(withCost, 'cashier').first.cost, 0);
+    expect(productsForRole(withCost, 'cashier').first.salePrice, 100);
+    expect(productsForRole(withCost, 'manager').first.cost, 90);
+    expect(productsForRole(withCost, 'admin').first.cost, 90);
+  });
+
+  test('requireItemsAdmin: non-admin par throw', () {
+    Session.role = 'cashier';
+    expect(requireItemsAdmin, throwsStateError);
+    Session.role = 'manager';
+    expect(requireItemsAdmin, throwsStateError);
+    Session.role = 'admin';
+    expect(requireItemsAdmin, returnsNormally);
+    Session.role = 'cashier';
   });
 }

@@ -20,6 +20,16 @@ void main() {
     ThemeManager.isDark.value = false;
   });
 
+  test('migrated palette: dark mode ke text/icon rang card par dikhte hain', () {
+    for (final pal in [ThemeManager.light, ThemeManager.dark]) {
+      expect(pal.navyInk, isNot(pal.cardWhite));
+      expect(pal.textMuted, isNot(pal.cardWhite));
+    }
+    // Dark mein navyInk halka hona chahiye (navy header ka rang text ke tor par nahi).
+    expect(ThemeManager.dark.navyInk.computeLuminance(), greaterThan(0.3));
+    expect(ThemeManager.dark.navy.computeLuminance(), lessThan(0.1));
+  });
+
   testWidgets('keypad inserts digits, one decimal point, backspace, and fires onChanged', (tester) async {
     final c = TextEditingController();
     final seen = <String>[];

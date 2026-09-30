@@ -172,7 +172,7 @@
     "phase": 4,
     "dart": "lib/screens/dashboard_screen.dart",
     "status": "partial",
-    "note": "Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Backup tile (BackupExportScreen) done. Baaki: crash dialog + SyncWorker.schedulePeriodic (Phase 10/13), Items tile Kotlin mein sab roles ko (Flutter mein admin), MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart."
+    "note": "Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Backup tile (BackupExportScreen) done. Crash dialog done (lib/services/crash_handler.dart, main() mein install; test/crash_handler_test.dart). Items tile ab sab roles ko (Kotlin jaisa; ItemsScreen ke andar cashier ko cost nahi, add/edit/delete admin-only). Baaki: MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart."
   },
   {
     "kotlin": "InputValidation.kt",
@@ -214,7 +214,7 @@
     "phase": 5,
     "dart": "lib/screens/items_screen.dart",
     "status": "done",
-    "note": "Admin-only (RoleGuard). Products/Categories/Units tabs, category drill-down + rename/delete, Change Category, Delete, Edit -> ProductScreen(editBarcode). lib/db/items_repository.dart. Baaki: Import (Rate List CSV, file picker chahiye) aur Translate (Phase 13). Test: test/items_test.dart."
+    "note": "Sab roles dekh sakte hain (Kotlin dashboard tile jaisa); cashier ko Purchase Price nahi (productsForRole); add/edit/delete/rename/bulk tools sirf admin (UI + requireItemsAdmin() data layer). Products/Categories/Units tabs, category drill-down + rename/delete, Change Category, Delete, Edit -> ProductScreen(editBarcode). lib/db/items_repository.dart. Baaki: Import (Rate List CSV, file picker chahiye) aur Translate (Phase 13). Test: test/items_test.dart."
   },
   {
     "kotlin": "BulkMissingRatesActivity.kt",
@@ -234,8 +234,8 @@
     "kotlin": "SaleCart.kt",
     "phase": 5,
     "dart": "lib/utils/sale_cart.dart",
-    "status": "partial",
-    "note": "Done: default unit, reprice on sale type, margin check, Rs-amount mode, inline line edit, customer-rate suggest. Baaki: sirf 'Billed Items' popup (Flutter mein list seedhi screen par hai)."
+    "status": "done",
+    "note": "Done: default unit, reprice on sale type, margin check, Rs-amount mode, inline line edit, customer-rate suggest. 'Billed Items' popup done (trigger card + dialog: edit refills fields, delete, Close; sale_screen.dart _openBilledItemsDialog)."
   },
   {
     "kotlin": "SaleQuickSale.kt",
@@ -256,7 +256,7 @@
     "phase": 6,
     "dart": "lib/screens/party_screen.dart",
     "status": "partial",
-    "note": "Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Baaki: contact picker (flutter_contacts + permissions), row tap se Party Dashboard/Transaction."
+    "note": "Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Contact picker done (lib/services/contact_picker.dart + phone field icon; READ_CONTACTS via tools/android_fix.sh, iOS NSContactsUsageDescription via build.yml; test/contact_picker_test.dart). Baaki: row tap se Party Dashboard/Transaction."
   },
   {
     "kotlin": "PartyDashboardActivity.kt",

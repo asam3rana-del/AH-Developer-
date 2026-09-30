@@ -2,7 +2,7 @@
 
 `python3 tools/port_status.py` chala kar dobara banayein.
 
-**Overall (lines of Kotlin ke hisaab se): 88%**  (43605/49102)
+**Overall (lines of Kotlin ke hisaab se): 89%**  (43948/49102)
 
 ## Phase 0: Foundation (models, DB, colors, widgets) — 100%
 
@@ -50,23 +50,23 @@
 | ✅ | UserManagementActivity.kt | 753 | lib/screens/user_management_screen.dart | Fingerprint lock + user add/edit/delete ab sync queue mein (`SyncQueueHelper.enqueueUser`, passwordHash sync nahi hota). |
 | ✅ | AppLock.kt | 157 | lib/services/app_lock.dart | WidgetsBindingObserver + navigatorKey; pending re-lock prefs mein. |
 | ✅ | Loc.kt | 43 | lib/utils/loc.dart |  |
-| 🟡 | ThemeManager.kt | 125 | lib/theme/theme_manager.dart | Palette + dark toggle done. Purani screens abhi static AppColors par — migrate baaki. |
-| 🟡 | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart | Shop info, login method (password/fingerprint/both/none/OTP), dark mode, language, users, Printer, Backup & Export row (admin/manager), Cloud Sync section (`SyncSection`). Baaki chhote items (Kotlin ke baqi rows) device par dekhein. |
-| 🟡 | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Backup tile (BackupExportScreen) done. Baaki: crash dialog + SyncWorker.schedulePeriodic (Phase 10/13), Items tile Kotlin mein sab roles ko (Flutter mein admin), MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart. |
+| 🟡 | ThemeManager.kt | 125 | lib/theme/theme_manager.dart | Palette + dark toggle done. Saari screens/widgets ThemeManager.palette par migrate (Step 2); bache hue hard-coded Colors.white device par dekhein. |
+| 🟡 | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart | Shop info, login method (password/fingerprint/both/none/OTP), dark mode, language, users, Printer, Backup & Export row (admin/manager), Cloud Sync section (`SyncSection`). Upar Kotlin wali link rows (Parties, Items, Reports, Sale, Purchase, Expense, Cash & Bank, Shell Ledger; MenuRow + chevron_right, role gates Dashboard jaise). IconBadge dark mode fix (card + rang ki jhalak). Baaki chhote items (Kotlin ke baqi rows) device par dekhein. |
+| 🟡 | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Backup tile (BackupExportScreen) done. Crash dialog done (lib/services/crash_handler.dart, main() mein install; test/crash_handler_test.dart). Items tile ab sab roles ko (Kotlin jaisa; ItemsScreen ke andar cashier ko cost nahi, add/edit/delete admin-only). Baaki: MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart. |
 | ✅ | InputValidation.kt | 58 | lib/utils/input_validation.dart |  |
 | ✅ | Numerickeypad.kt | 214 | lib/widgets/numeric_keypad.dart | NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI. |
 | ✅ | MenuRow.kt | 196 | lib/widgets/menu_row.dart | MenuRow / ExpandableMenuRow / IconBadge. Dashboard/Settings ko isi par lana baaki. |
 
-## Phase 5: Item search, rates, items, sale extras — 92%
+## Phase 5: Item search, rates, items, sale extras — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
 | ✅ | ItemSearchActivity.kt | 842 | lib/screens/item_search_screen.dart | Spec item_rate_search.md ke mutabiq (3 sale rates, wholesale, cost gate). |
 | ✅ | RateComparisonActivity.kt | 537 | lib/screens/rate_comparison_screen.dart | Admin/manager only (RoleGuard + repository cashier ko khali deta hai). Rates primary unit par normalize. lib/db/rate_comparison_repository.dart (pure buildSupplierRateRows) + test/rate_comparison_test.dart. Dashboard tile. |
-| ✅ | ItemsActivity.kt | 1300 | lib/screens/items_screen.dart | Admin-only (RoleGuard). Products/Categories/Units tabs, category drill-down + rename/delete, Change Category, Delete, Edit -> ProductScreen(editBarcode). lib/db/items_repository.dart. Baaki: Import (Rate List CSV, file picker chahiye) aur Translate (Phase 13). Test: test/items_test.dart. |
+| ✅ | ItemsActivity.kt | 1300 | lib/screens/items_screen.dart | Sab roles dekh sakte hain (Kotlin dashboard tile jaisa); cashier ko Purchase Price nahi (productsForRole); add/edit/delete/rename/bulk tools sirf admin (UI + requireItemsAdmin() data layer). Products/Categories/Units tabs, category drill-down + rename/delete, Change Category, Delete, Edit -> ProductScreen(editBarcode). lib/db/items_repository.dart. Baaki: Import (Rate List CSV, file picker chahiye) aur Translate (Phase 13). Test: test/items_test.dart. |
 | ✅ | BulkMissingRatesActivity.kt | 525 | lib/screens/bulk_missing_rates_screen.dart | Admin-only (Items se RoleGuard). Dono rate + unit chips (primary par convert), save + sync_queue ek transaction (ProductRepository.setRates). |
 | ✅ | BulkDefaultUnitActivity.kt | 318 | lib/screens/bulk_default_unit_screen.dart | Admin-only (Items se RoleGuard). Auto pehle se highlight; Auto par save = koi write nahi (ProductRepository.setDefaultUnitIndex). |
-| 🟡 | SaleCart.kt | 685 | lib/utils/sale_cart.dart | Done: default unit, reprice on sale type, margin check, Rs-amount mode, inline line edit, customer-rate suggest. Baaki: sirf 'Billed Items' popup (Flutter mein list seedhi screen par hai). |
+| ✅ | SaleCart.kt | 685 | lib/utils/sale_cart.dart | Done: default unit, reprice on sale type, margin check, Rs-amount mode, inline line edit, customer-rate suggest. 'Billed Items' popup done (trigger card + dialog: edit refills fields, delete, Close; sale_screen.dart _openBilledItemsDialog). |
 | ✅ | SaleQuickSale.kt | 404 | lib/screens/sale_quick_sale.dart | Dialog + saveQuickSale + credit-limit confirm + top-30-day items pehle. System keyboard (Kotlin bhi yahi). |
 | ✅ | SaleHoldRecall.kt | 199 | lib/services/sale_hold_recall.dart + lib/widgets/held_bills_dialog.dart | encode/decode + Held Bills dialog. Sale holds sirf HOLD% (PHOLD% purchase ke liye). |
 
@@ -74,7 +74,7 @@
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | PartyActivity.kt | 1359 | lib/screens/party_screen.dart | Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Baaki: contact picker (flutter_contacts + permissions), row tap se Party Dashboard/Transaction. |
+| 🟡 | PartyActivity.kt | 1359 | lib/screens/party_screen.dart | Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Contact picker done (lib/services/contact_picker.dart + phone field icon; READ_CONTACTS via tools/android_fix.sh, iOS NSContactsUsageDescription via build.yml; test/contact_picker_test.dart). Baaki: row tap se Party Dashboard/Transaction. |
 | 🟡 | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart | Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu (Reports/Products/Cash/Settings sab jure), '+' quick add (Sale/Purchase Return = Sale/Purchase History screens), Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Purchase row tap = PurchaseScreen(editBillNo:) (admin only). Test: test/party_dashboard_test.dart. |
 | ✅ | PartyTransactionActivity.kt | 2219 | lib/screens/party_transaction_screen.dart + lib/db/party_transaction_repository.dart | Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = clipboard, Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart. |
 | ✅ | PartyReportsActivity.kt | 1034 | lib/screens/party_reports_screen.dart + lib/db/party_reports_repository.dart | 6 reports (Item, Ledger, Payment History, Statement, Sale/Purchase by Party, P&L / Purchase Summary) — returned bills bahar, general payments Ledger/Statement mein, stuck split. Admin/Manager only (RoleGuard). Farq: Material icons; purchase item naam live product se. Test: test/party_reports_test.dart. |

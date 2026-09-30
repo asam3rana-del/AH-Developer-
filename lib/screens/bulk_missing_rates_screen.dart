@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../db/product_repository.dart';
 import '../models/product.dart';
-import '../theme/app_colors.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
+import '../theme/theme_manager.dart';
 
 /// Mirrors BulkMissingRatesActivity.kt — un products ki queue jin ka Retail ya
 /// Wholesale rate abhi 0 hai. Ek waqt mein ek: dono field pehle se bhari (jo set hai),
@@ -134,11 +134,11 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
               decoration: BoxDecoration(
-                color: u == selected ? AppColors.teal : AppColors.cardWhite,
+                color: u == selected ? ThemeManager.palette.teal : ThemeManager.palette.cardWhite,
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppColors.teal),
+                border: Border.all(color: ThemeManager.palette.teal),
               ),
-              child: Text(u, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: u == selected ? Colors.white : AppColors.teal)),
+              child: Text(u, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: u == selected ? Colors.white : ThemeManager.palette.teal)),
             ),
           ),
       ]),
@@ -148,11 +148,11 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
   Widget _rateField(String label, bool missing, Product p, TextEditingController c, String unit, void Function(String) set) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMuted))),
+          Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ThemeManager.palette.textMuted))),
           if (missing)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: ThemeManager.palette.amber, borderRadius: BorderRadius.circular(8)),
               child: const Text('MISSING', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
         ]),
@@ -161,15 +161,15 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
           margin: const EdgeInsets.only(top: 2),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: AppColors.fieldFill,
+            color: ThemeManager.palette.fieldFill,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: ThemeManager.palette.border),
           ),
           child: TextField(
             controller: c,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onTap: () => c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length),
-            style: const TextStyle(fontSize: 15, color: AppColors.textDark),
+            style: TextStyle(fontSize: 15, color: ThemeManager.palette.textDark),
             decoration: const InputDecoration(border: InputBorder.none, hintText: '0.00'),
           ),
         ),
@@ -177,15 +177,15 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
 
   Widget _costPanel(Product p) {
     Widget row(String l, String v, {bool bold = false}) => Row(children: [
-          Expanded(child: Text(l, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted))),
-          Text(v, style: TextStyle(fontSize: 12.5, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: AppColors.textDark)),
+          Expanded(child: Text(l, style: TextStyle(fontSize: 12.5, color: ThemeManager.palette.textMuted))),
+          Text(v, style: TextStyle(fontSize: 12.5, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: ThemeManager.palette.textDark)),
         ]);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFF6F7FB),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: ThemeManager.palette.border),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         row(Loc.t('Purchase Rate (Cost)', 'خریداری ریٹ (لاگت)'), 'Rs ${p.cost.toStringAsFixed(2)} / ${p.unit}', bold: true),
@@ -209,7 +209,7 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
                     'خوردہ/ہول سیل کے اوپر یونٹ چپ دبائیں اور جس یونٹ میں آسان ہو ریٹ لکھیں — خود بخود تبدیل ہو جاتا ہے۔')
                 : Loc.t('Enter Retail/Wholesale below per ${p.unit} (the primary unit).',
                     'خوردہ/ہول سیل نیچے فی ${p.unit} (بنیادی یونٹ) لکھیں۔'),
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
           ),
         ),
       ]),
@@ -221,7 +221,7 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
         padding: const EdgeInsets.fromLTRB(8, 18, 22, 20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          gradient: const LinearGradient(colors: [AppColors.navy, AppColors.navyLight]),
+          gradient: LinearGradient(colors: [ThemeManager.palette.navy, ThemeManager.palette.navyLight]),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.of(context).maybePop()),
@@ -236,7 +236,7 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
               Text(
                 Loc.t("Only products missing a Retail or Wholesale rate show up here. Fill in what's missing and tap Save & Next — one product at a time, no spreadsheet needed.",
                     'یہاں صرف وہ پروڈکٹس آتی ہیں جن کا خوردہ یا ہول سیل ریٹ نہیں۔ جو کم ہو بھریں اور Save & Next دبائیں — ایک وقت میں ایک پروڈکٹ۔'),
-                style: const TextStyle(color: AppColors.headerSubtitle, fontSize: 12),
+                style: TextStyle(color: ThemeManager.palette.headerSubtitleColor, fontSize: 12),
               ),
             ]),
           ),
@@ -248,20 +248,20 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 10),
-        child: Text('${done + 1} ${Loc.t('of', 'از')} $_total', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+        child: Text('${done + 1} ${Loc.t('of', 'از')} $_total', style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
       ),
       Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.cardWhite,
+          color: ThemeManager.palette.cardWhite,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: ThemeManager.palette.border),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(p.name, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          Text(p.name, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
           Padding(
             padding: const EdgeInsets.only(top: 3),
-            child: Text(p.category.isEmpty ? 'General' : p.category, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            child: Text(p.category.isEmpty ? 'General' : p.category, style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
           ),
           const SizedBox(height: 12),
           _costPanel(p),
@@ -276,7 +276,7 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.teal,
+                backgroundColor: ThemeManager.palette.teal,
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -293,23 +293,23 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(14), children: [
           _header(),
           if (_loading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: Text(Loc.t('Loading…', 'لوڈ ہو رہا ہے…'), style: const TextStyle(color: AppColors.textMuted))),
+              child: Center(child: Text(Loc.t('Loading…', 'لوڈ ہو رہا ہے…'), style: TextStyle(color: ThemeManager.palette.textMuted))),
             )
           else if (_queue.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text(Loc.t('Every product has both rates set', 'ہر پروڈکٹ کے دونوں ریٹ سیٹ ہیں'),
-                    style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                    style: TextStyle(fontSize: 14, color: ThemeManager.palette.textMuted)),
                 const SizedBox(width: 6),
-                const Icon(Icons.check, size: 16, color: AppColors.teal),
+                Icon(Icons.check, size: 16, color: ThemeManager.palette.teal),
               ]),
             )
           else

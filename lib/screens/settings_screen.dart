@@ -7,14 +7,23 @@ import '../services/biometric.dart';
 import '../services/printer_service.dart';
 import '../utils/escpos.dart';
 import '../services/session.dart';
-import '../theme/app_colors.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
+import '../widgets/menu_row.dart';
 import '../widgets/premium_header.dart';
+import '../widgets/role_guard.dart';
 import '../widgets/sync_section.dart';
 import 'backup_export_screen.dart';
+import 'cash_screen.dart';
+import 'expense_screen.dart';
+import 'items_screen.dart';
 import 'login_screen.dart';
+import 'party_dashboard_screen.dart';
+import 'purchase_screen.dart';
+import 'reports_screen.dart';
+import 'sale_screen.dart';
+import 'shell_ledger_screen.dart';
 import 'user_management_screen.dart';
 
 /// Mirrors SettingsActivity.kt (pehla hissa): Shop Info, Login method, Update Login,
@@ -246,7 +255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(icon, color: AppColors.navy), const SizedBox(width: 8), Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
+            Row(children: [Icon(icon, color: ThemeManager.palette.navyInk), const SizedBox(width: 8), Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
             const SizedBox(height: 12),
             ...children,
           ]),
@@ -257,19 +266,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.only(bottom: 10),
         child: TextField(
           controller: c, obscureText: obscure, enabled: enabled,
-          decoration: InputDecoration(labelText: label, filled: true, fillColor: AppColors.fieldFill,
+          decoration: InputDecoration(labelText: label, filled: true, fillColor: ThemeManager.palette.fieldFill,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
         ),
       );
+
+  void _open(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+
+  /// Kotlin SettingsActivity ke upar wali link rows (Parties, Items, Reports, Sale, Purchase, Expense,
+  /// Cash & Bank, Shell Ledger) — usi tarteeb mein; role gates Dashboard ke barabar.
+  List<Widget> _linkRows() {
+    final p = ThemeManager.palette;
+    Widget row(IconData icon, String en, String ur, Widget screen, {Color? color}) => MenuRow(
+          icon: icon,
+          label: Loc.t(en, ur),
+          iconColor: color ?? p.teal,
+          chevronIcon: Icons.chevron_right,
+          showChevron: true,
+          onTap: () => _open(screen),
+        );
+    return [
+      row(Icons.people_outline, 'Parties', 'پارٹیز', const PartyDashboardScreen()),
+      row(Icons.list_alt, 'Items', 'آئٹمز', const ItemsScreen()),
+      if (Session.isAdminOrManager) row(Icons.trending_up, 'Reports', 'رپورٹس', const ReportsScreen()),
+      row(Icons.receipt_outlined, 'Sale', 'سیل', const SaleScreen()),
+      if (Session.isAdmin)
+        row(Icons.shopping_cart_outlined, 'Purchase', 'خریداری',
+            const RoleGuard(allowed: {'admin'}, child: PurchaseScreen())),
+      row(Icons.business_center_outlined, 'Expense', 'اخراجات', const ExpenseScreen(), color: p.navyInk),
+      row(Icons.account_balance_outlined, 'Cash & Bank', 'کیش اور بینک', const CashScreen(), color: p.navyInk),
+      row(Icons.inventory_2_outlined, 'Shell Ledger', 'شیل لیجر', const ShellLedgerScreen(), color: p.navyInk),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     final admin = Session.isAdmin;
     return Scaffold(
-      backgroundColor: AppColors.bg,
-      appBar: AppBar(backgroundColor: AppColors.navy, foregroundColor: Colors.white, title: Text(Loc.t('Settings', 'سیٹنگز'))),
+      backgroundColor: ThemeManager.palette.bg,
+      appBar: AppBar(backgroundColor: ThemeManager.palette.navy, foregroundColor: Colors.white, title: Text(Loc.t('Settings', 'سیٹنگز'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         PremiumHeader(title: Loc.t('Settings', 'سیٹنگز'), subtitle: '${Session.displayName} • ${Session.role}'),
+        ..._linkRows(),
+        const SizedBox(height: 6),
         if (admin)
           _card(Loc.t('Shop Information', 'دکان کی معلومات'), Icons.store, [
             _tf(_shopName, Loc.t('Shop Name', 'دکان کا نام')),
@@ -314,7 +353,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Icons.print,
           [
           Row(children: [
-            Icon(Icons.circle, size: 12, color: _printerName.isEmpty ? AppColors.red : AppColors.teal),
+            Icon(Icons.circle, size: 12, color: _printerName.isEmpty ? ThemeManager.palette.red : ThemeManager.palette.teal),
             const SizedBox(width: 8),
             Expanded(
               child: Text(_printerName.isEmpty
@@ -375,8 +414,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]),
         OutlinedButton.icon(
           onPressed: _logout,
-          icon: const Icon(Icons.logout, color: AppColors.red),
-          label: Text(Loc.t('Logout', 'لاگ آؤٹ'), style: const TextStyle(color: AppColors.red)),
+          icon: Icon(Icons.logout, color: ThemeManager.palette.red),
+          label: Text(Loc.t('Logout', 'لاگ آؤٹ'), style: TextStyle(color: ThemeManager.palette.red)),
         ),
       ]),
     );

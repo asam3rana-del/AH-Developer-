@@ -8,6 +8,7 @@ import '../db/customer_repository.dart';
 import '../db/party_repository.dart';
 import '../db/supplier_repository.dart';
 import '../models/party.dart';
+import '../services/contact_picker.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/input_validation.dart';
@@ -195,6 +196,34 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       await _reload();
     });
   }
+
+  /// Kotlin `openContactPicker()`: fills Phone, and Name too when it is still blank.
+  Future<void> _pickContact() async {
+    final r = await ContactPicker.pick();
+    if (!mounted) return;
+    switch (r.status) {
+      case ContactPickStatus.picked:
+        final c = r.contact!;
+        setState(() {
+          _phone.text = c.phone;
+          if (_name.text.trim().isEmpty && c.name.trim().isNotEmpty) _name.text = c.name;
+        });
+        break;
+      case ContactPickStatus.cancelled:
+        break;
+      case ContactPickStatus.noPhone:
+        _snack(Loc.t('No phone number for this contact', 'اس رابطے کا کوئی نمبر نہیں'));
+        break;
+      case ContactPickStatus.permissionDenied:
+        _snack(Loc.t('Contacts permission denied', 'رابطوں کی اجازت مسترد'));
+        break;
+      case ContactPickStatus.failed:
+        _snack(Loc.t("Couldn't open contacts", 'رابطے نہیں کھل سکے'));
+        break;
+    }
+  }
+
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
   Future<void> _dial(String phone) async {
     if (phone.trim().isEmpty) return;
@@ -886,7 +915,13 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           controller: _phone,
           keyboardType: TextInputType.phone,
           style: TextStyle(color: p.textDark),
-          decoration: _fieldDeco(p, Loc.t('Phone (optional)', 'فون (اختیاری)')),
+          decoration: _fieldDeco(p, Loc.t('Phone (optional)', 'فون (اختیاری)')).copyWith(
+            suffixIcon: IconButton(
+              icon: Icon(Icons.contacts, color: _accent),
+              tooltip: Loc.t('Pick from contacts', 'رابطوں سے چنیں'),
+              onPressed: _pickContact,
+            ),
+          ),
         ),
         if (_showingCustomers) ...[
           const SizedBox(height: 10),

@@ -27,6 +27,11 @@ MANIFEST=android/app/src/main/AndroidManifest.xml
 if ! grep -q "BLUETOOTH_CONNECT" "$MANIFEST"; then
   sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>/' "$MANIFEST"
 fi
+
+# Phase 6 (Parties): contact picker (flutter_contacts) — READ_CONTACTS, sirf tab jodo jab pehle se na ho.
+if ! grep -q "READ_CONTACTS" "$MANIFEST"; then
+  sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.READ_CONTACTS" \/>/' "$MANIFEST"
+fi
 grep -n "uses-permission" "$MANIFEST"
 
 # --- R8 rules: google_mlkit_text_recognition refers to Chinese/Japanese/Korean/Devanagari option classes

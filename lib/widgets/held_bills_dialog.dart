@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/held_bill.dart';
 import '../services/sale_hold_recall.dart';
-import '../theme/app_colors.dart';
+import '../theme/theme_manager.dart';
 
 enum HeldBillAction { recall, delete }
 
@@ -30,15 +30,15 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              color: AppColors.navy,
+              color: ThemeManager.palette.navyInk,
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
               child: const Text('Held Bills', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             Flexible(
               child: held.isEmpty
-                  ? const Padding(
+                  ? Padding(
                       padding: EdgeInsets.all(24),
-                      child: Text('Koi held bill nahi hai', style: TextStyle(color: AppColors.textMuted)),
+                      child: Text('Koi held bill nahi hai', style: TextStyle(color: ThemeManager.palette.textMuted)),
                     )
                   : ListView.builder(
                       shrinkWrap: true,
@@ -50,9 +50,9 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
-                            color: AppColors.fieldFill,
+                            color: ThemeManager.palette.fieldFill,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.border),
+                            border: Border.all(color: ThemeManager.palette.border),
                           ),
                           child: Row(
                             children: [
@@ -60,7 +60,7 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
                                 width: 30,
                                 height: 30,
                                 alignment: Alignment.center,
-                                decoration: const BoxDecoration(color: AppColors.amber, shape: BoxShape.circle),
+                                decoration: BoxDecoration(color: ThemeManager.palette.amber, shape: BoxShape.circle),
                                 child: const Text('⏸', style: TextStyle(fontSize: 13)),
                               ),
                               const SizedBox(width: 12),
@@ -69,9 +69,9 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text('${heldItemCount(h.payload)} items',
-                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
                                     Text(fmt.format(DateTime.fromMillisecondsSinceEpoch(h.createdAt)),
-                                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                                        style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
                                   ],
                                 ),
                               ),
@@ -79,7 +79,7 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
                                 onTap: () => Navigator.of(ctx).pop(HeldBillChoice(HeldBillAction.recall, h)),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-                                  decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(20)),
+                                  decoration: BoxDecoration(color: ThemeManager.palette.teal, borderRadius: BorderRadius.circular(20)),
                                   child: const Text('RECALL', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                                 ),
                               ),
@@ -90,7 +90,7 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
                                   width: 26,
                                   height: 26,
                                   alignment: Alignment.center,
-                                  decoration: const BoxDecoration(color: AppColors.red, shape: BoxShape.circle),
+                                  decoration: BoxDecoration(color: ThemeManager.palette.red, shape: BoxShape.circle),
                                   child: const Text('✕', style: TextStyle(color: Colors.white, fontSize: 13)),
                                 ),
                               ),
@@ -102,7 +102,7 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Close', style: TextStyle(color: AppColors.textMuted)),
+              child: Text('Close', style: TextStyle(color: ThemeManager.palette.textMuted)),
             ),
           ],
         ),

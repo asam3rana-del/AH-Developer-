@@ -8,9 +8,9 @@ import '../db/party_repository.dart';
 import '../db/supplier_repository.dart';
 import '../db/user_repository.dart';
 import '../services/printer_service.dart';
-import '../theme/app_colors.dart';
 import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
+import '../theme/theme_manager.dart';
 
 /// Kotlin BillPreviewActivity: bill ka receipt-jaisa preview + PRINT (Bluetooth), WhatsApp par bhejein,
 /// DONE, aur (naye bill ke baad) "+ NAYI SALE / PURCHASE BILL".
@@ -151,7 +151,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(children: [
           Expanded(child: Text(k, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: 14))),
-          Text(v, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: 14, color: color ?? AppColors.textDark)),
+          Text(v, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: 14, color: color ?? ThemeManager.palette.textDark)),
         ]),
       );
 
@@ -171,21 +171,21 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     final due = d.total - d.paid;
     final title = d.isPurchase ? Loc.t('Purchase Bill', 'خریداری بل') : Loc.t('Bill Preview', 'بل پری ویو');
     return Scaffold(
-      backgroundColor: AppColors.bg,
-      appBar: AppBar(backgroundColor: AppColors.navy, foregroundColor: Colors.white, title: Text(title)),
+      backgroundColor: ThemeManager.palette.bg,
+      appBar: AppBar(backgroundColor: ThemeManager.palette.navy, foregroundColor: Colors.white, title: Text(title)),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.cardWhite,
+            color: ThemeManager.palette.cardWhite,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: ThemeManager.palette.border),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(d.shopName.trim().isEmpty ? 'IBTISAAM Kiryana Store' : d.shopName.trim(),
-                textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navy)),
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk)),
             if (d.shopPhone.trim().isNotEmpty)
-              Text('📞 ${d.shopPhone.trim()}', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              Text('📞 ${d.shopPhone.trim()}', textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 12)),
             const Divider(height: 20),
             _kv(d.isPurchase ? 'Bill No' : 'Invoice', d.ref),
             _kv('Date', '${d.date.day.toString().padLeft(2, '0')}/${d.date.month.toString().padLeft(2, '0')}/${d.date.year}'),
@@ -214,33 +214,33 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
             if (d.discount > 0.009) _kv('Discount', '-${_m(d.discount)}'),
             _kv('Total', _m(d.total), bold: true),
             _kv('Paid (${d.paymentMethod})', _m(d.paid)),
-            if (due > 0.009) _kv('Balance Due', _m(due), color: AppColors.red),
+            if (due > 0.009) _kv('Balance Due', _m(due), color: ThemeManager.palette.red),
             if (_partyId != null && _net != null) ...[
               _kv('Prev Balance', _m(_net! - due)),
-              _kv('Net Balance', _m(_net!), bold: true, color: _net! > 0.009 ? AppColors.red : AppColors.textDark),
+              _kv('Net Balance', _m(_net!), bold: true, color: _net! > 0.009 ? ThemeManager.palette.red : ThemeManager.palette.textDark),
             ],
             const SizedBox(height: 10),
             Text(d.receiptFooter.trim().isEmpty ? 'Shukriya! Dobara tashreef layen.' : d.receiptFooter.trim(),
-                textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 12)),
           ]),
         ),
         const SizedBox(height: 16),
-        _btn(_printing ? Loc.t('Printing…', 'پرنٹ ہو رہا ہے…') : Loc.t('PRINT', 'پرنٹ'), Icons.print, AppColors.blue, _printing ? null : _print),
+        _btn(_printing ? Loc.t('Printing…', 'پرنٹ ہو رہا ہے…') : Loc.t('PRINT', 'پرنٹ'), Icons.print, ThemeManager.palette.blue, _printing ? null : _print),
         const SizedBox(height: 10),
         _btn(Loc.t('WhatsApp par bhejein', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
         const SizedBox(height: 10),
-        _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, AppColors.navyLight, () async {
+        _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, ThemeManager.palette.navyLight, () async {
           await Clipboard.setData(ClipboardData(text: d.toText()));
           _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
         }),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: _btn(Loc.t('DONE', 'مکمل'), Icons.check, AppColors.teal, () => Navigator.of(context).pop())),
+          Expanded(child: _btn(Loc.t('DONE', 'مکمل'), Icons.check, ThemeManager.palette.teal, () => Navigator.of(context).pop())),
         ]),
         if (widget.showNewBill) ...[
           const SizedBox(height: 10),
           _btn(d.isPurchase ? Loc.t('+ NAYA PURCHASE BILL', '+ نیا خریداری بل') : Loc.t('+ NAYI SALE BILL', '+ نیا سیل بل'),
-              Icons.add, AppColors.navy, () => Navigator.of(context).pop('new')),
+              Icons.add, ThemeManager.palette.navyInk, () => Navigator.of(context).pop('new')),
         ],
         const SizedBox(height: 30),
       ]),

@@ -7,7 +7,7 @@ import '../db/items_repository.dart';
 import '../db/product_repository.dart';
 import '../models/category_unit.dart' as models;
 import '../models/product.dart';
-import '../theme/app_colors.dart';
+import '../services/session.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
@@ -15,13 +15,15 @@ import 'bulk_default_unit_screen.dart';
 import 'bulk_missing_rates_screen.dart';
 import 'bulk_translate_screen.dart';
 import 'product_screen.dart';
+import '../theme/theme_manager.dart';
 
 enum _Tab { products, categories, units }
 
 /// Mirrors ItemsActivity.kt — "Items" hub: Products / Categories / Units tabs, har tab
 /// ka apna search + "＋ Add ..." button. Categories mein row tap karke us category ke
 /// products (Edit / Change Category / Delete) dekhe ja sakte hain; category rename/delete bhi.
-/// Sirf admin (Products ki tarah) — dashboard par RoleGuard ke saath.
+/// Sab roles dekh sakte hain (Kotlin dashboard tile par koi gate nahi). Farq: cashier ko Purchase Price nahi
+/// dikhta/load hota; add/edit/delete/rename/bulk tools sirf admin (PORTING_PLAN: Products admin-only).
 ///
 /// Abhi port nahi: "Import" (Rate List CSV — file picker plugin chahiye).
 /// "Translate" = BulkTranslateScreen (Phase 13; Duplicate Unit Fix + Merge Duplicate Products bhi wahin).
@@ -38,6 +40,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
   List<models.Category> _categories = [];
   List<models.UnitType> _units = [];
   String _query = '';
+  bool get _admin => Session.isAdmin;
+  bool get _canSeeCost => Session.isAdminOrManager;
   String? _openCategory; // null = list; '' = "Items Not in Any Category"
   Timer? _debounce;
   final _search = TextEditingController();
@@ -61,7 +65,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
     final u = await UnitRepository.instance.listAll();
     if (!mounted) return;
     setState(() {
-      _products = p;
+      _products = productsForRole(p, Session.role);
       _categories = c;
       _units = u;
     });
@@ -120,9 +124,13 @@ class _ItemsScreenState extends State<ItemsScreen> {
     if (mounted) _loadAll();
   }
 
-  void _openProduct(Product p) => _push(RoleGuard(allowed: const {'admin'}, child: ProductScreen(editBarcode: p.barcode)));
+  void _openProduct(Product p) {
+    if (!_admin) return;
+    _push(RoleGuard(allowed: const {'admin'}, child: ProductScreen(editBarcode: p.barcode)));
+  }
 
   void _onFab() {
+    if (!_admin) return;
     if (_tab == _Tab.categories && _openCategory == null) {
       _promptAddCategory();
       return;
@@ -161,7 +169,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(Loc.t('Cancel', 'منسوخ'))),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(okLabel, style: const TextStyle(color: AppColors.red)),
+            child: Text(okLabel, style: TextStyle(color: ThemeManager.palette.red)),
           ),
         ],
       ),
@@ -246,7 +254,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           onTap: onTap,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            decoration: BoxDecoration(color: AppColors.headerBadgeOverlay, borderRadius: BorderRadius.circular(30)),
+            decoration: BoxDecoration(color: ThemeManager.palette.headerBadgeOverlay, borderRadius: BorderRadius.circular(30)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(icon, size: 13, color: Colors.white),
               const SizedBox(width: 6),
@@ -259,7 +267,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
   Widget _actionsBar() => Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(18)),
+        decoration: BoxDecoration(color: ThemeManager.palette.navy, borderRadius: BorderRadius.circular(18)),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
@@ -281,9 +289,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
         onTap: () => _switchTab(t),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(color: sel ? AppColors.navy : Colors.transparent, borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: sel ? ThemeManager.palette.navy : Colors.transparent, borderRadius: BorderRadius.circular(10)),
           child: Center(
-            child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: sel ? Colors.white : AppColors.textMuted)),
+            child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: sel ? Colors.white : ThemeManager.palette.textMuted)),
           ),
         ),
       ),
@@ -298,9 +306,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
           child: Ink(
             padding: padding,
             decoration: BoxDecoration(
-              color: AppColors.cardWhite,
+              color: ThemeManager.palette.cardWhite,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: ThemeManager.palette.border),
             ),
             child: child,
           ),
@@ -309,19 +317,19 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
   Widget _empty(String t) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Center(child: Text(t, style: const TextStyle(color: AppColors.textMuted))),
+        child: Center(child: Text(t, style: TextStyle(color: ThemeManager.palette.textMuted))),
       );
 
   Widget _priceCol(String label, double v) => Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-          Text('Rs ${v.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          Text(label, style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted)),
+          Text('Rs ${v.toStringAsFixed(2)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
         ]),
       );
 
   Widget _countBadge(int n) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(20)),
+        decoration: BoxDecoration(color: ThemeManager.palette.navy, borderRadius: BorderRadius.circular(20)),
         child: Text('$n', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Colors.white)),
       );
 
@@ -348,13 +356,13 @@ class _ItemsScreenState extends State<ItemsScreen> {
         _card(
           onTap: () => _openProduct(p),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(p.name, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+            Text(p.name, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
             if (p.category.trim().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: ThemeManager.palette.navy, borderRadius: BorderRadius.circular(16)),
                   child: Text(p.category, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
@@ -362,7 +370,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
               padding: const EdgeInsets.only(top: 10),
               child: Row(children: [
                 _priceCol(Loc.t('Sale Price', 'سیل قیمت'), p.salePrice),
-                _priceCol(Loc.t('Purchase Price', 'خرید قیمت'), p.cost),
+                if (_canSeeCost) _priceCol(Loc.t('Purchase Price', 'خرید قیمت'), p.cost),
               ]),
             ),
           ]),
@@ -385,15 +393,15 @@ class _ItemsScreenState extends State<ItemsScreen> {
             });
           },
           child: Row(children: [
-            Expanded(child: Text(r.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textDark))),
+            Expanded(child: Text(r.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark))),
             _countBadge(r.count),
-            if (!r.uncategorized) ...[
+            if (!r.uncategorized && _admin) ...[
               IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textMuted),
+                icon: Icon(Icons.edit_outlined, size: 18, color: ThemeManager.palette.textMuted),
                 onPressed: () => _promptEditCategory(_categories.firstWhere((c) => c.name == r.name)),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textMuted),
+                icon: Icon(Icons.delete_outline, size: 18, color: ThemeManager.palette.textMuted),
                 onPressed: () => _confirmDeleteCategory(_categories.firstWhere((c) => c.name == r.name), r.count),
               ),
             ] else
@@ -416,16 +424,16 @@ class _ItemsScreenState extends State<ItemsScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.chevron_left, size: 18, color: AppColors.navy),
+              Icon(Icons.chevron_left, size: 18, color: ThemeManager.palette.navyInk),
               Text(Loc.t('Categories', 'کیٹیگریز'),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.navy)),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk)),
             ]),
           ),
         ),
       ),
       Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 16),
-        child: Text(display, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+        child: Text(display, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
       ),
       if (list.isEmpty)
         _empty(inCat.isEmpty
@@ -435,15 +443,15 @@ class _ItemsScreenState extends State<ItemsScreen> {
         for (final p in list)
           _card(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(p.name, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+              Text(p.name, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Row(children: [
-                  const Icon(Icons.bar_chart, size: 12, color: AppColors.textMuted),
+                  Icon(Icons.bar_chart, size: 12, color: ThemeManager.palette.textMuted),
                   const SizedBox(width: 5),
                   Flexible(
                     child: Text('${Loc.t('Stock', 'اسٹاک')}: ${p.formatStockBreakdown()}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                        style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
                   ),
                 ]),
               ),
@@ -451,15 +459,16 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Row(children: [
                   _priceCol(Loc.t('Sale Price', 'سیل قیمت'), p.salePrice),
-                  _priceCol(Loc.t('Purchase Price', 'خرید قیمت'), p.cost),
+                  if (_canSeeCost) _priceCol(Loc.t('Purchase Price', 'خرید قیمت'), p.cost),
                 ]),
               ),
+              if (_admin)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Wrap(spacing: 8, runSpacing: 8, children: [
-                  _smallBtn(Loc.t('Edit', 'ترمیم'), Icons.edit, AppColors.navy, () => _openProduct(p)),
-                  _smallBtn(Loc.t('Change Category', 'کیٹیگری بدلیں'), Icons.repeat, AppColors.teal, () => _promptChangeCategory(p)),
-                  _smallBtn(Loc.t('Delete', 'حذف'), Icons.delete, AppColors.red, () => _confirmDeleteProduct(p)),
+                  _smallBtn(Loc.t('Edit', 'ترمیم'), Icons.edit, ThemeManager.palette.navyInk, () => _openProduct(p)),
+                  _smallBtn(Loc.t('Change Category', 'کیٹیگری بدلیں'), Icons.repeat, ThemeManager.palette.teal, () => _promptChangeCategory(p)),
+                  _smallBtn(Loc.t('Delete', 'حذف'), Icons.delete, ThemeManager.palette.red, () => _confirmDeleteProduct(p)),
                 ]),
               ),
             ]),
@@ -476,8 +485,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
         _card(
           padding: const EdgeInsets.fromLTRB(20, 14, 14, 14),
           child: Row(children: [
-            Expanded(child: Text(u.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textDark))),
-            _smallBtn(Loc.t('Delete', 'حذف'), Icons.delete, AppColors.red, () => _confirmDeleteUnit(u)),
+            Expanded(child: Text(u.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark))),
+            if (_admin) _smallBtn(Loc.t('Delete', 'حذف'), Icons.delete, ThemeManager.palette.red, () => _confirmDeleteUnit(u)),
           ]),
         ),
     ];
@@ -497,10 +506,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
         if (!didPop && inDetail) _closeCategoryDetail();
       },
       child: Scaffold(
-        backgroundColor: AppColors.bg,
+        backgroundColor: ThemeManager.palette.bg,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-        floatingActionButton: FloatingActionButton.extended(
-          backgroundColor: AppColors.red,
+        floatingActionButton: !_admin ? null : FloatingActionButton.extended(
+          backgroundColor: ThemeManager.palette.red,
           foregroundColor: Colors.white,
           onPressed: _onFab,
           label: Text(_fabLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
@@ -513,14 +522,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 title: Loc.t('Items', 'آئٹمز'),
                 subtitle: Loc.t('Products, Categories & Units', 'پروڈکٹس، کیٹیگریز اور یونٹس'),
               ),
-              _actionsBar(),
+              if (_admin) _actionsBar(),
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.cardWhite,
+                  color: ThemeManager.palette.cardWhite,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: ThemeManager.palette.border),
                 ),
                 child: Row(children: [
                   _tabButton(Loc.t('PRODUCTS', 'پروڈکٹس'), _Tab.products),
@@ -532,18 +541,18 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 margin: const EdgeInsets.only(bottom: 18),
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 decoration: BoxDecoration(
-                  color: AppColors.fieldFill,
+                  color: ThemeManager.palette.fieldFill,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: ThemeManager.palette.border),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.search, size: 15, color: AppColors.textMuted),
+                  Icon(Icons.search, size: 15, color: ThemeManager.palette.textMuted),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _search,
-                      style: const TextStyle(color: AppColors.textDark),
-                      decoration: InputDecoration(border: InputBorder.none, hintText: _hint, hintStyle: const TextStyle(color: AppColors.textMuted)),
+                      style: TextStyle(color: ThemeManager.palette.textDark),
+                      decoration: InputDecoration(border: InputBorder.none, hintText: _hint, hintStyle: TextStyle(color: ThemeManager.palette.textMuted)),
                       onChanged: (v) {
                         _debounce?.cancel();
                         _debounce = Timer(const Duration(milliseconds: 200), () {

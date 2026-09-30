@@ -10,6 +10,7 @@ import 'db/desktop_db_init.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/app_lock.dart';
+import 'services/crash_handler.dart';
 import 'services/session.dart';
 import 'sync/branch_config_store.dart';
 import 'sync/device_tag.dart';
@@ -17,7 +18,6 @@ import 'sync/network_monitor.dart';
 import 'sync/settings_sync.dart';
 import 'sync/sync_keepalive.dart';
 import 'sync/sync_worker.dart';
-import 'theme/app_colors.dart';
 import 'theme/theme_manager.dart';
 import 'utils/loc.dart';
 
@@ -29,6 +29,8 @@ import 'utils/loc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // MainActivity.onCreate: CrashHandler.install — sab se pehle, taake baad ki har crash pakri jaye.
+  CrashHandler.install();
   // Windows: DB factory sab se pehle (DeviceTag/BranchConfigStore ke liye nahi, lekin koi bhi DB call se pehle).
   await initDesktopDatabase();
   // PosApplication.onCreate() ka pehla kaam: DeviceTag / BranchConfigStore (IDs mein zaroorat).
@@ -76,15 +78,15 @@ class AhDeveloperApp extends StatelessWidget {
           theme: ThemeData(
             useMaterial3: true,
             brightness: dark ? Brightness.dark : Brightness.light,
-            scaffoldBackgroundColor: dark ? p.bg : AppColors.bg,
-            colorSchemeSeed: AppColors.navy,
+            scaffoldBackgroundColor: p.bg,
+            colorSchemeSeed: ThemeManager.palette.navy,
             fontFamily: 'Roboto',
           ),
           // Desktop: mouse se bhi drag-scroll (touch-screen POS jaisa).
           scrollBehavior: const _DesktopScrollBehavior(),
           builder: (context, child) => Directionality(
             textDirection: lang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
-            child: _DesktopFrame(background: dark ? p.bg : AppColors.bg, child: child!),
+            child: _DesktopFrame(background: p.bg, child: child!),
           ),
           // Session hai to seedha dashboard, warna login/setup.
           home: Session.isLoggedIn ? const DashboardScreen() : const LoginScreen(),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/theme_manager.dart';
 
 /// Mirrors `buildHeader()` in ProductActivity.kt — navy gradient header with
 /// title/subtitle on the left and a "View List" pill on the right.
@@ -26,13 +26,13 @@ class PremiumHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(22, 18, 18, 18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.navy, AppColors.navyLight],
+          colors: [ThemeManager.palette.navy, ThemeManager.palette.navyLight],
         ),
         boxShadow: [
-          BoxShadow(color: AppColors.navy.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: ThemeManager.palette.navyInk.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Row(
@@ -48,7 +48,7 @@ class PremiumHeader extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: AppColors.headerSubtitle, fontSize: 11),
+                  style: TextStyle(color: ThemeManager.palette.headerSubtitleColor, fontSize: 11),
                 ),
               ],
             ),
@@ -60,7 +60,7 @@ class PremiumHeader extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 decoration: BoxDecoration(
-                  color: AppColors.headerBadgeOverlay,
+                  color: ThemeManager.palette.headerBadgeOverlay,
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Row(

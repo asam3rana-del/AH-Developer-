@@ -1,5 +1,19 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-30) — Step 1: Items tile ka role (faisla ho gaya)
+- [x] Dashboard "Items" tile ab **sab roles** ko (Kotlin `MainActivity`: "No role gate"). `lib/screens/dashboard_screen.dart`.
+- [x] Farq (PORTING_PLAN rules ke mutabiq): `ItemsScreen` mein cashier ko **Purchase Price nahi** dikhta aur load bhi nahi hota (`productsForRole`, `lib/db/items_repository.dart`); manager ko cost dikhta hai. Product add/edit/delete, Change Category, category rename/delete, unit add/delete, Rate List/Translate/Units pills **sirf admin** — UI chhupa hua + data layer par `requireItemsAdmin()` (StateError). Kotlin mein in par koi gate nahi tha; agar cashier/manager ko bhi chahiye to `requireItemsAdmin` aur `_admin` getter dhilay karein.
+- [x] Test: `test/items_test.dart` (`productsForRole`, `requireItemsAdmin`).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test`.
+- [ ] Agla (Step 2): purani screens ko `AppColors` se `ThemeManager.palette` par migrate (widgets pehle, phir screens).
+
+## Flutter side (2026-09-30) — Sale Billed Items popup + Contact picker + Crash dialog
+- [x] Sale: bill lines ab seedhi screen par nahi — "Billed Items (N) · Rs X" trigger card, tap par popup (Edit = fields refill + popup band, Delete, Close). Kotlin `openBilledItemsDialog` jaisa; Close par focus Paid par nahi jata. `lib/screens/sale_screen.dart`.
+- [x] Parties: phone field ke saath contact-picker icon (`flutter_contacts`), naam khali ho to contact ka naam bhi bharta hai. `lib/services/contact_picker.dart`. Android `READ_CONTACTS` `tools/android_fix.sh` se, iOS `NSContactsUsageDescription` `.github/workflows/build.yml` se (dono CI-patched — `.github` GitHub par replace karna na bhulein).
+- [x] Dashboard: "App crashed last time" dialog (Share / Copy / Dismiss). `lib/services/crash_handler.dart` (FlutterError.onError + PlatformDispatcher.onError -> SharedPreferences), `main()` mein sab se pehle install.
+- [ ] Ye sab zip mein bina `flutter analyze` / `flutter test` ke likha gaya (is environment mein Flutter SDK nahi) — pehle CI/PC par chalayein: `flutter pub get && flutter analyze && flutter test`.
+- [ ] Baaki (Phase 4): purani screens ko `AppColors` se `ThemeManager.palette` par migrate (~500 jagah, 15 screens — screen-by-screen, device par check ke saath), Settings ke chhote rows. (Items tile ka role: Step 1 mein tay ho gaya.)
+
 ## Flutter side (2026-09-29) — CI build fix 2
 - [x] Android APK: `purchase_history_repository.dart` aur `party_transaction_repository.dart` mein ek FAALTU `}` tha (`_adjustSupplierBalance` / `_adjustPartyBalance` ke baad) — class wahin band ho jati thi, is liye `deletePurchase`/`returnItems` "isn't defined" aur "Expected a declaration, but got '}'" aaye. Faaltu `}` hata diya. Poori `lib/` + `test/` ka bracket scan ab saaf.
 - [x] iOS: repo ki `.github/workflows/build.yml` purani hai ("deployment target 13.0"); zip wali 15.5 set karti hai (ML Kit text recognition ko iOS 15.5+ chahiye, warna `pod install` conflict). GitHub par `.github/workflows/build.yml` replace karna zaroori hai (upload se `.github` folder shayad nahi jata).
@@ -452,3 +466,10 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 
 ## Purchase → Add New Product (Sep 30)
 - Dialog mein Category (likho ya chuno; nayi ho to save par khud add), English tag, aur Sale / Quick Sale ke alag alag Default unit dropdowns add.
+
+## Theme migration (Sep 30) — Step 2
+- [x] `AppColors` se `ThemeManager.palette` par migration: 23 files (screens + widgets + main.dart), ~560 jagah. Ab dark mode poori app ke rang badalta hai.
+- `AppPalette` mein naye rang: `navyInk` (navy jab text/icon/border ho — dark mein halka), `navyLight`, `tealDark`, `redDark`, `blue`, `orange`, `purple`. `navy` sirf header/button/gradient surface ke liye.
+- Jo `const` ab palette use karte hain, unse `const` hata diya (rang runtime par badalta hai). `AppColors` mein sirf `fade()` / `fadeDark()` helpers bache.
+- Farq: navy `0xFF0B2545` ki jagah Kotlin palette ka `0xFF0D1B4C`. Kahin-kahin `Colors.white` / hard-coded rang dark mein ab bhi light reh sakte hain — device par dekh kar Step 3 mein theek karenge.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
