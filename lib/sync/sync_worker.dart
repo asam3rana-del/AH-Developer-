@@ -22,8 +22,9 @@ class SyncOutcome {
 /// manual "Sync Now") isi ek jagah se guzarte hain, kisi screen ke lifecycle se bandhe baghair.
 ///
 /// FARQ (Kotlin se) — `workmanager` plugin ke baghair, BackupScheduler jaisa:
-///  * Periodic sync sirf jab app zinda ho: har 15 min ka Timer + app dobara khulne (resumed) par,
-///    agar pichli sync 15 min se purani ho. Band app ke liye WorkManager/BGTaskScheduler baad mein.
+///  * Periodic sync sirf jab app zinda ho (screen par ya background mein): har 5 min ka Timer, app
+///    dobara khulne (resumed) par agar pichli sync 1 min se purani ho, aur background jate (paused)
+///    waqt pending changes bhejne ke liye. Poori tarah band app ke liye WorkManager/BGTaskScheduler baad mein.
 ///  * Kotlin ka `NetworkType.CONNECTED` constraint: offline hone par sync chalti hi nahi (warna push
 ///    fail hoke retryCount 10 tak pohanch kar entries "stuck" ho jayen). Yahan `isOnline` check se wohi.
 ///  * `syncNowOnce` (Kotlin REPLACE): Dart mein chalti hui sync cancel nahi hoti, is liye chalti hui
@@ -33,8 +34,17 @@ class SyncWorker {
   SyncWorker._();
   static final SyncWorker instance = SyncWorker._();
 
-  /// Kotlin: `PeriodicWorkRequestBuilder(15, MINUTES)` (WorkManager ki kam az kam muddat).
-  static const Duration periodicInterval = Duration(minutes: 15);
+  /// App khula (ya background mein zinda) ho to har 5 min sync. (Kotlin WorkManager 15 min tha, par
+  /// Flutter mein background service nahi, is liye app zinda hone ke dauran zyada baar chalate hain.
+  /// Sync sirf badli hui cheezein push/pull karti hai, is liye quota par bhaari nahi.)
+  static const Duration periodicInterval = Duration(minutes: 5);
+
+  /// App wapas saamne aane par: pichli sync is se purani ho to turant sync.
+  static const Duration resumeMinGap = Duration(minutes: 1);
+
+  /// App background mein jate waqt: pending changes turant bhejne ke liye, bas itna gap zaroori
+  /// (baar-baar home/back dabane par sync ki bauchhaar na ho).
+  static const Duration pauseMinGap = Duration(seconds: 30);
 
   /// Asli sync (tests badalte hain).
   @visibleForTesting
@@ -69,7 +79,7 @@ class SyncWorker {
   void schedulePeriodic() {
     if (_timer != null) return;
     _timer = Timer.periodic(periodicInterval, (_) => triggerNow());
-    _hook = _LifecycleHook(_onResumed);
+    _hook = _LifecycleHook(_onResumed, _onPaused);
     WidgetsBinding.instance.addObserver(_hook!);
   }
 
@@ -82,8 +92,14 @@ class SyncWorker {
   }
 
   void _onResumed() {
-    // WorkManager background mein bhi chalta; yahan wapas aane par agar periodic waqt guzar chuka to.
-    if (nowMs() - _lastFinishedAt >= periodicInterval.inMilliseconds) triggerNow();
+    // Wapas aane par: pichli sync 1 min se purani ho to abhi sync (doosri device ka naya data foran aaye).
+    if (nowMs() - _lastFinishedAt >= resumeMinGap.inMilliseconds) triggerNow();
+  }
+
+  void _onPaused() {
+    // Back / Home dabane par app band nahi hoti, par Android jaldi isay sula deta hai — is se pehle
+    // pending changes bhej do (aur taaza data le lo), taake background mein bhi sync na ruke.
+    if (nowMs() - _lastFinishedAt >= pauseMinGap.inMilliseconds) triggerNow();
   }
 
   /// Kotlin `triggerNow` (KEEP): NetworkMonitor / SyncQueueHelper (enqueue ke baad) yahan se. Sync
@@ -154,10 +170,15 @@ class SyncWorker {
 
 class _LifecycleHook with WidgetsBindingObserver {
   final VoidCallback onResumed;
-  _LifecycleHook(this.onResumed);
+  final VoidCallback onPaused;
+  _LifecycleHook(this.onResumed, this.onPaused);
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) onResumed();
+    if (state == AppLifecycleState.resumed) {
+      onResumed();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      onPaused();
+    }
   }
 }

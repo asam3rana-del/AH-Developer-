@@ -113,7 +113,7 @@ void main() {
     expect(runs, greaterThanOrEqualTo(2));
   });
 
-  testWidgets('schedulePeriodic: har 15 min ek sync; dobara bulane par duplicate nahi (KEEP)', (tester) async {
+  testWidgets('schedulePeriodic: har periodicInterval par ek sync; dobara bulane par duplicate nahi (KEEP)', (tester) async {
     w.schedulePeriodic();
     w.schedulePeriodic();
     expect(w.isScheduled, isTrue);
@@ -127,20 +127,31 @@ void main() {
     expect(runs, 2);
   });
 
-  testWidgets('resume par sync sirf tab jab pichli 15 min se purani ho', (tester) async {
+  testWidgets('resume par sync sirf tab jab pichli 1 min se purani ho; paused par 30 s se purani ho', (tester) async {
     var t = 100 * 60 * 1000;
     w.nowMs = () => t;
     w.schedulePeriodic();
     await w.syncNowOnce(); // lastFinishedAt = t
     expect(runs, 1);
-    t += 5 * 60 * 1000;
+    t += 20 * 1000;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
-    expect(runs, 1); // 5 min — abhi zaroorat nahi
-    t += 11 * 60 * 1000;
+    expect(runs, 1); // 20 s — abhi zaroorat nahi
+    t += 2 * 60 * 1000;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     await tester.pump();
     expect(runs, 2);
+    // background jate waqt: abhi abhi sync hui hai to dobara nahi; 30 s baad ho jaye.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(runs, 2);
+    t += 45 * 1000;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); // pehle wapas aao
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    await tester.pump();
+    expect(runs, 3);
   });
 }

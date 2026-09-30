@@ -47,7 +47,7 @@ void main() async {
   installSyncWiring();
   NetworkMonitor.onOnline = () => SyncWorker.instance.triggerNow();
   await NetworkMonitor.register();
-  // PosApplication.onCreate() mein SyncWorker.schedulePeriodic(this) (har 15 min, app zinda ho tab).
+  // PosApplication.onCreate() mein SyncWorker.schedulePeriodic(this) (har 5 min, app zinda ho tab — screen par ya background mein).
   SyncWorker.instance.schedulePeriodic();
   runApp(const AhDeveloperApp());
 }

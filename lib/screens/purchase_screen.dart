@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/category_unit_repository.dart';
 import '../db/party_repository.dart';
@@ -17,9 +19,7 @@ import '../services/purchase_hold_recall.dart';
 import '../services/session.dart';
 import '../theme/app_colors.dart';
 import '../utils/bill_doc.dart';
-import '../utils/bill_scan_parser.dart';
 import 'bill_preview_screen.dart';
-import 'bill_scan_screen.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
 import '../utils/purchase_calc.dart';
@@ -56,11 +56,16 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   final _supplierCtrl = TextEditingController();
   final _supplierFocus = FocusNode();
   final _invoiceCtrl = TextEditingController();
+  final _invoiceFocus = FocusNode();
   final _itemCtrl = TextEditingController();
   final _itemFocus = FocusNode();
   final _qtyCtrl = TextEditingController();
   final _qtyFocus = FocusNode();
   final _rateCtrl = TextEditingController();
+  final _rateFocus = FocusNode();
+  final _retailFocus = FocusNode();
+  final _wholesaleFocus = FocusNode();
+  final _paidFocus = FocusNode();
   final _retailCtrl = TextEditingController();
   final _wholesaleCtrl = TextEditingController();
   final _paidCtrl = TextEditingController();
@@ -101,6 +106,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _productSub = ProductRepository.instance.watchAll().listen((v) {
       if (mounted) setState(() => _products = v);
     });
+    SupplierRepository.instance.listAll().then((v) {
+      if (mounted) setState(() => _suppliers = v);
+    });
     _supplierSub = SupplierRepository.instance.watchAll().listen((v) {
       if (mounted) setState(() => _suppliers = v);
     });
@@ -108,26 +116,36 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _loading = true;
       _loadForEdit();
     } else {
-      _restoreDraft();
+      _restoreDraft().then((_) => _restoreEntry());
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // App background mein jaye to bill ka adha kaam na jaye (Kotlin onPause -> saveDraft).
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) _saveDraftNow();
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _saveDraftNow();
+      _saveEntryNow();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _draftTimer?.cancel();
+    _entryTimer?.cancel();
+    _saveEntryNow();
     _saveDraftNow(); // controllers dispose hone se PEHLE (text abhi parha jata hai)
     _productSub?.cancel();
     _supplierSub?.cancel();
     _supplierCtrl.dispose();
     _supplierFocus.dispose();
     _invoiceCtrl.dispose();
+    _invoiceFocus.dispose();
+    _rateFocus.dispose();
+    _retailFocus.dispose();
+    _wholesaleFocus.dispose();
+    _paidFocus.dispose();
     _itemCtrl.dispose();
     _itemFocus.dispose();
     _qtyCtrl.dispose();
@@ -187,6 +205,69 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     });
     _refreshSupplierBalance(d.supplier);
     if (d.lines.isNotEmpty) _toast(Loc.t('Unsaved purchase draft restored', 'محفوظ نہ ہوئی خریداری کا مسودہ بحال ہو گیا'));
+  }
+
+  // ------------------------------------------- adhoora item (back dabane par bhi bacha rahe)
+
+  static const _entryKey = 'purchase_entry_draft_json';
+  Timer? _entryTimer;
+
+  void _saveEntrySoon() {
+    if (_isEdit) return;
+    _entryTimer?.cancel();
+    _entryTimer = Timer(const Duration(milliseconds: 400), _saveEntryNow);
+  }
+
+  void _saveEntryNow() {
+    if (_isEdit) return;
+    final data = jsonEncode({
+      'item': _itemCtrl.text,
+      'qty': _qtyCtrl.text,
+      'rate': _rateCtrl.text,
+      'retail': _retailCtrl.text,
+      'wholesale': _wholesaleCtrl.text,
+      'unit': _selectedUnit,
+    });
+    final empty = _itemCtrl.text.trim().isEmpty && _qtyCtrl.text.trim().isEmpty && _rateCtrl.text.trim().isEmpty;
+    SharedPreferences.getInstance().then((p) => empty ? p.remove(_entryKey) : p.setString(_entryKey, data));
+  }
+
+  Future<void> _restoreEntry() async {
+    final p = await SharedPreferences.getInstance();
+    final raw = p.getString(_entryKey);
+    if (raw == null || !mounted) return;
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      final name = (m['item'] as String?) ?? '';
+      if (name.trim().isEmpty && ((m['qty'] as String?) ?? '').isEmpty) return;
+      // Products load hone ka intezar (max ~2s), taake item wapas pehchana ja sake.
+      for (var i = 0; i < 20 && _products.isEmpty && mounted; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (!mounted) return;
+      final product = _productByName(name);
+      setState(() {
+        _itemCtrl.text = name;
+        if (product != null) {
+          _pickedProduct = product;
+          final u = (m['unit'] as String?) ?? '';
+          _selectedUnit = u.isNotEmpty ? u : product.unit;
+        }
+        _qtyCtrl.text = (m['qty'] as String?) ?? '';
+        _rateCtrl.text = (m['rate'] as String?) ?? '';
+        _retailCtrl.text = (m['retail'] as String?) ?? '';
+        _wholesaleCtrl.text = (m['wholesale'] as String?) ?? '';
+        _mainRate = _toMain(double.tryParse(_rateCtrl.text.trim()) ?? 0.0);
+        _mainRetail = _toMain(double.tryParse(_retailCtrl.text.trim()) ?? 0.0);
+        _mainWholesale = _toMain(double.tryParse(_wholesaleCtrl.text.trim()) ?? 0.0);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _clearEntryDraft() async {
+    _entryTimer?.cancel();
+    final p = await SharedPreferences.getInstance();
+    await p.remove(_entryKey);
   }
 
   // -------------------------------------------------------------- edit loading
@@ -319,6 +400,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _mainWholesale = 0.0;
     _lastPurchaseMainRate = 0.0;
     _editingIndex = null;
+    _saveEntrySoon();
   }
 
   Product? _productByName(String name) {
@@ -537,52 +619,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     });
     _fillRateText();
     _fillRetailWholesaleText();
-  }
-
-  // ---------------------------------------------------------------- Scan Bill
-
-  /// Kotlin BillScan: photo -> OCR -> review -> har item ko product se milao (naam) ya naya product
-  /// banao, phir purchase lines mein daal do. Rate = primary unit par (jaisa scan mein likha).
-  Future<void> _scanBill() async {
-    final items = await Navigator.of(context).push<List<ScannedItem>>(
-      MaterialPageRoute(builder: (_) => const BillScanScreen()),
-    );
-    if (items == null || items.isEmpty || !mounted) return;
-    var created = 0;
-    final added = <PurchaseLine>[];
-    for (var i = 0; i < items.length; i++) {
-      final it = items[i];
-      var product = _productByName(it.name);
-      if (product == null) {
-        product = Product(
-          barcode: 'P${DateTime.now().millisecondsSinceEpoch}$i',
-          name: it.name,
-          category: 'General',
-          unit: 'pcs',
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-          dirty: true,
-        );
-        await ProductRepository.instance.upsert(product, isNew: true);
-        _products = [..._products, product];
-        created++;
-      }
-      added.add(PurchaseLine(
-        itemName: product.name,
-        barcode: product.barcode,
-        qty: it.qty,
-        unit: product.unit,
-        rate: it.rate,
-        amount: it.qty * it.rate,
-        retailRate: 0.0,
-        wholesaleRate: 0.0,
-      ));
-    }
-    if (!mounted) return;
-    setState(() => _lines.addAll(added));
-    _saveDraftSoon();
-    _toast(created == 0
-        ? Loc.t('${added.length} items added', '${added.length} آئٹمز شامل ہو گئے')
-        : Loc.t('${added.length} items added ($created new products created)', '${added.length} آئٹمز شامل ($created نئے پروڈکٹ بنے)'));
   }
 
   // ------------------------------------------------------------- Hold / Recall
@@ -896,6 +932,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         payments: _splitPayments,
       );
       await PurchaseDraftStore.clear();
+      await _clearEntryDraft();
       if (!mounted) return;
       _toast(_isEdit ? 'Purchase updated: $billNo' : 'Purchase saved: $billNo');
 
@@ -1095,9 +1132,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                             title: _isEdit ? 'Edit Purchase' : 'New Purchase',
                             subtitle: _isEdit ? 'Bill ${widget.editBillNo}' : 'Stock In / Supplier Bill',
                           ),
-                          if (!_isEdit) _buildHoldRecallRow(),
+                          _buildHoldRecallRow(),
                           _buildSupplierCard(),
-                          _buildDateCard(),
                           _buildItemEntryCard(),
                           _buildLinesList(),
                           _buildTotalsCard(),
@@ -1127,6 +1163,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         children: [
+          if (!_isEdit) ...[
           Expanded(
             child: OutlinedButton.icon(
               onPressed: _holdBill,
@@ -1143,11 +1180,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             ),
           ),
           const SizedBox(width: 10),
+          ],
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: _scanBill,
-              icon: const Icon(Icons.document_scanner_outlined, size: 18),
-              label: Text(Loc.t('Scan Bill', 'بل سکین')),
+              onPressed: _pickDate,
+              icon: const Icon(Icons.calendar_today_outlined, size: 18),
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(DateFormat('dd MMM yyyy').format(_purchaseDate)),
+              ),
             ),
           ),
         ],
@@ -1180,9 +1221,22 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
                 controller: controller,
                 focusNode: focusNode,
+                textInputAction: TextInputAction.next,
                 onChanged: (v) {
                   _refreshSupplierBalance(v);
                   _saveDraftSoon();
+                },
+                onSubmitted: (_) {
+                  // Sirf ek hi naam match kare to wahi chun lo (keyboard se); warna likha hua naam rehne do.
+                  final q = controller.text.trim().toLowerCase();
+                  final hits = q.isEmpty ? const <Supplier>[] : _suppliers.where((x) => x.name.toLowerCase().contains(q)).toList();
+                  if (hits.length == 1 && hits.first.name.toLowerCase() != q) {
+                    controller.text = hits.first.name;
+                    controller.selection = TextSelection.collapsed(offset: controller.text.length);
+                    _refreshSupplierBalance(hits.first.name);
+                    _saveDraftSoon();
+                  }
+                  _invoiceFocus.requestFocus();
                 },
                 decoration: const InputDecoration(
                   hintText: 'Type or pick a supplier — new names are added automatically',
@@ -1210,33 +1264,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             label: "Supplier's Invoice No. (optional)",
             accent: AppColors.teal,
             controller: _invoiceCtrl,
+            focusNode: _invoiceFocus,
             keyboardType: TextInputType.text,
             hint: 'e.g. INV-1042',
             onChanged: (_) => _saveDraftSoon(),
+            onSubmitted: () => _itemFocus.requestFocus(),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateCard() {
-    return PremiumCard(
-      accentTop: AppColors.blue,
-      child: Row(
-        children: [
-          const BadgeIcon(emoji: '📅', color: AppColors.blue, size: 38),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('PURCHASE DATE', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.blue, letterSpacing: 0.3)),
-                Text(DateFormat('dd MMM yyyy').format(_purchaseDate),
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textDark)),
-              ],
-            ),
-          ),
-          GradientButton(label: 'Change', start: AppColors.blue, end: AppColors.navy, onTap: _pickDate),
         ],
       ),
     );
@@ -1302,7 +1335,27 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                     fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
                       controller: controller,
                       focusNode: focusNode,
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) {
+                        // Ek hi match ho (ya naam poora mile) to wahi chun kar Qty par jao; khali ho to Paid par.
+                        final t = _itemCtrl.text.trim();
+                        if (t.isEmpty) {
+                          _paidFocus.requestFocus();
+                          return;
+                        }
+                        final exact = _productByName(t);
+                        final hits = _products.where((x) => x.matchesQuery(t)).toList();
+                        final chosen = exact ?? (hits.length == 1 ? hits.first : null);
+                        if (chosen != null) {
+                          _onProductPicked(chosen);
+                        } else if (hits.isNotEmpty) {
+                          _itemFocus.requestFocus(); // kai match: list se chunna hai
+                        } else {
+                          _qtyFocus.requestFocus();
+                        }
+                      },
                       onChanged: (v) {
+                        _saveEntrySoon();
                         // Doosra naam likhne par pichla chuna hua product chhod do.
                         final pp = _pickedProduct;
                         if (pp != null && pp.name != v) {
@@ -1364,7 +1417,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                   controller: _qtyCtrl,
                   focusNode: _qtyFocus,
                   hint: '0',
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    setState(() {});
+                    _saveEntrySoon();
+                  },
+                  onSubmitted: () => _rateFocus.requestFocus(),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1392,7 +1449,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             label: 'Rate (per $unitValue)',
             accent: AppColors.orange,
             controller: _rateCtrl,
-            onChanged: _onRateChanged,
+            focusNode: _rateFocus,
+            onChanged: (v) {
+              _onRateChanged(v);
+              _saveEntrySoon();
+            },
+            textInputAction: picked != null ? TextInputAction.next : TextInputAction.done,
+            onSubmitted: () => picked != null ? _retailFocus.requestFocus() : _addLine(),
           ),
           _marginLabel(margin),
           if (picked != null) ...[
@@ -1405,7 +1468,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                     label: 'Retail Rate',
                     accent: AppColors.teal,
                     controller: _retailCtrl,
-                    onChanged: _onRetailChanged,
+                    focusNode: _retailFocus,
+                    onChanged: (v) {
+                      _onRetailChanged(v);
+                      _saveEntrySoon();
+                    },
+                    onSubmitted: () => _wholesaleFocus.requestFocus(),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1415,7 +1483,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                     label: 'Wholesale Rate',
                     accent: AppColors.blue,
                     controller: _wholesaleCtrl,
-                    onChanged: _onWholesaleChanged,
+                    focusNode: _wholesaleFocus,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (v) {
+                      _onWholesaleChanged(v);
+                      _saveEntrySoon();
+                    },
+                    onSubmitted: _addLine,
                   ),
                 ),
               ],
@@ -1543,7 +1617,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             label: 'Paid Amount (leave 0 for credit)',
             accent: AppColors.purple,
             controller: _paidCtrl,
+            focusNode: _paidFocus,
             enabled: !split,
+            textInputAction: TextInputAction.done,
+            onSubmitted: () {
+              FocusScope.of(context).unfocus();
+              if (!_saving) _save();
+            },
             onChanged: (_) {
               setState(() {});
               _saveDraftSoon();
