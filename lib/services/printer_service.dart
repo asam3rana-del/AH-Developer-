@@ -14,6 +14,7 @@ import '../utils/bill_doc.dart';
 import '../utils/escpos.dart';
 import '../utils/receipt_lines.dart';
 import 'receipt_renderer.dart';
+import 'usb_printer.dart';
 
 class PrinterInfo {
   final String name;
@@ -23,7 +24,7 @@ class PrinterInfo {
 
 /// Kotlin PrinterHelper ka Flutter hissa: Bluetooth (58mm/80mm ESC/POS raster).
 /// Windows/desktop: installed printer (USB, driver ke zariye PDF roll) ya Network printer (IP, raw ESC/POS).
-/// Android/iOS mein USB nahi (host-mode plugin chahiye) — wahan Bluetooth hi hai.
+/// Android par USB (host mode) bhi: lib/services/usb_printer.dart (MethodChannel, plugin nahi). iOS par sirf Bluetooth.
 /// Settings keys Kotlin wali hi: printer_name, printer_mac, printer_width, printer_dots.
 class PrinterService {
   PrinterService._();
@@ -43,6 +44,8 @@ class PrinterService {
   /// `printer_mac` setting mein transport ka prefix (purani Bluetooth MAC bina prefix ke hi rehti hain).
   static const tcpPrefix = 'tcp:'; // tcp:192.168.1.50:9100
   static const sysPrefix = 'sys:'; // sys:<Windows printer ka url/naam>
+  static const usbPrefix = UsbPrinter.prefix; // usb:<vid>:<pid> (sirf Android)
+  static bool isUsb(String addr) => UsbPrinter.isUsb(addr);
   static bool isTcp(String addr) => addr.startsWith(tcpPrefix);
   static bool isSystem(String addr) => addr.startsWith(sysPrefix);
 
@@ -170,6 +173,44 @@ class PrinterService {
     }
   }
 
+  /// Android USB (host mode): Bluetooth jaisa hi sequence — init -> strips (pause ke saath) -> feed+cut.
+  /// Kotlin sendUsbChunks ki tarah ek baar device khol kar; 4096-byte tukde Kotlin side par.
+  Future<String?> _sendUsb(String addr, List<List<({Uint8List bytes, int stripHeight})>> slips) async {
+    final id = UsbPrinter.parse(addr);
+    if (id == null) return 'USB printer ka address ghalat — Settings mein dobara select karein';
+    if (!UsbPrinter.supported) return 'USB printer sirf Android par hai';
+    try {
+      final attached = await UsbPrinter.list();
+      if (!attached.any((d) => d.vid == id.vid && d.pid == id.pid)) {
+        return 'USB printer nahi mila — cable lagi hai? Printer on hai?';
+      }
+      if (!await UsbPrinter.requestPermission(id.vid, id.pid)) {
+        return 'USB ki ijazat nahi mili — "Allow" dabayein aur dobara koshish karein';
+      }
+      if (!await UsbPrinter.open(id.vid, id.pid)) return 'USB printer khul nahi saka — cable nikaal kar dobara lagayein';
+      var allOk = true;
+      for (var s = 0; s < slips.length; s++) {
+        allOk &= await UsbPrinter.write(EscPos.init);
+        await _sleep(EscPos.settleDelayMs);
+        for (final chunk in slips[s]) {
+          allOk &= await UsbPrinter.write(chunk.bytes);
+          await _sleep(EscPos.interChunkDelayMs(chunk.stripHeight));
+          if (!allOk) break;
+        }
+        if (!allOk) break;
+        await _sleep(EscPos.settleDelayMs);
+        allOk &= await UsbPrinter.write(EscPos.feedAndCut);
+        if (s < slips.length - 1) await _sleep(EscPos.settleDelayMs);
+      }
+      return allOk ? null : 'Print nahi hua — USB printer on hai? Dobara koshish karein';
+    } catch (e) {
+      debugPrint('usb print failed: $e');
+      return 'Print nahi hua — USB printer on hai? Dobara koshish karein';
+    } finally {
+      await UsbPrinter.close();
+    }
+  }
+
   /// Windows ka installed printer (driver ke zariye): receipt image ko roll-size PDF page bana kar seedha print.
   Future<bool> _sendSystem(String addr, List<ReceiptImage> images, int dots) async {
     try {
@@ -227,6 +268,7 @@ class PrinterService {
           ? null
           : 'Network printer se connect nahi hua — IP/port theek hai? Printer on hai?';
     }
+    if (isUsb(addr)) return _sendUsb(addr, slips);
     // Bluetooth
     if (!supported) return 'Bluetooth printer sirf Android / iOS par hai — Settings mein Windows ya Network printer chunein';
     if (!await hasPermission()) return 'Bluetooth permission dein';

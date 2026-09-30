@@ -4,12 +4,14 @@ import '../db/reports_repository.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import 'balance_sheet_screen.dart';
+import 'cash_register_screen.dart';
 import 'due_reminders_screen.dart';
 import 'history_screen.dart';
 import 'inventory_insights_screen.dart';
 import 'monthly_screen.dart';
 import 'party_reports_screen.dart';
 import 'payments_screen.dart';
+import 'rate_comparison_screen.dart';
 import 'stock_adjustment_screen.dart';
 import 'stock_audit_screen.dart';
 import 'stock_movement_screen.dart';
@@ -152,6 +154,12 @@ class _ReportsBodyState extends State<_ReportsBody> {
             _row(p, Loc.t('Fast / Slow Movers', 'تیز / سست چلنے والے'),
                 Loc.t("Which items sell, and which don't", 'کون سے آئٹم بکتے ہیں'), p.flatBlueFg,
                 () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.movers))),
+            _row(p, Loc.t('Rate Comparison', 'ریٹ کا موازنہ'),
+                Loc.t('Compare supplier rates per item', 'فی آئٹم سپلائرز کے ریٹ کا موازنہ'), p.flatTealFg,
+                () => _open(const RoleGuard(allowed: {'admin', 'manager'}, child: RateComparisonScreen()))),
+            _row(p, Loc.t('Cash Register', 'کیش رجسٹر'),
+                Loc.t('Daily till open & close', 'روزانہ رجسٹر کھولیں / بند کریں'), p.flatAmberFg,
+                () => _open(const CashRegisterScreen())),
             _row(p, Loc.t('Due Date Reminders', 'ادائیگی کی یاد دہانی'),
                 Loc.t('Credit sales still owed, by due date', 'ادھار سیلز جو واجب الادا ہیں'), p.flatBlueFg,
                 () => _open(const DueRemindersScreen())),

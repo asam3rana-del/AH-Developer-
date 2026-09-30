@@ -24,6 +24,7 @@ dependencies:
   cloud_firestore: ^5.0.1
   firebase_auth: ^5.1.0       # SyncApi: anonymous sign-in (Firestore rules request.auth != null)
   connectivity_plus: ^6.0.3   # NetworkMonitor: internet wapas aane par sync trigger
+  workmanager: ^0.5.2         # Android: band app par bhi 12 PM / 9 PM backup checkpoint (BackupCheckpointWorker)
   flutter_foreground_task: ^8.10.0  # Android: minimize/back ke baad bhi sync chalti rahe (SyncKeepAlive)
 
   # Misc

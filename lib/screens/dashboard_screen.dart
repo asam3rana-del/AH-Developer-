@@ -13,28 +13,17 @@ import '../utils/loc.dart';
 import '../widgets/menu_row.dart' show IconBadge;
 import '../widgets/role_guard.dart';
 import 'backup_export_screen.dart';
-import 'balance_sheet_screen.dart';
-import 'cash_register_screen.dart';
 import 'cash_screen.dart';
 import 'day_book_screen.dart';
-import 'due_reminders_screen.dart';
-import 'expense_screen.dart';
 import 'item_search_screen.dart';
 import 'items_screen.dart';
 import 'login_screen.dart';
 import 'party_dashboard_screen.dart';
-import 'party_reports_screen.dart';
-import 'product_screen.dart';
-import 'purchase_history_screen.dart';
 import 'purchase_screen.dart';
-import 'rate_comparison_screen.dart';
 import 'reports_screen.dart';
-import 'sale_history_screen.dart';
 import 'sale_screen.dart';
 import 'settings_screen.dart';
-import 'shell_ledger_screen.dart';
 import 'stock_report_screen.dart';
-import 'zakat_screen.dart';
 
 /// Ek dashboard card. [open] aur [onTap] dono null => abhi port nahi hua ("Coming soon").
 class _Action {
@@ -52,8 +41,7 @@ class _Action {
 ///
 /// Data + faislay `lib/db/dashboard_repository.dart` mein hain (pure functions, test/dashboard_test.dart).
 /// Kotlin Dashboard par sirf quick actions hain; baqi screens (Reports, Products, Zakat ...) Kotlin mein
-/// Settings/Reports ke andar hain. Flutter Settings/Reports mein woh links abhi nahi, is liye woh neeche
-/// "MORE SCREENS" mein hain — links aane par yeh section hata dein.
+/// Settings/Reports ke andar hain — Flutter mein bhi wahin (SettingsScreen link rows + ReportsScreen hub).
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -88,7 +76,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _toGive = 0;
   int _pending = 0;
   String _shopName = '';
-  bool _showMore = false;
 
   @override
   void initState() {
@@ -404,49 +391,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
   }
 
-  /// Kotlin dashboard par nahi — Settings/Reports ke andar hain (wahan link aane tak yahan).
-  List<_Action> _moreActions(AppPalette p) {
-    final role = Session.role;
-    final all = <_Action>[
-      _Action('Rate Search', 'ریٹ سرچ', 'Item rates in seconds', 'آئٹم کے ریٹ فوراً', Icons.price_check, p.flatTealBg, p.flatTealFg,
-          open: () => const ItemSearchScreen()),
-      _Action('Rate Comparison', 'ریٹ کا موازنہ', 'Best supplier rate per item', 'فی آئٹم بہترین سپلائر ریٹ', Icons.balance, p.flatTealBg,
-          p.flatTealFg,
-          roles: _am, open: () => const RoleGuard(allowed: _am, child: RateComparisonScreen())),
-      _Action('Cash Register', 'کیش رجسٹر', 'Daily till open & close', 'روزانہ رجسٹر کھولیں / بند کریں', Icons.point_of_sale, p.flatAmberBg,
-          p.flatAmberFg,
-          open: () => const CashRegisterScreen()),
-      _Action('Expenses', 'اخراجات', 'Track business spending', 'کاروباری اخراجات', Icons.receipt_long, p.flatCoralBg, p.flatCoralFg,
-          open: () => const ExpenseScreen()),
-      _Action('Sale History', 'سیل ہسٹری', 'Past sales by customer', 'پرانی سیلز، گاہک کے حساب سے', Icons.receipt, p.flatTealBg, p.flatTealFg,
-          open: () => const SaleHistoryScreen()),
-      _Action('Purchase History', 'خریداری کی تاریخ', 'Supplier bills, return & delete', 'سپلائر بلز، واپسی اور حذف', Icons.history,
-          p.flatCoralBg, p.flatCoralFg,
-          roles: _admin, open: () => const PurchaseHistoryScreen()),
-      _Action('Products', 'پروڈکٹس', 'Products, categories & units', 'پروڈکٹس، کیٹیگریز اور یونٹس', Icons.category_outlined, p.flatBlueBg,
-          p.flatBlueFg,
-          roles: _admin, open: () => const RoleGuard(allowed: _admin, child: ProductScreen())),
-      _Action('Reports', 'رپورٹس', 'Sales, stock & financial overview', 'سیل، اسٹاک اور مالیاتی جائزہ', Icons.bar_chart, p.flatPurpleBg,
-          p.flatPurpleFg,
-          roles: _am, open: () => const ReportsScreen()),
-      _Action('Party Reports', 'پارٹی رپورٹس', 'Ledger, statement & item reports', 'لیجر، اسٹیٹمنٹ اور آئٹم رپورٹس', Icons.people_alt,
-          p.flatPurpleBg, p.flatPurpleFg,
-          roles: _am, open: () => const PartyReportsScreen()),
-      _Action('Balance Sheet', 'بیلنس شیٹ', 'Assets, liabilities & capital', 'اثاثے، واجبات اور سرمایہ', Icons.assessment, p.flatBlueBg,
-          p.flatBlueFg,
-          roles: _am, open: () => const RoleGuard(allowed: _am, child: BalanceSheetScreen())),
-      _Action('Due Reminders', 'ادائیگی یاد دہانی', 'Credit still owed, by due date', 'ادھار جو باقی ہے، تاریخ کے ساتھ', Icons.alarm,
-          p.flatAmberBg, p.flatAmberFg,
-          roles: _am, open: () => const DueRemindersScreen()),
-      _Action('Zakat', 'زکوٰۃ', 'Ramadan-to-Ramadan tracker', 'رمضان تا رمضان حساب', Icons.volunteer_activism, p.flatTealBg, p.flatTealFg,
-          roles: _am, open: () => const RoleGuard(allowed: _am, child: ZakatScreen())),
-      _Action('Shell Ledger', 'شیل لیجر', 'Bottles given & shells back', 'بھری بوتلیں اور واپس شیل', Icons.repeat, p.flatAmberBg,
-          p.flatAmberFg,
-          open: () => const ShellLedgerScreen()),
-    ];
-    return all.where((a) => a.roles == null || a.roles!.contains(role)).toList();
-  }
-
   // ------------------------------------------------------------------ build
 
   @override
@@ -454,7 +398,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final p = _p;
     final mq = MediaQuery.of(context);
     final cols = dashboardColumns(mq.size.width);
-    final more = _moreActions(p);
     return Scaffold(
       backgroundColor: p.bg,
       body: RefreshIndicator(
@@ -477,11 +420,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _sectionLabel(p, Loc.t('DUES SUMMARY', 'بقایا کا خلاصہ')),
                 _duesRow(),
                 if (_pending > 0) _syncPendingLabel(),
-                if (more.isNotEmpty) ...[
-                  const SizedBox(height: 22),
-                  _moreToggle(p),
-                  if (_showMore) ...[const SizedBox(height: 12), _grid(more, cols, p)],
-                ],
               ]),
             ),
           ],
@@ -719,28 +657,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
         child: Text(msg, style: const TextStyle(fontSize: 12, color: _partyRed)),
-      ),
-    );
-  }
-
-  Widget _moreToggle(AppPalette p) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => setState(() => _showMore = !_showMore),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color: p.cardWhite,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: p.border),
-        ),
-        child: Row(children: [
-          Expanded(
-            child: Text(Loc.t('MORE SCREENS', 'مزید اسکرینز'),
-                style: TextStyle(fontSize: 12.5, letterSpacing: 0.8, fontWeight: FontWeight.bold, color: p.textMuted)),
-          ),
-          Icon(_showMore ? Icons.expand_less : Icons.expand_more, color: p.textMuted),
-        ]),
       ),
     );
   }

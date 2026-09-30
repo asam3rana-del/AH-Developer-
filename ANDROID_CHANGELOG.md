@@ -1,5 +1,17 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-09-30) — USB printing (Phase 12, PrinterHelper USB hissa)
+- [x] `PrinterHelper.kt` USB: `lib/services/usb_printer.dart` + `tools/android_fix.sh` MainActivity.kt mein dusra MethodChannel `ah_developer/usb` (list / permission / open / write / close; plugin nahi, Kotlin jaisa `UsbManager`, bulk OUT endpoint, 4096-byte `bulkTransfer`, Android 14 ke liye explicit-package PendingIntent). Manifest mein `usb.host` feature `required=false`.
+- Flow: Settings > SELECT PRINTER ab Bluetooth (paired) + jude USB printers ek list mein; USB chunte hi ijazat dialog. Address `usb:<vid>:<pid>` (`printer_mac` setting) — replug par deviceName badalta hai, vid:pid nahi. Print: `PrinterService._sendUsb` = init -> strips (Bluetooth wali pacing) -> feed+cut, har qadam par saaf error message.
+- Test: `test/print_scan_test.dart` (address parse/roundtrip, transport prefix). Asli USB printer par test baaki.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein; APK build par `android_fix.sh` ka 'USB channel not written' check bhi dekhein.
+
+## Flutter side (2026-09-30) — Backup: public Downloads copy (Phase 11)
+- [x] `BackupHelper.kt` `copyToDownloads`: `lib/backup/downloads_copy.dart` + `tools/android_fix.sh` MainActivity.kt mein chhota MethodChannel (`ah_developer/downloads`, MediaStore, Android 10+ par permission nahi; <=9 par `WRITE_EXTERNAL_STORAGE` maxSdk 28). Har backup ke baad `Downloads/IBTISAAM POS Backups/` mein extra copy (best-effort). Test: `test/downloads_copy_test.dart`.
+- Farq: WorkManager ke background isolate mein Activity ka engine nahi hota, isliye auto-backup (band app) ki Downloads copy skip hoti hai; app khuli ho to (manual / app-close / resume) copy banti hai. Asal backup + Share par koi asar nahi.
+- [ ] Baaki: Settings/Dashboard ke chhote rows — device par dekh kar.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
+
 ## Flutter side (2026-09-30) — Step 1: Items tile ka role (faisla ho gaya)
 - [x] Dashboard "Items" tile ab **sab roles** ko (Kotlin `MainActivity`: "No role gate"). `lib/screens/dashboard_screen.dart`.
 - [x] Farq (PORTING_PLAN rules ke mutabiq): `ItemsScreen` mein cashier ko **Purchase Price nahi** dikhta aur load bhi nahi hota (`productsForRole`, `lib/db/items_repository.dart`); manager ko cost dikhta hai. Product add/edit/delete, Change Category, category rename/delete, unit add/delete, Rate List/Translate/Units pills **sirf admin** — UI chhupa hua + data layer par `requireItemsAdmin()` (StateError). Kotlin mein in par koi gate nahi tha; agar cashier/manager ko bhi chahiye to `requireItemsAdmin` aur `_admin` getter dhilay karein.
@@ -473,3 +485,5 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - Jo `const` ab palette use karte hain, unse `const` hata diya (rang runtime par badalta hai). `AppColors` mein sirf `fade()` / `fadeDark()` helpers bache.
 - Farq: navy `0xFF0B2545` ki jagah Kotlin palette ka `0xFF0D1B4C`. Kahin-kahin `Colors.white` / hard-coded rang dark mein ab bhi light reh sakte hain — device par dekh kar Step 3 mein theek karenge.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
+
+- [x] `BackupScheduler.kt` WorkManager: `lib/backup/backup_background.dart` (workmanager ^0.5.2, Android only, 15 min, KEEP) + `checkCheckpoints` mein `prefs.reload()`. Baaki: device par verify (Xiaomi/Oppo battery saver).

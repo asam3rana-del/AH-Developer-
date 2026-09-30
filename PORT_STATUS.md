@@ -2,7 +2,7 @@
 
 `python3 tools/port_status.py` chala kar dobara banayein.
 
-**Overall (lines of Kotlin ke hisaab se): 89%**  (43948/49102)
+**Overall (lines of Kotlin ke hisaab se): 94%**  (46203/49102)
 
 ## Phase 0: Foundation (models, DB, colors, widgets) — 100%
 
@@ -35,13 +35,13 @@
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup. Bill Preview: Bluetooth print + WhatsApp (Phase 12) done. |
+| 🟡 | SaleActivity.kt | 1869 | lib/screens/sale_screen.dart | Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup, quick-sale haptic (vibrateShort). Bill Preview: Bluetooth print + WhatsApp (Phase 12) done. |
 | ✅ | SaleRepository.kt | 136 | lib/db/sale_repository.dart | Edit/delete/return + audit + frozen conversionFactor (DB v4) done. Bill-linked payments bhi: edit par linkedPaidForBill cash-in mein dobara nahi ginta (subtractLinkedPaid), delete par linked payments + unki cash rows hatti hain, return par unka dated 'return:<ref>' refund + payment row hat'ta hai (voidLinkedPayments). Test: test/sale_linked_payments_test.dart. |
 | ✅ | RoomSaleRepository.kt | 563 | lib/db/sale_repository.dart | linkedToSkip (edit) + voidLinkedPayments (delete) sale_repository.dart mein. |
 | ✅ | SaleUseCases.kt | 400 | lib/db/sale_repository.dart |  |
 | ➖ | SaleViewModel.kt | 193 | — |  |
 
-## Phase 4: Login, roles, settings, dashboard — 74%
+## Phase 4: Login, roles, settings, dashboard — 75%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
@@ -50,8 +50,8 @@
 | ✅ | UserManagementActivity.kt | 753 | lib/screens/user_management_screen.dart | Fingerprint lock + user add/edit/delete ab sync queue mein (`SyncQueueHelper.enqueueUser`, passwordHash sync nahi hota). |
 | ✅ | AppLock.kt | 157 | lib/services/app_lock.dart | WidgetsBindingObserver + navigatorKey; pending re-lock prefs mein. |
 | ✅ | Loc.kt | 43 | lib/utils/loc.dart |  |
-| 🟡 | ThemeManager.kt | 125 | lib/theme/theme_manager.dart | Palette + dark toggle done. Saari screens/widgets ThemeManager.palette par migrate (Step 2); bache hue hard-coded Colors.white device par dekhein. |
-| 🟡 | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart | Shop info, login method (password/fingerprint/both/none/OTP), dark mode, language, users, Printer, Backup & Export row (admin/manager), Cloud Sync section (`SyncSection`). Upar Kotlin wali link rows (Parties, Items, Reports, Sale, Purchase, Expense, Cash & Bank, Shell Ledger; MenuRow + chevron_right, role gates Dashboard jaise). IconBadge dark mode fix (card + rang ki jhalak). Baaki chhote items (Kotlin ke baqi rows) device par dekhein. |
+| ✅ | ThemeManager.kt | 125 | lib/theme/theme_manager.dart | Palette + dark toggle done. Screens ThemeManager palette par migrate ho chuki hain; AppColors mein sirf fade()/fadeDark() helpers. Baqi fixed rang (shadow, WhatsApp/party green-red) jaan boojh kar. |
+| 🟡 | SettingsActivity.kt | 1320 | lib/screens/settings_screen.dart | Shop info, login method (password/fingerprint/both/none/OTP), dark mode, language, users, Printer, Backup & Export row (admin/manager), Cloud Sync section (`SyncSection`). Baaki chhote items (Kotlin ke baqi rows) device par dekhein. |
 | 🟡 | MainActivity.kt | 1085 | lib/screens/dashboard_screen.dart | Header (Settings gear, dark toggle, Quick Switch: fingerprint -> password fallback + plain-text migration), live item-rate search (top 6, tap = Item Rate Search), Today sale/profit (tap = hide; profit sirf admin, discount ke baad), 2/3/4-column Quick Actions (Kotlin tarteeb), Quick Sale + Payments tiles (SaleScreen.openQuickSale / PartyDashboardScreen.quickPayment), DUES SUMMARY (live-ledger You'll get/give), sync-pending label. Backup tile (BackupExportScreen) done. Crash dialog done (lib/services/crash_handler.dart, main() mein install; test/crash_handler_test.dart). Items tile ab sab roles ko (Kotlin jaisa; ItemsScreen ke andar cashier ko cost nahi, add/edit/delete admin-only). Baaki: MORE SCREENS section Settings/Reports mein links aane par hata dein. Test: test/dashboard_test.dart. |
 | ✅ | InputValidation.kt | 58 | lib/utils/input_validation.dart |  |
 | ✅ | Numerickeypad.kt | 214 | lib/widgets/numeric_keypad.dart | NumericKeypad.show + NumericKeypadField. Kotlin mein sirf StockTakingActivity istemal karti hai — Sale/Purchase ko keypad par lana ZAROORI NAHI. |
@@ -70,11 +70,11 @@
 | ✅ | SaleQuickSale.kt | 404 | lib/screens/sale_quick_sale.dart | Dialog + saveQuickSale + credit-limit confirm + top-30-day items pehle. System keyboard (Kotlin bhi yahi). |
 | ✅ | SaleHoldRecall.kt | 199 | lib/services/sale_hold_recall.dart + lib/widgets/held_bills_dialog.dart | encode/decode + Held Bills dialog. Sale holds sirf HOLD% (PHOLD% purchase ke liye). |
 
-## Phase 6: Parties (customer/supplier) — 80%
+## Phase 6: Parties (customer/supplier) — 89%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | PartyActivity.kt | 1359 | lib/screens/party_screen.dart | Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Contact picker done (lib/services/contact_picker.dart + phone field icon; READ_CONTACTS via tools/android_fix.sh, iOS NSContactsUsageDescription via build.yml; test/contact_picker_test.dart). Baaki: row tap se Party Dashboard/Transaction. |
+| ✅ | PartyActivity.kt | 1359 | lib/screens/party_screen.dart | Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Contact picker done (lib/services/contact_picker.dart + phone field icon; READ_CONTACTS via tools/android_fix.sh, iOS NSContactsUsageDescription via build.yml; test/contact_picker_test.dart). Row tap = history dialog (Kotlin openCustomerHistory/openSupplierHistory jaisa) done. |
 | 🟡 | PartyDashboardActivity.kt | 1522 | lib/screens/party_dashboard_screen.dart + lib/db/party_dashboard_repository.dart | Sab roles. Done: You'll Get/Give cards (tap = filter), Parties/Transactions/Items tabs, search, filter dialog, live-ledger balances, Daily/Stuck line, item detail + Edit Rates (admin only, sync_queue ke saath), main menu (Reports/Products/Cash/Settings sab jure), '+' quick add (Sale/Purchase Return = Sale/Purchase History screens), Add Sale/Purchase bar. Cashier ko cost/purchase data nahi. Party row tap -> PartyTransactionScreen done. Overdue/Due Today badge (customers) done (DB v10). Payment Received/Made party picker done (party_quick_add_menu.dart). Purchase row tap = PurchaseScreen(editBillNo:) (admin only). Test: test/party_dashboard_test.dart. |
 | ✅ | PartyTransactionActivity.kt | 2219 | lib/screens/party_transaction_screen.dart + lib/db/party_transaction_repository.dart | Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = clipboard, Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart. |
 | ✅ | PartyReportsActivity.kt | 1034 | lib/screens/party_reports_screen.dart + lib/db/party_reports_repository.dart | 6 reports (Item, Ledger, Payment History, Statement, Sale/Purchase by Party, P&L / Purchase Summary) — returned bills bahar, general payments Ledger/Statement mein, stuck split. Admin/Manager only (RoleGuard). Farq: Material icons; purchase item naam live product se. Test: test/party_reports_test.dart. |
@@ -106,11 +106,11 @@
 | ✅ | ZakatActivity.kt | 983 | lib/screens/zakat_screen.dart | lib/screens/zakat_screen.dart. admin/manager only (RoleGuard). Test: test/zakat_test.dart. Dashboard tile. |
 | ✅ | ShellLedgerActivity.kt | 607 | lib/screens/shell_ledger_screen.dart | lib/screens/shell_ledger_screen.dart. Test: test/shell_test.dart. Dashboard tile. |
 
-## Phase 9: Reports & stock — 89%
+## Phase 9: Reports & stock — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | ReportsActivity.kt | 808 | lib/screens/reports_screen.dart | lib/screens/reports_screen.dart + lib/db/reports_repository.dart. Admin/Manager only. Done: hub rows (Monthly, Stock Report, History, Party Reports, Payments, Due Reminders, Balance Sheet, Zakat), period filter, 7 summary cards, P&L, Top Products, Daily Sales. Baaki: Stock*/Insights rows abhi "Coming soon" — un screens ke saath jorna. Test: test/reports_test.dart. Dashboard tile. |
+| ✅ | ReportsActivity.kt | 808 | lib/screens/reports_screen.dart | lib/screens/reports_screen.dart + lib/db/reports_repository.dart. Admin/Manager only. Done: hub rows (Monthly, Stock Report, History, Party Reports, Payments, Due Reminders, Balance Sheet, Zakat), period filter, 7 summary cards, P&L, Top Products, Daily Sales. Stock Report/Movement/Cost/Audit/Adjustment/Taking, Insights (reorder/damage/profit/movers), Rate Comparison, Cash Register sab rows wired. Test: test/reports_test.dart. Dashboard tile. |
 | ✅ | MonthlySalesPurchaseActivity.kt | 561 | lib/screens/monthly_sales_purchase_screen.dart | lib/screens/monthly_screen.dart + lib/db/monthly_repository.dart (pure selectEntries/groupPeriods). Admin/Manager only. Party id se match, item lines mein returned bills bahar. Test: test/monthly_test.dart. Reports hub row. |
 | ✅ | StockReportActivity.kt | 327 | lib/screens/stock_report_screen.dart | lib/screens/stock_report_screen.dart + lib/db/stock_report_repository.dart (pure costPerSmallestUnit/summarizeStock/filterStock). Sab roles (dashboard Low Stock tile, StockReportScreen(lowStockOnly: true)); cashier ko cost data nahi. Test: test/stock_report_test.dart. Reports hub row. |
 | ✅ | StockAuditActivity.kt | 345 | lib/screens/stock_audit_screen.dart | lib/screens/stock_audit_screen.dart + lib/db/stock_audit_repository.dart (pure buildAuditRows/filterAuditRows, reconcile = AUDIT_RECONCILE ledger rows ek transaction mein, live stock nahi chhoota). Admin/Manager only. Card tap = us product ki Stock History (StockMovementScreen(initialBarcode)). Test: test/stock_audit_test.dart. Reports hub row. |
@@ -134,21 +134,21 @@
 | ✅ | DeviceTag.kt | 45 | lib/sync/device_tag.dart | SharedPreferences 4-akhsar UPPERCASE tag (UUID ke pehle 4), main() mein DeviceTag.init(); fallback '0000'. Test: test/sync_config_test.dart. |
 | ✅ | NetworkMonitor.kt | 52 | lib/sync/network_monitor.dart | connectivity_plus (pubspec mein naya); 20 s debounce, onOnline callback (SyncWorker.triggerNow yahan jorna baaki, SyncWorker ke saath). Test: test/sync_config_test.dart. |
 
-## Phase 11: Backup — 82%
+## Phase 11: Backup — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | BackupHelper.kt | 406 | lib/backup/backup_helper.dart | backupNow/backupIfDue(30 min)/listBackups/restore/restoreFromPath + safe restore (temp -> header -> schema check -> replace) + purana CBC/plain .db restore + share. Farq: public Downloads ki MediaStore copy nahi (Share se); restore se pehle safety backup; restore par schema check. Baaki: Android Room DB ko Flutter mein restore karna schema-compatible nahi (fresh DB v12) — tables check se reject hota hai. |
+| ✅ | BackupHelper.kt | 406 | lib/backup/backup_helper.dart | backupNow/backupIfDue(30 min)/listBackups/restore/restoreFromPath + safe restore (temp -> header -> schema check -> replace) + purana CBC/plain .db restore + share. Public Downloads/IBTISAAM POS Backups ki extra copy: lib/backup/downloads_copy.dart + MainActivity MethodChannel (tools/android_fix.sh, MediaStore, plugin nahi); background (WorkManager) isolate mein channel nahi, wahan skip; restore se pehle safety backup; restore par schema check. Kotlin (Room v48) backup restore done: lib/backup/kotlin_import.dart (column-by-column copy, ek transaction, rollback; test/kotlin_import_test.dart). |
 | ✅ | BackupExportActivity.kt | 778 | lib/screens/backup_export_screen.dart | lib/screens/backup_export_screen.dart + lib/backup/backup_export.dart: Full / Date-range CSV + PDF (Open/Print/Share), plus encrypted Backup Now / Password / Restore (admin only). Farq: date range ek picker se, CSV mein UTF-8 BOM, PDF mein Urdu ke liye assets/fonts/NotoNastaliqUrdu-Regular.ttf declare karna hoga. Test: test/backup_test.dart. |
 | ✅ | BackupCrypto.kt | 123 | lib/backup/backup_crypto.dart | IBB1 AES-256-GCM (magic + salt16 + iv12 + ct+tag16, PBKDF2-SHA256 120k) + purana IBAKV001 CBC decrypt. Java JCE se bane fixtures ke saath test/backup_test.dart. Farq: poori file memory mein, PBKDF2 alag isolate mein. |
 | ✅ | BackupPasswordStore.kt | 90 | lib/backup/backup_password_store.dart | flutter_secure_storage (Keystore/Keychain); getOrCreate (16 alnum) + setPassword (min 8). |
-| 🟡 | BackupScheduler.kt | 147 | lib/backup/backup_scheduler.dart | 12 PM / 9 PM checkpoint (din mein ek baar) + app-close backupIfDue(30 min) app zinda hone par (Timer 15 min + resume/paused). Baaki: band app ke liye WorkManager (workmanager plugin). |
+| ✅ | BackupScheduler.kt | 147 | lib/backup/backup_scheduler.dart | 12 PM / 9 PM checkpoint (din mein ek baar) + app-close backupIfDue(30 min) app zinda hone par (Timer 15 min + resume/paused). Band app ke liye WorkManager: lib/backup/backup_background.dart (workmanager ^0.5.2, Android, har 15 min, KEEP). Device par test karein (OEM battery saver). |
 
-## Phase 12: Print & scan — 72%
+## Phase 12: Print & scan — 100%
 
 | | Kotlin | LOC | Flutter | Note |
 |---|---|---|---|---|
-| 🟡 | PrinterHelper.kt | 1661 | lib/services/printer_service.dart + lib/services/receipt_renderer.dart + lib/utils/escpos.dart + lib/utils/receipt_lines.dart | Bluetooth 58/80mm ESC/POS raster (GS v 0 strips, Kotlin FIX 5 pacing), paged slips, test print, print width. Urdu TextPainter (RTL/shaping). Farq: USB printing nahi (plugin chahiye); text-only printText nahi. Test: test/print_scan_test.dart. |
+| ✅ | PrinterHelper.kt | 1661 | lib/services/printer_service.dart + lib/services/receipt_renderer.dart + lib/utils/escpos.dart + lib/utils/receipt_lines.dart | Bluetooth 58/80mm ESC/POS raster (GS v 0 strips, Kotlin FIX 5 pacing), paged slips, test print, print width. Urdu TextPainter (RTL/shaping). USB (Android host mode): lib/services/usb_printer.dart + MainActivity MethodChannel ah_developer/usb (tools/android_fix.sh, plugin nahi), address usb:<vid>:<pid>, Settings mein Bluetooth+USB ek list. Farq: text-only printText nahi (sirf raster). USB asli device par test karna baaki. Test: test/print_scan_test.dart. |
 | ✅ | BillPreviewActivity.kt | 840 | lib/screens/bill_preview_screen.dart + lib/utils/bill_doc.dart | Receipt preview, PRINT, WhatsApp (wa.me text, number popup), Copy, DONE, + NAYA BILL, Prev/Net Balance. Sale/Purchase (save ke baad) aur dono History Print isi par. Farq: WhatsApp par bill TEXT jata hai (Kotlin image bhejta hai). |
 | ✅ | BillScanActivity.kt | 493 | lib/screens/bill_scan_screen.dart + lib/utils/bill_scan_parser.dart | Camera/Gallery -> ML Kit OCR -> review/edit rows -> Purchase screen "Scan Bill" (naam se product match, warna naya product). Test: test/print_scan_test.dart. |
 

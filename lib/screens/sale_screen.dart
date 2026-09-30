@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../db/customer_repository.dart';
@@ -900,6 +901,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         customerName: r.customerName,
         overrideCreditLimit: overrideCreditLimit,
       );
+      HapticFeedback.mediumImpact(); // Kotlin QuickSaleSuccess -> vibrateShort()
       _toast(result.isCredit
           ? 'Quick Sale (credit) saved: ${result.invoice}'
           : 'Quick Sale saved: ${result.invoice}');

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ah_developer_kiryana_store/services/printer_service.dart';
+import 'package:ah_developer_kiryana_store/services/usb_printer.dart';
 import 'package:ah_developer_kiryana_store/utils/bill_doc.dart';
 import 'package:ah_developer_kiryana_store/utils/bill_scan_parser.dart';
 import 'package:ah_developer_kiryana_store/utils/escpos.dart';
@@ -194,6 +195,29 @@ void _desktopPrinterTests() {
       expect(PrinterService.isSystem('sys:Receipt Printer'), isTrue);
       expect(PrinterService.isTcp('AA:BB:CC:DD:EE:FF'), isFalse); // Bluetooth MAC
       expect(PrinterService.isSystem('AA:BB:CC:DD:EE:FF'), isFalse);
+      expect(PrinterService.isUsb('usb:1155:22304'), isTrue);
+      expect(PrinterService.isUsb('AA:BB:CC:DD:EE:FF'), isFalse);
+      expect(PrinterService.isTcp('usb:1155:22304'), isFalse);
+    });
+  });
+
+  group('UsbPrinter address', () {
+    test('address <-> parse roundtrip', () {
+      final a = UsbPrinter.address(1155, 22304);
+      expect(a, 'usb:1155:22304');
+      final id = UsbPrinter.parse(a)!;
+      expect(id.vid, 1155);
+      expect(id.pid, 22304);
+    });
+    test('ghalat format => null', () {
+      expect(UsbPrinter.parse('AA:BB:CC:DD:EE:FF'), isNull);
+      expect(UsbPrinter.parse('usb:1155'), isNull);
+      expect(UsbPrinter.parse('usb:a:b'), isNull);
+      expect(UsbPrinter.parse('usb:-1:5'), isNull);
+      expect(UsbPrinter.parse('usb:1:2:3'), isNull);
+    });
+    test('UsbPrinterInfo.address', () {
+      expect(const UsbPrinterInfo(1, 2, 'x').address, 'usb:1:2');
     });
   });
 }

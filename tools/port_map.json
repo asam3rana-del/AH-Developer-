@@ -88,7 +88,7 @@
     "phase": 3,
     "dart": "lib/screens/sale_screen.dart",
     "status": "partial",
-    "note": "Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup. Bill Preview: Bluetooth print + WhatsApp (Phase 12) done."
+    "note": "Done: naya sale, quick sale, hold/recall, default unit, reprice, margin warning, credit-limit confirm, saved sale edit/return/delete (admin only), draft autosave, customer ka apna rate, Rs(amount) mode, inline line edit, Print, Split Payment dialog, Cash/Bank picker (naye sale par), duplicate-bill warning, inline 'add customer' popup, quick-sale haptic (vibrateShort). Bill Preview: Bluetooth print + WhatsApp (Phase 12) done."
   },
   {
     "kotlin": "SaleRepository.kt",
@@ -157,8 +157,8 @@
     "kotlin": "ThemeManager.kt",
     "phase": 4,
     "dart": "lib/theme/theme_manager.dart",
-    "status": "partial",
-    "note": "Palette + dark toggle done. Purani screens abhi static AppColors par — migrate baaki."
+    "status": "done",
+    "note": "Palette + dark toggle done. Screens ThemeManager palette par migrate ho chuki hain; AppColors mein sirf fade()/fadeDark() helpers. Baqi fixed rang (shadow, WhatsApp/party green-red) jaan boojh kar."
   },
   {
     "kotlin": "SettingsActivity.kt",
@@ -255,8 +255,8 @@
     "kotlin": "PartyActivity.kt",
     "phase": 6,
     "dart": "lib/screens/party_screen.dart",
-    "status": "partial",
-    "note": "Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Contact picker done (lib/services/contact_picker.dart + phone field icon; READ_CONTACTS via tools/android_fix.sh, iOS NSContactsUsageDescription via build.yml; test/contact_picker_test.dart). Baaki: row tap se Party Dashboard/Transaction."
+    "status": "done",
+    "note": "Done: tabs, add form, search, Dues only, edit/delete (live balance), history dialog, Call, Fix Balances, Merge, Cleanup Payments/Orphaned, stuck balance (admin/manager). Contact picker done (lib/services/contact_picker.dart + phone field icon; READ_CONTACTS via tools/android_fix.sh, iOS NSContactsUsageDescription via build.yml; test/contact_picker_test.dart). Row tap = history dialog (Kotlin openCustomerHistory/openSupplierHistory jaisa) done."
   },
   {
     "kotlin": "PartyDashboardActivity.kt",
@@ -402,8 +402,8 @@
     "kotlin": "ReportsActivity.kt",
     "phase": 9,
     "dart": "lib/screens/reports_screen.dart",
-    "status": "partial",
-    "note": "lib/screens/reports_screen.dart + lib/db/reports_repository.dart. Admin/Manager only. Done: hub rows (Monthly, Stock Report, History, Party Reports, Payments, Due Reminders, Balance Sheet, Zakat), period filter, 7 summary cards, P&L, Top Products, Daily Sales. Baaki: Stock*/Insights rows abhi \"Coming soon\" — un screens ke saath jorna. Test: test/reports_test.dart. Dashboard tile."
+    "status": "done",
+    "note": "lib/screens/reports_screen.dart + lib/db/reports_repository.dart. Admin/Manager only. Done: hub rows (Monthly, Stock Report, History, Party Reports, Payments, Due Reminders, Balance Sheet, Zakat), period filter, 7 summary cards, P&L, Top Products, Daily Sales. Stock Report/Movement/Cost/Audit/Adjustment/Taking, Insights (reorder/damage/profit/movers), Rate Comparison, Cash Register sab rows wired. Test: test/reports_test.dart. Dashboard tile."
   },
   {
     "kotlin": "MonthlySalesPurchaseActivity.kt",
@@ -528,8 +528,8 @@
     "kotlin": "BackupHelper.kt",
     "phase": 11,
     "dart": "lib/backup/backup_helper.dart",
-    "status": "partial",
-    "note": "backupNow/backupIfDue(30 min)/listBackups/restore/restoreFromPath + safe restore (temp -> header -> schema check -> replace) + purana CBC/plain .db restore + share. Farq: public Downloads ki MediaStore copy nahi (Share se); restore se pehle safety backup; restore par schema check. Baaki: Android Room DB ko Flutter mein restore karna schema-compatible nahi (fresh DB v12) — tables check se reject hota hai."
+    "status": "done",
+    "note": "backupNow/backupIfDue(30 min)/listBackups/restore/restoreFromPath + safe restore (temp -> header -> schema check -> replace) + purana CBC/plain .db restore + share. Public Downloads/IBTISAAM POS Backups ki extra copy: lib/backup/downloads_copy.dart + MainActivity MethodChannel (tools/android_fix.sh, MediaStore, plugin nahi); background (WorkManager) isolate mein channel nahi, wahan skip; restore se pehle safety backup; restore par schema check. Kotlin (Room v48) backup restore done: lib/backup/kotlin_import.dart (column-by-column copy, ek transaction, rollback; test/kotlin_import_test.dart)."
   },
   {
     "kotlin": "BackupExportActivity.kt",
@@ -556,15 +556,15 @@
     "kotlin": "BackupScheduler.kt",
     "phase": 11,
     "dart": "lib/backup/backup_scheduler.dart",
-    "status": "partial",
-    "note": "12 PM / 9 PM checkpoint (din mein ek baar) + app-close backupIfDue(30 min) app zinda hone par (Timer 15 min + resume/paused). Baaki: band app ke liye WorkManager (workmanager plugin)."
+    "status": "done",
+    "note": "12 PM / 9 PM checkpoint (din mein ek baar) + app-close backupIfDue(30 min) app zinda hone par (Timer 15 min + resume/paused). Band app ke liye WorkManager: lib/backup/backup_background.dart (workmanager ^0.5.2, Android, har 15 min, KEEP). Device par test karein (OEM battery saver)."
   },
   {
     "kotlin": "PrinterHelper.kt",
     "phase": 12,
     "dart": "lib/services/printer_service.dart + lib/services/receipt_renderer.dart + lib/utils/escpos.dart + lib/utils/receipt_lines.dart",
-    "status": "partial",
-    "note": "Bluetooth 58/80mm ESC/POS raster (GS v 0 strips, Kotlin FIX 5 pacing), paged slips, test print, print width. Urdu TextPainter (RTL/shaping). Farq: USB printing nahi (plugin chahiye); text-only printText nahi. Test: test/print_scan_test.dart."
+    "status": "done",
+    "note": "Bluetooth 58/80mm ESC/POS raster (GS v 0 strips, Kotlin FIX 5 pacing), paged slips, test print, print width. Urdu TextPainter (RTL/shaping). USB (Android host mode): lib/services/usb_printer.dart + MainActivity MethodChannel ah_developer/usb (tools/android_fix.sh, plugin nahi), address usb:<vid>:<pid>, Settings mein Bluetooth+USB ek list. Farq: text-only printText nahi (sirf raster). USB asli device par test karna baaki. Test: test/print_scan_test.dart."
   },
   {
     "kotlin": "BillPreviewActivity.kt",

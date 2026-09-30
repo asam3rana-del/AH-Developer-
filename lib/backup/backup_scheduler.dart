@@ -4,17 +4,16 @@ import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'backup_background.dart';
 import 'backup_helper.dart';
 
 /// Mirrors BackupScheduler.kt — automatic offline backups:
 ///  1. ~12:00 PM checkpoint   2. ~9:00 PM checkpoint   3. app background / band hone par
 /// Har checkpoint din mein ek baar. App-close trigger [BackupHelper.backupIfDue] (30 min throttle).
 ///
-/// Farq (Kotlin se): Kotlin WorkManager se har 15 min background mein check karta hai. Flutter mein
-/// bina native plugin ke ye sirf tab chalta hai jab app zinda ho: har 15 min ka Timer + app
-/// dobara khulne (resumed) par check. Doze mein band app ka noon/9PM checkpoint agli baar
-/// app khulte hi (resume) ho jata hai; background hone par close-backup phir bhi chalta hai.
-/// (Poori background scheduling chahiye to `workmanager` plugin baad mein — Phase 11 ka optional hissa.)
+/// Android par band app ke liye asli WorkManager: `BackupBackground.schedule()` (backup_background.dart,
+/// `workmanager` plugin) har 15 min `checkCheckpoints` chalata hai. Timer + resume wali cheez
+/// ab fallback hai (iOS / Windows / jab OEM background kaam rok de).
 class BackupScheduler with WidgetsBindingObserver {
   BackupScheduler._();
   static final BackupScheduler instance = BackupScheduler._();
@@ -33,6 +32,7 @@ class BackupScheduler with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _timer = Timer.periodic(checkInterval, (_) => checkCheckpoints());
     checkCheckpoints();
+    BackupBackground.schedule(); // Kotlin scheduleDailyCheckpoints (Android only, KEEP)
   }
 
   void dispose() {
@@ -58,6 +58,8 @@ class BackupScheduler with WidgetsBindingObserver {
       final t = now ?? DateTime.now();
       final today = DateFormat('yyyy-MM-dd').format(t);
       final prefs = await SharedPreferences.getInstance();
+      // Background isolate (WorkManager) ne stamp likha ho to foreground ko bhi dikhe (aur ulta).
+      await prefs.reload();
 
       final noonDue = t.hour >= 12 && prefs.getString(_keyLastNoon) != today;
       final nightDue = t.hour >= 21 && prefs.getString(_keyLastNight) != today;

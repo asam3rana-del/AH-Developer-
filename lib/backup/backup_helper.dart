@@ -11,6 +11,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../db/app_database.dart';
 import 'backup_crypto.dart';
+import 'downloads_copy.dart';
 import 'backup_password_store.dart';
 import 'kotlin_import.dart';
 
@@ -23,8 +24,9 @@ import 'kotlin_import.dart';
 /// * Purane "IBAKV001" (AES-CBC) aur plain `.db` backups bhi restore ho jate hain.
 ///
 /// Farq (Kotlin se):
-///  * Public Downloads ki extra copy nahi (MediaStore ke liye Flutter mein alag plugin chahiye) —
-///    Share button se Drive/WhatsApp/Files mein bheja ja sakta hai.
+///  * Public Downloads ki extra copy `DownloadsCopy` (chhota native MediaStore channel, MainActivity mein
+///    `tools/android_fix.sh` se) — sirf jab app screen par ho (WorkManager ke background isolate mein
+///    channel nahi hota, wahan copy chhod di jati hai). Share button hamesha kaam karta hai.
 ///  * Restore se pehle (agar live DB maujood ho) ek safety backup ban-ta hai; wo na bane to restore ruk jata hai.
 ///  * Restore ke waqt schema check: zaroori tables ho + `user_version` is app se naya na ho.
 class BackupHelper {
@@ -138,6 +140,8 @@ class BackupHelper {
     final password = await BackupPasswordStore.getOrCreate();
     final dest = File(p.join((await backupFolder()).path, fileName));
     await BackupCrypto.encryptFile(dbFile, dest, password);
+    // Kotlin copyToDownloads: public Downloads/<folderName> mein extra copy (best-effort, fail par backup theek rehta hai).
+    await DownloadsCopy.copy(dest, folder: folderName, fileName: fileName);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);

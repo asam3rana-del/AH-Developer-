@@ -5,6 +5,7 @@ import '../models/misc_entities.dart';
 import '../services/app_lock.dart';
 import '../services/biometric.dart';
 import '../services/printer_service.dart';
+import '../services/usb_printer.dart';
 import '../utils/escpos.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
@@ -82,25 +83,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final svc = PrinterService.instance;
     if (PrinterService.isDesktop) return _selectDesktopPrinter();
     if (!PrinterService.supported) return _toast(Loc.t('Printing needs Android, iOS or Windows', 'پرنٹنگ کے لیے اینڈرائیڈ، آئی او ایس یا ونڈوز چاہیے'));
-    if (!await svc.hasPermission()) {
-      return _toast(Loc.t('Bluetooth permission dein, phir dobara SELECT PRINTER dabayein', 'بلوٹوتھ کی اجازت دیں، پھر دوبارہ دبائیں'));
-    }
-    final devices = await svc.pairedPrinters();
+    // Bluetooth (paired) + Android par jude hue USB printers — ek hi list.
+    final bluetooth = <PrinterInfo>[];
+    final btGranted = await svc.hasPermission();
+    if (btGranted) bluetooth.addAll(await svc.pairedPrinters());
+    final usb = await UsbPrinter.list();
     if (!mounted) return;
-    if (devices.isEmpty) {
-      return _toast(Loc.t('Koi paired Bluetooth printer nahi mila. Pehle phone ki Bluetooth Settings se printer ko pair karein.',
-          'کوئی جوڑا ہوا پرنٹر نہیں ملا۔ پہلے فون کی بلوٹوتھ سیٹنگز سے پرنٹر جوڑیں۔'));
+    if (bluetooth.isEmpty && usb.isEmpty) {
+      if (!btGranted && !UsbPrinter.supported) {
+        return _toast(Loc.t('Bluetooth permission dein, phir dobara SELECT PRINTER dabayein', 'بلوٹوتھ کی اجازت دیں، پھر دوبارہ دبائیں'));
+      }
+      return _toast(Loc.t(
+          'Koi printer nahi mila. Bluetooth printer ko phone ki Bluetooth Settings se pair karein, ya USB printer cable se jodein.',
+          'کوئی پرنٹر نہیں ملا۔ بلوٹوتھ پرنٹر جوڑیں یا یو ایس بی کیبل لگائیں۔'));
     }
     final picked = await showDialog<PrinterInfo>(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: Text(Loc.t('Select Printer', 'پرنٹر منتخب کریں')),
         children: [
-          for (final d in devices) SimpleDialogOption(onPressed: () => Navigator.pop(ctx, d), child: Text(d.name)),
+          for (final d in bluetooth) SimpleDialogOption(onPressed: () => Navigator.pop(ctx, d), child: Text('🔵  ${d.name}')),
+          for (final u in usb)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, PrinterInfo('USB ${u.name}', u.address)),
+              child: Text('🔌  USB: ${u.name}'),
+            ),
         ],
       ),
     );
     if (picked == null) return;
+    // USB: ijazat abhi le lein taake pehli print par dialog na aaye.
+    final id = UsbPrinter.parse(picked.mac);
+    if (id != null && !await UsbPrinter.requestPermission(id.vid, id.pid)) {
+      return _toast(Loc.t('USB ki ijazat nahi mili — Allow dabayein', 'یو ایس بی کی اجازت نہیں ملی'));
+    }
     await svc.savePrinter(picked.name, picked.mac);
     if (mounted) setState(() => _printerName = picked.name);
     _toast(Loc.t('Printer saved: ${picked.name}', 'پرنٹر محفوظ: ${picked.name}'));
