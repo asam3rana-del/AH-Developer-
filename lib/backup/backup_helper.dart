@@ -294,6 +294,9 @@ class BackupHelper {
       final live = await AppDatabase.instance.database;
       final report = await KotlinBackupImporter.importInto(live, temp.path);
       lastImportSummary = report.summary();
+      // Import ke baad password nahi maanga jayega (user ki request): login skip flag.
+      await live.insert('app_settings', {'key': 'skip_login', 'value': '1'}, conflictAlgorithm: ConflictAlgorithm.replace);
+      await live.insert('app_settings', {'key': 'admin_seeded', 'value': '1'}, conflictAlgorithm: ConflictAlgorithm.replace);
       await _deleteQuietly(temp);
       return true;
     } catch (e) {

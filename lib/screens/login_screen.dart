@@ -75,6 +75,19 @@ class _LoginScreenState extends State<LoginScreen> {
       _goMain();
       return;
     }
+    // Data restore/import ke baad password khatam: 'skip_login'=1 ho to seedha andar (admin ya last user).
+    if (await _repo.getSetting('skip_login') == '1') {
+      final users = await _repo.activeUsers();
+      final lastU = await _repo.getSetting('last_username');
+      User? pick;
+      for (final u in users) { if (lastU != null && u.username.toLowerCase() == lastU.toLowerCase()) pick = u; }
+      pick ??= users.where((u) => u.role == 'admin').isNotEmpty ? users.firstWhere((u) => u.role == 'admin') : (users.isNotEmpty ? users.first : null);
+      if (pick != null) {
+        await Session.start(pick);
+        _goMain();
+        return;
+      }
+    }
     final last = await _repo.getSetting('last_username');
     if (last != null) _user.text = last;
     // "Fingerprint Only": pehle kabhi login na hua ho to password lena zaroori; warna prompt khud khule.
