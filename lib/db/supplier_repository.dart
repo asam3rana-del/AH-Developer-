@@ -8,14 +8,13 @@ class SupplierRepository {
   static final SupplierRepository instance = SupplierRepository._();
 
   final _controller = StreamController<List<Supplier>>.broadcast();
-  bool _primed = false;
 
-  Stream<List<Supplier>> watchAll() {
-    if (!_primed) {
-      _primed = true;
-      _notify();
-    }
-    return _controller.stream;
+  /// Har naya subscriber ko PEHLE current list milti hai, phir live updates.
+  /// (Pehle sirf pehli dafa emit hota tha — screen dobara khulti to list khali rehti
+  /// aur supplier ka naam search mein nahi aata tha.)
+  Stream<List<Supplier>> watchAll() async* {
+    yield await listAll();
+    yield* _controller.stream;
   }
 
   Future<void> _notify() async {

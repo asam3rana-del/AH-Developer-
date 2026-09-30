@@ -899,16 +899,19 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       if (!mounted) return;
       _toast(_isEdit ? 'Purchase updated: $billNo' : 'Purchase saved: $billNo');
 
-      await _showBillPreview(
-        billNo: billNo,
-        supplier: party,
-        date: snapshotDate,
-        lines: snapshotLines,
-        total: grandTotal,
-        paid: paid.clamp(0.0, grandTotal).toDouble(),
-        method: snapshotMethod == 'credit' ? 'Credit' : snapshotMethod,
-      );
-      if (!mounted) return;
+      // Edit mode mein preview dikhao; NAYE bill par seedha naya khali bill (copy-text/preview nahi).
+      if (_isEdit) {
+        await _showBillPreview(
+          billNo: billNo,
+          supplier: party,
+          date: snapshotDate,
+          lines: snapshotLines,
+          total: grandTotal,
+          paid: paid.clamp(0.0, grandTotal).toDouble(),
+          method: snapshotMethod == 'credit' ? 'Credit' : snapshotMethod,
+        );
+        if (!mounted) return;
+      }
 
       if (_isEdit) {
         Navigator.of(context).pop(true);
@@ -924,6 +927,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         _supplierBalance = null;
         _purchaseDate = DateTime.now();
       });
+      _supplierFocus.requestFocus(); // naya bill: cursor seedha supplier par
     } catch (e) {
       _toast('Could not save purchase: $e');
     } finally {
