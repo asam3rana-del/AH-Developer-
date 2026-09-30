@@ -141,6 +141,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (user != null && user.active) {
       if (PasswordHasher.isHashed(user.passwordHash)) {
         ok = await PasswordHasher.verify(typed, user.passwordHash);
+        // Keyboard autocorrect aksar aakhir mein space laga deta hai — ek dafa trim kar ke bhi try.
+        if (!ok && typed != typed.trim()) ok = await PasswordHasher.verify(typed.trim(), user.passwordHash);
       } else if (user.passwordHash == typed) {
         ok = true; // purani plain-text — ek dafa qubool, phir hash mein badal do
         await _repo.upsert(User(
@@ -168,6 +170,54 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       await _completeLogin(user);
     }
+  }
+
+  /// Forgot password: phone ka PIN/pattern se owner verify -> naya password + login method "password".
+  Future<void> _forgotPassword() async {
+    final username = _user.text.trim();
+    if (username.isEmpty) {
+      return setState(() => _error = Loc.t('Enter your username first', 'پہلے یوزر نیم لکھیں'));
+    }
+    final user = await _repo.find(username);
+    if (user == null) {
+      return setState(() => _error = Loc.t('User not found: "$username"', 'یوزر نہیں ملا: "$username"'));
+    }
+    final owner = await Biometric.authenticateDeviceOwner(
+        reason: Loc.t('Verify with phone PIN / pattern to reset password', 'پاس ورڈ ری سیٹ کے لیے فون کا پن / پیٹرن ڈالیں'));
+    if (!owner) {
+      return setState(() => _error = Loc.t('Phone verification failed', 'فون ویریفکیشن ناکام'));
+    }
+    if (!mounted) return;
+    final c = TextEditingController();
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${Loc.t('New password', 'نیا پاس ورڈ')} — ${user.username}'),
+        content: TextField(controller: c, autofocus: true, decoration: InputDecoration(hintText: Loc.t('At least 6 characters', 'کم از کم 6 حروف'))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Save', 'محفوظ'))),
+        ],
+      ),
+    );
+    final newPass = c.text.trim();
+    if (go != true) return;
+    if (newPass.length < 6) {
+      return setState(() => _error = Loc.t('Password must be at least 6 characters', 'پاس ورڈ کم از کم 6 حروف کا ہو'));
+    }
+    await _repo.upsert(User(
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      passwordHash: await PasswordHasher.hash(newPass),
+      active: true,
+      phone: user.phone,
+    ));
+    await _repo.setSetting('login_method', 'password');
+    await _repo.insertAudit(user.username, 'password_reset', user.username, 'Reset from login screen via device PIN');
+    if (!mounted) return;
+    setState(() { _pass.text = newPass; _error = null; _showPass = true; });
+    _toast(Loc.t('Password reset. Tap Login.', 'پاس ورڈ ری سیٹ ہو گیا۔ لاگ اِن دبائیں۔'));
   }
 
   Future<void> _completeLogin(User user) async {
@@ -462,6 +512,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Text(_setupMode ? Loc.t('Create Admin Account', 'ایڈمن اکاؤنٹ بنائیں') : Loc.t('Login', 'لاگ اِن')),
                           ),
                         ),
+                        if (!_setupMode)
+                          TextButton(
+                            onPressed: _busy ? null : _forgotPassword,
+                            child: Text(Loc.t('Forgot password? Reset with phone PIN', 'پاس ورڈ بھول گئے؟ فون پن سے ری سیٹ')),
+                          ),
                         ],
                       ]),
                     ),
