@@ -27,6 +27,7 @@ import '../utils/split_payment.dart';
 import '../widgets/autocomplete_options.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
+import '../widgets/unit_dialog.dart';
 
 /// Mirrors PurchaseActivity.kt.
 ///
@@ -518,7 +519,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   /// Kotlin openAddProductDialog(): purchase ke beech mein naya product (naam, unit, retail, wholesale).
   /// Cost isi purchase se banti hai; stock isi bill ke save par lagta hai.
   Future<void> _promptAddProduct(String prefillName) async {
+    const newCategoryKey = '__new_category__';
     final nameCtrl = TextEditingController(text: prefillName);
+    final tagCtrl = TextEditingController();
     final retailCtrl = TextEditingController(text: _retailCtrl.text);
     final wholesaleCtrl = TextEditingController(text: _wholesaleCtrl.text);
     final unitNames = <String>{};
@@ -529,8 +532,62 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       }
     } catch (_) {}
     if (unitNames.isEmpty) unitNames.add('pcs');
+    final categoryNames = <String>['General'];
+    try {
+      final cats = await CategoryRepository.instance.listAll();
+      for (final c in cats) {
+        final n = c.name.trim();
+        if (n.isNotEmpty && !categoryNames.any((e) => e.toLowerCase() == n.toLowerCase())) categoryNames.add(n);
+      }
+    } catch (_) {}
+    var category = 'General';
     var unit = unitNames.contains(_selectedUnit) ? _selectedUnit : unitNames.first;
+    var secondaryUnit = 'None';
+    var secondaryQty = 0.0;
+    var tertiaryUnit = 'None';
+    var tertiaryQty = 0.0;
+    var saleDefaultIdx = -1;
+    var quickSaleDefaultIdx = -1;
     if (!mounted) return;
+
+    String defaultLabel(int idx) {
+      final tiers = <String>[
+        unit,
+        if (secondaryUnit != 'None') secondaryUnit,
+        if (secondaryUnit != 'None' && tertiaryUnit != 'None') tertiaryUnit,
+      ];
+      if (idx < 0 || idx >= tiers.length) return Loc.t('Auto', 'آٹو');
+      return tiers[idx];
+    }
+
+    Future<void> addCategory(void Function(void Function()) setD, BuildContext dctx) async {
+      final ctrl = TextEditingController();
+      final value = await showDialog<String>(
+        context: dctx,
+        builder: (c2) => AlertDialog(
+          title: Text(Loc.t('New Category', 'نئی کیٹیگری')),
+          content: TextField(controller: ctrl, autofocus: true, textCapitalization: TextCapitalization.words),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(c2).pop(), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+            TextButton(onPressed: () => Navigator.of(c2).pop(ctrl.text.trim()), child: Text(Loc.t('Add', 'شامل کریں'))),
+          ],
+        ),
+      );
+      ctrl.dispose();
+      if (value == null || value.isEmpty) return;
+      final existing = categoryNames.where((e) => e.toLowerCase() == value.toLowerCase());
+      if (existing.isNotEmpty) {
+        setD(() => category = existing.first);
+        return;
+      }
+      try {
+        await CategoryRepository.instance.insert(models.Category(value));
+      } catch (_) {}
+      setD(() {
+        categoryNames.add(value);
+        category = value;
+      });
+    }
 
     final ok = await showDialog<bool>(
       context: context,
@@ -544,13 +601,101 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               children: [
                 TextField(controller: nameCtrl, decoration: InputDecoration(labelText: Loc.t('Product name', 'پروڈکٹ کا نام'))),
                 const SizedBox(height: 12),
+                TextField(
+                  controller: tagCtrl,
+                  decoration: InputDecoration(
+                    labelText: Loc.t('English tag (optional)', 'انگلش ٹیگ (اختیاری)'),
+                    hintText: 'e.g. Aloo Bukhara',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: category,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: Loc.t('Category', 'کیٹیگری')),
+                  items: [
+                    for (final c in categoryNames) DropdownMenuItem(value: c, child: Text(c)),
+                    DropdownMenuItem(
+                      value: newCategoryKey,
+                      child: Text(Loc.t('✚  New category', '✚  نئی کیٹیگری'),
+                          style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    if (v == newCategoryKey) {
+                      addCategory(setD, ctx);
+                    } else {
+                      setD(() => category = v);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: unit,
                   decoration: InputDecoration(labelText: Loc.t('Unit', 'یونٹ')),
                   items: [for (final u in unitNames) DropdownMenuItem(value: u, child: Text(u))],
-                  onChanged: (v) => setD(() => unit = v ?? unit),
+                  onChanged: (v) => setD(() {
+                    unit = v ?? unit;
+                    saleDefaultIdx = -1;
+                    quickSaleDefaultIdx = -1;
+                    secondaryUnit = 'None';
+                    secondaryQty = 0.0;
+                    tertiaryUnit = 'None';
+                    tertiaryQty = 0.0;
+                  }),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () async {
+                    final res = await showUnitDialog(
+                      ctx,
+                      knownUnits: unitNames.toList(),
+                      initialPrimary: unit,
+                      initialSecondary: secondaryUnit,
+                      initialSecondaryQty: secondaryQty,
+                      initialTertiary: tertiaryUnit,
+                      initialTertiaryQty: tertiaryQty,
+                      initialDefaultUnitIndex: saleDefaultIdx,
+                      initialQuickSaleDefaultUnitIndex: quickSaleDefaultIdx,
+                    );
+                    if (res == null) return;
+                    setD(() {
+                      unitNames.add(res.primaryUnit);
+                      if (res.secondaryUnit != 'None') unitNames.add(res.secondaryUnit);
+                      if (res.tertiaryUnit != 'None') unitNames.add(res.tertiaryUnit);
+                      unit = res.primaryUnit;
+                      secondaryUnit = res.secondaryUnit;
+                      secondaryQty = res.secondaryQty;
+                      tertiaryUnit = res.tertiaryUnit;
+                      tertiaryQty = res.tertiaryQty;
+                      saleDefaultIdx = res.defaultUnitIndex;
+                      quickSaleDefaultIdx = res.quickSaleDefaultUnitIndex;
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          Loc.t('✚  More units / default unit', '✚  مزید یونٹس / ڈیفالٹ یونٹ'),
+                          style: const TextStyle(color: AppColors.teal, fontSize: 12.5, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          Loc.t(
+                            'Sale default: ${defaultLabel(saleDefaultIdx)}  •  Quick Sale default: ${defaultLabel(quickSaleDefaultIdx)}',
+                            'سیل ڈیفالٹ: ${defaultLabel(saleDefaultIdx)}  •  کوئیک سیل ڈیفالٹ: ${defaultLabel(quickSaleDefaultIdx)}',
+                          ),
+                          style: const TextStyle(fontSize: 11.5, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
                 TextField(
                   controller: retailCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -583,9 +728,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     );
 
     final name = nameCtrl.text.trim();
+    final tag = tagCtrl.text.trim();
     final retail = double.tryParse(retailCtrl.text.trim()) ?? 0.0;
     final wholesale = double.tryParse(wholesaleCtrl.text.trim()) ?? 0.0;
     nameCtrl.dispose();
+    tagCtrl.dispose();
     retailCtrl.dispose();
     wholesaleCtrl.dispose();
     if (ok != true || !mounted) return;
@@ -596,13 +743,32 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       await _onProductPicked(existing);
       return;
     }
+    // Nayi units (dialog mein likhi hui) units table mein bhi save karo.
+    try {
+      final known = (await UnitRepository.instance.listAll()).map((e) => e.name.toLowerCase()).toSet();
+      for (final u in [unit, secondaryUnit, tertiaryUnit]) {
+        if (u != 'None' && u.trim().isNotEmpty && !known.contains(u.toLowerCase())) {
+          await UnitRepository.instance.insert(models.UnitType(u));
+          known.add(u.toLowerCase());
+        }
+      }
+    } catch (_) {}
+    final hasSecondary = secondaryUnit != 'None' && secondaryQty > 0;
+    final hasTertiary = hasSecondary && tertiaryUnit != 'None' && tertiaryQty > 0;
     final product = Product(
       barcode: 'P${DateTime.now().millisecondsSinceEpoch}',
       name: name,
-      category: 'General',
+      category: category,
       unit: unit,
+      secondaryUnit: hasSecondary ? secondaryUnit : '',
+      secondaryUnitQty: hasSecondary ? secondaryQty : 0.0,
+      tertiaryUnit: hasTertiary ? tertiaryUnit : '',
+      tertiaryUnitQty: hasTertiary ? tertiaryQty : 0.0,
       salePrice: retail,
       wholesalePrice: wholesale,
+      searchTag: tag,
+      defaultUnitIndex: saleDefaultIdx,
+      quickSaleDefaultUnitIndex: quickSaleDefaultIdx,
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       dirty: true,
     );

@@ -449,3 +449,6 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - Farq: Reports/Products/Zakat/Balance Sheet/... Kotlin mein Settings/Reports ke andar hain, Flutter Settings mein unke links abhi nahi, is liye "MORE SCREENS" (collapsed) mein hain — links aane par woh section hata dein. Items tile abhi sirf admin (Kotlin sab ko).
 - [ ] Backup tile (Phase 11) abhi "Coming soon". Crash dialog + `SyncWorker.schedulePeriodic` (Phase 10/13). Dashboard tiles ko `MenuRow` par lana zaroori nahi tha (Kotlin bhi apna quick-action card use karta hai).
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
+
+## Purchase → Add New Product (Sep 30)
+- Dialog mein Category dropdown + "✚ New category" (naya naam likho, categories table mein save), English tag, aur "More units / default unit" (Sale + Quick Sale default unit) add.
