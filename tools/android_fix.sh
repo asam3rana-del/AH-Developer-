@@ -55,3 +55,25 @@ if [ -n "$KEYSTORE_BASE64" ]; then
 else
   echo "WARNING: KEYSTORE_BASE64 secret nahi mila, debug key use hogi (update install nahi hoga)"
 fi
+
+# --- Fingerprint (local_auth) Android requirements. Inke bina BiometricPrompt khulta hi nahi aur
+# authenticate() PlatformException (no_fragment_activity) deta hai => hamesha "Fingerprint not verified". ---
+# 1) USE_BIOMETRIC permission
+if ! grep -q "USE_BIOMETRIC" "$MANIFEST"; then
+  sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.USE_BIOMETRIC" \/>/' "$MANIFEST"
+fi
+grep -n "USE_BIOMETRIC" "$MANIFEST" || { echo "ERROR: USE_BIOMETRIC not added"; exit 1; }
+
+# 2) MainActivity must extend FlutterFragmentActivity
+MAIN=$(find android/app/src/main -name "MainActivity.kt" -o -name "MainActivity.java" | head -1)
+echo "MainActivity: $MAIN"
+sed -i 's/io\.flutter\.embedding\.android\.FlutterActivity\b/io.flutter.embedding.android.FlutterFragmentActivity/; s/: FlutterActivity()/: FlutterFragmentActivity()/; s/extends FlutterActivity/extends FlutterFragmentActivity/' "$MAIN"
+cat "$MAIN"
+grep -q "FlutterFragmentActivity" "$MAIN" || { echo "ERROR: MainActivity not switched to FlutterFragmentActivity"; exit 1; }
+
+# 3) Themes must be AppCompat based (BiometricPrompt requirement)
+for f in android/app/src/main/res/values/styles.xml android/app/src/main/res/values-night/styles.xml; do
+  [ -f "$f" ] || continue
+  sed -i 's#@android:style/Theme.Light.NoTitleBar#Theme.AppCompat.Light.NoActionBar#g; s#@android:style/Theme.Black.NoTitleBar#Theme.AppCompat.DayNight.NoActionBar#g' "$f"
+  echo "=== $f ==="; cat "$f"
+done
