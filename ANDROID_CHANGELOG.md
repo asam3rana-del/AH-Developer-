@@ -1,5 +1,30 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-10-01) — Purchase: Hold/Recall hata diya
+- [x] `purchase_screen.dart`: ⋮ menu se Hold Bill / Recall Bill aur `_holdBill`/`_openRecall` hata diye; `PurchaseRepository.holdPurchase/heldPurchases/deleteHeld` bhi hata diye. Draft autosave (`PurchaseDraftStore`) barqarar. Sale ka Hold/Recall waisa hi hai.
+- [x] Faaltu `lib/AH-Developer-Purchase-Screen-Update.zip` waqai hata di.
+
+## Flutter side (2026-10-01) — Sale screen: baqi UI farq (Phase 3)
+- [x] `SaleActivity.kt` / `SaleCart.refreshDue`: `sale_screen.dart` mein History button (`SaleHistoryScreen`), "FIRM NAME" card (`shop_name`, warna "IBTISAAM Kiryana Store"), hamesha dikhne wali "DUE AMOUNT" card (due > 0 laal, warna hara) aur "Paid khali hai - Rs X Udhaar jayega" warning (Paid khali + total > 0) add. "Customer required" ka message due par ab bhi aata hai.
+- Farq (jaan-boojh kar): Print + Share dono ek hi Bill Preview kholte hain (Print pill; Share/WhatsApp/Copy us ke andar); Retail/Wholesale toggle (Kotlin spinner); Return button edit mode mein Flutter ka apna hai (Kotlin mein Return History se).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test`.
+
+## Flutter side (2026-10-01) — Settings: Kotlin se baqi farq band
+- [x] `SettingsActivity.kt`: header ab shop ka naam + "POINT OF SALE" (pehle user ka naam/role), shop naam save par header badalta hai; "Receipt footer" field hata di (Kotlin mein "Address/header/footer/currency/tax khatam kar do" par hata di gayi thi; purani saved value print par ab bhi parhi jati hai); Test Print ka default naam "My Shop".
+- Jaan-boojh kar farq (PORTING_PLAN rules): Shop Info + Login Method sirf admin; Backup row admin/manager (Restore khatarnak hai); Kotlin ke Backup/Restore ke 4 buttons `BackupExportScreen` mein hain.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test`.
+
+## Flutter side (2026-10-01) — Purchase screen: baqi UI wiring (Phase 2)
+- [x] `PurchaseActivity.kt`: `purchase_screen.dart` mein pehle se maujood Hold/Recall (`PurchaseRepository.holdPurchase/heldPurchases/deleteHeld`, `PurchaseDraft`) screen se jure hi nahi the (comment mein "hata diye gaye" likha tha). Ab: ⋮ menu = Print / Share (saved bill ka Bill Preview; naye bill par "Save the purchase first") / Hold Bill / Recall Bill (`showHeldBillsDialog`, recall par maujooda items replace hone ka confirm); History button (admin); supplier ke saath "+" => Add Supplier dialog (Name*, Phone, Opening Balance -> `PartyRepository.addSupplier`, duplicate naam par rok).
+- Farq: Kotlin ka `billScanLauncher` Purchase mein register hai magar kisi button se launch nahi hota, is liye "Scan Bill" button nahi diya (BillScanScreen maujood hai). Held payload ka format Flutter ka apna hai (8 fields); Android ka 13-field format alag — held_bills sync nahi hoti, is liye farq asar nahi karta.
+- Baaki (chhota): Kotlin ka "Billed Items" popup (lines list dialog mein) Flutter mein inline list hai — kaam wahi.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test`.
+
+## Flutter side (2026-09-30) — Items "Import" (Rate List CSV)
+- [x] `ItemsActivity.kt` `importRateListCsv` + `parseCsvLine`: `lib/utils/rate_list_csv.dart` (pure parser, BOM/CRLF, quoted commas), `ItemsRepository.importRateList` (admin-only, ek transaction, Code=barcode se match, unit/wholesale/retail/2nd+3rd unit), Items header mein admin ko "Import" pill (`file_picker`, pehle se pubspec mein). Farq (Kotlin se behtar): har badla product sync queue mein bhi jata hai (Kotlin sirf upsert karta tha).
+- Test: `test/rate_list_csv_test.dart`. Note: Kotlin ka Rate List *export* (CSV) ab dead code hai (pill ab Bulk Missing Rates kholti hai) — isliye port nahi kiya.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test`.
+
 ## Flutter side (2026-09-30) — Phase 3 / 4 / 6 band (baqi partial rows)
 - [x] `SaleActivity.kt`: Kotlin `SaleSaveResult.stockWarnings` — `SaleRepository.saveSale(stockWarnings:)` ab stock update na hone (0 rows) par warning jama karta hai, `sale_screen.dart` har warning toast mein dikhata hai (save phir bhi ho jata hai).
 - [x] `SettingsActivity.kt`, `MainActivity.kt`, `PartyDashboardActivity.kt`: function-by-function muqabla — sab rows/tiles/tabs Flutter mein maujood; `tools/port_map.json` mein `partial` -> `done`. PORT_STATUS ab 100%.
@@ -324,7 +349,7 @@
 - `ProductScreen(editBarcode:)` naya (Kotlin EXTRA_EDIT_BARCODE) — Items se edit seedha form mein khulta hai.
 - `ProductRepository`: `needingDefaultUnitReview()`, `withMissingRates()`, `setDefaultUnitIndex()`, `setRates()`.
 - Farq (Kotlin jaisa hi rakha): unit delete sirf local hai (sync delete nahi). Farq (Kotlin se behtar): "Change Category" ab sync queue mein bhi jati hai (Kotlin sirf upsert karta tha).
-- [ ] Items ka "Import" (Rate List CSV): `file_picker` dependency + CSV parse chahiye — abhi nahi.
+- [x] Items ka "Import" (Rate List CSV): ab ho gaya (2026-09-30) — dekhein upar wali entry.
 - [x] Items ka "Translate" button: BulkTranslateScreen se jur gaya (Phase 13).
 - [ ] `ProductScreen` ka apna save/delete abhi bhi sync queue mein nahi likhta (TODO wahan maujood) — Phase 10 mein.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.

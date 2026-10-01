@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../db/category_unit_repository.dart';
@@ -9,6 +12,7 @@ import '../models/category_unit.dart' as models;
 import '../models/product.dart';
 import '../services/session.dart';
 import '../utils/loc.dart';
+import '../utils/rate_list_csv.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import 'bulk_default_unit_screen.dart';
@@ -25,7 +29,8 @@ enum _Tab { products, categories, units }
 /// Sab roles dekh sakte hain (Kotlin dashboard tile par koi gate nahi). Farq: cashier ko Purchase Price nahi
 /// dikhta/load hota; add/edit/delete/rename/bulk tools sirf admin (PORTING_PLAN: Products admin-only).
 ///
-/// Abhi port nahi: "Import" (Rate List CSV — file picker plugin chahiye).
+/// "Import" (Rate List CSV): admin-only, file_picker se CSV chun kar unit/wholesale/retail/2nd+3rd unit
+/// Code (barcode) ke hisaab se lagti hain (`lib/utils/rate_list_csv.dart`, `ItemsRepository.importRateList`).
 /// "Translate" = BulkTranslateScreen (Phase 13; Duplicate Unit Fix + Merge Duplicate Products bhi wahin).
 class ItemsScreen extends StatefulWidget {
   const ItemsScreen({super.key});
@@ -247,6 +252,25 @@ class _ItemsScreenState extends State<ItemsScreen> {
   }
 
   // ---------- UI pieces ----------
+  /// Kotlin importRateListCsv: file chuno -> parse -> apply -> "Updated N product(s)".
+  Future<void> _importRateList() async {
+    if (!_admin) return;
+    try {
+      final res = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
+      if (res == null || res.files.isEmpty) return;
+      final f = res.files.first;
+      final bytes = f.bytes ?? (f.path != null ? await File(f.path!).readAsBytes() : null);
+      if (bytes == null) return _toast(Loc.t('Could not read file', 'فائل پڑھی نہیں جا سکی'));
+      final rows = parseRateListCsv(utf8.decode(bytes, allowMalformed: true));
+      if (rows.isEmpty) return _toast(Loc.t('File has no product rows', 'فائل میں کوئی پروڈکٹ نہیں'));
+      final r = await ItemsRepository.instance.importRateList(rows);
+      await _loadAll();
+      _toast(rateListImportMessage(r.updated, r.notFound));
+    } catch (e) {
+      _toast('Import failed: $e');
+    }
+  }
+
   Widget _pill(String label, IconData icon, VoidCallback onTap) => Padding(
         padding: const EdgeInsets.only(right: 8),
         child: InkWell(
@@ -273,6 +297,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           child: Row(children: [
             _pill(Loc.t('Rate List', 'ریٹ لسٹ'), Icons.description_outlined,
                 () => _push(const RoleGuard(allowed: {'admin'}, child: BulkMissingRatesScreen()))),
+            if (_admin) _pill(Loc.t('Import', 'امپورٹ'), Icons.undo, _importRateList),
             _pill(Loc.t('Translate', 'ترجمہ'), Icons.language,
                 () => _push(const RoleGuard(allowed: {'admin'}, child: BulkTranslateScreen()))),
             _pill(Loc.t('Units', 'یونٹس'), Icons.straighten,

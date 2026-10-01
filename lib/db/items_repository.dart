@@ -8,6 +8,7 @@ import 'app_database.dart';
 import 'category_unit_repository.dart';
 import 'product_repository.dart';
 import '../sync/sync_queue_helper.dart';
+import '../utils/rate_list_csv.dart';
 
 /// Categories tab ki ek row (ItemsActivity.renderCategories ka Triple).
 class CategoryRow {
@@ -79,6 +80,52 @@ class ItemsRepository {
     await ProductRepository.instance.refresh();
     await CategoryRepository.instance.refreshList();
     await UnitRepository.instance.refreshList();
+  }
+
+  // ---------- Rate List import (CSV) ----------
+
+  /// Kotlin `importRateListCsv`: har row Code (barcode) se product dhoondh kar unit / wholesale / retail /
+  /// 2nd + 3rd unit lagati hai (last edit wins). Sab ek transaction mein + har product sync queue mein
+  /// (Kotlin sirf upsert karta tha, queue nahi — Flutter behtar, "Change Category" jaisa).
+  /// Natija: (updated, notFound).
+  Future<({int updated, int notFound})> importRateList(List<RateListRow> rows) async {
+    requireItemsAdmin();
+    final db = await AppDatabase.instance.database;
+    var updated = 0;
+    var notFound = 0;
+    await db.transaction((txn) async {
+      final touched = <String>[];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final r in rows) {
+        final found = await txn.query('products', where: 'barcode=?', whereArgs: [r.barcode], limit: 1);
+        if (found.isEmpty) {
+          notFound++;
+          continue;
+        }
+        final existing = Product.fromMap(found.first);
+        await txn.update(
+          'products',
+          {
+            'unit': r.unit ?? existing.unit,
+            'wholesalePrice': r.wholesale ?? existing.wholesalePrice,
+            'salePrice': r.retail ?? existing.salePrice,
+            'secondaryUnit': r.secondaryUnit,
+            'secondaryUnitQty': r.secondaryUnitQty,
+            'tertiaryUnit': r.tertiaryUnit,
+            'tertiaryUnitQty': r.tertiaryUnitQty,
+            'updatedAt': now,
+            'dirty': 1,
+          },
+          where: 'barcode=?',
+          whereArgs: [r.barcode],
+        );
+        touched.add(r.barcode);
+        updated++;
+      }
+      await _enqueueProducts(txn, touched);
+    });
+    await _refresh();
+    return (updated: updated, notFound: notFound);
   }
 
   // ---------- categories ----------

@@ -263,48 +263,96 @@ extension ProductUnitLogic on Product {
     return tier.smallestPerUnit > 0 ? smallestQty / tier.smallestPerUnit : smallestQty;
   }
 
-  /// A new product's opening stock must resolve to a whole smallest-unit
-  /// qty unless the smallest unit is fractional (Gram/ml) — mirrors
-  /// isValidSmallestQty() used by ProductActivity's save validation.
+  /// True agar is product ki sab se chhoti unit continuous/weight/volume hai
+  /// (Gram, ml, kg, litre, tola, maund...) aur is liye fractional stock rakh sakti hai.
+  /// Mirrors Product.isFractionalUnit() in Database.kt.
+  bool isFractionalUnit() =>
+      _fractionalUnitNames.contains(smallestUnitName().trim().toLowerCase());
+
+  /// A product's qty (already converted via [toSmallestUnits]) must be a whole
+  /// number unless the smallest unit is fractional — mirrors
+  /// isValidSmallestQty() in Database.kt.
   bool isValidSmallestQty(double smallestQty) {
-    final smallest = smallestUnitName().trim().toLowerCase();
-    final fractional = {'gram', 'grams', 'g', 'gm', 'ml', 'milliliter', 'millilitre'};
-    if (fractional.contains(smallest)) return true;
-    return smallestQty == smallestQty.roundToDouble();
+    if (isFractionalUnit()) return true;
+    return (smallestQty - smallestQty.roundToDouble()).abs() < 0.0001;
   }
 
-  /// Human-readable "12 box (144 pcs)" style breakdown — mirrors
-  /// formatStockBreakdown() in Database.kt.
+  /// Human-readable stock breakdown, e.g. "1 carton 2 box 1 pcs" — mirrors
+  /// formatStockBreakdown() in Database.kt (same unitLadder, largest -> smallest;
+  /// smallest tier fractional ho sakti hai, 3 decimals tak; zero stock par
+  /// sab se chhoti unit: "0 pcs").
   String formatStockBreakdown() {
     final ladder = unitLadder();
-    if (ladder.length == 1) {
-      return '${_trimNum(stock)} $unit';
-    }
-    final primaryTier = ladder.last;
-    final wholePrimary = (stock / primaryTier.smallestPerUnit).floor();
-    final remainderSmallest = stock - (wholePrimary * primaryTier.smallestPerUnit);
+    if (ladder.length == 1) return '${_trimZero(stock)} ${ladder[0].unit}';
 
+    final largestToSmallest = ladder.reversed.toList();
+    var remaining = stock;
     final parts = <String>[];
-    if (wholePrimary > 0) parts.add('$wholePrimary $unit');
 
-    if (ladder.length == 3 && remainderSmallest > 0) {
-      final secondaryTier = ladder[1];
-      final wholeSecondary = (remainderSmallest / secondaryTier.smallestPerUnit).floor();
-      final finalRemainder = remainderSmallest - (wholeSecondary * secondaryTier.smallestPerUnit);
-      if (wholeSecondary > 0) parts.add('$wholeSecondary $secondaryUnit');
-      if (finalRemainder > 0) parts.add('${_trimNum(finalRemainder)} ${ladder[0].unit}');
-    } else if (remainderSmallest > 0) {
-      parts.add('${_trimNum(remainderSmallest)} ${ladder[0].unit}');
+    for (var i = 0; i < largestToSmallest.length; i++) {
+      final tier = largestToSmallest[i];
+      final isSmallestTier = i == largestToSmallest.length - 1;
+      if (isSmallestTier) {
+        if (remaining > 0) parts.add('${_trimZero(remaining)} ${tier.unit}');
+      } else {
+        final count = (remaining / tier.smallestPerUnit).floorToDouble();
+        remaining -= count * tier.smallestPerUnit;
+        if (count > 0) parts.add('${count.toInt()} ${tier.unit}');
+      }
     }
 
-    if (parts.isEmpty) return '0 $unit';
+    if (parts.isEmpty) return '0 ${smallestUnitName()}';
     return parts.join(' ');
   }
 }
 
-String _trimNum(double value) {
-  if (value == value.truncateToDouble()) return value.toInt().toString();
-  return value.toString();
+const Set<String> _fractionalUnitNames = {
+  'gram', 'grams', 'gm', 'g', 'kg', 'kilogram', 'kilograms',
+  'ml', 'milliliter', 'millilitre', 'litre', 'liter', 'l',
+  'tola', 'maund',
+};
+
+/// Kotlin `trimZero()`: poora number ho to bina decimal, warna 3 decimals tak
+/// (0.30000000000000004 -> "0.3").
+String _trimZero(double value) {
+  if (value == value.roundToDouble()) return value.toInt().toString();
+  var t = value.toStringAsFixed(3);
+  t = t.replaceFirst(RegExp(r'0+$'), '');
+  t = t.replaceFirst(RegExp(r'\.$'), '');
+  return t;
+}
+
+/// Unit ladder badalne par stock ka natija — [rescaleStockForLadderChange].
+class StockRescale {
+  final bool changed;
+  final double stock;
+  final double openingStock;
+  const StockRescale(this.changed, this.stock, this.openingStock);
+}
+
+/// Kotlin ProductActivity.saveProduct "unit-ladder rescale bug" fix: `stock`/`openingStock`
+/// sab se chhoti unit ki raw ginti hain. Edit mein secondary/tertiary/primary badle to
+/// PURANA stock pehle purani primary unit mein likha jata hai, phir NAYI ladder ki sab se
+/// chhoti unit mein (warna 6 Petti achanak 6 Pcs ban jata hai). Ladder na badli ho to
+/// stock jaisa tha waisa.
+StockRescale rescaleStockForLadderChange(Product existing, Product newDraft) {
+  double q(String unit, double qty) => unit.trim().isEmpty ? 0.0 : qty;
+  final changed = existing.unit != newDraft.unit ||
+      existing.secondaryUnit != newDraft.secondaryUnit ||
+      q(existing.secondaryUnit, existing.secondaryUnitQty) !=
+          q(newDraft.secondaryUnit, newDraft.secondaryUnitQty) ||
+      existing.tertiaryUnit != newDraft.tertiaryUnit ||
+      q(existing.tertiaryUnit, existing.tertiaryUnitQty) !=
+          q(newDraft.tertiaryUnit, newDraft.tertiaryUnitQty);
+  if (!changed) return StockRescale(false, existing.stock, existing.openingStock);
+
+  final oldPrimaryStock = existing.fromSmallestUnits(existing.stock, existing.unit);
+  final oldPrimaryOpening = existing.fromSmallestUnits(existing.openingStock, existing.unit);
+  return StockRescale(
+    true,
+    newDraft.toSmallestUnits(oldPrimaryStock, existing.unit),
+    newDraft.toSmallestUnits(oldPrimaryOpening, existing.unit),
+  );
 }
 
 extension ProductSearch on Product {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/premium_widgets.dart';
+import '../utils/loc.dart';
 import '../theme/theme_manager.dart';
 
 class UnitSelection {
@@ -145,27 +146,27 @@ Future<UnitSelection?> showUnitDialog(
             final tq = double.tryParse(tertiaryQtyCtrl.text.trim()) ?? 0.0;
 
             if (p.isEmpty) {
-              setState(() => errorText = 'Select Primary Unit');
+              setState(() => errorText = Loc.t('Select Primary Unit', 'بنیادی یونٹ منتخب کریں'));
               return;
             }
             if (s != 'None' && s.toLowerCase() == p.toLowerCase()) {
-              setState(() => errorText = 'Secondary must be different');
+              setState(() => errorText = Loc.t('Secondary must be different', 'ثانوی یونٹ مختلف ہونا چاہیے'));
               return;
             }
             if (s != 'None' && sq <= 0) {
-              setState(() => errorText = 'Enter secondary quantity');
+              setState(() => errorText = Loc.t('Enter quantity', 'مقدار درج کریں'));
               return;
             }
             if (t != 'None' && s == 'None') {
-              setState(() => errorText = 'Select Secondary first');
+              setState(() => errorText = Loc.t('Select Secondary first', 'پہلے ثانوی یونٹ منتخب کریں'));
               return;
             }
             if (t != 'None' && t.toLowerCase() == s.toLowerCase()) {
-              setState(() => errorText = 'Tertiary must be different');
+              setState(() => errorText = Loc.t('Tertiary must be different', 'تیسرا یونٹ مختلف ہونا چاہیے'));
               return;
             }
             if (t != 'None' && tq <= 0) {
-              setState(() => errorText = 'Enter tertiary quantity');
+              setState(() => errorText = Loc.t('Enter quantity', 'مقدار درج کریں'));
               return;
             }
             if (s == 'None') t = 'None';
@@ -222,11 +223,11 @@ Future<UnitSelection?> showUnitDialog(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Add Item Unit',
+                              Text(Loc.t('Add Item Unit', 'آئٹم یونٹ شامل کریں'),
                                   style: TextStyle(color: Colors.white, fontSize: 18.5, fontWeight: FontWeight.bold)),
                               SizedBox(height: 5),
                               Text(
-                                "Set how this product's units convert into each other",
+                                Loc.t("Set how this product's units convert into each other", 'یہ پروڈکٹ کے یونٹس ایک دوسرے میں کیسے تبدیل ہوں گے، ترتیب دیں'),
                                 style: TextStyle(color: ThemeManager.palette.headerSubtitleColor, fontSize: 11.5),
                               ),
                             ],
@@ -243,19 +244,19 @@ Future<UnitSelection?> showUnitDialog(
                         children: [
                           _UnitCard(
                             emoji: '📏',
-                            label: 'Primary Unit',
+                            label: Loc.t('Primary Unit', 'بنیادی یونٹ'),
                             accent: ThemeManager.palette.teal,
-                            child: field(primaryCtrl, 'e.g. pcs, kg, box'),
+                            child: field(primaryCtrl, Loc.t('Type or pick unit, e.g. pcs, kg, box', 'یونٹ لکھیں یا منتخب کریں، مثلاً pcs, kg, box')),
                           ),
                           const SizedBox(height: 16),
                           _UnitCard(
                             emoji: '🔹',
-                            label: 'Secondary Unit (optional)',
+                            label: Loc.t('Secondary Unit (smaller quantity, optional)', 'ثانوی یونٹ (چھوٹی مقدار، اختیاری)'),
                             accent: ThemeManager.palette.blue,
                             child: Column(
                               children: [
-                                field(secondaryCtrl, 'Leave blank if not needed'),
-                                field(secondaryQtyCtrl, '1 Primary = how many Secondary?',
+                                field(secondaryCtrl, Loc.t('Leave blank if not needed', 'اگر ضرورت نہیں تو خالی چھوڑ دیں')),
+                                field(secondaryQtyCtrl, Loc.t('1 Primary = how many Secondary? e.g. 1 box = 12 pcs', 'بنیادی یونٹ 1 = کتنے ثانوی؟ مثلاً 1 box = 12 pcs'),
                                     kb: const TextInputType.numberWithOptions(decimal: true)),
                               ],
                             ),
@@ -263,12 +264,12 @@ Future<UnitSelection?> showUnitDialog(
                           const SizedBox(height: 16),
                           _UnitCard(
                             emoji: '🔸',
-                            label: 'Tertiary Unit (optional)',
+                            label: Loc.t('Tertiary Unit (smallest quantity, optional)', 'تیسرا یونٹ (سب سے چھوٹی مقدار، اختیاری)'),
                             accent: ThemeManager.palette.orange,
                             child: Column(
                               children: [
-                                field(tertiaryCtrl, 'Leave blank if not needed'),
-                                field(tertiaryQtyCtrl, '1 Secondary = how many Tertiary?',
+                                field(tertiaryCtrl, Loc.t('Leave blank if not needed', 'اگر ضرورت نہیں تو خالی چھوڑ دیں')),
+                                field(tertiaryQtyCtrl, Loc.t('1 Secondary = how many Tertiary?', 'ثانوی یونٹ 1 = کتنے تیسرے یونٹس؟'),
                                     kb: const TextInputType.numberWithOptions(decimal: true)),
                               ],
                             ),
@@ -276,10 +277,10 @@ Future<UnitSelection?> showUnitDialog(
                           const SizedBox(height: 16),
                           _UnitCard(
                             emoji: '✔',
-                            label: 'Default Unit for Sale Screen',
+                            label: Loc.t('Default Unit for Sale Screen', 'سیل اسکرین کے لیے ڈیفالٹ یونٹ'),
                             accent: ThemeManager.palette.purple,
                             child: _DefaultUnitChips(
-                              hint: 'Auto picks it for you. Choose one yourself if you want the Sale screen to always start with a specific unit.',
+                              hint: Loc.t('Auto picks it for you. Choose one yourself if you want the Sale screen to always start with a specific unit.', 'آٹو خود بخود منتخب کرتا ہے۔ اگر ہمیشہ کوئی خاص یونٹ دکھانا ہو تو خود منتخب کریں'),
                               tierNames: tierNames(),
                               selected: chosenDefaultUnitIndex,
                               accent: ThemeManager.palette.purple,
@@ -289,10 +290,10 @@ Future<UnitSelection?> showUnitDialog(
                           const SizedBox(height: 16),
                           _UnitCard(
                             emoji: '⚡',
-                            label: 'Default Unit for Quick Sale',
+                            label: Loc.t('Default Unit for Quick Sale', 'فوری سیل کے لیے ڈیفالٹ یونٹ'),
                             accent: ThemeManager.palette.teal,
                             child: _DefaultUnitChips(
-                              hint: 'Can differ from the Sale screen default — the smaller unit is often what is sold in Quick Sale.',
+                              hint: Loc.t('Can differ from the Sale screen default — the smaller unit is often what is sold in Quick Sale.', 'اوپر سیل اسکرین کے ڈیفالٹ سے مختلف ہو سکتا ہے — چونکہ فوری سیل میں عام طور پر چھوٹا یونٹ زیادہ استعمال ہوتا ہے'),
                               tierNames: tierNames(),
                               selected: chosenQuickSaleDefaultUnitIndex,
                               accent: ThemeManager.palette.teal,
@@ -324,13 +325,13 @@ Future<UnitSelection?> showUnitDialog(
                               side: BorderSide(color: ThemeManager.palette.border),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
-                            child: Text('Cancel', style: TextStyle(color: ThemeManager.palette.textMuted, fontWeight: FontWeight.bold)),
+                            child: Text(Loc.t('Cancel', 'منسوخ کریں'), style: TextStyle(color: ThemeManager.palette.textMuted, fontWeight: FontWeight.bold)),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: GradientButton(
-                            label: 'Save',
+                            label: Loc.t('Save', 'محفوظ کریں'),
                             emoji: '✓',
                             start: ThemeManager.palette.teal,
                             end: ThemeManager.palette.tealDark,
@@ -414,7 +415,7 @@ class _DefaultUnitChips extends StatelessWidget {
     // A pinned tier that no longer exists shows as Auto.
     final current = (selected >= 0 && selected < tierNames.length) ? selected : -1;
     final options = <MapEntry<int, String>>[
-      const MapEntry(-1, 'Auto'),
+      MapEntry(-1, Loc.t('Auto', 'آٹو')),
       for (var i = 0; i < tierNames.length; i++) MapEntry(i, tierNames[i]),
     ];
     return Column(

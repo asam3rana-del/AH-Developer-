@@ -10,6 +10,9 @@ class PremiumHeader extends StatelessWidget {
   final String? actionEmoji;
   final VoidCallback? onActionTap;
 
+  /// Action pill se pehle ke chhote gol icon buttons (Kotlin buildHeader: Export Rate List icon).
+  final List<PremiumHeaderIcon> iconActions;
+
   const PremiumHeader({
     super.key,
     required this.title,
@@ -17,6 +20,7 @@ class PremiumHeader extends StatelessWidget {
     this.actionLabel,
     this.actionEmoji,
     this.onActionTap,
+    this.iconActions = const [],
   });
 
   @override
@@ -53,6 +57,24 @@ class PremiumHeader extends StatelessWidget {
               ],
             ),
           ),
+          for (final a in iconActions) ...[
+            Tooltip(
+              message: a.tooltip,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(30),
+                onTap: a.onTap,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: ThemeManager.palette.headerBadgeOverlay,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Icon(a.icon, color: Colors.white, size: 18),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
           if (actionLabel != null)
             InkWell(
               borderRadius: BorderRadius.circular(30),
@@ -82,4 +104,12 @@ class PremiumHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Header ka chhota gol icon button (tooltip = Kotlin contentDescription).
+class PremiumHeaderIcon {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const PremiumHeaderIcon({required this.icon, required this.tooltip, required this.onTap});
 }

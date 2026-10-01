@@ -4,6 +4,9 @@ import '../db/category_unit_repository.dart';
 import '../db/product_repository.dart';
 import '../models/category_unit.dart' as models;
 import '../models/product.dart';
+import '../utils/input_validation.dart';
+import '../utils/loc.dart';
+import '../utils/rate_list_export.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/unit_dialog.dart';
@@ -107,11 +110,22 @@ class _ProductScreenState extends State<ProductScreen> {
   }
 
   String get _stockPreview {
+    // Edit mode: stock field mein SMALLEST unit ki mehfooz ginti hoti hai — use dobara "naya qty"
+    // samajh kar convert nahi karna (7000 gram ko 7000 Kg bana deta tha). Kotlin
+    // updateOpeningStockPreview() jaisa: sirf asal maujooda stock dikhao.
+    final existing = _editing;
+    if (existing != null) {
+      return Loc.t('Current stock: ${existing.formatStockBreakdown()}',
+          'موجودہ اسٹاک: ${existing.formatStockBreakdown()}');
+    }
     final q = double.tryParse(_stockCtrl.text.trim()) ?? 0.0;
     if (q <= 0) return '';
     final smallest = _openingStockToSmallest(q, _openingStockUnit);
     final draft = _draftProduct(stockValue: smallest);
-    return 'Stored stock: ${_trimNum(smallest)} ${draft.smallestUnitName()}  •  Display: ${draft.formatStockBreakdown()}';
+    return Loc.t(
+      'Stored stock: ${_trimNum(smallest)} ${draft.smallestUnitName()}  •  Display: ${draft.formatStockBreakdown()}',
+      'محفوظ اسٹاک: ${_trimNum(smallest)} ${draft.smallestUnitName()}  •  ڈسپلے: ${draft.formatStockBreakdown()}',
+    );
   }
 
   // ---- Actions ----
@@ -200,23 +214,60 @@ class _ProductScreenState extends State<ProductScreen> {
     });
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool confirmedDuplicate = false}) async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      _toast('Product Name is required');
+      _toast(Loc.t('Product Name is required', 'پروڈکٹ کا نام ضروری ہے'));
       return;
     }
+
+    // Kotlin "Possible Duplicate Item": same naam (case-insensitive) ka doosra product ho to confirm.
+    if (!confirmedDuplicate) {
+      final all = await ProductRepository.instance.listAll();
+      if (!mounted) return;
+      Product? dupe;
+      for (final p in all) {
+        if (p.name.toLowerCase() == name.toLowerCase() && p.barcode != _editing?.barcode) {
+          dupe = p;
+          break;
+        }
+      }
+      if (dupe != null) {
+        final d = dupe;
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(Loc.t('Possible Duplicate Item', 'ممکنہ ڈپلیکیٹ آئٹم')),
+            content: Text(Loc.t(
+              'An item named "${d.name}" already exists (stock: ${_trimNum(d.stock)} ${d.unit}).\n\n'
+                  'Saving this as a new item will make two products with the same name, which can cause the wrong one to be picked during Sale/Purchase.\n\n'
+                  'Save this one anyway?',
+              '"${d.name}" نام کا آئٹم پہلے سے موجود ہے (اسٹاک: ${_trimNum(d.stock)} ${d.unit})۔\n\n'
+                  'اسے نئے آئٹم کے طور پر محفوظ کرنے سے ایک ہی نام کے دو پروڈکٹس بن جائیں گے، جس سے Sale/Purchase کے دوران غلط آئٹم منتخب ہو سکتا ہے۔\n\n'
+                  'پھر بھی محفوظ کریں؟',
+            )),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں'))),
+            ],
+          ),
+        );
+        if (ok != true) return;
+        if (!mounted) return;
+      }
+    }
+
     if (_primaryUnit.trim().isEmpty) {
-      _toast('Select a unit');
+      _toast(Loc.t('Select a unit', 'یونٹ منتخب کریں'));
       return;
     }
     if (_secondaryUnit != 'None' && (_secondaryUnit == _primaryUnit || _secondaryQty <= 0)) {
-      _toast('Secondary unit/conversion is invalid');
+      _toast(Loc.t('Secondary unit/conversion is invalid', 'ثانوی یونٹ یا conversion غلط ہے'));
       return;
     }
     if (_tertiaryUnit != 'None' &&
         (_secondaryUnit == 'None' || _tertiaryUnit == _secondaryUnit || _tertiaryQty <= 0)) {
-      _toast('Tertiary unit/conversion is invalid');
+      _toast(Loc.t('Tertiary unit/conversion is invalid', 'تیسرے یونٹ یا conversion غلط ہے'));
       return;
     }
 
@@ -227,10 +278,13 @@ class _ProductScreenState extends State<ProductScreen> {
     double resolvedStock;
     double resolvedOpeningStock;
     if (existing != null) {
-      resolvedStock = existing.stock;
-      resolvedOpeningStock = existing.openingStock;
+      // Unit ladder badli ho to purana stock naye smallest unit mein rescale (Kotlin unit-ladder rescale FIX).
+      final r = rescaleStockForLadderChange(existing, _draftProduct());
+      resolvedStock = r.stock;
+      resolvedOpeningStock = r.openingStock;
     } else {
-      final openingQty = double.tryParse(_stockCtrl.text.trim()) ?? 0.0;
+      final openingQty = parseMoneyOrWarn(context, _stockCtrl.text, 'Opening Stock', 'ابتدائی اسٹاک');
+      if (openingQty == null) return;
       resolvedStock = _openingStockToSmallest(openingQty, _openingStockUnit);
       resolvedOpeningStock = resolvedStock;
     }
@@ -238,19 +292,30 @@ class _ProductScreenState extends State<ProductScreen> {
     if (existing == null) {
       final probe = _draftProduct(stockValue: resolvedStock);
       if (!probe.isValidSmallestQty(resolvedStock)) {
-        _toast('Opening stock does not convert to a whole ${probe.smallestUnitName()}');
+        _toast(Loc.t(
+          'Opening stock does not convert to a whole ${probe.smallestUnitName()}',
+          'ابتدائی اسٹاک ${probe.smallestUnitName()} کی مکمل تعداد میں تبدیل نہیں ہوتا',
+        ));
         return;
       }
     }
+
+    // Khali = 0, lekin ghalat text (jaise "12abc") save rok kar batata hai — chupke 0 nahi banta.
+    final costVal = parseMoneyOrWarn(context, _costCtrl.text, 'Cost Price', 'لاگت قیمت');
+    if (costVal == null) return;
+    final saleVal = parseMoneyOrWarn(context, _saleCtrl.text, 'Sale Price', 'فروخت قیمت');
+    if (saleVal == null) return;
+    final wholesaleVal = parseMoneyOrWarn(context, _wholesaleCtrl.text, 'Wholesale Price', 'ہول سیل قیمت');
+    if (wholesaleVal == null) return;
 
     final product = Product(
       barcode: barcode,
       name: name,
       category: category,
       searchTag: _tagCtrl.text.trim(),
-      cost: double.tryParse(_costCtrl.text.trim()) ?? 0.0,
-      salePrice: double.tryParse(_saleCtrl.text.trim()) ?? 0.0,
-      wholesalePrice: double.tryParse(_wholesaleCtrl.text.trim()) ?? 0.0,
+      cost: costVal,
+      salePrice: saleVal,
+      wholesalePrice: wholesaleVal,
       stock: resolvedStock,
       openingStock: resolvedOpeningStock,
       unit: _primaryUnit,
@@ -267,41 +332,72 @@ class _ProductScreenState extends State<ProductScreen> {
       quickSaleDefaultUnitIndex: _quickSaleDefaultUnitIndex,
     );
 
-    final categories = await CategoryRepository.instance.listAll();
-    if (category != 'General' && !categories.any((c) => c.name.toLowerCase() == category.toLowerCase())) {
-      await CategoryRepository.instance.insert(models.Category(category));
+    try {
+      final categories = await CategoryRepository.instance.listAll();
+      // CategoryRepository.insert ab sync queue mein bhi likhta hai (Kotlin enqueueCategory).
+      if (category != 'General' && !categories.any((c) => c.name.toLowerCase() == category.toLowerCase())) {
+        await CategoryRepository.instance.insert(models.Category(category));
+      }
+
+      await ProductRepository.instance.upsert(product, isNew: existing == null);
+      // Sync: ProductRepository.upsert khud sync_queue mein likhta hai (Kotlin enqueue + opening stock delta).
+
+      if (!mounted) return;
+      _toast(existing != null
+          ? Loc.t('Product updated', 'پروڈکٹ اپ ڈیٹ ہو گئی')
+          : Loc.t('Product saved', 'پروڈکٹ محفوظ ہو گئی'));
+      _justSavedBarcode = barcode;
+      _clearForm();
+    } catch (e) {
+      if (!mounted) return;
+      _toast('Could not save product: $e');
     }
-
-    await ProductRepository.instance.upsert(product, isNew: existing == null);
-    // Sync: ProductRepository.upsert khud sync_queue mein likhta hai (Kotlin enqueue + opening stock delta).
-
-    _toast(existing != null ? 'Product updated' : 'Product saved');
-    _justSavedBarcode = barcode;
-    _clearForm();
   }
 
   Future<void> _confirmDelete(Product product) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Product'),
-        content: Text('Delete "${product.name}"? This cannot be undone.'),
+        title: Text(Loc.t('Delete Product', 'پروڈکٹ حذف کریں')),
+        content: Text(Loc.t(
+          'Delete "${product.name}"? This cannot be undone.',
+          '"${product.name}" کو حذف کریں؟ یہ واپس نہیں ہو سکتا۔',
+        )),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('Delete', style: TextStyle(color: ThemeManager.palette.red)),
+            child: Text(Loc.t('Delete', 'حذف کریں'), style: TextStyle(color: ThemeManager.palette.red)),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
 
-    await ProductRepository.instance.delete(product);
-    // Sync: ProductRepository.delete khud "delete" (tombstone) queue karta hai.
+    try {
+      await ProductRepository.instance.delete(product);
+      // Sync: ProductRepository.delete khud "delete" (tombstone) queue karta hai.
+      if (!mounted) return;
+      if (_editing?.barcode == product.barcode) _clearForm();
+      _toast(Loc.t('Product deleted', 'پروڈکٹ حذف ہو گئی'));
+    } catch (e) {
+      if (!mounted) return;
+      _toast('Could not delete product: $e');
+    }
+  }
 
-    if (_editing?.barcode == product.barcode) _clearForm();
-    _toast('Product deleted');
+  /// Kotlin exportRateListCsv(): sab products ki Rate List CSV -> Downloads copy + spreadsheet app mein open.
+  Future<void> _exportRateList() async {
+    try {
+      final all = await ProductRepository.instance.listAll();
+      if (all.isEmpty) {
+        if (mounted) _toast(Loc.t('No products to export', 'کوئی پروڈکٹ موجود نہیں'));
+        return;
+      }
+      await exportRateList(all);
+    } catch (e) {
+      if (mounted) _toast(Loc.t('Export failed', 'ایکسپورٹ ناکام'));
+    }
   }
 
   void _toast(String message) {
@@ -330,9 +426,16 @@ class _ProductScreenState extends State<ProductScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     PremiumHeader(
-                      title: 'Add / Edit Product',
-                      subtitle: 'Inventory Management',
-                      actionLabel: 'View List',
+                      title: Loc.t('Add / Edit Product', 'پروڈکٹ شامل / تبدیل کریں'),
+                      subtitle: Loc.t('Inventory Management', 'انوینٹری مینجمنٹ'),
+                      iconActions: [
+                        PremiumHeaderIcon(
+                          icon: Icons.description_outlined,
+                          tooltip: Loc.t('Export Rate List', 'ریٹ لسٹ ایکسپورٹ کریں'),
+                          onTap: _exportRateList,
+                        ),
+                      ],
+                      actionLabel: Loc.t('View List', 'فہرست دیکھیں'),
                       actionEmoji: '📋',
                       onActionTap: () => setState(() => _showList = true),
                     ),
@@ -360,14 +463,16 @@ class _ProductScreenState extends State<ProductScreen> {
       children: [
         Expanded(
           child: Text(
-            isEditing ? '✏️  Editing: ${_editing!.name}' : '✚  New Product',
+            isEditing
+                ? Loc.t('✏️  Editing: ${_editing!.name}', '✏️  ترمیم: ${_editing!.name}')
+                : Loc.t('✚  New Product', '✚  نیا پروڈکٹ'),
             style: TextStyle(color: ThemeManager.palette.teal, fontSize: 14.5, fontWeight: FontWeight.bold),
             overflow: TextOverflow.ellipsis,
           ),
         ),
         if (isEditing) ...[
           GradientButton(
-            label: 'Delete',
+            label: Loc.t('Delete', 'حذف کریں'),
             emoji: '🗑️',
             start: ThemeManager.palette.red,
             end: ThemeManager.palette.redDark,
@@ -379,7 +484,7 @@ class _ProductScreenState extends State<ProductScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(color: ThemeManager.palette.textMuted, borderRadius: BorderRadius.circular(30)),
-              child: const Text('✕  Cancel Edit', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+              child: Text(Loc.t('✕  Cancel Edit', '✕  ترمیم منسوخ'), style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -393,7 +498,7 @@ class _ProductScreenState extends State<ProductScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionLabel(emoji: '🏷️', label: 'Product Name', accent: ThemeManager.palette.teal),
+          SectionLabel(emoji: '🏷️', label: Loc.t('Product Name', 'پروڈکٹ کا نام'), accent: ThemeManager.palette.teal),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
@@ -408,7 +513,7 @@ class _ProductScreenState extends State<ProductScreen> {
                     controller: _nameCtrl,
                     style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark),
                     decoration: InputDecoration(
-                      hintText: 'Product Name',
+                      hintText: Loc.t('Product Name', 'پروڈکٹ کا نام'),
                       hintStyle: TextStyle(color: ThemeManager.palette.textMuted, fontWeight: FontWeight.normal),
                       border: InputBorder.none,
                       isDense: true,
@@ -416,7 +521,7 @@ class _ProductScreenState extends State<ProductScreen> {
                   ),
                 ),
                 GradientButton(
-                  label: 'Select Unit',
+                  label: Loc.t('Select Unit', 'یونٹ منتخب کریں'),
                   emoji: '📏',
                   start: ThemeManager.palette.teal,
                   end: ThemeManager.palette.tealDark,
@@ -429,7 +534,7 @@ class _ProductScreenState extends State<ProductScreen> {
           TextField(
             controller: _tagCtrl,
             decoration: InputDecoration(
-              hintText: 'English search tag (optional) — e.g. Aloo Bukhara',
+              hintText: Loc.t('English search tag (optional) — e.g. Aloo Bukhara', 'انگریزی سرچ ٹیگ (اختیاری) — مثلاً Aloo Bukhara'),
               hintStyle: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 13),
               filled: true,
               fillColor: ThemeManager.palette.fieldFill,
@@ -452,7 +557,7 @@ class _ProductScreenState extends State<ProductScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SectionLabel(emoji: '🗂️', label: 'Category', accent: ThemeManager.palette.purple),
+              SectionLabel(emoji: '🗂️', label: Loc.t('Category', 'کیٹیگری'), accent: ThemeManager.palette.purple),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 decoration: BoxDecoration(
@@ -474,7 +579,7 @@ class _ProductScreenState extends State<ProductScreen> {
                       focusNode: focusNode,
                       style: TextStyle(fontSize: 15, color: ThemeManager.palette.textDark),
                       decoration: InputDecoration(
-                        hintText: 'Type or pick a category',
+                        hintText: Loc.t('Type or pick a category', 'کیٹیگری لکھیں یا چنیں'),
                         hintStyle: TextStyle(color: ThemeManager.palette.textMuted),
                         border: InputBorder.none,
                         isDense: true,
@@ -488,7 +593,7 @@ class _ProductScreenState extends State<ProductScreen> {
                 onTap: () => _promptAddCategory(categories),
                 child: Padding(
                   padding: EdgeInsets.all(4),
-                  child: Text('✚  Add New Category', style: TextStyle(color: ThemeManager.palette.teal, fontSize: 12.5, fontWeight: FontWeight.bold)),
+                  child: Text(Loc.t('✚  Add New Category', '✚  نئی کیٹیگری'), style: TextStyle(color: ThemeManager.palette.teal, fontSize: 12.5, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -503,17 +608,17 @@ class _ProductScreenState extends State<ProductScreen> {
     final value = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('New Category'),
+        title: Text(Loc.t('New Category', 'نئی کیٹیگری')),
         content: TextField(controller: ctrl, autofocus: true),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()), child: const Text('Add')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()), child: Text(Loc.t('Add', 'شامل کریں'))),
         ],
       ),
     );
     if (value == null || value.isEmpty) return;
     await CategoryRepository.instance.insert(models.Category(value));
-    _toast('Category added');
+    _toast(Loc.t('Category added', 'کیٹیگری شامل ہو گئی'));
   }
 
   Widget _buildPricingCard() {
@@ -525,12 +630,12 @@ class _ProductScreenState extends State<ProductScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SectionLabel(emoji: '💰', label: 'Pricing', accent: ThemeManager.palette.amber),
-              PremiumLabeledField(emoji: '🛒', label: 'Purchase Rate', accent: ThemeManager.palette.amber, controller: _costCtrl),
+              SectionLabel(emoji: '💰', label: Loc.t('Pricing', 'قیمتیں'), accent: ThemeManager.palette.amber),
+              PremiumLabeledField(emoji: '🛒', label: Loc.t('Purchase Rate', 'خریداری کی قیمت'), accent: ThemeManager.palette.amber, controller: _costCtrl),
               const SizedBox(height: 12),
-              PremiumLabeledField(emoji: '📦', label: 'Wholesale Sale Rate', accent: ThemeManager.palette.blue, controller: _wholesaleCtrl),
+              PremiumLabeledField(emoji: '📦', label: Loc.t('Wholesale Sale Rate', 'تھوک فروخت کی قیمت'), accent: ThemeManager.palette.blue, controller: _wholesaleCtrl),
               const SizedBox(height: 12),
-              PremiumLabeledField(emoji: '🏪', label: 'Retail Sale Rate', accent: ThemeManager.palette.teal, controller: _saleCtrl),
+              PremiumLabeledField(emoji: '🏪', label: Loc.t('Retail Sale Rate', 'پرچون فروخت کی قیمت'), accent: ThemeManager.palette.teal, controller: _saleCtrl),
               const SizedBox(height: 12),
               _buildOpeningStockRow(),
               if (_stockPreview.isNotEmpty)
@@ -542,21 +647,21 @@ class _ProductScreenState extends State<ProductScreen> {
                 Padding(
                   padding: EdgeInsets.only(top: 8, left: 6),
                   child: Text(
-                    'Stock is locked while editing — change it via Purchase/Sale instead.',
+                    Loc.t('Stock is locked while editing — change it via Purchase/Sale instead.', 'ترمیم کے دوران اسٹاک لاک ہے — اسٹاک تبدیل کرنے کے لیے Purchase/Sale استعمال کریں۔'),
                     style: TextStyle(color: ThemeManager.palette.amber, fontSize: 11),
                   ),
                 ),
               const SizedBox(height: 12),
               PremiumLabeledField(
                 emoji: '⚠️',
-                label: 'Reorder Level (smallest unit)',
+                label: Loc.t('Reorder Level (smallest unit)', 'ری آرڈر لیول (سب سے چھوٹی یونٹ)'),
                 accent: ThemeManager.palette.red,
                 controller: _reorderCtrl,
               ),
               Padding(
                 padding: EdgeInsets.only(top: 6, left: 6),
                 child: Text(
-                  'Alert when stock falls to/below this many smallest units (e.g. pcs). Leave 0 for no alert.',
+                  Loc.t('Alert when stock falls to/below this many smallest units (e.g. pcs). Leave 0 for no alert.', 'جب اسٹاک اس تعداد (سب سے چھوٹی یونٹ) تک یا کم ہو جائے تو الرٹ کریں۔ الرٹ نہ چاہیے تو 0 رہنے دیں۔'),
                   style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 11),
                 ),
               ),
@@ -585,7 +690,7 @@ class _ProductScreenState extends State<ProductScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('OPENING STOCK', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk, letterSpacing: 0.3)),
+                Text(Loc.t('OPENING STOCK', 'ابتدائی اسٹاک'), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk, letterSpacing: 0.3)),
                 TextField(
                   controller: _stockCtrl,
                   enabled: _editing == null,
@@ -617,7 +722,7 @@ class _ProductScreenState extends State<ProductScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 4),
-        SectionLabel(emoji: '🗃️', label: 'Products', accent: ThemeManager.palette.navyInk),
+        SectionLabel(emoji: '🗃️', label: Loc.t('Products', 'پروڈکٹس'), accent: ThemeManager.palette.navyInk),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           margin: const EdgeInsets.only(bottom: 14),
@@ -635,7 +740,7 @@ class _ProductScreenState extends State<ProductScreen> {
                   controller: _searchCtrl,
                   onChanged: (v) => setState(() => _search = v),
                   decoration: InputDecoration(
-                    hintText: 'Search products by name or category…',
+                    hintText: Loc.t('Search products by name or category…', 'نام یا کیٹیگری سے پروڈکٹ تلاش کریں…'),
                     hintStyle: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 14.5),
                     border: InputBorder.none,
                     isDense: true,
@@ -674,7 +779,7 @@ class _ProductScreenState extends State<ProductScreen> {
                   children: [
                     Text('🔍', style: TextStyle(fontSize: 26)),
                     SizedBox(height: 10),
-                    Text('No matching products', style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 13)),
+                    Text(Loc.t('No matching products', 'کوئی مماثل پروڈکٹ نہیں ملی'), style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 13)),
                   ],
                 ),
               );
@@ -706,7 +811,9 @@ class _ProductScreenState extends State<ProductScreen> {
         child: SizedBox(
           width: double.infinity,
           child: GradientButton(
-            label: _editing != null ? 'UPDATE PRODUCT' : 'SAVE PRODUCT',
+            label: _editing != null
+                ? Loc.t('UPDATE PRODUCT', 'پروڈکٹ اپ ڈیٹ کریں')
+                : Loc.t('SAVE PRODUCT', 'پروڈکٹ محفوظ کریں'),
             emoji: '💾',
             start: ThemeManager.palette.navy,
             end: ThemeManager.palette.navyLight,
@@ -786,11 +893,11 @@ class _ProductCard extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: _priceChip('🛒', 'Purchase', product.cost, ThemeManager.palette.textMuted)),
+              Expanded(child: _priceChip('🛒', Loc.t('Purchase', 'خریداری'), product.cost, ThemeManager.palette.textMuted)),
               const SizedBox(width: 6),
-              Expanded(child: _priceChip('📦', 'Wholesale', product.wholesalePrice, ThemeManager.palette.blue)),
+              Expanded(child: _priceChip('📦', Loc.t('Wholesale', 'تھوک'), product.wholesalePrice, ThemeManager.palette.blue)),
               const SizedBox(width: 6),
-              Expanded(child: _priceChip('🏪', 'Retail', product.salePrice, ThemeManager.palette.teal)),
+              Expanded(child: _priceChip('🏪', Loc.t('Retail', 'پرچون'), product.salePrice, ThemeManager.palette.teal)),
             ],
           ),
           if (product.secondaryUnit.isNotEmpty) ...[
@@ -810,7 +917,7 @@ class _ProductCard extends StatelessWidget {
             children: [
               Expanded(
                 child: GradientButton(
-                  label: 'Edit',
+                  label: Loc.t('Edit', 'ترمیم کریں'),
                   emoji: '✏️',
                   start: ThemeManager.palette.navy,
                   end: ThemeManager.palette.navyLight,
@@ -821,7 +928,7 @@ class _ProductCard extends StatelessWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: GradientButton(
-                  label: 'Delete',
+                  label: Loc.t('Delete', 'حذف کریں'),
                   emoji: '🗑️',
                   start: ThemeManager.palette.red,
                   end: ThemeManager.palette.redDark,

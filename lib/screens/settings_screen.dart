@@ -27,6 +27,8 @@ import 'sale_screen.dart';
 import 'shell_ledger_screen.dart';
 import 'user_management_screen.dart';
 
+/// Receipt footer / address / currency / tax fields Kotlin mein user ke kehne par hata di gayi thin — yahan bhi nahi
+/// (stored receipt_footer value print par ab bhi parha jata hai, jaisa Kotlin mein).
 /// Mirrors SettingsActivity.kt (pehla hissa): Shop Info, Login method, Update Login,
 /// Language, Manage Users, Logout.
 /// Login method: password / fingerprint / both / none. Dark mode switch.
@@ -45,8 +47,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _shopPhone = TextEditingController();
   final _newUsername = TextEditingController();
   final _newPassword = TextEditingController();
-  final _footer = TextEditingController();
   String _loginMethod = 'password';
+  String _headerShop = 'My Shop'; // Kotlin loadHeaderShopName: saved shop_name, warna "My Shop"
   String _printerName = '';
   int _dots = EscPos.defaultDotsWidth;
   bool _testing = false;
@@ -60,7 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     _shopName.text = await _repo.getSetting('shop_name') ?? '';
     _shopPhone.text = await _repo.getSetting('shop_phone') ?? '';
-    _footer.text = await _repo.getSetting('receipt_footer') ?? '';
+    if (_shopName.text.trim().isNotEmpty) _headerShop = _shopName.text.trim();
     final pr = await PrinterService.instance.selected();
     _printerName = pr?.name ?? '';
     _dots = await PrinterService.instance.dotsWidth();
@@ -73,6 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveShop() async {
     await _repo.setSetting('shop_name', _shopName.text.trim());
     await _repo.setSetting('shop_phone', _shopPhone.text.trim());
+    if (_shopName.text.trim().isNotEmpty && mounted) setState(() => _headerShop = _shopName.text.trim());
     _toast(Loc.t('Settings saved', 'سیٹنگز محفوظ ہو گئیں'));
   }
 
@@ -182,7 +185,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _testPrint() async {
     if (_testing) return;
     setState(() => _testing = true);
-    final err = await PrinterService.instance.testPrint(shopName: _shopName.text.trim());
+    final err = await PrinterService.instance.testPrint(shopName: _shopName.text.trim().isEmpty ? 'My Shop' : _shopName.text.trim());
     if (!mounted) return;
     setState(() => _testing = false);
     _toast(err ?? Loc.t('Test print sent', 'ٹیسٹ پرنٹ بھیج دیا'));
@@ -213,11 +216,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await PrinterService.instance.saveDotsWidth(v);
     if (mounted) setState(() => _dots = v);
     _toast(Loc.t('Print width $v dots saved. TEST PRINT karke check karein.', 'چوڑائی $v محفوظ۔ ٹیسٹ پرنٹ کر کے دیکھیں۔'));
-  }
-
-  Future<void> _saveFooter() async {
-    await _repo.setSetting('receipt_footer', _footer.text.trim());
-    _toast(Loc.t('Receipt footer saved', 'رسید کا فوٹر محفوظ'));
   }
 
   Future<void> _setLoginMethod(String m) async {
@@ -322,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: ThemeManager.palette.bg,
       appBar: AppBar(backgroundColor: ThemeManager.palette.navy, foregroundColor: Colors.white, title: Text(Loc.t('Settings', 'سیٹنگز'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        PremiumHeader(title: Loc.t('Settings', 'سیٹنگز'), subtitle: '${Session.displayName} • ${Session.role}'),
+        PremiumHeader(title: _headerShop, subtitle: Loc.t('POINT OF SALE', 'پوائنٹ آف سیل')),
         ..._linkRows(),
         const SizedBox(height: 6),
         if (admin)
@@ -388,9 +386,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: _pickWidth,
             child: Text(Loc.t('PRINT WIDTH: $_dots (garbled print? try 384)', 'پرنٹ چوڑائی: $_dots')),
           ),
-          const SizedBox(height: 8),
-          _tf(_footer, Loc.t('Receipt footer (optional)', 'رسید فوٹر (اختیاری)')),
-          FilledButton(onPressed: _saveFooter, child: Text(Loc.t('SAVE FOOTER', 'فوٹر محفوظ کریں'))),
         ]),
         // Kotlin Settings mein Backup/Export row (BackupExportScreen ka apna RoleGuard admin/manager).
         if (Session.isAdminOrManager)

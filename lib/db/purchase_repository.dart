@@ -2,7 +2,6 @@
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 
-import '../models/held_bill.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../models/purchase.dart';
@@ -296,26 +295,6 @@ class PurchaseRepository {
       }
     }
     return null;
-  }
-
-  // ------------------------------------------------------------ hold / recall
-
-  /// Purchase holds sirf `PHOLD...` (Sale holds `HOLD...` alag), naya pehle.
-  Future<List<HeldBill>> heldPurchases() async {
-    final db = await AppDatabase.instance.database;
-    final rows = await db.query('held_bills', where: "holdId LIKE 'PHOLD%'", orderBy: 'createdAt DESC');
-    return rows.map(HeldBill.fromMap).toList();
-  }
-
-  Future<void> holdPurchase(String payload) async {
-    final db = await AppDatabase.instance.database;
-    final now = _now();
-    await db.insert('held_bills', HeldBill(holdId: 'PHOLD$now', payload: payload, createdAt: now).toMap());
-  }
-
-  Future<void> deleteHeld(HeldBill bill) async {
-    final db = await AppDatabase.instance.database;
-    await db.delete('held_bills', where: 'holdId = ?', whereArgs: [bill.holdId]);
   }
 
   // ------------------------------------------------------------------ save

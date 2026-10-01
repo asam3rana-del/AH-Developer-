@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import '../db/customer_repository.dart';
 import '../db/product_repository.dart';
 import '../db/sale_repository.dart';
+import '../db/user_repository.dart';
+import 'sale_history_screen.dart';
 import '../models/party.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
@@ -116,8 +118,17 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     _load();
   }
 
+  // Kotlin loadFirmName(): saved shop_name, warna "IBTISAAM Kiryana Store".
+  String _firmName = 'IBTISAAM Kiryana Store';
+
+  Future<void> _loadFirmName() async {
+    final n = (await UserRepository.instance.getSetting('shop_name'))?.trim() ?? '';
+    if (n.isNotEmpty && mounted) setState(() => _firmName = n);
+  }
+
   Future<void> _load() async {
     if (_isEdit && !Session.isAdmin) return; // build() shows the lock screen
+    _loadFirmName();
     final products = await ProductRepository.instance.listAll();
     final customers = await CustomerRepository.instance.listAll();
     if (!mounted) return;
@@ -1279,6 +1290,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                         ),
                       ),
                     _buildActionRow(),
+                    _buildFirmCard(),
                     _buildTopRow(),
                     _buildCustomerCard(),
                     _buildItemEntryCard(),
@@ -1326,6 +1338,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             _pill('⏸', Loc.t('Hold', 'ہولڈ'), ThemeManager.palette.amber, _holdBill),
             _pill('▶', Loc.t('Recall', 'ریکال'), ThemeManager.palette.blue, _openRecall),
           ],
+          _pill('🕘', Loc.t('History', 'ہسٹری'), ThemeManager.palette.navyInk,
+              () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SaleHistoryScreen()))),
           _pill('🖨', Loc.t('Print', 'پرنٹ'), ThemeManager.palette.navyInk, _printCurrent),
           if (_isEdit && !returned) _pill('↩', Loc.t('Return', 'واپس'), ThemeManager.palette.orange, _saving ? () {} : _returnSale),
           if (_isEdit) _pill('🗑', Loc.t('Delete', 'حذف'), ThemeManager.palette.red, _saving ? () {} : _deleteSale),
@@ -1333,6 +1347,23 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       ),
     );
   }
+
+  /// Kotlin "FIRM NAME" card (shop_name, warna default naam).
+  Widget _buildFirmCard() => Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: ThemeManager.palette.cardWhite,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: ThemeManager.palette.border),
+        ),
+        child: Column(children: [
+          Text(Loc.t('Firm Name', 'فرم کا نام').toUpperCase(),
+              style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: ThemeManager.palette.textMuted)),
+          const SizedBox(height: 2),
+          Text(_firmName, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+        ]),
+      );
 
   Widget _buildTopRow() {
     return PremiumCard(
@@ -1858,10 +1889,39 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 ),
               ),
             ),
+          // Kotlin refreshDue(): Paid khali + total > 0 => "Paid khali hai - Rs X Udhaar jayega".
+          if ((double.tryParse(_paidCtrl.text.trim()) ?? 0.0) <= 0.009 && _splitPayments.isEmpty && totals.total > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('⚠ Paid khali hai - Rs ${totals.due.toStringAsFixed(2)} Udhaar jayega',
+                  style: TextStyle(color: ThemeManager.palette.red, fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          const SizedBox(height: 12),
+          // Kotlin "DUE AMOUNT" card: hamesha dikhta hai; baqi ho to laal, warna hara.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+            decoration: BoxDecoration(
+              color: ThemeManager.palette.fieldFill,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: ThemeManager.palette.border),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: Text(Loc.t('Due Amount', 'باقی رقم').toUpperCase(),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: ThemeManager.palette.textMuted)),
+              ),
+              Text('Rs ${totals.due.toStringAsFixed(2)}',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: totals.due > 0.009 ? ThemeManager.palette.red : ThemeManager.palette.teal)),
+            ]),
+          ),
           if (totals.due > 0.009)
             Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text('Due: ${totals.due.toStringAsFixed(2)} — customer required', style: TextStyle(color: ThemeManager.palette.red, fontSize: 12, fontWeight: FontWeight.bold)),
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(Loc.t('Customer required for due amount', 'باقی رقم کے لیے کسٹمر ضروری ہے'),
+                  style: TextStyle(color: ThemeManager.palette.red, fontSize: 12, fontWeight: FontWeight.bold)),
             ),
         ],
       ),

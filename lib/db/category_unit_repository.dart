@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
+
 import '../models/category_unit.dart' as models;
+import '../sync/sync_queue_helper.dart';
 import 'app_database.dart';
 import 'watch_util.dart';
 
@@ -29,7 +32,11 @@ class CategoryRepository {
 
   Future<void> insert(models.Category category) async {
     final db = await AppDatabase.instance.database;
-    await db.insert('categories', category.toMap());
+    // Kotlin: categoryDao().insert + SyncQueueHelper.enqueueCategory — dusre device par bhi dropdown mein aaye.
+    await db.transaction((txn) async {
+      await txn.insert('categories', category.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
+      await SyncQueueHelper.enqueueCategory(txn, category.name);
+    });
     await _notify();
   }
 }
@@ -59,7 +66,11 @@ class UnitRepository {
 
   Future<void> insert(models.UnitType unit) async {
     final db = await AppDatabase.instance.database;
-    await db.insert('units', unit.toMap());
+    // Kotlin: unitDao().insert + SyncQueueHelper.enqueueUnit.
+    await db.transaction((txn) async {
+      await txn.insert('units', unit.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
+      await SyncQueueHelper.enqueueUnit(txn, unit.name);
+    });
     await _notify();
   }
 }

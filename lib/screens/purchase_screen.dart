@@ -24,6 +24,7 @@ import '../utils/loc.dart';
 import '../utils/purchase_calc.dart';
 import '../utils/split_payment.dart';
 import '../widgets/autocomplete_options.dart';
+import 'purchase_history_screen.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/unit_dialog.dart';
@@ -1228,19 +1229,116 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         child: child,
       );
 
-  /// Upar ki row: sirf Date button (Hold / Recall / Scan Bill purchase se hata diye gaye).
+  /// Upar ki row (Kotlin header + topRow): Date, History, aur ⋮ menu (Print / Share / Hold Bill / Recall Bill).
+  /// Scan Bill ka button Kotlin Purchase mein bhi launch nahi hota (launcher bana hai, button nahi) — isliye yahan nahi.
   Widget _buildDateRow() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: _pickDate,
-          icon: const Icon(Icons.calendar_today_outlined, size: 18),
-          label: Text(DateFormat('dd MMM yyyy').format(_purchaseDate)),
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _pickDate,
+              icon: const Icon(Icons.calendar_today_outlined, size: 18),
+              label: Text(DateFormat('dd MMM yyyy').format(_purchaseDate)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (Session.isAdmin)
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PurchaseHistoryScreen())),
+              icon: const Icon(Icons.history, size: 18),
+              label: Text(Loc.t('History', 'ہسٹری')),
+            ),
+          PopupMenuButton<String>(
+            tooltip: Loc.t('More', 'مزید'),
+            onSelected: (v) => _printOrShare(),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'print', child: Text(Loc.t('Print', 'پرنٹ'))),
+              PopupMenuItem(value: 'share', child: Text(Loc.t('Share', 'شیئر کریں'))),
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  // ---------------------------------------------------------- Print / Share / Hold / Recall
+
+  /// Kotlin overflow Print/Share: sirf SAVED bill (edit mode) ka Bill Preview; naya bill => "Save the purchase first".
+  Future<void> _printOrShare() async {
+    final billNo = widget.editBillNo;
+    if (billNo == null) return _toast(Loc.t('Save the purchase first', 'پہلے خریداری محفوظ کریں'));
+    if (_lines.isEmpty) return;
+    final paid = _effectivePaid.clamp(0.0, _grandTotal).toDouble();
+    await _showBillPreview(
+      billNo: billNo,
+      supplier: _supplierCtrl.text.trim(),
+      date: _purchaseDate,
+      lines: List<PurchaseLine>.of(_lines),
+      total: _grandTotal,
+      paid: paid,
+      method: paid <= 0.009 ? 'Credit' : paymentMethodLabel(paid: paid, payments: _splitPayments, singleMethod: _paymentMethod),
+    );
+  }
+
+  // ---------------------------------------------------------- Add Supplier (+)
+
+  /// Kotlin promptAddSupplier(): Name*, Phone, Opening Balance. Add ke baad naam supplier field mein.
+  Future<void> _promptAddSupplier() async {
+    final nameCtrl = TextEditingController(text: _supplierCtrl.text.trim());
+    final phoneCtrl = TextEditingController();
+    final openingCtrl = TextEditingController();
+    const decimal = TextInputType.numberWithOptions(decimal: true);
+    Widget field(String label, TextEditingController c, {TextInputType? type, String? hint}) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: TextField(
+            controller: c,
+            keyboardType: type,
+            decoration: InputDecoration(labelText: label, hintText: hint, border: const OutlineInputBorder(), isDense: true),
+          ),
+        );
+    final added = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Add Supplier', 'سپلائر شامل کریں')),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            field('NAME *', nameCtrl, hint: 'Supplier name'),
+            field('PHONE (OPTIONAL)', phoneCtrl, type: TextInputType.phone, hint: 'Phone'),
+            field('OPENING BALANCE (RS, IF ANY PREVIOUS DUE)', openingCtrl, type: decimal, hint: 'Opening balance'),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+          FilledButton(
+            onPressed: () async {
+              final name = nameCtrl.text.trim();
+              if (name.isEmpty) {
+                _toast(Loc.t('Name is required', 'نام ضروری ہے'));
+                return;
+              }
+              final opening = parseMoneyOrWarn(ctx, openingCtrl.text, 'Opening Balance', 'افتتاحی بیلنس');
+              if (opening == null) return;
+              if (_suppliers.any((x) => x.name.toLowerCase() == name.toLowerCase())) {
+                _toast(Loc.t('"$name" already exists', '"$name" پہلے سے موجود ہے'));
+                return;
+              }
+              await PartyRepository.instance.addSupplier(name: name, phone: phoneCtrl.text, openingBalance: opening);
+              if (ctx.mounted) Navigator.pop(ctx, name);
+            },
+            child: Text(Loc.t('Add', 'شامل کریں')),
+          ),
+        ],
+      ),
+    );
+    nameCtrl.dispose();
+    phoneCtrl.dispose();
+    openingCtrl.dispose();
+    if (added == null || !mounted) return;
+    setState(() => _supplierCtrl.text = added);
+    _refreshSupplierBalance(added);
+    _saveDraftSoon();
   }
 
   Widget _buildSupplierCard() {
@@ -1251,7 +1349,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SectionLabel(emoji: '🧾', label: 'Supplier', accent: ThemeManager.palette.teal),
-          _fieldBox(
+          Row(children: [
+            Expanded(child: _fieldBox(
             child: RawAutocomplete<String>(
               textEditingController: _supplierCtrl,
               focusNode: _supplierFocus,
@@ -1294,7 +1393,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               optionsViewBuilder: (context, onSelected, options) =>
                   autocompleteOptionsView<String>(context, onSelected, options, (o) => o, maxWidth: 640),
             ),
-          ),
+          )),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              tooltip: Loc.t('Add Supplier', 'سپلائر شامل کریں'),
+              style: IconButton.styleFrom(backgroundColor: ThemeManager.palette.teal, foregroundColor: Colors.white),
+              onPressed: _promptAddSupplier,
+              icon: const Icon(Icons.add),
+            ),
+          ]),
           if (bal != null && bal.abs() > 0.009)
             Padding(
               padding: const EdgeInsets.only(top: 8, left: 4),
