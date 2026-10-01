@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:intl/intl.dart';
@@ -10,7 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/app_database.dart';
+import '../sync/device_tag.dart';
+import '../sync/sync_repository.dart';
 import 'backup_crypto.dart';
+import 'downloads_copy.dart';
 import 'backup_password_store.dart';
 import 'kotlin_import.dart';
 
@@ -23,8 +25,9 @@ import 'kotlin_import.dart';
 /// * Purane "IBAKV001" (AES-CBC) aur plain `.db` backups bhi restore ho jate hain.
 ///
 /// Farq (Kotlin se):
-///  * Public Downloads ki extra copy nahi (MediaStore ke liye Flutter mein alag plugin chahiye) —
-///    Share button se Drive/WhatsApp/Files mein bheja ja sakta hai.
+///  * Public Downloads ki extra copy `DownloadsCopy` (chhota native MediaStore channel, MainActivity mein
+///    `tools/android_fix.sh` se) — sirf jab app screen par ho (WorkManager ke background isolate mein
+///    channel nahi hota, wahan copy chhod di jati hai). Share button hamesha kaam karta hai.
 ///  * Restore se pehle (agar live DB maujood ho) ek safety backup ban-ta hai; wo na bane to restore ruk jata hai.
 ///  * Restore ke waqt schema check: zaroori tables ho + `user_version` is app se naya na ho.
 class BackupHelper {
@@ -38,7 +41,6 @@ class BackupHelper {
   static const folderName = 'IBTISAAM POS Backups';
   static const backupExtension = 'ibbackup';
   static const _lastBackupKey = 'backup_throttle_last_backup_at_millis';
-  static const _deviceTagKey = 'device_tag'; // Phase 10 (DeviceTag) isi key ko dobara istemal kare.
 
   // Kotlin `SQLITE_HEADER`: "SQLite format 3\u0000"
   static const List<int> _sqliteHeader = [
@@ -58,15 +60,11 @@ class BackupHelper {
 
   // ---------------- device tag ----------------
 
+  /// Kotlin `DeviceTag.current` — sync wala hi tag (pehle yahan alag random tag banta tha).
+  /// `init()` dobara bulana safe hai; background isolate mein bhi sahi tag milta hai.
   static Future<String> deviceTag() async {
-    final prefs = await SharedPreferences.getInstance();
-    var tag = prefs.getString(_deviceTagKey);
-    if (tag == null || tag.isEmpty) {
-      final r = Random.secure();
-      tag = List.generate(4, (_) => r.nextInt(16).toRadixString(16)).join().toUpperCase();
-      await prefs.setString(_deviceTagKey, tag);
-    }
-    return tag;
+    await DeviceTag.init();
+    return DeviceTag.current;
   }
 
   // ---------------- folders / listing ----------------
@@ -138,6 +136,8 @@ class BackupHelper {
     final password = await BackupPasswordStore.getOrCreate();
     final dest = File(p.join((await backupFolder()).path, fileName));
     await BackupCrypto.encryptFile(dbFile, dest, password);
+    // Kotlin copyToDownloads: public Downloads/<folderName> mein extra copy (best-effort, fail par backup theek rehta hai).
+    await DownloadsCopy.copy(dest, folder: folderName, fileName: fileName);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
@@ -270,6 +270,7 @@ class BackupHelper {
         await temp.copy(dbPath);
         await _deleteQuietly(temp);
       }
+      await _resetSyncCheckpoint();
       return true;
     } catch (e) {
       lastError = e is BackupCryptoException ? e.message : e.toString();
@@ -294,13 +295,25 @@ class BackupHelper {
       final live = await AppDatabase.instance.database;
       final report = await KotlinBackupImporter.importInto(live, temp.path);
       lastImportSummary = report.summary();
+      // Import ke baad password nahi maanga jayega (user ki request): login skip flag.
+      await live.insert('app_settings', {'key': 'skip_login', 'value': '1'}, conflictAlgorithm: ConflictAlgorithm.replace);
+      await live.insert('app_settings', {'key': 'admin_seeded', 'value': '1'}, conflictAlgorithm: ConflictAlgorithm.replace);
       await _deleteQuietly(temp);
+      await _resetSyncCheckpoint();
       return true;
     } catch (e) {
       lastError = e is KotlinImportException ? e.message : e.toString();
       await _deleteQuietly(temp);
       return false;
     }
+  }
+
+  /// Restore/import ke baad pull checkpoint 0: purana data aaya hai, is liye server ka naya data
+  /// dobara pull hona chahiye (apply idempotent hai; pending edits ki guards wahi). Fail par nazar-andaz.
+  static Future<void> _resetSyncCheckpoint() async {
+    try {
+      await SyncRepository.resetSyncCheckpoint(0);
+    } catch (_) {}
   }
 
   static Future<bool> _isValidSqliteDb(File file) async {
@@ -333,7 +346,7 @@ class BackupHelper {
       }
       final ver = Sqflite.firstIntValue(await db.rawQuery('PRAGMA user_version')) ?? 0;
       if (ver > AppDatabase.schemaVersion) {
-        return 'Ye backup is app se naye version ka hai (v$ver) — pehle app update karein';
+        return 'Ye backup is app se naye version ka hai (v$ver) — pehle app update karein [E-KTIMPORT-OFF]';
       }
       final rows = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'");
       final have = rows.map((r) => r['name'].toString()).toSet();
