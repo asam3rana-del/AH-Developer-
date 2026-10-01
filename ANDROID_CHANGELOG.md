@@ -1,5 +1,13 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-10-01) — Phase 3 (Sale): Kotlin tests Dart mein
+- [x] `test/discount_calculator_test.dart` (Kotlin `DiscountCalculatorTest`, 11 cases) aur `test/sale_save_validation_test.dart` (Kotlin `SaveSaleUseCaseTest` + `SaveQuickSaleUseCaseTest` ke validation cases: khali items, qty 0/negative, negative rate, due par customer zaroori, ek kharab line poora sale rokti hai). Ye checks DB se pehle hote hain, is liye DB ki zaroorat nahi.
+- Farq: Kotlin ke jo cases repository/DB ke andar chalte hain (stock issue, duplicate invoice, quick-sale success/credit flag) Dart mein DB ke baghair test nahi ho sakte (sqflite ffi dev-dependency nahi) — woh device par dekhein.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter test test/discount_calculator_test.dart test/sale_save_validation_test.dart`.
+
+## Flutter side (2026-10-01) — Phase 2 (Purchase) test pass
+- [x] User ne Hold/Recall hatane ke baad APK build kiya: **build successful** aur Purchase ka test **pass** (user ki report). Phase 2 ab verified.
+
 ## Flutter side (2026-10-01) — Purchase: Hold/Recall hata diya
 - [x] `purchase_screen.dart`: ⋮ menu se Hold Bill / Recall Bill aur `_holdBill`/`_openRecall` hata diye; `PurchaseRepository.holdPurchase/heldPurchases/deleteHeld` bhi hata diye. Draft autosave (`PurchaseDraftStore`) barqarar. Sale ka Hold/Recall waisa hi hai.
 - [x] Faaltu `lib/AH-Developer-Purchase-Screen-Update.zip` waqai hata di.
