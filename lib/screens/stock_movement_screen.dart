@@ -121,7 +121,7 @@ class _StockMovementBodyState extends State<_StockMovementBody> {
     final p = _p;
     return PopScope(
       canPop: _selected == null,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _back();
       },
       child: Scaffold(

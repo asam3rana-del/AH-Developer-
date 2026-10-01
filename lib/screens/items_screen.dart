@@ -527,7 +527,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
     };
     return PopScope(
       canPop: !inDetail,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (!didPop && inDetail) _closeCategoryDetail();
       },
       child: Scaffold(
