@@ -1,5 +1,33 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-10-01) — Phase 8 + 9 review
+- Kotlin se muqabla (Cash Register flows/match/carry-forward, Day Book reference filters, Reports queries, Monthly, Stock Report low-stock,
+  Inventory Insights reorder/suggested qty, Zakat 2.5%): koi farq nahi mila.
+- `tools/port_map.json`: Monthly ka Dart path galat tha (`monthly_sales_purchase_screen.dart` maujood nahi) => `monthly_screen.dart`.
+- `tools/port_status.py`: ab done/partial entries ki Dart files ke maujood hone ka check bhi karta hai (pehle missing file bhi 100% dikhti thi).
+
+## Flutter side (2026-10-01) — Sync hardening: pull par party na mile to link mehfooz (DB v14)
+- Masla (code padh kar mila, device par dekha nahi): pull mein payment/sale/purchase ki party local DB mein na ho to
+  `partyId/customerId/supplierId` NULL reh jata tha aur row ledger / Fix Balances se bahar ho jati thi (payments par
+  `partyServerId` column hi nahi tha, to baad mein jorna mumkin nahi).
+- Fix: DB v14 — `payments.partyServerId`, `sales.customerServerId`, `purchases.supplierServerId`. Pull inhe mehfooz karta hai;
+  har pull ke aakhir mein `relinkOrphanedParties` (sync_apply.dart) party aane par link jod deta hai (balance nahi chhoota).
+  Push: party local mein na ho to mehfooz serverId wapas bheji jati hai (`enqueuePayment/Sale/Purchase`).
+- Test: `test/sync_apply_rest_test.dart` ('party baad mein aaye => ... relink'). Purani (v13 tak) orphan rows wapas nahi judti
+  (serverId unhein mili hi nahi thi) — Resync/Force Full Push se doosre device se dobara pull karwayein.
+
+## Flutter side (2026-10-01) — Phase 8 review: Payments live balance
+- `lib/screens/payments_screen.dart` Record tab: party list ab LIVE ledger balance dikhati hai
+  (`PartyRepository.liveCustomerBalances/liveSupplierBalances` + `partyClosing`, opening/stuck samet),
+  stored `balance` field se nahi — sync ke baad drift se "Owes / We owe" galat nahi dikhega. Sirf display, data nahi badla.
+- Balance Sheet receivables/payables stored balance par hi hain (Kotlin BalanceSheetActivity jaisa); drift warning maujood.
+
+
+## Flutter side (2026-10-01) — Phase 7 audit (History)
+- [x] Phase 7 (HistoryActivity router, SaleHistory, PurchaseHistory) Kotlin se function-by-function milaya: koi feature missing nahi. Summary cards (Total Sales/Returned, Total Purchases/Due), customer-wise grouping + bill-wise profit (sirf admin), search, Print/Share, Return/Delete (admin-only), partial purchase return (per-line qty, stock + weighted cost + supplier balance + cash ka dated reversal) aur returned bill ka detail dialog sab maujood.
+- [x] `reversePurchaseLineCost` Kotlin `reversePurchaseLineCostPartial` ke barabar hai aur `test/party_transaction_test.dart` mein test hai; History ke tests: `sale_history_test`, `purchase_history_test`.
+- Phase 7 ka koi Kotlin test nahi hai. Sirf device par nazar-e-saani baaki.
+
 ## Flutter side (2026-10-01) — Phase 6 audit + Share asli share sheet se
 - [x] Phase 6 (Party list, Party Dashboard, Party Transaction, Party Reports, Due Reminders) Kotlin se function-by-function milaya: koi feature missing nahi (6 reports, Supplier/Customer Statement, Edit Rates admin-only, Purchase/Sales Due tabs, payment edit/delete, merge/recalc/cleanup previews sab maujood).
 - [x] Gap pur: Party Dashboard "Share summary", Party Transaction ke Share Statement / Share Receipt aur Purchase History ka Share pehle sirf clipboard mein copy karte the (comment mein "share plugin nahi" likha tha, jabke `share_plus` pubspec mein hai). Ab asli share sheet (`Share.share`); na khule to clipboard par wapas (purane toast ke saath).

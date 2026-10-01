@@ -38,7 +38,31 @@ Future<void> applyServerChangesToDb(
     await applyProducts(txn, changes.products, nowMs: clock);
     await applyUsers(txn, changes.users, hashPassword: hasher);
     await applyRestOfServerChanges(txn, changes, nowMs: clock);
+    await relinkOrphanedParties(txn);
   });
+}
+
+/// Pull par jis payment/sale/purchase ki party us waqt local DB mein nahi thi, uski `partyServerId` /
+/// `customerServerId` / `supplierServerId` mehfooz hai — party ab aa chuki ho to link jod do.
+/// Sirf link jodta hai; balance NAHI chhoota (server ka balance us row ka asar pehle se rakhta hai).
+/// Idempotent: har pull ke aakhir mein chalta hai, jori hui rows dobara nahi chhoti.
+Future<void> relinkOrphanedParties(DatabaseExecutor db) async {
+  await db.execute(
+      'UPDATE payments SET partyId = (SELECT c.id FROM customers c WHERE c.serverId = payments.partyServerId) '
+      "WHERE partyId IS NULL AND partyType = 'customer' AND partyServerId IS NOT NULL AND partyServerId != '' "
+      'AND EXISTS (SELECT 1 FROM customers c WHERE c.serverId = payments.partyServerId)');
+  await db.execute(
+      'UPDATE payments SET partyId = (SELECT s.id FROM suppliers s WHERE s.serverId = payments.partyServerId) '
+      "WHERE partyId IS NULL AND partyType = 'supplier' AND partyServerId IS NOT NULL AND partyServerId != '' "
+      'AND EXISTS (SELECT 1 FROM suppliers s WHERE s.serverId = payments.partyServerId)');
+  await db.execute(
+      'UPDATE sales SET customerId = (SELECT c.id FROM customers c WHERE c.serverId = sales.customerServerId) '
+      "WHERE customerId IS NULL AND customerServerId IS NOT NULL AND customerServerId != '' "
+      'AND EXISTS (SELECT 1 FROM customers c WHERE c.serverId = sales.customerServerId)');
+  await db.execute(
+      'UPDATE purchases SET supplierId = (SELECT s.id FROM suppliers s WHERE s.serverId = purchases.supplierServerId) '
+      "WHERE supplierId IS NULL AND supplierServerId IS NOT NULL AND supplierServerId != '' "
+      'AND EXISTS (SELECT 1 FROM suppliers s WHERE s.serverId = purchases.supplierServerId)');
 }
 
 /// Abhi tak queue mein baithe (bheje na gaye) local deltas — pull ke server snapshot ke UPAR lagte hain,

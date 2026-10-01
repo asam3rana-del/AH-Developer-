@@ -43,14 +43,14 @@ Future<Database> _memDb() async {
   await x('''CREATE TABLE sales (invoice TEXT PRIMARY KEY NOT NULL, customerId INTEGER, subtotal REAL NOT NULL,
     discount REAL NOT NULL, tax REAL NOT NULL, total REAL NOT NULL, paid REAL NOT NULL,
     paymentMethod TEXT NOT NULL, saleType TEXT NOT NULL DEFAULT 'retail', createdAt INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active', $_sync, dueDate INTEGER NOT NULL DEFAULT 0)''');
+    status TEXT NOT NULL DEFAULT 'active', $_sync, dueDate INTEGER NOT NULL DEFAULT 0, customerServerId TEXT)''');
   await x('''CREATE TABLE sale_items (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice TEXT NOT NULL,
     barcode TEXT NOT NULL, product TEXT NOT NULL, qty REAL NOT NULL, unit TEXT NOT NULL DEFAULT '',
     unitPrice REAL NOT NULL, cost REAL NOT NULL, amount REAL NOT NULL, conversionFactor REAL NOT NULL DEFAULT 0)''');
   await x('''CREATE TABLE purchases (billNo TEXT PRIMARY KEY NOT NULL, supplierId INTEGER, total REAL NOT NULL,
     paid REAL NOT NULL, createdAt INTEGER NOT NULL, subtotal REAL NOT NULL DEFAULT 0,
     discount REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', $_sync,
-    dueDate INTEGER NOT NULL DEFAULT 0, supplierInvoiceNo TEXT NOT NULL DEFAULT '')''');
+    dueDate INTEGER NOT NULL DEFAULT 0, supplierInvoiceNo TEXT NOT NULL DEFAULT '', supplierServerId TEXT)''');
   await x('''CREATE TABLE purchase_items (id INTEGER PRIMARY KEY AUTOINCREMENT, billNo TEXT NOT NULL,
     barcode TEXT NOT NULL, qty REAL NOT NULL, unitCost REAL NOT NULL, amount REAL NOT NULL,
     unit TEXT NOT NULL DEFAULT '', conversionFactor REAL NOT NULL DEFAULT 0, itemName TEXT NOT NULL DEFAULT '',
@@ -58,7 +58,7 @@ Future<Database> _memDb() async {
   await x('''CREATE TABLE payments (id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT NOT NULL,
     partyType TEXT NOT NULL, partyId INTEGER, amount REAL NOT NULL, method TEXT NOT NULL,
     note TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL, serverId TEXT, $_sync,
-    billReference TEXT NOT NULL DEFAULT '')''');
+    billReference TEXT NOT NULL DEFAULT '', partyServerId TEXT)''');
   await x('''CREATE TABLE expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL,
     description TEXT NOT NULL, amount REAL NOT NULL, method TEXT NOT NULL DEFAULT 'cash',
     createdAt INTEGER NOT NULL, serverId TEXT, $_sync)''');
@@ -317,6 +317,55 @@ void main() {
       final p = (await db.query('payments')).single;
       expect(p['partyId'], 1);
       expect(p['billReference'], 'P1');
+    });
+
+    test('party baad mein aaye => payment/sale/purchase relink; balance nahi badalta', () async {
+      // Pehli pull: payment/sale/purchase aaye par party abhi local DB mein nahi.
+      await _apply(db, PullResult(
+        payments: [
+          {'serverId': 'p1', 'reference': 'manual-customer-9-1', 'partyType': 'customer', 'partyServerId': 'cLate',
+           'amount': 30, 'method': 'cash', 'createdAt': 1},
+          {'serverId': 'p2', 'reference': 'manual-supplier-4-1', 'partyType': 'supplier', 'partyServerId': 'sLate',
+           'amount': 70, 'method': 'cash', 'createdAt': 2},
+        ],
+        sales: [
+          {'invoice': 'S9', 'customerServerId': 'cLate', 'subtotal': 100, 'total': 100, 'paid': 0,
+           'paymentMethod': 'cash', 'createdAt': 1},
+        ],
+        purchases: [
+          {'billNo': 'P9', 'supplierServerId': 'sLate', 'total': 200, 'paid': 0, 'createdAt': 1},
+        ],
+      ));
+      expect((await db.query('payments')).every((r) => r['partyId'] == null), isTrue);
+      expect((await db.query('sales')).single['customerId'], isNull);
+      expect((await db.query('purchases')).single['supplierId'], isNull);
+      // Portable pehchan mehfooz hai.
+      expect((await db.query('sales')).single['customerServerId'], 'cLate');
+      expect((await db.query('purchases')).single['supplierServerId'], 'sLate');
+
+      // Doosri pull: sirf party docs (balance server ka total).
+      await _apply(db, PullResult(
+        customers: [
+          {'serverId': 'cLate', 'name': 'Late C', 'balance': 70, 'updatedAt': 10},
+        ],
+        suppliers: [
+          {'serverId': 'sLate', 'name': 'Late S', 'balance': 130, 'updatedAt': 10},
+        ],
+      ));
+      final cId = (await db.query('customers')).single['id'];
+      final sId = (await db.query('suppliers')).single['id'];
+      final pays = {for (final r in await db.query('payments')) r['serverId']: r};
+      expect(pays['p1']!['partyId'], cId);
+      expect(pays['p2']!['partyId'], sId);
+      expect((await db.query('sales')).single['customerId'], cId);
+      expect((await db.query('purchases')).single['supplierId'], sId);
+      // Relink balance nahi chhoota.
+      expect((await db.query('customers')).single['balance'], 70);
+      expect((await db.query('suppliers')).single['balance'], 130);
+
+      // Idempotent: dobara chalane se kuch nahi badalta.
+      await relinkOrphanedParties(db);
+      expect((await db.query('payments')).where((r) => r['partyId'] != null).length, 2);
     });
 
     test('cash transaction: insert/update/tombstone', () async {

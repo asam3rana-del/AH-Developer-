@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../db/customer_repository.dart';
+import '../db/party_repository.dart';
 import '../db/payment_repository.dart';
 import '../db/supplier_repository.dart';
 import '../models/misc_entities.dart';
@@ -242,6 +243,32 @@ class _RecordTabState extends State<_RecordTab> {
   bool _isCustomer = true; // Received (customer) / Made (supplier)
   String _q = '';
 
+  // Balance LIVE ledger se (bills + payments), stored field se nahi — sync ke baad stored
+  // balance drift kar sakta hai (Phase 6 screens bhi yahi karti hain). Opening/stuck shamil.
+  late final Stream<List<_PartyItem>> _customerItems = _liveCustomers();
+  late final Stream<List<_PartyItem>> _supplierItems = _liveSuppliers();
+
+  Stream<List<_PartyItem>> _liveCustomers() async* {
+    await for (final list in CustomerRepository.instance.watchAll()) {
+      final live = await PartyRepository.instance.liveCustomerBalances();
+      yield [
+        for (final c in list)
+          _PartyItem(c.id!, c.name, c.phone,
+              partyClosing(opening: c.openingBalance, running: live[c.id] ?? 0.0, stuck: c.stuckBalance)),
+      ];
+    }
+  }
+
+  Stream<List<_PartyItem>> _liveSuppliers() async* {
+    await for (final list in SupplierRepository.instance.watchAll()) {
+      final live = await PartyRepository.instance.liveSupplierBalances();
+      yield [
+        for (final s in list)
+          _PartyItem(s.id!, s.name, s.phone, partyClosing(opening: s.openingBalance, running: live[s.id] ?? 0.0)),
+      ];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final accent = _isCustomer ? ThemeManager.palette.teal : ThemeManager.palette.orange;
@@ -287,23 +314,11 @@ class _RecordTabState extends State<_RecordTab> {
         ]),
       ),
       Expanded(
-        child: _isCustomer
-            ? StreamBuilder(
-                stream: CustomerRepository.instance.watchAll(),
-                builder: (_, snap) => _list(
-                  (snap.data ?? const []).map((c) => _PartyItem(c.id!, c.name, c.phone, c.balance)).toList(),
-                  accent,
-                  loading: !snap.hasData,
-                ),
-              )
-            : StreamBuilder(
-                stream: SupplierRepository.instance.watchAll(),
-                builder: (_, snap) => _list(
-                  (snap.data ?? const []).map((s) => _PartyItem(s.id!, s.name, s.phone, s.balance)).toList(),
-                  accent,
-                  loading: !snap.hasData,
-                ),
-              ),
+        child: StreamBuilder<List<_PartyItem>>(
+          // Stream ek hi baar banti hai (customer/supplier badalne par), har build par nahi.
+          stream: _isCustomer ? _customerItems : _supplierItems,
+          builder: (_, snap) => _list(snap.data ?? const [], accent, loading: !snap.hasData),
+        ),
       ),
     ]);
   }

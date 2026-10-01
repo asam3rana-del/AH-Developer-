@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 13;
+  static const _dbVersion = 14;
 
   Database? _db;
 
@@ -143,7 +143,8 @@ class AppDatabase {
         status TEXT NOT NULL DEFAULT 'active',
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1,
-        dueDate INTEGER NOT NULL DEFAULT 0
+        dueDate INTEGER NOT NULL DEFAULT 0,
+        customerServerId TEXT
       )
     ''');
 
@@ -175,7 +176,8 @@ class AppDatabase {
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1,
-        billReference TEXT NOT NULL DEFAULT ''
+        billReference TEXT NOT NULL DEFAULT '',
+        partyServerId TEXT
       )
     ''');
 
@@ -192,7 +194,8 @@ class AppDatabase {
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1,
         dueDate INTEGER NOT NULL DEFAULT 0,
-        supplierInvoiceNo TEXT NOT NULL DEFAULT ''
+        supplierInvoiceNo TEXT NOT NULL DEFAULT '',
+        supplierServerId TEXT
       )
     ''');
 
@@ -404,6 +407,15 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'returns', 'serverId', 'TEXT');
       await _addColumnIfMissing(db, 'returns', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
       await _addColumnIfMissing(db, 'returns', 'dirty', 'INTEGER NOT NULL DEFAULT 1');
+    }
+    if (oldVersion < 14) {
+      // v14: pull par party (customer/supplier) local DB mein na mile to bhi cloud ki portable pehchan
+      // (serverId) mehfooz rahe — party baad mein aaye to `relinkOrphanedParties` (sync_apply.dart)
+      // rows ko jod de. Pehle partyId/customerId/supplierId NULL reh kar row ledger/Fix Balances se
+      // hamesha ke liye bahar ho jati thi.
+      await _addColumnIfMissing(db, 'payments', 'partyServerId', 'TEXT');
+      await _addColumnIfMissing(db, 'sales', 'customerServerId', 'TEXT');
+      await _addColumnIfMissing(db, 'purchases', 'supplierServerId', 'TEXT');
     }
   }
 

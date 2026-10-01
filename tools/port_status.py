@@ -56,6 +56,14 @@ def main():
     new = [f for f in files if f not in known]
     gone = [e["kotlin"] for e in entries if e["kotlin"] not in files]
 
+    # Map mein likhi Dart files sach mein maujood hain? (done/partial entries ke liye)
+    import re
+    missing_dart = []
+    for e in entries:
+        if e["status"] not in ("done", "partial"): continue
+        for dp in re.findall(r"lib/[\w/.\-]+\.dart", e.get("dart") or ""):
+            if not os.path.exists(dp): missing_dart.append((e["kotlin"], dp))
+
     tot = collections.Counter(); done = collections.Counter()
     by_phase = collections.defaultdict(list); changed = []
     for e in entries:
@@ -79,6 +87,8 @@ def main():
         L += ["## ⚠ NEW Kotlin files (port_map.json mein add karein)", ""] + [f"- {f}" for f in new] + [""]
     if gone:
         L += ["## ⚠ Map mein hain magar kotlin_reference mein nahi", ""] + [f"- {f}" for f in gone] + [""]
+    if missing_dart:
+        L += ["## ⚠ Map mein Dart file likhi hai magar maujood nahi", ""] + [f"- {k} → {d}" for k, d in missing_dart] + [""]
     if changed:
         L += ["## 🔁 Android mein badli, Flutter update chahiye", ""] + [f"- {f} → {next(e['dart'] for e in entries if e['kotlin']==f)}" for f in changed] + [""]
     icon = {"done": "✅", "partial": "🟡", "todo": "⬜", "skip": "➖"}
@@ -90,7 +100,7 @@ def main():
             L.append(f"| {icon[e['status']]} | {e['kotlin']}{flag} | {e['_loc']} | {e['dart'] or '—'} | {e['note']} |")
         L.append("")
     open(OUT, "w", encoding="utf-8").write("\n".join(L))
-    print(f"PORT_STATUS.md updated — {100*D//max(T,1)}% | new:{len(new)} changed:{len(changed)}")
+    print(f"PORT_STATUS.md updated — {100*D//max(T,1)}% | new:{len(new)} changed:{len(changed)} missing_dart:{len(missing_dart)}")
 
 if __name__ == "__main__":
     main()

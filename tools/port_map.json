@@ -408,7 +408,7 @@
  {
   "kotlin": "MonthlySalesPurchaseActivity.kt",
   "phase": 9,
-  "dart": "lib/screens/monthly_sales_purchase_screen.dart",
+  "dart": "lib/screens/monthly_screen.dart",
   "status": "done",
   "note": "lib/screens/monthly_screen.dart + lib/db/monthly_repository.dart (pure selectEntries/groupPeriods). Admin/Manager only. Party id se match, item lines mein returned bills bahar. Test: test/monthly_test.dart. Reports hub row."
  },

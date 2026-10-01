@@ -123,6 +123,7 @@ Future<void> applySales(DatabaseExecutor db, List<SyncDoc> rows, {required int F
       {
         'invoice': invoice,
         'customerId': localCustomerId,
+        'customerServerId': customerServerId,
         'subtotal': _d(row['subtotal']) ?? 0.0,
         'discount': _d(row['discount']) ?? 0.0,
         'tax': 0.0,
@@ -227,6 +228,7 @@ Future<void> applyPurchases(DatabaseExecutor db, List<SyncDoc> rows, {required i
       {
         'billNo': billNo,
         'supplierId': localSupplierId,
+        'supplierServerId': supplierServerId,
         'total': _d(row['total']) ?? 0.0,
         'paid': _d(row['paid']) ?? 0.0,
         'createdAt': _i(row['createdAt']) ?? now,
@@ -338,6 +340,7 @@ Future<void> applyPayments(DatabaseExecutor db, List<SyncDoc> rows, {required in
       'reference': reference,
       'partyType': partyType,
       'partyId': partyId,
+      'partyServerId': partyServerId,
       'amount': _d(row['amount']) ?? 0.0,
       'method': _s(row['method']) ?? '',
       'note': _s(row['note']) ?? '',

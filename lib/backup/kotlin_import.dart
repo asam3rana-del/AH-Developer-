@@ -6,7 +6,7 @@ import '../db/stock_ledger.dart';
 ///
 /// Kyun zaroori: Kotlin ki DB file seedha Flutter ki file par rakh dene se kaam nahi chalta —
 ///  * Room ka `user_version` 48 hai, Flutter ka 13 (restore "naye version ka hai" keh kar rok deta tha),
-///  * Kotlin mein extra columns hain (`saleUid`, `lineUid`, `purchaseUid`, `partyServerId`) jo Flutter mein nahi.
+///  * Kotlin mein extra columns hain (`saleUid`, `lineUid`, `purchaseUid`) jo Flutter mein nahi (payments.partyServerId DB v14 se Flutter mein bhi hai, common column ki tarah copy hota hai).
 /// Is liye file badalne ki jagah har table ke SIRF wahi columns copy hote hain jo dono mein hain
 /// (naam se), baaqi Flutter ke defaults par.
 ///

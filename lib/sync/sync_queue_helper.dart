@@ -400,6 +400,11 @@ class SyncQueueHelper {
       final c = await _row(ex, 'customers', 'id', cid);
       if (c != null) custSid = customerEntityId(c);
     }
+    // Party local mein nahi mili thi (pull par) => cloud ki mehfooz pehchan wapas bhejo, null nahi.
+    if (custSid == null) {
+      final stored = sale['customerServerId'];
+      if (stored is String && stored.trim().isNotEmpty) custSid = stored;
+    }
     await enqueue(ex, 'sale', saleEntityId(invoice), 'upsert',
         salePayload(sale, [for (final i in items) Map<String, Object?>.from(i)], custSid));
   }
@@ -413,6 +418,10 @@ class SyncQueueHelper {
     if (sid is int) {
       final s = await _row(ex, 'suppliers', 'id', sid);
       if (s != null) supSid = supplierEntityId(s);
+    }
+    if (supSid == null) {
+      final stored = p['supplierServerId'];
+      if (stored is String && stored.trim().isNotEmpty) supSid = stored;
     }
     await enqueue(ex, 'purchase', purchaseEntityId(billNo), 'upsert',
         purchasePayload(p, [for (final i in items) Map<String, Object?>.from(i)], supSid));
@@ -437,6 +446,10 @@ class SyncQueueHelper {
           partySid = table == 'customers' ? customerEntityId(party) : supplierEntityId(party);
         }
       }
+    }
+    if (partySid == null) {
+      final stored = p['partyServerId'];
+      if (stored is String && stored.trim().isNotEmpty) partySid = stored;
     }
     await enqueue(ex, 'payment', eid, 'upsert', paymentPayload(p, partySid));
   }
