@@ -107,6 +107,13 @@ void main() {
     test('qty 0', () => expect(validatePurchaseLines([_line('a', 0, 'pcs', 10)]), contains('qty')));
     test('negative rate', () => expect(validatePurchaseLines([_line('a', 1, 'pcs', -1)]), contains('negative')));
     test('sab theek', () => expect(validatePurchaseLines([_line('a', 1, 'pcs', 10)]), isNull));
+    test('negative qty', () => expect(validatePurchaseLines([_line('a', -1, 'pcs', 10)]), isNotNull));
+    test('ek kharab line baaki theek lines ke saath poora bill rokti hai', () {
+      expect(
+        validatePurchaseLines([_line('a', 1, 'pcs', 10), _line('b', 0, 'pcs', 10), _line('c', 2, 'pcs', 5)]),
+        isNotNull,
+      );
+    });
   });
 
   group('planPurchaseCash', () {

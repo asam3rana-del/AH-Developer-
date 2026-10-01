@@ -270,7 +270,7 @@
   "phase": 6,
   "dart": "lib/screens/party_transaction_screen.dart + lib/db/party_transaction_repository.dart",
   "status": "done",
-  "note": "Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = clipboard, Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart."
+  "note": "Balance/Stuck/stat cards (live ledger), All/Bills/Payments + search, Billed Items dialog (item edit/delete admin-only, ek transaction: stock+cost+bill+balance+cash+sync_queue), Receive/Make Payment (showPaymentDialog) + payment Edit/Delete (admin) + Share (clipboard), Edit Name, openPayment. Farq: Share = share sheet (share_plus; na khule to clipboard), Overdue asli (bill dueDate, DB v10), supplier screen sirf admin/manager. Test: test/party_transaction_test.dart."
  },
  {
   "kotlin": "PartyReportsActivity.kt",
@@ -340,7 +340,7 @@
   "phase": 7,
   "dart": "lib/screens/purchase_history_screen.dart",
   "status": "done",
-  "note": "lib/screens/purchase_history_screen.dart + lib/db/purchase_history_repository.dart (pure summarizePurchases/filterPurchaseRows/parseReturnRequest/returnedLineAmount). Admin-only. Partial return + delete ek transaction mein. Card tap = PurchaseScreen(editBillNo:) (returned bill par detail dialog). Print = text preview, Share = clipboard. Test: test/purchase_history_test.dart."
+  "note": "lib/screens/purchase_history_screen.dart + lib/db/purchase_history_repository.dart (pure summarizePurchases/filterPurchaseRows/parseReturnRequest/returnedLineAmount). Admin-only. Partial return + delete ek transaction mein. Card tap = PurchaseScreen(editBillNo:) (returned bill par detail dialog). Print = text preview, Share = share sheet (share_plus; na khule to clipboard). Test: test/purchase_history_test.dart."
  },
  {
   "kotlin": "CashActivity.kt",

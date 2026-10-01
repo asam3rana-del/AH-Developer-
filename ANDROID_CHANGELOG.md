@@ -1,5 +1,24 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-10-01) — Phase 6 audit + Share asli share sheet se
+- [x] Phase 6 (Party list, Party Dashboard, Party Transaction, Party Reports, Due Reminders) Kotlin se function-by-function milaya: koi feature missing nahi (6 reports, Supplier/Customer Statement, Edit Rates admin-only, Purchase/Sales Due tabs, payment edit/delete, merge/recalc/cleanup previews sab maujood).
+- [x] Gap pur: Party Dashboard "Share summary", Party Transaction ke Share Statement / Share Receipt aur Purchase History ka Share pehle sirf clipboard mein copy karte the (comment mein "share plugin nahi" likha tha, jabke `share_plus` pubspec mein hai). Ab asli share sheet (`Share.share`); na khule to clipboard par wapas (purane toast ke saath).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test`.
+
+## Flutter side (2026-10-01) — Phase 5 audit
+- [x] Phase 5 (Item Rate Search, Rate Comparison, Items, Bulk rates/units, SaleCart, Quick Sale, Hold/Recall) Kotlin + `docs/specs/item_rate_search.md` se milaya: koi feature missing nahi. Spec ke role rules maujood (cashier ke liye purchase data load hi nahi hota; Show cost sirf admin/manager). Rate List export `product_screen.dart` mein, Import `items_screen.dart` mein (Kotlin ka "Rate List" pill ab Bulk Missing Rates kholta hai — Dart bhi wahi).
+- [x] Phase 5 ka koi Kotlin test nahi hai; Dart tests maujood: `items_test`, `rate_comparison_test`, `rate_list_csv_test`, `sale_cart_test`.
+- [x] Phase 2 ka chhota gap bhi pur: Kotlin `SavePurchaseUseCaseTest` ke 2 cases (negative qty, ek kharab line poora bill rokti hai) `purchase_screen_test.dart` mein add.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter test test/purchase_screen_test.dart`.
+
+## Flutter side (2026-10-01) — Phase 4 audit + PasswordHasher tests
+- [x] Phase 4 (Login, Settings, Users, AppLock, Dashboard) Kotlin se function-by-function milaya: koi feature missing nahi. Backup Password (dekhna/Change) aur file se Restore `BackupExportScreen` mein hain; User Management mein aakhri active admin ki hifazat Kotlin se zyada sakht (farq jaan boojh kar).
+- [x] `test/password_hasher_test.dart` ab Kotlin `PasswordHasherTest` ke saare 8 cases cover karta hai (pehle sirf 2).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter test test/password_hasher_test.dart`.
+
+## Flutter side (2026-10-01) — Phase 0-3 test pass
+- [x] User ne APK build kiya: **build successful**, aur Phase 0, 1, 2, 3 (Models/DB, Products, Purchase, Sale) sab test ho gaye — **pass** (user ki report). Agla: Phase 4.
+
 ## Flutter side (2026-10-01) — Phase 3 (Sale): Kotlin tests Dart mein
 - [x] `test/discount_calculator_test.dart` (Kotlin `DiscountCalculatorTest`, 11 cases) aur `test/sale_save_validation_test.dart` (Kotlin `SaveSaleUseCaseTest` + `SaveQuickSaleUseCaseTest` ke validation cases: khali items, qty 0/negative, negative rate, due par customer zaroori, ek kharab line poora sale rokti hai). Ye checks DB se pehle hote hain, is liye DB ki zaroorat nahi.
 - Farq: Kotlin ke jo cases repository/DB ke andar chalte hain (stock issue, duplicate invoice, quick-sale success/credit flag) Dart mein DB ke baghair test nahi ho sakte (sqflite ffi dev-dependency nahi) — woh device par dekhein.
@@ -63,7 +82,7 @@
 - [x] Parties: phone field ke saath contact-picker icon (`flutter_contacts`), naam khali ho to contact ka naam bhi bharta hai. `lib/services/contact_picker.dart`. Android `READ_CONTACTS` `tools/android_fix.sh` se, iOS `NSContactsUsageDescription` `.github/workflows/build.yml` se (dono CI-patched — `.github` GitHub par replace karna na bhulein).
 - [x] Dashboard: "App crashed last time" dialog (Share / Copy / Dismiss). `lib/services/crash_handler.dart` (FlutterError.onError + PlatformDispatcher.onError -> SharedPreferences), `main()` mein sab se pehle install.
 - [ ] Ye sab zip mein bina `flutter analyze` / `flutter test` ke likha gaya (is environment mein Flutter SDK nahi) — pehle CI/PC par chalayein: `flutter pub get && flutter analyze && flutter test`.
-- [ ] Baaki (Phase 4): purani screens ko `AppColors` se `ThemeManager.palette` par migrate (~500 jagah, 15 screens — screen-by-screen, device par check ke saath), Settings ke chhote rows. (Items tile ka role: Step 1 mein tay ho gaya.)
+- [x] (2026-10-01 audit) Phase 4 ka `AppColors` -> `ThemeManager.palette` migration mukammal: ab `lib/` mein `AppColors` sirf `theme/app_colors.dart` aur `premium_widgets.dart` ke `fade()/fadeDark()` helpers mein hai. Settings ke baqi rows Kotlin se milaye — maujood. Sirf device par nazar-e-saani baaki.
 
 ## Flutter side (2026-09-29) — CI build fix 2
 - [x] Android APK: `purchase_history_repository.dart` aur `party_transaction_repository.dart` mein ek FAALTU `}` tha (`_adjustSupplierBalance` / `_adjustPartyBalance` ke baad) — class wahin band ho jati thi, is liye `deletePurchase`/`returnItems` "isn't defined" aur "Expected a declaration, but got '}'" aaye. Faaltu `}` hata diya. Poori `lib/` + `test/` ka bracket scan ab saaf.

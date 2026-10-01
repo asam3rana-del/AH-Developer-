@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/purchase_history_repository.dart';
@@ -159,8 +160,13 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
       balance: r.due,
       date: DateTime.fromMillisecondsSinceEpoch(r.createdAt),
     );
-    await Clipboard.setData(ClipboardData(text: text));
-    _toast(Loc.t('Purchase details copied', 'خریداری کی تفصیل کاپی ہو گئی'));
+    try {
+      await Share.share(text);
+    } catch (_) {
+      // Share sheet na khule (jaise kuch iPad/desktop) to clipboard par wapas.
+      await Clipboard.setData(ClipboardData(text: text));
+      _toast(Loc.t('Purchase details copied', 'خریداری کی تفصیل کاپی ہو گئی'));
+    }
   }
 
   Future<void> _delete(PurchaseHistoryRow r) async {

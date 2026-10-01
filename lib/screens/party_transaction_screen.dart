@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/party_transaction_repository.dart';
@@ -259,8 +260,13 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       if (pay.billReference.isNotEmpty) '${Loc.t('Against Bill', 'بل نمبر')}: ${pay.billReference}',
       if (pay.note.isNotEmpty) '${Loc.t('Note', 'نوٹ')}: ${pay.note}',
     ];
-    await Clipboard.setData(ClipboardData(text: lines.join('\n')));
-    _toast(Loc.t('Receipt copied — paste it in WhatsApp/SMS', 'رسید کاپی ہو گئی — واٹس ایپ/ایس ایم ایس میں پیسٹ کریں'));
+    try {
+      await Share.share(lines.join('\n'));
+    } catch (_) {
+      // Share sheet na khule (jaise kuch iPad/desktop) to clipboard par wapas.
+      await Clipboard.setData(ClipboardData(text: lines.join('\n')));
+      _toast(Loc.t('Receipt copied — paste it in WhatsApp/SMS', 'رسید کاپی ہو گئی — واٹس ایپ/ایس ایم ایس میں پیسٹ کریں'));
+    }
   }
 
   Future<void> _copyStatement() async {
@@ -282,8 +288,13 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     for (final e in oldestFirst) {
       sb.writeln('${_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}  \u2014  ${e.searchText}');
     }
-    await Clipboard.setData(ClipboardData(text: sb.toString()));
-    _toast(Loc.t('Statement copied — paste it in WhatsApp/SMS', 'سٹیٹمنٹ کاپی ہو گئی — واٹس ایپ/ایس ایم ایس میں پیسٹ کریں'));
+    try {
+      await Share.share(sb.toString());
+    } catch (_) {
+      // Share sheet na khule (jaise kuch iPad/desktop) to clipboard par wapas.
+      await Clipboard.setData(ClipboardData(text: sb.toString()));
+      _toast(Loc.t('Statement copied — paste it in WhatsApp/SMS', 'سٹیٹمنٹ کاپی ہو گئی — واٹس ایپ/ایس ایم ایس میں پیسٹ کریں'));
+    }
   }
 
   /// closing > 0 customer = unhone dena hai; supplier closing > 0 = humein dena hai.

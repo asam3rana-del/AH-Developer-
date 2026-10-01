@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/party_dashboard_repository.dart';
@@ -38,7 +39,7 @@ import 'settings_screen.dart';
 ///  * "+" menu: Sale/Purchase Return (History, Phase 7); Payment Received/Made abhi Payments
 ///    screen kholta hai (party picker + openPayment PartyQuickAddMenu.kt ke saath aayega).
 ///  * Overdue / Due Today badge: ab hai (DB v10 sales.dueDate).
-///  * Reports (Phase 9). Share summary: share plugin nahi, is liye clipboard mein copy.
+///  * Reports (Phase 9). Share summary: share sheet (share_plus); na khule to clipboard.
 class PartyDashboardScreen extends StatefulWidget {
   /// Dashboard "Payments" tile (Kotlin `quickPayment=true`): screen khulte hi Received/Made chooser,
   /// phir searchable party picker — Customers -> "+" -> Payment -> party ke 3 tap bachte hain.
@@ -219,8 +220,13 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
       "You'll Get: Rs ${t.toGet.toStringAsFixed(2)}\nYou'll Give: Rs ${t.toGive.toStringAsFixed(2)}",
       'آپ کو ملیں گے: روپے ${t.toGet.toStringAsFixed(2)}\nآپ کو دینے ہیں: روپے ${t.toGive.toStringAsFixed(2)}',
     );
-    await Clipboard.setData(ClipboardData(text: text));
-    _toast(Loc.t('Summary copied', 'خلاصہ کاپی ہو گیا'));
+    try {
+      await Share.share(text);
+    } catch (_) {
+      // Share sheet na khule (jaise kuch iPad/desktop) to clipboard par wapas.
+      await Clipboard.setData(ClipboardData(text: text));
+      _toast(Loc.t('Summary copied', 'خلاصہ کاپی ہو گیا'));
+    }
   }
 
   void _toggleSummaryFilter(PartyFilter target) {
