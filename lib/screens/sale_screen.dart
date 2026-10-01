@@ -978,11 +978,11 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Recall'),
-          content: const Text('Current bill ki items replace ho jayengi. Recall karen?'),
+          title: Text(Loc.t('Recall', 'ریکال')),
+          content: Text(Loc.t('Current bill items will be replaced. Recall?', 'موجودہ بل کی آئٹمز بدل جائیں گی۔ ریکال کریں؟')),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Recall')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Recall', 'ریکال'))),
           ],
         ),
       );
@@ -1379,7 +1379,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('DATE', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue)),
+                      Text(Loc.t('DATE', 'تاریخ'), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue)),
                       GestureDetector(
                         onTap: _pickDate,
                         child: Text(DateFormat('dd MMM yyyy').format(_saleDate),
@@ -1403,7 +1403,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               color: ThemeManager.palette.textMuted,
               constraints: const BoxConstraints(minHeight: 36, minWidth: 72),
               onPressed: _onSaleTypeChanged,
-              children: const [Text('Retail'), Text('Wholesale')],
+              children: [Text(Loc.t('Retail', 'ریٹیل')), Text(Loc.t('Wholesale', 'ہول سیل'))],
             ),
           ),
         ],
@@ -1820,7 +1820,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Subtotal', style: TextStyle(color: ThemeManager.palette.textMuted)),
+              Text(Loc.t('Subtotal', 'سب ٹوٹل'), style: TextStyle(color: ThemeManager.palette.textMuted)),
               Text(totals.subtotal.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
             ],
           ),
@@ -1830,7 +1830,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Total', style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+              Text(Loc.t('Total', 'ٹوٹل'), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
               Text(totals.total.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: ThemeManager.palette.navyInk)),
             ],
           ),
@@ -1846,9 +1846,9 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       isExpanded: true,
                       underline: const SizedBox.shrink(),
                       value: _paymentMethod,
-                      items: const [
-                        DropdownMenuItem(value: 'Cash', child: Text('Cash')),
-                        DropdownMenuItem(value: 'Bank', child: Text('Bank')),
+                      items: [
+                        DropdownMenuItem(value: 'Cash', child: Text(Loc.t('Cash', 'کیش'))),
+                        DropdownMenuItem(value: 'Bank', child: Text(Loc.t('Bank', 'بینک'))),
                       ],
                       onChanged: (v) => setState(() => _paymentMethod = v ?? 'Cash'),
                     ),

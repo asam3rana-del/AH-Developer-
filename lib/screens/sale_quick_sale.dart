@@ -319,7 +319,7 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
                     autocompleteOptionsView<String>(context, onSelected, options, (o) => o),
               ),
               const SizedBox(height: 12),
-              Text('Total: Rs ${total.toStringAsFixed(2)}',
+              Text('${Loc.t('Total', 'ٹوٹل')}: Rs ${total.toStringAsFixed(2)}',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
               if (_error != null)
                 Padding(

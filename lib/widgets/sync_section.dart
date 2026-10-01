@@ -63,7 +63,7 @@ class _SyncSectionState extends State<SyncSection> {
         builder: (ctx) => AlertDialog(
           title: Text(title),
           content: SingleChildScrollView(child: Text(message)),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('OK', 'ٹھیک ہے')))],
         ),
       );
 
@@ -323,7 +323,7 @@ class _SyncSectionState extends State<SyncSection> {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Sync Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+                    Text(Loc.t('Sync Now', 'ابھی سنک کریں'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
                     const SizedBox(height: 3),
                     Row(children: [
                       Icon(Icons.circle, size: 9, color: dot),
@@ -343,7 +343,7 @@ class _SyncSectionState extends State<SyncSection> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.cloud_outlined, color: ThemeManager.palette.navyInk),
-              title: const Text('Cloud Sync Setup'),
+              title: Text(Loc.t('Cloud Sync Setup', 'کلاؤڈ سنک سیٹ اپ')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
                 await showDialog<void>(context: context, builder: (_) => const CloudSyncSetupDialog());
@@ -355,7 +355,7 @@ class _SyncSectionState extends State<SyncSection> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.receipt_long_outlined, color: ThemeManager.palette.navyInk),
-            title: const Text('Sync History'),
+            title: Text(Loc.t('Sync History', 'سنک ہسٹری')),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showDialog<void>(context: context, builder: (_) => const SyncHistoryDialog()),
           ),
@@ -394,11 +394,11 @@ class _SyncHistoryDialogState extends State<SyncHistoryDialog> {
   Widget build(BuildContext context) {
     final h = _h;
     return AlertDialog(
-      title: const Text('Sync History'),
+      title: Text(Loc.t('Sync History', 'سنک ہسٹری')),
       content: SizedBox(
         width: double.maxFinite,
         child: h == null
-            ? const Padding(padding: EdgeInsets.all(12), child: Text('Loading…'))
+            ? Padding(padding: const EdgeInsets.all(12), child: Text(Loc.t('Loading…', 'لوڈ ہو رہا ہے…')))
             : ListView(shrinkWrap: true, children: [
                 if (h.stuckCount > 0)
                   Container(
@@ -451,7 +451,7 @@ class _SyncHistoryDialogState extends State<SyncHistoryDialog> {
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text(Loc.t('Sync history cleared', 'سنک ہسٹری صاف ہو گئی'))));
           },
-          child: const Text('Clear History'),
+          child: Text(Loc.t('Clear History', 'ہسٹری صاف کریں')),
         ),
         FilledButton(onPressed: () => Navigator.pop(context), child: Text(Loc.t('Close', 'بند کریں'))),
       ],
@@ -581,7 +581,7 @@ class _CloudSyncSetupDialogState extends State<CloudSyncSetupDialog> {
                 Navigator.pop(ctx);
                 SettingsSync.trigger();
               },
-              child: const Text('Sync Now'),
+              child: Text(Loc.t('Sync Now', 'ابھی سنک کریں')),
             ),
           ],
         ),
@@ -675,11 +675,11 @@ class _CloudSyncSetupDialogState extends State<CloudSyncSetupDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Cloud Sync Setup'),
+      title: Text(Loc.t('Cloud Sync Setup', 'کلاؤڈ سنک سیٹ اپ')),
       content: SizedBox(
         width: double.maxFinite,
         child: !_loaded
-            ? const Padding(padding: EdgeInsets.all(12), child: Text('Loading…'))
+            ? Padding(padding: const EdgeInsets.all(12), child: Text(Loc.t('Loading…', 'لوڈ ہو رہا ہے…')))
             : SingleChildScrollView(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                   Text(
@@ -737,14 +737,14 @@ class _CloudSyncSetupDialogState extends State<CloudSyncSetupDialog> {
                           await Clipboard.setData(ClipboardData(text: _uid!));
                           if (mounted) _toast(Loc.t('Device ID copied', 'ڈیوائس آئی ڈی کاپی ہو گئی'));
                         },
-                        child: const Text('Copy'),
+                        child: Text(Loc.t('Copy', 'کاپی کریں')),
                       ),
                   ]),
                 ]),
               ),
       ),
       actions: [
-        if (_hasExisting) TextButton(onPressed: _busy ? null : _disconnect, child: const Text('Disconnect')),
+        if (_hasExisting) TextButton(onPressed: _busy ? null : _disconnect, child: Text(Loc.t('Disconnect', 'ڈسکنیکٹ کریں'))),
         TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: Text(Loc.t('Cancel', 'منسوخ'))),
         FilledButton(onPressed: _busy || !_loaded ? null : _save, child: Text(Loc.t('Save', 'محفوظ کریں'))),
       ],

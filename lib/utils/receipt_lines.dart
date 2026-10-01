@@ -45,7 +45,10 @@ class RlDivider extends ReceiptLine {
   const RlDivider();
 }
 
-String _q(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
+String _q(double v) {
+  if (v == v.truncateToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+}
 String _m(double v) => v.toStringAsFixed(2);
 
 /// Header (shop + bill info) — har slip par dohraya jata hai.
@@ -98,6 +101,7 @@ List<List<ReceiptLine>> paginateReceipt({
   required List<ReceiptLine> footer,
   int maxItemsPerPage = 18,
 }) {
+  if (maxItemsPerPage < 1) maxItemsPerPage = 1; // 0/negative par infinite loop na ho
   final tableHeader = items.isEmpty ? null : items.first;
   final rows = items.isEmpty ? <ReceiptLine>[] : items.sublist(1);
   if (rows.length <= maxItemsPerPage) return [[...header, ...items, ...footer]];

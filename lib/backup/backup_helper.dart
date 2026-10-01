@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:intl/intl.dart';
@@ -10,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/app_database.dart';
+import '../sync/device_tag.dart';
+import '../sync/sync_repository.dart';
 import 'backup_crypto.dart';
 import 'downloads_copy.dart';
 import 'backup_password_store.dart';
@@ -40,7 +41,6 @@ class BackupHelper {
   static const folderName = 'IBTISAAM POS Backups';
   static const backupExtension = 'ibbackup';
   static const _lastBackupKey = 'backup_throttle_last_backup_at_millis';
-  static const _deviceTagKey = 'device_tag'; // Phase 10 (DeviceTag) isi key ko dobara istemal kare.
 
   // Kotlin `SQLITE_HEADER`: "SQLite format 3\u0000"
   static const List<int> _sqliteHeader = [
@@ -60,15 +60,11 @@ class BackupHelper {
 
   // ---------------- device tag ----------------
 
+  /// Kotlin `DeviceTag.current` — sync wala hi tag (pehle yahan alag random tag banta tha).
+  /// `init()` dobara bulana safe hai; background isolate mein bhi sahi tag milta hai.
   static Future<String> deviceTag() async {
-    final prefs = await SharedPreferences.getInstance();
-    var tag = prefs.getString(_deviceTagKey);
-    if (tag == null || tag.isEmpty) {
-      final r = Random.secure();
-      tag = List.generate(4, (_) => r.nextInt(16).toRadixString(16)).join().toUpperCase();
-      await prefs.setString(_deviceTagKey, tag);
-    }
-    return tag;
+    await DeviceTag.init();
+    return DeviceTag.current;
   }
 
   // ---------------- folders / listing ----------------
@@ -127,7 +123,10 @@ class BackupHelper {
 
   static Future<File?> _backupNowUnlocked() async {
     final dbFile = File(await AppDatabase.instance.databasePath);
-    if (!await dbFile.exists()) return null;
+    if (!await dbFile.exists()) {
+      lastError = 'Database file nahi mili';
+      return null;
+    }
 
     // Kotlin FIX: WAL ka data main .db mein aaye, warna taaza entries backup se reh jati hain.
     try {
@@ -274,6 +273,7 @@ class BackupHelper {
         await temp.copy(dbPath);
         await _deleteQuietly(temp);
       }
+      await _resetSyncCheckpoint();
       return true;
     } catch (e) {
       lastError = e is BackupCryptoException ? e.message : e.toString();
@@ -302,12 +302,21 @@ class BackupHelper {
       await live.insert('app_settings', {'key': 'skip_login', 'value': '1'}, conflictAlgorithm: ConflictAlgorithm.replace);
       await live.insert('app_settings', {'key': 'admin_seeded', 'value': '1'}, conflictAlgorithm: ConflictAlgorithm.replace);
       await _deleteQuietly(temp);
+      await _resetSyncCheckpoint();
       return true;
     } catch (e) {
       lastError = e is KotlinImportException ? e.message : e.toString();
       await _deleteQuietly(temp);
       return false;
     }
+  }
+
+  /// Restore/import ke baad pull checkpoint 0: purana data aaya hai, is liye server ka naya data
+  /// dobara pull hona chahiye (apply idempotent hai; pending edits ki guards wahi). Fail par nazar-andaz.
+  static Future<void> _resetSyncCheckpoint() async {
+    try {
+      await SyncRepository.resetSyncCheckpoint(0);
+    } catch (_) {}
   }
 
   static Future<bool> _isValidSqliteDb(File file) async {

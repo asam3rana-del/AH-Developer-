@@ -16,12 +16,15 @@ class ScannedItem {
 }
 
 final _skipWords = RegExp(
-  r'\b(total|subtotal|sub total|discount|paid|balance|change|cash|tax|gst|invoice|inv|bill no|date|time|phone|tel|mob|thank|shukriya|customer|supplier|amount due|due)\b',
+  r'\b(total|subtotal|sub total|discount|paid|balance|change|cash|tax|gst|invoice|inv|bill no|date|time|phone|mob|thank|shukriya|customer|supplier|amount due|due)\b',
   caseSensitive: false,
 );
-final _numRe = RegExp(r'\d+(?:[.,]\d+)?');
+// "1,200" / "1,200,000.50" (hazaron ka comma) ek hi number; "2,5" = 2.5 (decimal comma).
+final _numRe = RegExp(r'\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?');
+final _thousandsRe = RegExp(r'^\d{1,3}(?:,\d{3})+(?:\.\d+)?$');
 
-double? _num(String s) => double.tryParse(s.replaceAll(',', '.'));
+double? _num(String s) =>
+    double.tryParse(_thousandsRe.hasMatch(s) ? s.replaceAll(',', '') : s.replaceAll(',', '.'));
 
 bool _near(double a, double b) => (a - b).abs() <= 0.02 * (b.abs() < 1 ? 1 : b.abs());
 
@@ -52,9 +55,6 @@ List<ScannedLine> parseBillText(String raw) {
     if (nums.length >= 3) {
       final a = nums[nums.length - 3], b = nums[nums.length - 2], c = nums[nums.length - 1];
       if (_near(a * b, c)) {
-        qty = a;
-        rate = b;
-      } else if (_near(b * a, c)) {
         qty = a;
         rate = b;
       } else if (_near(b * c, a)) {

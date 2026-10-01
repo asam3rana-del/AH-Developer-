@@ -276,7 +276,7 @@ class _BackupBodyState extends State<_BackupBody> {
         builder: (ctx) => AlertDialog(
           title: Text(Loc.t('Restore failed', 'بحالی ناکام')),
           content: Text('${BackupHelper.lastError ?? '-'}\n\n${Loc.t('Your current data was not changed.', 'آپ کا موجودہ ڈیٹا نہیں بدلا۔')}'),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('OK', 'ٹھیک ہے')))],
         ),
       );
       return;
@@ -292,7 +292,7 @@ class _BackupBodyState extends State<_BackupBody> {
           if (BackupHelper.lastImportSummary != null) BackupHelper.lastImportSummary!,
           Loc.t('Please sign in again.', 'براہِ کرم دوبارہ لاگ اِن کریں۔'),
         ].join('\n\n')),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('OK', 'ٹھیک ہے')))],
       ),
     );
     await Session.clear();

@@ -151,7 +151,7 @@ class _BulkDefaultUnitScreenState extends State<BulkDefaultUnitScreen> {
               ),
               onPressed: _saving ? null : _saveAndNext,
               icon: const Icon(Icons.save, size: 18),
-              label: const Text('SAVE & NEXT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+              label: Text(Loc.t('SAVE & NEXT', 'محفوظ کریں اور اگلا'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
             ),
           ),
         ]),

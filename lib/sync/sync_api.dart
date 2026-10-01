@@ -24,9 +24,8 @@ import 'sync_types.dart';
 /// shop_empty_shell_log — schema Android jaisa (dono apps ek backend).
 ///
 /// STATUS: HEADER + PUSH + PULL + APPLY (hissa 1 + 2, sab 20 collections) + branch cleanup
-/// (count/delete) — `SyncApi.kt` mukammal. `SyncRepository.backend = SyncApi.instance` abhi bhi NA
-/// lagayein jab tak `SyncQueueHelper` (asal Android-jaisa queue payload) port hokar repositories mein
-/// na jur jaye — warna purani ad-hoc queue rows Firestore mein ghalat shape ki push hongi.
+/// (count/delete) — `SyncApi.kt` mukammal. Wiring `installSyncWiring()` (settings_sync.dart) se main() mein
+/// hoti hai: `SyncRepository.backend = SyncApi.instance`, `afterApply = mergeOwnDuplicateExpenses`.
 class SyncApi implements SyncBackend {
   SyncApi._();
   static final SyncApi instance = SyncApi._();
@@ -189,8 +188,8 @@ class SyncApi implements SyncBackend {
   // ---------- PULL ----------
 
   /// Kotlin `pull(context, since)`: is branch ke wo sab documents jin ka `updatedAt > since`, 20
-  /// collections se (server se seedha, cache nahi). Cloud project nahi/ sign-in nahi ho saka => khali
-  /// result (`serverTime = since`, "sync set up nahi" ki normal halat).
+  /// collections se (server se seedha, cache nahi). Cloud project nahi / sign-in nahi ho saka => Exception
+  /// (Kotlin mein khali result tha; yahan saaf ghalti taake "Already up to date" jhoota na dikhe).
   ///
   /// FARQ (Kotlin ke comment ki niyyat ke mutabiq): branch code na ho to [BranchNotConfiguredException]
   /// PEHLE — Kotlin mein `firestoreFor` branch na hone par null lauta kar khali (kamyab) result de deta
@@ -205,7 +204,14 @@ class SyncApi implements SyncBackend {
       ));
     }
     final fs = await firestoreFor();
-    if (fs == null) return PullResult(serverTime: since);
+    if (fs == null) {
+      // FIX: pehle yahan khali (kamyab) result jata tha, is liye sign-in fail / cloud na milne par bhi
+      // "Already up to date" dikhta tha. Ab saaf ghalti — SyncRepository usay "Sync failed: ..." banata hai.
+      throw Exception(Loc.t(
+        'Could not connect to the cloud (sign-in failed or cloud project not available) — check internet and Cloud Sync Setup, then try again.',
+        'کلاؤڈ سے رابطہ نہیں ہو سکا (سائن اِن ناکام یا کلاؤڈ پراجیکٹ دستیاب نہیں) — انٹرنیٹ اور Cloud Sync Setup چیک کر کے دوبارہ کوشش کریں۔',
+      ));
+    }
 
     Future<MapEntry<String, List<SyncDoc>>> load(String collection) async {
       final snap = await fs

@@ -21,12 +21,6 @@ import 'sync/sync_worker.dart';
 import 'theme/theme_manager.dart';
 import 'utils/loc.dart';
 
-// TODO: once you run `flutterfire configure` (see README), uncomment these
-// and call Firebase.initializeApp() in main() before runApp() — mirrors the
-// Firebase.initializeApp() call in the Kotlin app's Application class.
-// import 'package:firebase_core/firebase_core.dart';
-// import 'firebase_options.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // MainActivity.onCreate: CrashHandler.install — sab se pehle, taake baad ki har crash pakri jaye.
@@ -36,22 +30,25 @@ void main() async {
   // PosApplication.onCreate() ka pehla kaam: DeviceTag / BranchConfigStore (IDs mein zaroorat).
   await DeviceTag.init();
   await BranchConfigStore.init();
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await Loc.load();
   await ThemeManager.load();
   await Session.load();
   // PosApplication.onCreate() mein AppLock.register(this) ke barabar.
   await AppLock.instance.register(loginBuilder: (_) => const LoginScreen());
   // PosApplication.onCreate() mein BackupScheduler.register(this) ke barabar (12 PM / 9 PM / app-close backup).
-  BackupScheduler.instance.register();
+  try {
+    BackupScheduler.instance.register();
+  } catch (_) {} // plugin fail ho to bhi app khule
   // NetworkMonitor.register(this): internet wapas aane par sync (SyncWorker aane par onOnline jurega).
   // NetworkMonitor.onAvailable -> SyncWorker.triggerNow (20 s debounce + KEEP: retry-storm FIX).
   // Phase 10 ka aakhri jor: SyncRepository.backend = SyncApi, afterApply = mergeOwnDuplicateExpenses,
   // SyncQueueHelper.onQueued = SyncWorker.triggerNow (Kotlin `SyncQueueHelper.trigger`).
   installSyncWiring();
   NetworkMonitor.onOnline = () => SyncWorker.instance.triggerNow();
-  await NetworkMonitor.register();
-  // PosApplication.onCreate() mein SyncWorker.schedulePeriodic(this) (har 5 min, app zinda ho tab — screen par ya background mein).
+  try {
+    await NetworkMonitor.register();
+  } catch (_) {} // internet-monitor fail ho to bhi app khule (periodic sync chalta rahega)
+  // PosApplication.onCreate() mein SyncWorker.schedulePeriodic(this) (har 15 min, app zinda ho tab — screen par ya background mein).
   SyncWorker.instance.schedulePeriodic();
   // Android: minimize / back ke baad bhi sync na ruke (foreground service). Fail ho to app chalti rahe.
   unawaited(SyncKeepAlive.start());

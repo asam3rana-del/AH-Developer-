@@ -22,7 +22,7 @@ class SyncOutcome {
 /// manual "Sync Now") isi ek jagah se guzarte hain, kisi screen ke lifecycle se bandhe baghair.
 ///
 /// FARQ (Kotlin se) — `workmanager` plugin ke baghair, BackupScheduler jaisa:
-///  * Periodic sync sirf jab app zinda ho (screen par ya background mein): har 5 min ka Timer, app
+///  * Periodic sync sirf jab app zinda ho (screen par ya background mein): har 15 min ka Timer, app
 ///    dobara khulne (resumed) par agar pichli sync 1 min se purani ho, aur background jate (paused)
 ///    waqt pending changes bhejne ke liye. Poori tarah band app ke liye WorkManager/BGTaskScheduler baad mein.
 ///  * Kotlin ka `NetworkType.CONNECTED` constraint: offline hone par sync chalti hi nahi (warna push
@@ -34,10 +34,9 @@ class SyncWorker {
   SyncWorker._();
   static final SyncWorker instance = SyncWorker._();
 
-  /// App khula (ya background mein zinda) ho to har 5 min sync. (Kotlin WorkManager 15 min tha, par
-  /// Flutter mein background service nahi, is liye app zinda hone ke dauran zyada baar chalate hain.
-  /// Sync sirf badli hui cheezein push/pull karti hai, is liye quota par bhaari nahi.)
-  static const Duration periodicInterval = Duration(minutes: 5);
+  /// App khula (ya background mein zinda) ho to har 15 min sync (Kotlin WorkManager jaisa; Firestore reads kam). Foran sync
+  /// phir bhi hoti hai: enqueue ke baad (triggerNow), internet wapas aane par, resume/pause par.
+  static const Duration periodicInterval = Duration(minutes: 15);
 
   /// App wapas saamne aane par: pichli sync is se purani ho to turant sync.
   static const Duration resumeMinGap = Duration(minutes: 1);

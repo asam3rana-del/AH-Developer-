@@ -11,6 +11,8 @@ import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/unit_dialog.dart';
 import '../theme/theme_manager.dart';
+import '../services/session.dart';
+import '../widgets/role_guard.dart';
 
 class ProductScreen extends StatefulWidget {
   /// Items screen se edit: is barcode ka product form mein khul jata hai
@@ -414,6 +416,8 @@ class _ProductScreenState extends State<ProductScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Kotlin ProductActivity jaisa: screen ke andar bhi role check (callers ke RoleGuard par bharosa nahi).
+    if (!Session.isAdmin) return const RoleGuard(allowed: {'admin'}, child: SizedBox());
     return Scaffold(
       backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(

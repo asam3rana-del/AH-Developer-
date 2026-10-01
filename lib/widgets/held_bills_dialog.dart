@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/held_bill.dart';
 import '../services/sale_hold_recall.dart';
 import '../theme/theme_manager.dart';
+import '../utils/loc.dart';
 
 enum HeldBillAction { recall, delete }
 
@@ -32,13 +33,13 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
             Container(
               color: ThemeManager.palette.navyInk,
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-              child: const Text('Held Bills', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              child: Text(Loc.t('Held Bills', 'ہولڈ بلز'), style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             Flexible(
               child: held.isEmpty
                   ? Padding(
                       padding: EdgeInsets.all(24),
-                      child: Text('Koi held bill nahi hai', style: TextStyle(color: ThemeManager.palette.textMuted)),
+                      child: Text(Loc.t('No held bills', 'کوئی ہولڈ بل نہیں'), style: TextStyle(color: ThemeManager.palette.textMuted)),
                     )
                   : ListView.builder(
                       shrinkWrap: true,
@@ -80,7 +81,7 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                                   decoration: BoxDecoration(color: ThemeManager.palette.teal, borderRadius: BorderRadius.circular(20)),
-                                  child: const Text('RECALL', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  child: Text(Loc.t('RECALL', 'ریکال'), style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -102,7 +103,7 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Close', style: TextStyle(color: ThemeManager.palette.textMuted)),
+              child: Text(Loc.t('Close', 'بند کریں'), style: TextStyle(color: ThemeManager.palette.textMuted)),
             ),
           ],
         ),

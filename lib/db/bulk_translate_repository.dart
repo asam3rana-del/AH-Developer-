@@ -4,6 +4,7 @@ import 'app_database.dart';
 import 'category_unit_repository.dart';
 import 'maintenance_sync.dart';
 import 'product_repository.dart';
+import 'items_repository.dart' show requireItemsAdmin;
 
 /// Kotlin `looksUrdu`: Urdu/Arabic script (U+0600–U+06FF) wali value — saaf English values yahan dobara nahi aati.
 bool looksUrdu(String s) => s.runes.any((r) => r >= 0x0600 && r <= 0x06FF);
@@ -33,6 +34,7 @@ class BulkTranslateRepository {
   }
 
   Future<TranslateValues> load() async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
 
     final cats = <String>[
@@ -62,6 +64,7 @@ class BulkTranslateRepository {
     required Map<String, String> categories,
     required Map<String, String> units,
   }) async {
+    requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     var count = 0;
 
@@ -125,6 +128,7 @@ class BulkTranslateRepository {
   /// Ek product NAAM ka English search tag (Kotlin `saveCurrentItemAndAdvance`): us naam ke woh saare
   /// products jin ka tag abhi khali hai. Jin par pehle se tag ho unhe nahi chhoota. Wapas: kitne products badle.
   Future<int> saveItemTag(String name, String tag) async {
+    requireItemsAdmin();
     final clean = tag.trim();
     if (clean.isEmpty) return 0;
     final db = await AppDatabase.instance.database;

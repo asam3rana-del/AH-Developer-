@@ -424,7 +424,7 @@ class _BulkTranslateScreenState extends State<BulkTranslateScreen> {
               ),
               onPressed: _busy ? null : _saveItemAndAdvance,
               icon: const Icon(Icons.save, size: 18),
-              label: const Text('SAVE & NEXT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+              label: Text(Loc.t('SAVE & NEXT', 'محفوظ کریں اور اگلا'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
             ),
           ),
         ]),

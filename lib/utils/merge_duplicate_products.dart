@@ -1,3 +1,5 @@
+import 'package:sqflite/sqflite.dart' show Sqflite;
+
 import '../db/app_database.dart';
 import '../db/maintenance_sync.dart';
 import '../db/product_repository.dart';
@@ -91,7 +93,8 @@ MergePlan planProductMerge(List<Product> all) {
 ///
 /// Har group ke liye: stock + openingStock keeper par jama; sale_items / purchase_items / returns /
 /// stock_movements ka barcode keeper par; loser products delete + sync delete; keeper sync update.
-/// `held_bills` ko nahi chhoota (Kotlin jaisa).
+/// `held_bills` ko nahi chhoota (Kotlin jaisa). Barcode badalne wali sales/purchases/returns/stock_movements
+/// sync queue mein dobara jati hain (Kotlin mein ye gap tha — pull purana barcode wapas likh deta tha).
 class MergeDuplicateProducts {
   MergeDuplicateProducts._();
 
@@ -108,16 +111,46 @@ class MergeDuplicateProducts {
     late MergePlan plan;
 
     await db.transaction((txn) async {
+      // Pending (abhi push na hui) sync entries ho to merge na chalayein: loser barcode ki purani increment_stock /
+      // sale entries baad mein push hokar server par loser doc dobara bana dengi ya stock do baar jama karengi.
+      final pending = Sqflite.firstIntValue(await txn.rawQuery(
+              "SELECT COUNT(*) FROM sync_queue WHERE syncedAt IS NULL AND entityType IN "
+              "('product','sale','purchase','return','stock_movement')")) ??
+          0;
+      if (pending > 0) {
+        throw StateError(
+            'Pehle Sync Now chalayein: $pending sync entry abhi push nahi hui. Sync mukammal hone ke baad dobara merge karein.');
+      }
       final rows = await txn.query('products', orderBy: 'barcode ASC');
       plan = planProductMerge(rows.map(Product.fromMap).toList());
       if (plan.isEmpty) return;
 
       final now = DateTime.now().millisecondsSinceEpoch;
 
+      // Barcode badalne se jin docs ke items/barcode badlenge unki ids PEHLE jama (update ke baad nahi milengi);
+      // merge ke baad inhein dobara sync queue mein daalte hain, warna server / doosre devices par purana
+      // (ab hata hua) barcode reh jata hai aur pull un items ko wapas ghalat barcode par likh deta hai.
+      final saleInvoices = <String>{};
+      final purchaseBills = <String>{};
+      final returnIds = <int>{};
+      final movementIds = <int>{};
+
       for (final g in plan.groups) {
         final keeper = g.keeper;
 
         for (final loser in g.losers) {
+          for (final r in await txn.rawQuery('SELECT DISTINCT invoice AS v FROM sale_items WHERE barcode=?', [loser.barcode])) {
+            saleInvoices.add(r['v'] as String);
+          }
+          for (final r in await txn.rawQuery('SELECT DISTINCT billNo AS v FROM purchase_items WHERE barcode=?', [loser.barcode])) {
+            purchaseBills.add(r['v'] as String);
+          }
+          for (final r in await txn.rawQuery('SELECT id FROM returns WHERE barcode=?', [loser.barcode])) {
+            returnIds.add(r['id'] as int);
+          }
+          for (final r in await txn.rawQuery('SELECT id FROM stock_movements WHERE barcode=?', [loser.barcode])) {
+            movementIds.add(r['id'] as int);
+          }
           await txn.rawUpdate('UPDATE sale_items SET barcode=? WHERE barcode=?', [keeper.barcode, loser.barcode]);
           await txn.rawUpdate('UPDATE purchase_items SET barcode=? WHERE barcode=?', [keeper.barcode, loser.barcode]);
           await txn.rawUpdate('UPDATE returns SET barcode=? WHERE barcode=?', [keeper.barcode, loser.barcode]);
@@ -145,6 +178,28 @@ class MergeDuplicateProducts {
         for (final loser in g.losers) {
           await enqueueSync(txn, 'product', loser.barcode, 'delete', {'barcode': loser.barcode});
         }
+      }
+
+      // Doosre devices `updatedAt > checkpoint` se pull karte hain — bump ke baghair naya barcode unhein nahi milta.
+      for (final inv in saleInvoices) {
+        await txn.rawUpdate('UPDATE sales SET dirty=1, updatedAt=? WHERE invoice=?', [now, inv]);
+      }
+      for (final bill in purchaseBills) {
+        await txn.rawUpdate('UPDATE purchases SET dirty=1, updatedAt=? WHERE billNo=?', [now, bill]);
+      }
+
+      // Naye barcode wali taaza rows (ab DB mein keeper ka barcode hai) sync queue mein.
+      for (final inv in saleInvoices) {
+        await SyncQueueHelper.enqueueSale(txn, inv);
+      }
+      for (final bill in purchaseBills) {
+        await SyncQueueHelper.enqueuePurchase(txn, bill);
+      }
+      for (final id in returnIds) {
+        await SyncQueueHelper.enqueueReturn(txn, id);
+      }
+      for (final id in movementIds) {
+        await SyncQueueHelper.enqueueStockMovement(txn, id);
       }
 
       await logMaintenanceAudit(

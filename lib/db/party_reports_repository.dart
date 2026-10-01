@@ -3,6 +3,7 @@ import 'app_database.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
 import '../models/party.dart';
+import '../services/session.dart';
 
 /// Ports the data side of PartyReportsActivity.kt (6 reports: Item, Ledger, Payment History,
 /// Statement, Sale/Purchase by Party, Profit&Loss / Purchase Summary).
@@ -212,12 +213,18 @@ class ReportPartyRow {
 // DB loaders
 // ---------------------------------------------------------------------------
 
+/// Party Reports sirf admin/manager (screen RoleGuard + data layer).
+void _requireReportsRole() {
+  if (!Session.isAdminOrManager) throw StateError('Only Admin/Manager can view party reports');
+}
+
 class PartyReportsRepository {
   PartyReportsRepository._();
   static final PartyReportsRepository instance = PartyReportsRepository._();
 
   /// Kotlin loadParties(): closing = opening + live running (+ stuck, sirf customer).
   Future<List<ReportPartyRow>> loadParties({required bool customers}) async {
+    _requireReportsRole();
     if (customers) {
       final list = await CustomerRepository.instance.listAll();
       final live = await PartyRepository.instance.liveCustomerBalances();
@@ -250,6 +257,7 @@ class PartyReportsRepository {
 
   /// Party ke SAARE bills (returned samet — filter pure helpers karte hain), nayi pehle.
   Future<List<ReportBill>> bills({required bool isCustomer, required int id}) async {
+    _requireReportsRole();
     if (isCustomer) {
       final sales = await PartyRepository.instance.salesByCustomer(id);
       return [
@@ -265,6 +273,7 @@ class PartyReportsRepository {
   }
 
   Future<List<ReportPayment>> payments({required bool isCustomer, required int id}) async {
+    _requireReportsRole();
     final db = await AppDatabase.instance.database;
     final rows = await db.query(
       'payments',
@@ -285,6 +294,7 @@ class PartyReportsRepository {
 
   /// Ledger + Statement dono ke liye lines.
   Future<List<LedgerLine>> ledgerLines({required bool isCustomer, required int id}) async {
+    _requireReportsRole();
     final b = await bills(isCustomer: isCustomer, id: id);
     final p = await payments(isCustomer: isCustomer, id: id);
     return buildLedgerLines(bills: b, payments: p);
@@ -292,6 +302,7 @@ class PartyReportsRepository {
 
   /// Party Report by Item (returned bills ke item nahi).
   Future<List<ItemAgg>> itemReport({required bool isCustomer, required int id}) async {
+    _requireReportsRole();
     final db = await AppDatabase.instance.database;
     final rows = isCustomer
         ? await db.rawQuery('''

@@ -153,7 +153,7 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(color: ThemeManager.palette.amber, borderRadius: BorderRadius.circular(8)),
-              child: const Text('MISSING', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
+              child: Text(Loc.t('MISSING', 'غائب'), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
         ]),
         _unitChips(p, c, unit, set),
@@ -282,7 +282,7 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
               ),
               onPressed: _saving ? null : _saveAndNext,
               icon: const Icon(Icons.save, size: 18),
-              label: const Text('SAVE & NEXT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+              label: Text(Loc.t('SAVE & NEXT', 'محفوظ کریں اور اگلا'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
             ),
           ),
         ]),

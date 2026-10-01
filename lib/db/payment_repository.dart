@@ -5,6 +5,7 @@ import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
+import '../sync/device_tag.dart';
 import '../sync/sync_queue_helper.dart';
 
 /// A bill a payment can be linked to (Kotlin `BillOption`).
@@ -67,17 +68,33 @@ class PaymentRepository {
   }
 
   /// Recent (unreturned) bills of one party, newest first, max 50.
-  Future<List<BillOption>> billOptions({required bool isCustomer, required int partyId}) async {
+  ///
+  /// [alsoInclude]: edit karte waqt payment ka maujooda bill (agar wo naye 50 mein na aaye, ya returned ho)
+  /// bhi list mein aaye — warna dropdown use khali kar deta hai aur save par bill ka `paid` ghalat ghat jata hai.
+  Future<List<BillOption>> billOptions({
+    required bool isCustomer,
+    required int partyId,
+    String alsoInclude = '',
+  }) async {
     final db = await AppDatabase.instance.database;
     final rows = isCustomer
         ? await db.query('sales',
             where: "customerId = ? AND status != 'returned'", whereArgs: [partyId], orderBy: 'createdAt DESC', limit: 50)
         : await db.query('purchases',
             where: "supplierId = ? AND status != 'returned'", whereArgs: [partyId], orderBy: 'createdAt DESC', limit: 50);
-    return rows.map((r) {
-      final ref = (r[isCustomer ? 'invoice' : 'billNo'] as String);
+    final key = isCustomer ? 'invoice' : 'billNo';
+    final out = rows.map((r) {
+      final ref = (r[key] as String);
       return BillOption('$ref \u2022 Rs ${(r['total'] as num).toStringAsFixed(2)}', ref);
     }).toList();
+    if (alsoInclude.isNotEmpty && !out.any((b) => b.ref == alsoInclude)) {
+      final extra = await db.query(isCustomer ? 'sales' : 'purchases',
+          where: '$key = ?', whereArgs: [alsoInclude], limit: 1);
+      if (extra.isNotEmpty) {
+        out.add(BillOption('$alsoInclude \u2022 Rs ${(extra.first['total'] as num).toStringAsFixed(2)}', alsoInclude));
+      }
+    }
+    return out;
   }
 
   /// Mirrors savePayment(): payment row + party balance + cash entry + bill.
@@ -91,9 +108,12 @@ class PaymentRepository {
     required int dateMillis,
     String billRef = '',
   }) async {
+    // Repository par bhi guard (Cash/Expense jaisa): NaN / Infinity / <= 0 se party balance kharab na ho.
+    if (!amount.isFinite || amount <= 0) throw ArgumentError('Amount must be greater than 0');
     final db = await AppDatabase.instance.database;
     final partyType = isCustomer ? 'customer' : 'supplier';
-    final reference = 'manual-$partyType-$partyId-${DateTime.now().millisecondsSinceEpoch}';
+    // Device-unique (Expense jaisa): do devices par ek hi ms mein ek hi party ka payment ho to reference na takraye.
+    final reference = 'manual-$partyType-$partyId-${DeviceTag.current}-${DateTime.now().millisecondsSinceEpoch}';
     await db.transaction((txn) async {
       final payment = Payment(
         reference: reference,
@@ -139,6 +159,7 @@ class PaymentRepository {
     required String newBillRef,
   }) async {
     if (!Session.isAdmin) throw StateError('Sirf Admin ye action kar sakta hai');
+    if (!newAmount.isFinite || newAmount <= 0) throw ArgumentError('Amount must be greater than 0');
     final db = await AppDatabase.instance.database;
     final delta = newAmount - original.amount;
     await db.transaction((txn) async {

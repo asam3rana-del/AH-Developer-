@@ -103,7 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               await CrashHandler.clearLastCrash();
               if (ctx.mounted) Navigator.of(ctx).pop();
             },
-            child: const Text('Share'),
+            child: Text(Loc.t('Share', 'شیئر کریں')),
           ),
           TextButton(
             onPressed: () async {

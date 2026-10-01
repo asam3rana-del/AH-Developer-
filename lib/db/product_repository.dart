@@ -5,12 +5,18 @@ import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
 import '../models/product.dart';
 import 'app_database.dart';
 import 'stock_ledger.dart';
+import '../services/session.dart';
 import '../sync/sync_queue_helper.dart';
 import 'watch_util.dart';
 
 /// Dart port of ProductDao (Database.kt). Room's `Flow<List<Product>>` is
 /// mirrored here with a broadcast StreamController that re-queries and
 /// re-emits every time the table changes — call [_notify] after any write.
+/// Products ke badalne wale kaam sirf admin (Kotlin ProductActivity). UI ke saath data layer par bhi.
+void _requireProductAdmin() {
+  if (!Session.isAdmin) throw StateError('Only Admin can change products');
+}
+
 class ProductRepository {
   ProductRepository._();
   static final ProductRepository instance = ProductRepository._();
@@ -67,6 +73,7 @@ class ProductRepository {
 
   /// Mirrors `delete(p: Product)`.
   Future<void> delete(Product product) async {
+    _requireProductAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await txn.delete('products', where: 'barcode=?', whereArgs: [product.barcode]);
@@ -95,18 +102,24 @@ class ProductRepository {
   }
 
   /// updateDefaultUnitIndex + enqueueProduct, ek transaction mein.
-  Future<void> setDefaultUnitIndex(String barcode, int index) => _updateAndEnqueue(
-        barcode, {'defaultUnitIndex': index});
+  Future<void> setDefaultUnitIndex(String barcode, int index) {
+    _requireProductAdmin();
+    return _updateAndEnqueue(barcode, {'defaultUnitIndex': index});
+  }
 
   /// updateRatesReview + enqueueProduct, ek transaction mein. Rates PRIMARY unit par.
-  Future<void> setRates(String barcode, {required double salePrice, required double wholesalePrice}) =>
-      _updateAndEnqueue(barcode, {'salePrice': salePrice, 'wholesalePrice': wholesalePrice});
+  Future<void> setRates(String barcode, {required double salePrice, required double wholesalePrice}) {
+    _requireProductAdmin();
+    return _updateAndEnqueue(barcode, {'salePrice': salePrice, 'wholesalePrice': wholesalePrice});
+  }
 
   /// Party Dashboard "Edit Rates": cost + retail + wholesale, sab PRIMARY unit par + sync_queue,
   /// ek transaction mein (Kotlin: productDao().upsert + SyncQueueHelper.enqueueProduct).
   Future<void> setAllRates(String barcode,
-          {required double cost, required double salePrice, required double wholesalePrice}) =>
-      _updateAndEnqueue(barcode, {'cost': cost, 'salePrice': salePrice, 'wholesalePrice': wholesalePrice});
+          {required double cost, required double salePrice, required double wholesalePrice}) {
+    _requireProductAdmin();
+    return _updateAndEnqueue(barcode, {'cost': cost, 'salePrice': salePrice, 'wholesalePrice': wholesalePrice});
+  }
 
   Future<void> _updateAndEnqueue(String barcode, Map<String, Object?> changes) async {
     final db = await AppDatabase.instance.database;

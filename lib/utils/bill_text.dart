@@ -2,7 +2,10 @@ import 'package:intl/intl.dart';
 
 import '../db/sale_repository.dart' show SaleLine;
 
-String _qty(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
+String _qty(double v) {
+  if (v == v.truncateToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+}
 
 /// Plain-text customer bill (32 columns — a standard 58mm thermal roll), used
 /// by the Print/Share preview and as the plain-text (Copy / WhatsApp) bill.

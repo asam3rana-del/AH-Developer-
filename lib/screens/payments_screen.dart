@@ -83,7 +83,8 @@ Future<bool> showPaymentDialog(
   required String partyName,
   Payment? existing,
 }) async {
-  final bills = await PaymentRepository.instance.billOptions(isCustomer: isCustomer, partyId: partyId);
+  final bills = await PaymentRepository.instance.billOptions(
+      isCustomer: isCustomer, partyId: partyId, alsoInclude: existing?.billReference ?? '');
   if (!context.mounted) return false;
 
   final amountCtrl = TextEditingController(
@@ -98,6 +99,7 @@ Future<bool> showPaymentDialog(
   var method = (existing?.method.toLowerCase() == 'bank') ? 'bank' : 'cash';
   String billRef = existing != null && bills.any((b) => b.ref == existing.billReference) ? existing.billReference : '';
   String? error;
+  var saving = false; // double-tap par do payments / do cash rows na banen
 
   final saved = await showDialog<bool>(
     context: context,
@@ -139,9 +141,9 @@ Future<bool> showPaymentDialog(
             DropdownButtonFormField<String>(
               value: method,
               decoration: InputDecoration(labelText: Loc.t('Method', 'ذریعہ')),
-              items: const [
-                DropdownMenuItem(value: 'cash', child: Text('cash')),
-                DropdownMenuItem(value: 'bank', child: Text('bank')),
+              items: [
+                DropdownMenuItem(value: 'cash', child: Text(Loc.t('cash', 'کیش'))),
+                DropdownMenuItem(value: 'bank', child: Text(Loc.t('bank', 'بینک'))),
               ],
               onChanged: (v) => setS(() => method = v ?? 'cash'),
             ),
@@ -164,9 +166,9 @@ Future<bool> showPaymentDialog(
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal),
-            onPressed: () async {
+            onPressed: saving ? null : () async {
               final amt = double.tryParse(amountCtrl.text.trim());
-              if (amt == null || amt <= 0) {
+              if (amt == null || !amt.isFinite || amt <= 0) {
                 setS(() => error = Loc.t('Enter a valid amount', 'صحیح رقم لکھیں'));
                 return;
               }
@@ -176,30 +178,40 @@ Future<bool> showPaymentDialog(
               final when = DateTime(date.year, date.month, date.day, now.hour, now.minute, now.second)
                   .millisecondsSinceEpoch;
               final note = noteCtrl.text.trim();
-              if (existing != null) {
-                await PaymentRepository.instance.update(
-                  original: existing,
-                  isCustomer: isCustomer,
-                  partyName: partyName,
-                  newAmount: amt,
-                  newMethod: method,
-                  newNote: note,
-                  newDateMillis: when,
-                  newBillRef: billRef,
-                );
-              } else {
-                await PaymentRepository.instance.save(
-                  isCustomer: isCustomer,
-                  partyId: partyId,
-                  partyName: partyName,
-                  amount: amt,
-                  method: method,
-                  note: note,
-                  dateMillis: when,
-                  billRef: billRef,
-                );
+              setS(() { saving = true; error = null; });
+              try {
+                if (existing != null) {
+                  await PaymentRepository.instance.update(
+                    original: existing,
+                    isCustomer: isCustomer,
+                    partyName: partyName,
+                    newAmount: amt,
+                    newMethod: method,
+                    newNote: note,
+                    newDateMillis: when,
+                    newBillRef: billRef,
+                  );
+                } else {
+                  await PaymentRepository.instance.save(
+                    isCustomer: isCustomer,
+                    partyId: partyId,
+                    partyName: partyName,
+                    amount: amt,
+                    method: method,
+                    note: note,
+                    dateMillis: when,
+                    billRef: billRef,
+                  );
+                }
+                if (ctx.mounted) Navigator.pop(ctx, true);
+              } catch (e) {
+                if (ctx.mounted) {
+                  setS(() {
+                    saving = false;
+                    error = e is StateError || e is ArgumentError ? e.toString() : Loc.t('Could not save: $e', 'محفوظ نہیں ہو سکا: $e');
+                  });
+                }
               }
-              if (ctx.mounted) Navigator.pop(ctx, true);
             },
             child: Text(Loc.t('Save', 'محفوظ کریں')),
           ),
@@ -208,8 +220,8 @@ Future<bool> showPaymentDialog(
     }),
   );
 
-  amountCtrl.dispose();
-  noteCtrl.dispose();
+  // controllers jaan boojh kar dispose nahi: dialog band hone ki animation abhi unhein use kar rahi hoti hai
+  // ("used after being disposed" crash — login_screen jaisa); GC khud saaf kar deta hai.
   if (saved == true && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(existing != null
@@ -245,8 +257,9 @@ class _RecordTabState extends State<_RecordTab> {
 
   // Balance LIVE ledger se (bills + payments), stored field se nahi — sync ke baad stored
   // balance drift kar sakta hai (Phase 6 screens bhi yahi karti hain). Opening/stuck shamil.
-  late final Stream<List<_PartyItem>> _customerItems = _liveCustomers();
-  late final Stream<List<_PartyItem>> _supplierItems = _liveSuppliers();
+  // async* streams sirf EK dafa listen ho sakti hain: toggle par nayi stream banti hai (pehle dobara
+  // listen par "Stream has already been listened to" aata tha).
+  late Stream<List<_PartyItem>> _items = _liveCustomers();
 
   Stream<List<_PartyItem>> _liveCustomers() async* {
     await for (final list in CustomerRepository.instance.watchAll()) {
@@ -287,6 +300,7 @@ class _RecordTabState extends State<_RecordTab> {
               selected: {_isCustomer},
               onSelectionChanged: (s) => setState(() {
                 _isCustomer = s.first;
+                _items = _isCustomer ? _liveCustomers() : _liveSuppliers();
                 _q = '';
               }),
             ),
@@ -316,7 +330,7 @@ class _RecordTabState extends State<_RecordTab> {
       Expanded(
         child: StreamBuilder<List<_PartyItem>>(
           // Stream ek hi baar banti hai (customer/supplier badalne par), har build par nahi.
-          stream: _isCustomer ? _customerItems : _supplierItems,
+          stream: _items,
           builder: (_, snap) => _list(snap.data ?? const [], accent, loading: !snap.hasData),
         ),
       ),

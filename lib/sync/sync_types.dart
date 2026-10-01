@@ -69,7 +69,7 @@ abstract class SyncBackend {
   /// Ek queue entry Firestore par push. true = kamyab.
   Future<bool> push(SyncQueueEntry entry);
 
-  /// `since` ke baad badla hua sab kuch. Branch code na ho => [BranchNotConfiguredException].
+  /// `since` ke baad badla hua sab kuch. Branch code na ho => [BranchNotConfiguredException]; cloud/sign-in na mile => Exception.
   Future<PullResult> pull(int since);
 
   /// Pull ki hui changes local tables mein (ek merge).

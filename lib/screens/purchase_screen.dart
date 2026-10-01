@@ -1129,7 +1129,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                   color: ThemeManager.palette.teal.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-                              child: Text('CHEAPEST',
+                              child: Text(Loc.t('CHEAPEST', 'سب سے سستا'),
                                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
                             ),
                         ]),
@@ -1759,7 +1759,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Subtotal', style: TextStyle(color: ThemeManager.palette.textMuted)),
+              Text(Loc.t('Subtotal', 'سب ٹوٹل'), style: TextStyle(color: ThemeManager.palette.textMuted)),
               Text(_subtotal.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: ThemeManager.palette.textDark)),
             ],
           ),
@@ -1767,7 +1767,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Total (rounded)', style: TextStyle(color: ThemeManager.palette.textMuted)),
+              Text(Loc.t('Total (rounded)', 'ٹوٹل (راؤنڈ)'), style: TextStyle(color: ThemeManager.palette.textMuted)),
               Text(total.toStringAsFixed(0), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: ThemeManager.palette.textDark)),
             ],
           ),

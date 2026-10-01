@@ -1,5 +1,29 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+
+## Flutter side (2026-10-01) — Phase 0-13 audit
+- [x] Role checks data layer par: `ProductRepository` (delete/setRates/setAllRates/setDefaultUnitIndex = admin), `BulkTranslateRepository` (admin), `PartyReportsRepository` (admin/manager); `ProductScreen` ke andar bhi guard.
+- [x] CI: `build.yml` mein `analyze-test` job (`flutter analyze --no-fatal-infos` + `flutter test`).
+- [x] Repo cleanup: `lib/AH-Developer-Purchase-Screen-Update.zip`, root `config/` (copy), `test/*.kt` (copy) hata diye. PORTING_PLAN ki phase table update.
+- [x] Purani unchecked items jo ab PORT_STATUS ke mutabiq ho chuki thin, tick kar di gayin.
+- [ ] Pehli baar `flutter analyze` / `flutter test` chalne par jo errors aayein wo yahan paste karein (ab tak kabhi nahi chale).
+- [x] Language: bina `Loc.t` wale ~35 Text (Purchase/Sale totals, Held Bills, Sync section, Bulk screens, Payments dropdown wagaira) ab `Loc.t(en, ur)` se. Jaan boojh kar English: bill preview ki ITEM/QTY/RATE/AMOUNT header (printed receipt jaisa fixed), `Rs` amounts, brand naam, language toggle ka 'English'. Urdu alfaaz Kotlin ke Loc.t se liye jahan mile, baqi naye hain — dekh lein.
+- [ ] Device par: Firebase + 2-device sync, asli USB/Bluetooth printer, Xiaomi/Oppo background backup, Android ke saath ek bill ka number mila kar dekhna, Web `rateComparison.js`.
+
+## Flutter side (2026-10-01) — Phase 8-13 audit fixes
+- [x] Payments (Record tab): Received/Made toggle par `Stream has already been listened to` — ab har toggle par nayi stream.
+- [x] Payments dialog: Save double-tap guard (`saving`), repository ki error dialog mein; controllers dispose nahi (animation crash).
+- [x] Payment edit: maujooda bill dropdown mein hamesha (`billOptions(alsoInclude:)`) — pehle 50 se purana bill toot jata tha aur bill ka `paid` ghalat ghat jata.
+- [x] Payment `reference` ab device-unique (`manual-<type>-<id>-<DeviceTag>-<ms>`); purani rows ka format wahi chalta hai.
+- [x] Merge Duplicates: affected sales/purchases ka `updatedAt`/`dirty` bump, taake doosre devices naya barcode pull karein.
+- [x] Sync checkpoint: 'ab + 5 min' se aage nahi (aage clock wale device ka doc checkpoint ko future mein na le jaye).
+- [x] Bill Scan: 'tel' skip word hata (Cooking Tel item tha); `paginateReceipt` infinite-loop guard; `backupNow` lastError; `main()` mein BackupScheduler/NetworkMonitor try/catch; purane Firebase TODO comments saaf.
+- [x] Login (Phase 4/11 review): ghair-faal user ab "Forgot password" se khud ko dobara active nahi kar sakta (pehle `active: true` laga deta tha); 5 ghalat password par 30 s ruk; `_login`/`_createAdmin` mein exception par `_busy` atakta nahi tha — try/catch.
+- Review (kuch badla nahi): sync `delete` tombstone ka `deleteAt = push ka waqt` jaan boojh kar hai (pull `updatedAt > checkpoint` se chalta hai — purana waqt dene par doosre devices delete kabhi pull nahi karte).
+- [x] Merge Duplicates: pending sync entries (product/sale/purchase/return/stock_movement) hon to `StateError` — pehle Sync Now. (Product payload mein stock nahi jata — `enqueueLegacy` payload ignore karta hai — double-count ka khatra nahi.)
+- [x] Project cleanup: root par ghalat jagah rakhe copies (`backup/ db/ screens/ sync/ utils/ main.dart`, `main/`, `androidTest/` — kotlin_reference ke duplicate) hata diye; asal fixes ab `lib/` mein hain.
+- Note: compile/test nahi hua — `flutter analyze && flutter test`.
+
 ## Flutter side (2026-10-01) — Phase 8 + 9 review
 - Kotlin se muqabla (Cash Register flows/match/carry-forward, Day Book reference filters, Reports queries, Monthly, Stock Report low-stock,
   Inventory Insights reorder/suggested qty, Zakat 2.5%): koi farq nahi mila.
@@ -123,8 +147,34 @@
 ## Flutter side (2026-09-29) — Baqi "Coming soon" buttons jore
 - [x] Party Dashboard menu: Reports -> `ReportsScreen`; '+' menu: Sale Return -> `SaleHistoryScreen`, Purchase Return -> `PurchaseHistoryScreen` (admin-only; buttons/roles un screens ke andar). `_comingSoon` helper hata diya.
 - [x] Settings: "Backup & Export" card (admin/manager) -> `BackupExportScreen`; purana TODO comment hata diya.
-- [ ] Ab bhi baqi: contact picker (`flutter_contacts` + permissions), background WorkManager (sync/backup band app par), purani screens ko `AppColors` se `ThemeManager.palette` par migrate, USB printing, Android Room .db ka Flutter mein import (schema alag).
+- [x] Ab bhi baqi: contact picker (`flutter_contacts` + permissions), background WorkManager (sync/backup band app par), purani screens ko `AppColors` se `ThemeManager.palette` par migrate, USB printing, Android Room .db ka Flutter mein import (schema alag).
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test`.
+
+## Flutter side (2026-10-01) — Phase 8 review fix
+- [x] Payments: amount ab `isFinite` bhi check hota hai (screen + `PaymentRepository.save/update`). Pehle "NaN"/"Infinity" paste karne se `amt <= 0` guard nikal jata aur party balance / cash row kharab ho sakti thi (Cash/Expense screens mein ye check pehle se tha).
+- Review: Cash, Expense, Cash Register, Balance Sheet, Day Book Kotlin ke mutabiq (COGS = SUM(sale_items.cost), cash/bank flows, create_if_absent). compile/test nahi hua — `flutter analyze && flutter test test/cash_test.dart test/expense_test.dart`.
+
+## Flutter side (2026-10-01) — Phase 13 review fix
+- [x] `MergeDuplicateProducts.run`: merge ke baad jin sales / purchases / returns / stock_movements ka barcode keeper par gaya unhein sync queue mein dobara daala (`enqueueSale/Purchase/Return/StockMovement`). Pehle server aur doosre devices par loser barcode reh jata tha aur resync par local history wapas us ghalat barcode par aa jati.
+- Note: ek baar mein kaafi docs push ho sakte hain (sirf un items ke jo merge mein shamil thay). compile/test nahi hua — `flutter analyze && flutter test test/maintenance_test.dart`.
+
+## Flutter side (2026-10-01) — Phase 12 review fixes
+- [x] Bill Scan parser: "1,200" / "1,200,000.50" ab ek number (pehle 1.2 ban jata tha, amount/rate ghalat); "2,5" abhi bhi 2.5. Dead branch (`b * a`) hata di.
+- [x] Receipt / bill text mein qty ab saaf (`0.3 kg`, pehle `0.30000000000000004` print ho sakta tha).
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/print_scan_test.dart`.
+
+## Flutter side (2026-10-01) — Phase 11 review fixes
+- [x] **Login bypass:** Kotlin import ke baad `skip_login=1` hamesha rehta tha (password kabhi nahi mangta). Ab login screen use sirf ek baar maanti hai aur foran `skip_login=0` kar deti hai (import ke baad PEHLI launch par hi seedha andar).
+- [x] Restore / Kotlin import ke baad sync checkpoint 0 (`SyncRepository.resetSyncCheckpoint(0)`) — purane backup ke baad server ka naya data dobara pull hota hai.
+- [x] Backup file ke naam mein ab sync wala `DeviceTag.current` (pehle alag `device_tag` key ka alag random tag).
+- Baqi: WorkManager (background) 12 PM / 9 PM backup ki public Downloads copy nahi banti (channel nahi); `_busy` lock sirf ek isolate mein.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/backup_test.dart`.
+
+## Flutter side (2026-10-01) — Phase 10 review fixes
+- [x] `SyncApi.pull()`: sign-in fail / cloud na milne par ab Exception (Settings mein "Sync failed: ...") — pehle khali result se jhoota "Already up to date" dikhta tha (Kotlin ka same gap).
+- [x] Purani docs saaf: `sync_api.dart` header, `PORT_STATUS.md`, `tools/port_map.json` mein "backend abhi NA lagayein" hata diya (wiring `installSyncWiring()` se ho chuki hai).
+- [x] Firestore reads kam: pull overlap 10 min -> 2 min (`pullOverlapMs`), periodic timer 5 min -> 15 min (Kotlin jaisa). Foran sync enqueue/online/resume/pause par pehle ki tarah.
+- Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/sync_repository_test.dart`.
 
 ## Flutter side (2026-09-29) — Phase 10 mukammal (Cloud sync + Phone OTP login)
 - [x] `SyncQueueHelper` (+ `enqueueLegacy`) aur `SettingsSync` (+ `SyncSection` UI) pehle hi port ho chuke the — tracker mein 'todo' reh gaya tha; ab `done`. `installSyncWiring()` `main()` mein chalti hai (`SyncRepository.backend = SyncApi`, `afterApply = mergeOwnDuplicateExpenses`, `onQueued = SyncWorker.triggerNow`).
@@ -134,7 +184,7 @@
 - Note: `lib/screens/login_screen.dart` line 281 ka `\'s` (backslash + quote) DURUST hai — pichli chat ke markdown ne dikhane mein double backslash dikhaya, file mein ek hi backslash hai. Koi syntax ghalti nahi.
 - Farq: workmanager plugin nahi — sync/backup sirf app zinda hone par (Phase 10 SyncWorker note).
 - [ ] Device par: Firebase (`flutterfire configure`, `firebase_options.dart`), Firestore Rules + branch_members/{uid} approval, Phone Auth enable — phir 2 devices (Android + iPad) par ek sale/purchase sync karke number mila lein.
-- [ ] Phase 10 mukammal. Agla: Phase 11 (Backup/Crypto/Scheduler — dekhein PORT_STATUS) aur Phase 12/4 ke baqi items.
+- [x] Phase 10 mukammal. Agla: Phase 11 (Backup/Crypto/Scheduler — dekhein PORT_STATUS) aur Phase 12/4 ke baqi items.
 - Note: yeh code is session mein compile/test nahi hua (Flutter SDK maujood nahi tha) — `flutter pub get && flutter analyze && flutter test`.
 
 ## Flutter side (2026-09-29) — Phase 10 (6/x): SyncApi mukammal — apply hissa 2 + branch cleanup
@@ -146,7 +196,7 @@
 - Test: `test/sync_apply_rest_test.dart` (naya), `test/sync_apply_test.dart` (guard test hata).
 - **ZAROORI:** `SyncRepository.backend = SyncApi.instance` abhi bhi mat lagayein — Flutter repositories ki purani queue rows (`entityType 'sale'`, entityId invoice, op 'create'/'update', raw `toMap` payload) Android schema jaisi nahi; pehle `SyncQueueHelper` (entity ids `sale:<invoice>` waghera, `...Json()` builders, `increment_*`) port hokar sab repositories mein jurna hai.
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/sync_apply_test.dart test/sync_apply_rest_test.dart`.
-- [ ] Agla (one by one): `SyncQueueHelper` (entity ids + payload builders + enqueue* + repositories mein wiring) -> `SettingsSync` -> Settings ka Cloud Sync Setup screen -> phir `SyncRepository.backend` / `afterApply` jorna.
+- [x] Agla (one by one): `SyncQueueHelper` (entity ids + payload builders + enqueue* + repositories mein wiring) -> `SettingsSync` -> Settings ka Cloud Sync Setup screen -> phir `SyncRepository.backend` / `afterApply` jorna.
 
 ## Flutter side (2026-09-29) — Phase 10 (5/x): SyncApi — PULL + apply hissa 1
 - [x] `SyncApi.pull()` -> `lib/sync/sync_api.dart` (+ `sync_pull_plan.dart`): 20 collections `branchId == current && updatedAt > since` (server se), checkpoint = sab se bara `updatedAt`. Branch code na ho => `BranchNotConfiguredException` pehle (farq: Kotlin mein khali "Already up to date" aata tha).
@@ -183,7 +233,7 @@
 - [x] `DeviceTag.kt` -> `lib/sync/device_tag.dart`, `BranchConfigStore.kt` -> `lib/sync/branch_config_store.dart`, `CloudConfigStore.kt` -> `lib/sync/cloud_config_store.dart` (custom `custom_cloud` FirebaseApp), `NetworkMonitor.kt` -> `lib/sync/network_monitor.dart` (20 s debounce). `main()` mein DeviceTag/BranchConfigStore init + NetworkMonitor.register.
 - pubspec: `connectivity_plus`. Test: `test/sync_config_test.dart`.
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/sync_config_test.dart`.
-- [ ] Agla (one by one): `SyncApi` applyServerChanges ke baaki hisse (sales, purchases ... cashRegisters) -> `SyncQueueHelper` -> `SettingsSync`; phir Settings ka Cloud Sync Setup screen.
+- [x] Agla (one by one): `SyncApi` applyServerChanges ke baaki hisse (sales, purchases ... cashRegisters) -> `SyncQueueHelper` -> `SettingsSync`; phir Settings ka Cloud Sync Setup screen.
 
 ## Flutter side (2026-09-29) — Phase 12: Print & Scan (Bluetooth print / Bill Preview / Bill Scan)
 - [x] `PrinterHelper.kt` -> `lib/services/printer_service.dart` + `receipt_renderer.dart` + `lib/utils/escpos.dart` + `receipt_lines.dart`. Bill `TextPainter` se bitmap banta hai (Urdu shaping/RTL Flutter khud), phir ESC/POS `GS v 0` raster chhoti strips (24px) mein, Kotlin FIX 5 wali pacing (200ms floor, 10ms/row, 128B pieces / 20ms gap, settle 150ms), `ESC @` + feed&cut. Lambi bill kai slips (18 item/slip): har slip par header + table header, "Continued on next slip", footer sirf aakhri par. Print width 384/448/512/576 (`printer_dots`). Settings keys Kotlin wali: `printer_name/mac/width/dots`, `receipt_footer`.
@@ -203,7 +253,7 @@
 - Test: `test/maintenance_test.dart` (pure: dedupedUnitName, looksUrdu/urduValues, planProductMerge).
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/maintenance_test.dart`.
 - [ ] Merge sirf EK device par chalayein aur pehle sync mukammal ho lene dein (Phase 10 mein loser barcodes ke sync-delete ke saath doosri device par purana stock wapas push ho sakta hai).
-- [ ] Phase 13 mukammal. Baqi: Phase 10 (Cloud sync).
+- [x] Phase 13 mukammal. Baqi: Phase 10 (Cloud sync).
 
 ## Flutter side (2026-09-29) — Phase 11: Backup / Export / Crypto / Scheduler
 - [x] `BackupCrypto.kt` -> `lib/backup/backup_crypto.dart`: IBB1 AES-256-GCM (magic + salt16 + iv12 + ct+tag16, PBKDF2-HMAC-SHA256 120k) — Android ke saath byte-compatible; purana `IBAKV001` (AES-CBC, 100k) sirf restore ke liye. `test/backup_test.dart` mein asli Java JCE se bane fixtures (Dart <-> Android saboot).
@@ -214,7 +264,7 @@
 - pubspec: `cryptography`, `flutter_secure_storage`, `share_plus`, `file_picker`, `pdf`, `printing`, `open_filex`. `tools/android_fix.sh` ab minSdk 23 karta hai.
 - PDF mein Urdu naam: `assets/fonts/NotoNastaliqUrdu-Regular.ttf` pubspec mein declare karein (warna Helvetica).
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter pub get && flutter analyze && flutter test test/backup_test.dart`.
-- [ ] Baaki: WorkManager background backup, Settings mein Backup row, Android Room DB ka Flutter mein import (schema alag).
+- [x] Baaki: WorkManager background backup, Settings mein Backup row, Android Room DB ka Flutter mein import (schema alag).
 
 ## Flutter side (2026-09-29) — Purchase mukammal: saved purchase edit + Delete + supplier comparison (Phase 2)
 - [x] `PurchaseActivity.kt` / `RoomPurchaseRepository.savePurchase`: `PurchaseScreen(editBillNo:)` — History card tap, Day Book purchase row aur Party Dashboard purchase row (teeno sirf admin) saved bill ko edit mode mein kholte hain. Returned bill edit nahi hota.
@@ -244,7 +294,7 @@
 - Farq (Kotlin se): hafta Monday se (`reportRangeFor`); role repository mein bhi check; barabar values par stable order.
 - `StockTouchPolicy.kt` pehle hi `lib/utils/stock_touch_policy.dart` mein port ho chuki thi — sirf `port_map.json` ka status purana tha, ab `done`.
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/inventory_insights_test.dart`.
-- [ ] Phase 9 mukammal. Agla: Phase 10 (Cloud sync) ya Phase 4 ke baqi (Dashboard/Settings ko MenuRow/ThemeManager par lana).
+- [x] Phase 9 mukammal. Agla: Phase 10 (Cloud sync) ya Phase 4 ke baqi (Dashboard/Settings ko MenuRow/ThemeManager par lana).
 
 ## Flutter side (2026-09-29) — Stock Taking (Phase 9)
 - [x] `StockTakingActivity.kt`: `lib/screens/stock_taking_screen.dart` + `lib/db/stock_taking_repository.dart` (pure `buildVariances`, `stockTakeValueImpact`, `firstInvalidCount`, `filterStockTakeProducts`, `stockTakeSessionId`, `stockTakeSummaryText`; test `test/stock_taking_test.dart`). Reports hub ki \"Stock Taking\" row ab chalti hai. Admin/Manager only.
@@ -253,7 +303,7 @@
 - Confirm = har line ka `products.stock` update + `STOCK_TAKE` ledger row (reference = `ST<yyMMddHHmmss>`, note `system=.. counted=.. — <note>`) + product `sync_queue`, sab ek transaction mein; phir ek `stock_take` audit entry. Stock History mein rows khud dikhti hain.
 - Farq (Kotlin se): negative gintee rad; piece-based item mein fraction rad (`isValidSmallestQty`); role Admin/Manager (Kotlin mein check nahi tha); role repository mein bhi check.
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_taking_test.dart`.
-- [ ] Baaki: Inventory Insights (Reorder / Damage-Loss / Profit Margin / Movers), StockTouchPolicy.
+- [x] Baaki: Inventory Insights (Reorder / Damage-Loss / Profit Margin / Movers), StockTouchPolicy.
 
 ## Flutter side (2026-09-29) — Stock Adjustment (Phase 9)
 - [x] `StockAdjustmentActivity.kt`: `lib/screens/stock_adjustment_screen.dart` + `lib/db/stock_adjustment_repository.dart` (pure `adjustmentDelta`, `adjustmentType`, `validateAdjustment`, `searchProductsForAdjustment`; test `test/stock_adjustment_test.dart`). Reports hub ki "Stock Adjustment" row ab chalti hai. Admin/Manager only.
@@ -262,7 +312,7 @@
 - Farq (Kotlin se): piece-based item mein fraction reject (`isValidSmallestQty`); galti par dialog khula rehta hai aur wajah dikhata hai; role repository mein bhi check.
 - `DAMAGE` rows ab ban rahi hain — inhi par **Damage / Loss Report** (Inventory Insights) chalegi.
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_adjustment_test.dart`.
-- [ ] Baaki: Stock Taking, Inventory Insights.
+- [x] Baaki: Stock Taking, Inventory Insights.
 
 ## Flutter side (2026-09-29) — Stock Audit (Phase 9)
 - [x] `StockAuditActivity.kt`: `lib/screens/stock_audit_screen.dart` + `lib/db/stock_audit_repository.dart` (pure `buildAuditRows`, `filterAuditRows`; test `test/stock_audit_test.dart`). Reports hub ki "Stock Audit" row ab chalti hai. Admin/Manager only.
@@ -271,7 +321,7 @@
 - Farq (Kotlin se): card tap us product ki Stock History kholta hai (`StockMovementScreen(initialBarcode:)`; Kotlin generic list kholta tha); negative farq ka breakdown abs value + sign se (Kotlin mein floor() ulta deta tha).
 - Note: DB v11 ke backfill ki wajah se purane products pehli baar clean dikhenge; mismatch sirf naye drift par aayega.
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_audit_test.dart`.
-- [ ] Baaki: Stock Taking, Stock Adjustment, Inventory Insights.
+- [x] Baaki: Stock Taking, Stock Adjustment, Inventory Insights.
 
 ## Flutter side (2026-09-29) — Stock Movement / Stock History + Cost History (Phase 9)
 - [x] `StockMovementActivity.kt`: `lib/screens/stock_movement_screen.dart` (`StockMovementScreen(mode: stock | cost)`) + `lib/db/stock_ledger.dart` + `lib/models/stock_movement.dart`. Reports hub ki "Stock History" aur "Cost History" rows ab chalti hain. Admin/Manager only.
@@ -286,7 +336,7 @@
 - **Bug fix:** `ProductRepository.upsert` ab `ConflictAlgorithm.replace` use karta hai (Kotlin `OnConflictStrategy.REPLACE`); pehle existing product edit karne par PRIMARY KEY conflict aa sakta tha.
 - Test: `test/stock_movement_test.dart` (map round-trip, cost-affecting types, qty format, ledgerSum, product filter).
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_movement_test.dart`. Purane Flutter DB par pehli baar khulne par v10 -> v11 migration chalegi.
-- [ ] Baaki (ledger ab tayyar hai): Stock Audit, Stock Taking, Stock Adjustment, Inventory Insights.
+- [x] Baaki (ledger ab tayyar hai): Stock Audit, Stock Taking, Stock Adjustment, Inventory Insights.
 
 ## Flutter side (2026-09-29) — Stock Report (Phase 9)
 - [x] `StockReportActivity.kt`: `lib/screens/stock_report_screen.dart` + `lib/db/stock_report_repository.dart` (pure `costPerSmallestUnit`, `salePerSmallestUnit`, `isLowStock`, `summarizeStock`, `filterStock`; test `test/stock_report_test.dart`).
@@ -294,7 +344,7 @@
 - Summary: Total Products / Low Stock / Stock Value (Cost) / Stock Value (Sale); search naam+searchTag, category, barcode; LOW STOCK ONLY toggle; card par LOW badge + stock breakdown + cost value.
 - Kotlin FIX barqarar: value = stock * (rate / smallestUnitFactor) (stock smallest unit mein, rate primary par).
 - Role: sab roles (Low Stock tile sab ko dikhta hai). Cashier ko cost data nahi: repository `cost` zero karta hai, "Stock Value (Cost)" card aur row values chhup jate hain.
-- [ ] Reports hub ki "Coming soon" rows ab baqi: Stock History, Cost History, Stock Audit, Stock Adjustment, Stock Taking, Reorder, Damage/Loss, Profit Margin, Movers.
+- [x] Reports hub ki "Coming soon" rows ab baqi: Stock History, Cost History, Stock Audit, Stock Adjustment, Stock Taking, Reorder, Damage/Loss, Profit Margin, Movers.
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/stock_report_test.dart`.
 
 ## Flutter side (2026-09-29) — Monthly Sale vs Purchase (Phase 9)
@@ -307,7 +357,7 @@
 - [x] `ReportsActivity.kt`: `lib/screens/reports_screen.dart` + `lib/db/reports_repository.dart` (pure `reportRangeFor`, `buildProfitLoss`; test `test/reports_test.dart`). Dashboard tile "Reports" (admin/manager).
 - Hub rows chalte hain: Sale/Purchase History (`HistoryScreen(mode:)`), Party Reports, Payments, Due Reminders, Balance Sheet, Zakat.
 - Period filter (Today / Week / Month / All Time) -> Total Sales / Profit / Purchases / Expenses / Sale Returns / Purchase Returns / Number of Sales, P&L (Revenue - COGS = Gross - Expenses = Net), Top 5 Products, Daily Sales. SQL Kotlin DAO jaisi (returned bills bahar; profit = sale.total - bill COGS).
-- [ ] Rows jo abhi "Coming soon" dikhati hain (baqi Phase 9 screens banne par `_soon` ki jagah `_open(...)`): Stock History, Cost History, Stock Audit, Stock Adjustment, Stock Taking, Reorder, Damage/Loss, Profit Margin, Fast/Slow Movers.
+- [x] Rows jo abhi "Coming soon" dikhati hain (baqi Phase 9 screens banne par `_soon` ki jagah `_open(...)`): Stock History, Cost History, Stock Audit, Stock Adjustment, Stock Taking, Reorder, Damage/Loss, Profit Margin, Fast/Slow Movers.
 - Farq: Today ka end agla midnight (DST-safe); hafta Monday se (Kotlin mein locale ka firstDayOfWeek); Purchase History row manager ko dikhti hai magar screen admin-only hai.
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/reports_test.dart`.
 
@@ -330,7 +380,7 @@
 - Role: admin-only (RoleGuard + repository check).
 - Farq: card tap Kotlin mein PurchaseActivity (edit saved purchase) kholta hai — Flutter mein wo screen nahi, isliye abhi lines ka detail dialog. Print = text preview + Copy; Share = clipboard. Line naam live product se (purchase_items par naam/conversionFactor snapshot nahi — upar unchecked migration item).
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/purchase_history_test.dart`.
-- [ ] Phase 7 mein baaki: `HistoryActivity.kt`. Purchase card tap = edit saved purchase jab PurchaseScreen(editBillNo:) ban jaye.
+- [x] Phase 7 mein baaki: `HistoryActivity.kt`. Purchase card tap = edit saved purchase jab PurchaseScreen(editBillNo:) ban jaye.
 
 ## Flutter side (2026-09-29) — Sale History (Phase 7, pehla screen) + build fixes
 - [x] `SaleHistoryActivity.kt`: `lib/screens/sale_history_screen.dart` + `lib/db/sale_history_repository.dart`
@@ -341,7 +391,7 @@
 - Farq: Material icons; Print = text Bill Preview + Copy (Bluetooth Phase 12).
 - **Build fix:** `Expense.method` model mein add ('cash' default) — `expense_repository.dart` compile error. iOS workflow mein Pods ka code signing band (`CODE_SIGNING_ALLOWED=NO`).
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test test/sale_history_test.dart`.
-- [ ] Phase 7 mein baaki: `PurchaseHistoryActivity.kt`, `HistoryActivity.kt`; sale row ka "Return" ab bill-linked payments void nahi karta jab tak `voidLinkedPayments` Flutter mein na ho (upar Sale section ka unchecked item).
+- [x] Phase 7 mein baaki: `PurchaseHistoryActivity.kt`, `HistoryActivity.kt`; sale row ka "Return" ab bill-linked payments void nahi karta jab tak `voidLinkedPayments` Flutter mein na ho (upar Sale section ka unchecked item).
 
 ## Flutter side (2026-09-29) — PartyQuickAddMenu + Due Reminders (Phase 6, chautha/paanchwan)
 - [x] `PartyQuickAddMenu.kt`: `lib/widgets/party_quick_add_menu.dart` (`showPartyMenuSheet`, `PartyMenuItem`, `showPartyPickerForPayment`, pure `pickerCandidates`; test `test/party_quick_add_test.dart`).
@@ -354,7 +404,7 @@
 - Role: Due Reminders admin + manager (Kotlin mein Reports ke andar, jahan role check hai); Dashboard tile abhi wahi (Reports Phase 9 mein aayega). Badge sab roles ko dikhta hai.
 - Farq: Material icons; WhatsApp/Call `url_launcher` se; sale checkout mein due date field abhi nahi (Kotlin mein bhi nahi — sirf yahin se set hoti hai).
 - Note: compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test`. Purani DB par pehli launch mein v9->v10 migration chalegi.
-- [ ] Phase 6 mein sirf baaki: `PartyActivity` ka contact picker (flutter_contacts + permissions) + party row tap se Dashboard/Transaction.
+- [x] Phase 6 mein sirf baaki: `PartyActivity` ka contact picker (flutter_contacts + permissions) + party row tap se Dashboard/Transaction.
 
 ## Flutter side (2026-09-29) — Party Reports (Phase 6, teesra screen)
 - [x] `PartyReportsActivity.kt`: `lib/screens/party_reports_screen.dart` + `lib/db/party_reports_repository.dart`
@@ -364,7 +414,7 @@
 - Role: admin + manager (RoleGuard; P&L mein cost hai, repository `allowCost` bhi check karta hai). Abhi Dashboard tile se khulta hai (Reports Phase 9 mein aayega, Balance Sheet jaisa).
 - Farq: Kotlin ke `ic_*` ki jagah Material icons; supplier item ka naam live product se (Flutter `PurchaseItem` mein naam snapshot nahi).
 - Note: yeh code compile/test nahi hua (Flutter SDK maujood nahi) — `flutter analyze && flutter test test/party_reports_test.dart` chalayein.
-- [ ] Phase 6 mein baaki: `PartyQuickAddMenu.kt`, `DueRemindersActivity.kt` (+ sales/purchases `dueDate` DB migration), `PartyActivity` ka contact picker + row tap.
+- [x] Phase 6 mein baaki: `PartyQuickAddMenu.kt`, `DueRemindersActivity.kt` (+ sales/purchases `dueDate` DB migration), `PartyActivity` ka contact picker + row tap.
 
 ## Flutter side (2026-09-29) — Party Transaction (Phase 6, doosra screen)
 - [x] `PartyTransactionActivity.kt`: `lib/screens/party_transaction_screen.dart` + `lib/db/party_transaction_repository.dart`
@@ -377,7 +427,7 @@
 - `PaymentRepository.update/delete` ab data layer par bhi admin-only (Kotlin `requireAdminOrAbort`).
 - Farq: Share Statement / Share receipt clipboard mein copy (share plugin nahi); payment save ke baad "Share receipt?" offer nahi (har payment row par Share chip); Overdue Rs 0 (dueDate column nahi);
   `purchase_items` mein conversionFactor / itemName nahi => purchase line ki smallest qty product ki MAUJUDA ladder se; supplier screen cashier ke liye band.
-- [ ] Sales/Purchases mein `dueDate` column (Overdue + Due Reminders) — DB migration + Sale/Purchase screens.
+- [x] Sales/Purchases mein `dueDate` column (Overdue + Due Reminders) — DB migration + Sale/Purchase screens.
 - [ ] `purchase_items.conversionFactor` + `itemName` (Kotlin snapshot) — DB migration.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
 
@@ -391,8 +441,8 @@
 - Farq: transaction item-name search ka key `S:<invoice>` / `P:<billNo>` (Kotlin sirf reference); Share summary clipboard mein copy hota hai (share plugin nahi).
 - [x] Party row tap => `PartyTransactionScreen` (Party Transaction entry dekhein).
 - [ ] Overdue / Due Today badge: `sales` table mein `dueDate` column nahi — Due Reminders (DueRemindersActivity) ke saath.
-- [ ] Transactions tab mein Purchase row tap = edit-saved-purchase (Phase 7). "+" menu: Sale/Purchase Return (Phase 7 History).
-- [ ] "+" menu ka Payment Received/Made abhi Payments screen kholta hai; party picker + openPayment PartyQuickAddMenu.kt ke saath.
+- [x] Transactions tab mein Purchase row tap = edit-saved-purchase (Phase 7). "+" menu: Sale/Purchase Return (Phase 7 History).
+- [x] "+" menu ka Payment Received/Made abhi Payments screen kholta hai; party picker + openPayment PartyQuickAddMenu.kt ke saath.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
 
 ## Flutter side (2026-09-29) — Items + Bulk Missing Rates + Bulk Default Unit (Phase 5 mukammal)
@@ -406,7 +456,7 @@
 - Farq (Kotlin jaisa hi rakha): unit delete sirf local hai (sync delete nahi). Farq (Kotlin se behtar): "Change Category" ab sync queue mein bhi jati hai (Kotlin sirf upsert karta tha).
 - [x] Items ka "Import" (Rate List CSV): ab ho gaya (2026-09-30) — dekhein upar wali entry.
 - [x] Items ka "Translate" button: BulkTranslateScreen se jur gaya (Phase 13).
-- [ ] `ProductScreen` ka apna save/delete abhi bhi sync queue mein nahi likhta (TODO wahan maujood) — Phase 10 mein.
+- [x] `ProductScreen` ka apna save/delete abhi bhi sync queue mein nahi likhta (TODO wahan maujood) — Phase 10 mein.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
 
 ## Flutter side (2026-09-29) — Rate Comparison (Phase 5)
@@ -473,8 +523,8 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - Screen par closing figure hamesha LIVE ledger balance se (stored `balance` se nahi). Delete confirm mein bhi live balance dikhta hai (Kotlin stored `c.totalPayable()` dikhata tha).
 - Chhote farq: "Dues only" mein 0.009 ki tolerance (Kotlin `!= 0.0` tha, float noise se "Rs 0.00" party due dikhti); edit dialog mein khali naam par dialog band nahi hota, wahin error dikhta hai; `pubspec.yaml` mein `url_launcher` (Call). iPad par dialer nahi hota — "Couldn't open dialer" toast aata hai.
 - [ ] Contact picker (phone field ke saath icon): `flutter_contacts` + Android `READ_CONTACTS` / iOS `NSContactsUsageDescription` — CI har build par `flutter create` chalata hai, is liye permissions `tools/android_fix.sh` / iOS step mein patch karni hongi.
-- [ ] Party par tap: abhi history dialog; Party Dashboard / Party Transaction screens port hone par wahan link karein.
-- [ ] Phase 10: sync entityId DeviceTag ke saath (`customer:<device>-<id>`), `increment_balance` ka asal payload (abhi `{delta}`), `upsert` + serverId stamp.
+- [x] Party par tap: abhi history dialog; Party Dashboard / Party Transaction screens port hone par wahan link karein.
+- [x] Phase 10: sync entityId DeviceTag ke saath (`customer:<device>-<id>`), `increment_balance` ka asal payload (abhi `{delta}`), `upsert` + serverId stamp.
 - Sawal: Fix Balances / Merge / Cleanup chips Kotlin mein sab roles ko dikhte hain (yahan bhi). Ye data badalte/hatate hain — chahen to admin/manager tak mehdood kar dein.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
 
