@@ -1,6 +1,17 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
 
+## Flutter side (2026-10-01) — Purchase/Sale UI muqabla + phase-wise audit
+- [x] Purchase: product naam Urdu par right-aligned (RTL auto-detect); Qty+Unit+Rate+**Total Lot Price** ek row (tablet 4 fields, phone 2x2); Lot<->Rate auto-calc (qty x rate = lot, lot / qty = rate) — Kotlin `totalLotPrice` jaisa; tab order Qty -> Rate -> Lot -> Retail -> Wholesale -> Add. `PremiumLabeledField(compact: true)` (badge icon chhupa kar).
+- [x] Purchase + Sale: Kotlin `isTabletWide` (>= 700dp) two-pane layout — left = supplier/customer + item entry (scroll), right = Billed Items (apni scroll) + Total/Payment/Due/Save neeche pinned (keyboard Total/Paid/Save nahi chhupata). Phone par pehle jaisa single column.
+- [x] Purchase: alag 'Total Amount' card (Payment ke upar) aur 'Due Amount' card (neeche, baqi = laal / hara); 'Total (rounded)' row hata di; 'Paid khali hai - Ye Udhaar me jayega' warning.
+- [x] Sale: header subtitle 'RETAIL · WHOLESALE BILLING'; product search naam RTL-aware.
+- [x] Login: header 'IBTISAAM Kiryana Store' + 'Point of Sale', card par 'Welcome Back' (Kotlin LoginActivity).
+- [x] Tests: `test/core_repositories_test.dart` — User / Customer / Supplier / Category / Unit repositories (asal AppDatabase, sqflite FFI, temp folder). Pehle in ke apne tests nahi the.
+- [x] Audit nateeja: PORT_STATUS ka 100% sirf Kotlin lines ka hisaab tha, UI barabari ka nahi. Kotlin vs Flutter screen-text muqabla kar ke Purchase/Sale ke gap nikaale (upar fix). Quick Sale dialog ki 560 width cap Flutter mein pehle se thi (gap nahi).
+- [ ] Ye sab bina `flutter analyze` / `flutter test` ke likha gaya (is environment mein Flutter SDK nahi) — CI / PC par `flutter pub get && flutter analyze && flutter test` chalayein; naya test file bhi.
+- [ ] Baqi (device par): Firebase 2-device sync, USB/Bluetooth printer, Oppo/Xiaomi background backup, tablet par Purchase/Sale two-pane nazar-e-saani. Farq jo jaan boojh kar: WhatsApp par bill TEXT jata hai (Kotlin image); PDF Urdu ke liye NotoNastaliqUrdu font declare karna hoga.
+
 ## Flutter side (2026-10-01) — Phase 0-13 audit
 - [x] Role checks data layer par: `ProductRepository` (delete/setRates/setAllRates/setDefaultUnitIndex = admin), `BulkTranslateRepository` (admin), `PartyReportsRepository` (admin/manager); `ProductScreen` ke andar bhi guard.
 - [x] CI: `build.yml` mein `analyze-test` job (`flutter analyze --no-fatal-infos` + `flutter test`).
@@ -9,7 +20,7 @@
 - [x] CI (2026-10-01): Build #114 poora green — Analyze + Test, Build iOS (unsigned), Build Android APK, Build Windows (exe) sab pass; 3 artifacts. `flutter test`: pehle run mein 630 pass / 20 fail, phir 645 / 5, ab sab pass. `flutter analyze --no-fatal-infos --no-fatal-warnings` (warnings ab CI fail nahi karti; infos/warnings baad mein saaf karni hain).
 - [x] Test fixes (2026-10-01): `sync_apply_test` ka in-memory schema poora (payments/sales/purchases wagaira, `relinkOrphanedParties` ke liye); `KotlinBackupImporter.isRoomDatabase` ab `user_version > AppDatabase.schemaVersion` (pehle hard-coded 13, Flutter DB v14 thi); `applySuppliers` naya supplier = Kotlin jaisa (balance sirf server ka, updatedAt = abhi, dirty = 0); `SyncWorker` sirf `paused` par sync (`hidden` par nahi); NumericKeypad sheet `isScrollControlled` (overflow); test fixes: lightenColor range, item report order (Rice 350 > Sugar 300), sync_worker lifecycle test.
 - [x] Deprecations: `PopScope.onPopInvoked` -> `onPopInvokedWithResult` (items_screen.dart, stock_movement_screen.dart).
-- [ ] Baaki warnings/infos (CI log, analyze): unnecessary imports (desktop_db_init, bill_scan_screen, app_lock, crash_handler, sync_api, sync_worker, theme_manager, password_hasher), unused `_selectUnitLabel` (product_screen), dashboard_screen `roles` parameter. Ye sab sirf lint hain, app par asar nahi.
+- [x] Lint cleanup (2026-10-01): analyze ke sab 12 infos saaf — 8 unnecessary imports (desktop_db_init, bill_scan_screen, app_lock, crash_handler, sync_api, sync_worker, theme_manager, password_hasher), unused `_selectUnitLabel` (product_screen), dashboard `_Action.roles` (kabhi use nahi hota tha). Warnings pehle hi saaf thin. Compile/test nahi hua (Flutter SDK nahi) — CI 'Analyze + Test' se verify karein.
 - [x] Language: bina `Loc.t` wale ~35 Text (Purchase/Sale totals, Held Bills, Sync section, Bulk screens, Payments dropdown wagaira) ab `Loc.t(en, ur)` se. Jaan boojh kar English: bill preview ki ITEM/QTY/RATE/AMOUNT header (printed receipt jaisa fixed), `Rs` amounts, brand naam, language toggle ka 'English'. Urdu alfaaz Kotlin ke Loc.t se liye jahan mile, baqi naye hain — dekh lein.
 - [ ] Device par: Firebase + 2-device sync, asli USB/Bluetooth printer, Xiaomi/Oppo background backup, Android ke saath ek bill ka number mila kar dekhna, Web `rateComparison.js`.
 

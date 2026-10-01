@@ -64,6 +64,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   final _qtyFocus = FocusNode();
   final _rateCtrl = TextEditingController();
   final _rateFocus = FocusNode();
+  // Total Lot Price (Kotlin totalLotPrice): qty × rate; lot likhne par rate = lot / qty.
+  final _lotCtrl = TextEditingController();
+  final _lotFocus = FocusNode();
+  bool _suppressLotSync = false;
   final _retailFocus = FocusNode();
   final _wholesaleFocus = FocusNode();
   final _paidFocus = FocusNode();
@@ -104,6 +108,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _qtyCtrl.addListener(_syncLotFromRate);
+    _rateCtrl.addListener(_syncLotFromRate);
     ProductRepository.instance.listAll().then((v) {
       if (mounted) setState(() => _products = v);
     });
@@ -147,6 +153,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _invoiceCtrl.dispose();
     _invoiceFocus.dispose();
     _rateFocus.dispose();
+    _lotFocus.dispose();
+    _lotCtrl.dispose();
     _retailFocus.dispose();
     _wholesaleFocus.dispose();
     _paidFocus.dispose();
@@ -410,6 +418,57 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   Product? _productByName(String name) {
     final n = name.trim().toLowerCase();
     return _products.where((p) => p.name.trim().toLowerCase() == n).firstOrNull;
+  }
+
+  /// qty ya rate badalne par Total Lot Price = qty × rate (Kotlin rate/qty watcher).
+  void _syncLotFromRate() {
+    if (_suppressLotSync) return;
+    final q = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
+    final r = double.tryParse(_rateCtrl.text.trim()) ?? 0.0;
+    if (q > 0 && r > 0) {
+      _lotCtrl.text = _trimNum(q * r);
+    } else if (q > 0 && r <= 0 && (double.tryParse(_lotCtrl.text.trim()) ?? 0.0) > 0) {
+      // Pehle lot likha tha, ab qty aayi: rate = lot / qty.
+      final newRate = (double.tryParse(_lotCtrl.text.trim()) ?? 0.0) / q;
+      _suppressLotSync = true;
+      _rateCtrl.text = _trimNum(newRate);
+      _suppressLotSync = false;
+      _mainRate = _toMain(newRate);
+    } else if (_rateCtrl.text.trim().isEmpty && _qtyCtrl.text.trim().isEmpty) {
+      _lotCtrl.text = '';
+    }
+  }
+
+  /// Total Lot Price likhne par rate = lot / qty (Kotlin totalLotPrice watcher).
+  void _onLotChanged(String v) {
+    final lot = double.tryParse(v.trim()) ?? 0.0;
+    final q = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
+    if (q > 0 && lot > 0) {
+      final newRate = lot / q;
+      _suppressLotSync = true;
+      _rateCtrl.text = _trimNum(newRate);
+      _suppressLotSync = false;
+      setState(() => _mainRate = _toMain(newRate));
+    } else {
+      setState(() {});
+    }
+    _saveEntrySoon();
+  }
+
+  String _trimNum(double v) {
+    final t = v.toStringAsFixed(2);
+    return t.contains('.') ? t.replaceFirst(RegExp(r'\.?0+$'), '') : t;
+  }
+
+  /// Urdu/Arabic harf ho to RTL (text right par), warna app ki zabaan ke mutabiq.
+  TextDirection _nameDirection(String text) {
+    final rtl = RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]');
+    for (final r in text.runes) {
+      final ch = String.fromCharCode(r);
+      if (rtl.hasMatch(ch)) return TextDirection.rtl;
+      if (RegExp(r'[A-Za-z]').hasMatch(ch)) return TextDirection.ltr;
+    }
+    return Loc.isUrdu ? TextDirection.rtl : TextDirection.ltr;
   }
 
   Future<void> _addLine() async {
@@ -1183,38 +1242,112 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
 
   // --------------------------------------------------------------------- build
 
+  /// Kotlin `isTabletWide = screenWidthDp >= 700`.
+  static const double _tabletBreakpoint = 700;
+
   @override
   Widget build(BuildContext context) {
+    final wide = MediaQuery.of(context).size.width >= _tabletBreakpoint;
     return Scaffold(
       backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : Column(
+            : (wide ? _buildTwoPane() : _buildSinglePane()),
+      ),
+    );
+  }
+
+  Widget _buildHeader() => PremiumHeader(
+        title: _isEdit ? 'Edit Purchase' : 'New Purchase',
+        subtitle: _isEdit ? 'Bill ${widget.editBillNo}' : 'Stock In / Supplier Bill',
+      );
+
+  /// Phone: Kotlin ki tarah ek hi column (original flow).
+  Widget _buildSinglePane() {
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(),
+                _buildDateRow(),
+                _buildSupplierCard(),
+                _buildItemEntryCard(),
+                _buildLinesList(),
+                _buildTotalsCard(),
+              ],
+            ),
+          ),
+        ),
+        _buildSaveBar(),
+      ],
+    );
+  }
+
+  /// Tablet (>= 700dp): Kotlin twoPane — left = supplier/item entry (scroll),
+  /// right = billed items (apni scroll) + Total/Payment/Due/Save neeche pinned,
+  /// taa ke keyboard ya lambi list se Total/Paid/Save kabhi gayab na hon.
+  Widget _buildTwoPane() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 13,
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(4, 20, 16, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          PremiumHeader(
-                            title: _isEdit ? 'Edit Purchase' : 'New Purchase',
-                            subtitle: _isEdit ? 'Bill ${widget.editBillNo}' : 'Stock In / Supplier Bill',
-                          ),
-                          _buildDateRow(),
-                          _buildSupplierCard(),
-                          _buildItemEntryCard(),
-                          _buildLinesList(),
-                          _buildTotalsCard(),
-                        ],
-                      ),
-                    ),
-                  ),
-                  _buildSaveBar(),
+                  _buildHeader(),
+                  _buildDateRow(),
+                  _buildSupplierCard(),
+                  _buildItemEntryCard(),
                 ],
               ),
+            ),
+          ),
+          VerticalDivider(width: 1, thickness: 1, color: ThemeManager.palette.border),
+          Expanded(
+            flex: 10,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 4, 8),
+                    child: _lines.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 40),
+                            child: Center(
+                              child: Text(
+                                Loc.t('No items added yet', 'ابھی کوئی آئٹم شامل نہیں'),
+                                style: TextStyle(color: ThemeManager.palette.textMuted),
+                              ),
+                            ),
+                          )
+                        : _buildLinesList(),
+                  ),
+                ),
+                Flexible(
+                  flex: 0,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 4, 0),
+                    child: _buildTotalsCard(),
+                  ),
+                ),
+                _buildSaveBar(),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1486,9 +1619,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       return _products.where((p) => p.matchesQuery(text.text));
                     },
                     onSelected: _onProductPicked,
-                    fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
+                    fieldViewBuilder: (context, controller, focusNode, onSubmit) => ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: controller,
+                      builder: (context, value, _) => TextField(
                       controller: controller,
                       focusNode: focusNode,
+                      textDirection: _nameDirection(value.text),
+                      textAlign: _nameDirection(value.text) == TextDirection.rtl ? TextAlign.right : TextAlign.left,
                       textInputAction: TextInputAction.next,
                       onSubmitted: (_) {
                         // Ek hi match ho (ya naam poora mile) to wahi chun kar Qty par jao; khali ho to Paid par.
@@ -1526,6 +1663,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                         isDense: true,
                       ),
                     ),
+                    ),
                     optionsViewBuilder: (context, onSelected, options) =>
                         autocompleteOptionsView<Product>(context, onSelected, options, (o) => o.name, maxWidth: 640),
                   ),
@@ -1561,62 +1699,101 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               ),
             ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: PremiumLabeledField(
-                  emoji: '🔢',
-                  label: 'Quantity',
-                  accent: ThemeManager.palette.amber,
-                  controller: _qtyCtrl,
-                  focusNode: _qtyFocus,
-                  hint: '0',
-                  onChanged: (_) {
-                    setState(() {});
-                    _saveEntrySoon();
-                  },
-                  onSubmitted: () => _rateFocus.requestFocus(),
-                ),
+          LayoutBuilder(builder: (context, c) {
+            final qtyField = PremiumLabeledField(
+              emoji: '🔢',
+              label: 'Quantity',
+              accent: ThemeManager.palette.amber,
+              controller: _qtyCtrl,
+              focusNode: _qtyFocus,
+              hint: '0',
+              compact: true,
+              onChanged: (_) {
+                setState(() {});
+                _saveEntrySoon();
+              },
+              onSubmitted: () => _rateFocus.requestFocus(),
+            );
+            final unitField = Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: ThemeManager.palette.fieldFill,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: ThemeManager.palette.border, width: 1.2),
               ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: ThemeManager.palette.fieldFill,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: ThemeManager.palette.border, width: 1.2),
-                ),
-                child: DropdownButton<String>(
-                  value: unitValue,
-                  underline: const SizedBox.shrink(),
-                  items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
-                  onChanged: (v) {
-                    if (v != null) _onUnitChanged(v);
-                  },
-                ),
+              child: DropdownButton<String>(
+                value: unitValue,
+                underline: const SizedBox.shrink(),
+                items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                onChanged: (v) {
+                  if (v != null) _onUnitChanged(v);
+                },
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          PremiumLabeledField(
-            emoji: '💵',
-            label: 'Rate (per $unitValue)',
-            accent: ThemeManager.palette.orange,
-            controller: _rateCtrl,
-            focusNode: _rateFocus,
-            onChanged: (v) {
-              _onRateChanged(v);
-              _saveEntrySoon();
-            },
-            textInputAction: picked != null ? TextInputAction.next : TextInputAction.done,
-            onSubmitted: () {
-              if (picked != null) {
-                _retailFocus.requestFocus();
-              } else {
-                _addLine();
-              }
-            },
-          ),
+            );
+            final rateField = PremiumLabeledField(
+              emoji: '💵',
+              label: 'Rate (per $unitValue)',
+              accent: ThemeManager.palette.orange,
+              controller: _rateCtrl,
+              focusNode: _rateFocus,
+              compact: true,
+              onChanged: (v) {
+                _onRateChanged(v);
+                _saveEntrySoon();
+              },
+              onSubmitted: () => _lotFocus.requestFocus(),
+            );
+            final lotField = PremiumLabeledField(
+              emoji: '🧮',
+              label: 'Total Lot Price',
+              accent: ThemeManager.palette.purple,
+              controller: _lotCtrl,
+              focusNode: _lotFocus,
+              hint: 'e.g. 5000',
+              compact: true,
+              textInputAction: picked != null ? TextInputAction.next : TextInputAction.done,
+              onChanged: _onLotChanged,
+              onSubmitted: () {
+                if (picked != null) {
+                  _retailFocus.requestFocus();
+                } else {
+                  _addLine();
+                }
+              },
+            );
+            if (c.maxWidth >= 560) {
+              // Tablet / wide: Qty | Unit | Rate | Lot — ek hi line mein.
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(flex: 3, child: qtyField),
+                  const SizedBox(width: 8),
+                  unitField,
+                  const SizedBox(width: 8),
+                  Expanded(flex: 3, child: rateField),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 3, child: lotField),
+                ],
+              );
+            }
+            // Phone: Qty + Unit, phir Rate + Lot.
+            return Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [Expanded(child: qtyField), const SizedBox(width: 8), unitField],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: rateField),
+                    const SizedBox(width: 8),
+                    Expanded(child: lotField),
+                  ],
+                ),
+              ],
+            );
+          }),
           _marginLabel(margin),
           if (picked != null) ...[
             const SizedBox(height: 12),
@@ -1750,7 +1927,28 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     final paid = _effectivePaid;
     final due = (total - paid) < 0 ? 0.0 : (total - paid);
     final split = _splitPayments.isNotEmpty;
-    return PremiumCard(
+    Widget summaryCard(String label, String value, Color valueColor) => Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+          decoration: BoxDecoration(
+            color: ThemeManager.palette.fieldFill,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: ThemeManager.palette.border),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Text(label.toUpperCase(),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.6, color: ThemeManager.palette.textMuted)),
+            ),
+            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: valueColor)),
+          ]),
+        );
+    // Kotlin: "Total Amount" card -> Payment card -> "Due Amount" card.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        summaryCard(Loc.t('Total Amount', 'کل رقم'), 'Rs ${total.toStringAsFixed(0)}', ThemeManager.palette.navyInk),
+        PremiumCard(
       accentTop: ThemeManager.palette.purple,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1761,14 +1959,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             children: [
               Text(Loc.t('Subtotal', 'سب ٹوٹل'), style: TextStyle(color: ThemeManager.palette.textMuted)),
               Text(_subtotal.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: ThemeManager.palette.textDark)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(Loc.t('Total (rounded)', 'ٹوٹل (راؤنڈ)'), style: TextStyle(color: ThemeManager.palette.textMuted)),
-              Text(total.toStringAsFixed(0), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: ThemeManager.palette.textDark)),
             ],
           ),
           const SizedBox(height: 12),
@@ -1825,18 +2015,19 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                 ),
               ],
             ),
-          if (total > 0)
+          // Kotlin paidWarningText: Paid khali + total > 0.
+          if (total > 0 && !split && _paidCtrl.text.trim().isEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                due > 0.009
-                    ? Loc.t('Due to supplier: Rs ${due.toStringAsFixed(0)}', 'سپلائر کو باقی: Rs ${due.toStringAsFixed(0)}')
-                    : Loc.t('Fully paid', 'مکمل ادا'),
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: due > 0.009 ? ThemeManager.palette.red : ThemeManager.palette.teal),
-              ),
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('⚠ Paid khali hai - Ye Udhaar me jayega',
+                  style: TextStyle(color: ThemeManager.palette.red, fontSize: 11, fontWeight: FontWeight.bold)),
             ),
         ],
       ),
+    ),
+        summaryCard(Loc.t('Due Amount', 'باقی رقم'), 'Rs ${due.toStringAsFixed(0)}',
+            due > 0.009 ? ThemeManager.palette.red : ThemeManager.palette.teal),
+      ],
     );
   }
 

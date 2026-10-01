@@ -31,8 +31,7 @@ class _Action {
   final Color bg, fg;
   final Widget Function()? open;
   final VoidCallback? onTap;
-  final Set<String>? roles; // null => sab roles
-  const _Action(this.en, this.ur, this.subEn, this.subUr, this.icon, this.bg, this.fg, {this.open, this.onTap, this.roles});
+  const _Action(this.en, this.ur, this.subEn, this.subUr, this.icon, this.bg, this.fg, {this.open, this.onTap});
 }
 
 /// Mirrors MainActivity.kt — header (Settings / dark toggle / Quick Switch), live item-rate search,

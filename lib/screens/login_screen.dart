@@ -513,9 +513,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   CircleAvatar(radius: 40, backgroundColor: Colors.white, child: Icon(Icons.lock, size: 36, color: ThemeManager.palette.navyInk)),
                   const SizedBox(height: 16),
-                  const Text('AH Developer — Kiryana Store', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.bold)),
+                  const Text('IBTISAAM Kiryana Store', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text(_setupMode ? Loc.t('First-time setup', 'پہلی دفعہ سیٹ اپ') : Loc.t('Sign in to continue', 'جاری رکھنے کے لیے لاگ اِن کریں'),
+                  Text(_setupMode ? Loc.t('First-time setup', 'پہلی دفعہ سیٹ اپ') : 'Point of Sale',
                       style: TextStyle(color: ThemeManager.palette.headerSubtitleColor)),
                   const SizedBox(height: 26),
                   Card(
@@ -524,6 +524,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(22),
                       child: Column(children: [
+                        // Kotlin LoginActivity: card ka heading "Welcome Back" + subtitle.
+                        if (!_setupMode)
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 18),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(Loc.t('Welcome Back', 'خوش آمدید'),
+                                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+                                const SizedBox(height: 4),
+                                Text(Loc.t('Sign in to continue', 'جاری رکھنے کے لیے لاگ اِن کریں'),
+                                    style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
+                              ]),
+                            ),
+                          ),
                         if (_fingerprintOnly) _fingerprintPanel(),
                         if (_otpMode) _otpPanel(),
                         if (!_fingerprintOnly && !_otpMode) ...[

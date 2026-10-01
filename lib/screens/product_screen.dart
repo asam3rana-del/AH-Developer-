@@ -104,13 +104,6 @@ class _ProductScreenState extends State<ProductScreen> {
     return result;
   }
 
-  String get _selectUnitLabel {
-    final b = StringBuffer('📏 $_primaryUnit');
-    if (_secondaryUnit != 'None') b.write(' / $_secondaryUnit');
-    if (_tertiaryUnit != 'None') b.write(' / $_tertiaryUnit');
-    return b.toString();
-  }
-
   String get _stockPreview {
     // Edit mode: stock field mein SMALLEST unit ki mehfooz ginti hoti hai — use dobara "naya qty"
     // samajh kar convert nahi karna (7000 gram ko 7000 Kg bana deta tha). Kotlin

@@ -44,6 +44,8 @@
 
 **CI status (2026-10-01): Build #114 — Analyze + Test, iOS (unsigned), Android APK, Windows (exe) sab green. `flutter test` sab pass (pehle 630/20 fail se theek kiye).**
 
+**UI audit (2026-10-01):** PORT_STATUS ka % Kotlin lines ka hai, UI barabari ka nahi. Har screen ke baad Kotlin ki layout (tablet `isTabletWide` >= 700dp, field arrangement, labels) bhi mila lein. Purchase + Sale ka two-pane aur Purchase ka Lot Price ab Flutter mein hai.
+
 Har phase ke baad: `flutter analyze`, `flutter test`, aur Android app ke saath ek sample bill/purchase ka number mila kar dekhein.
 
 ## 3. Android update ka tareeqa (aap ko bas 3 kaam)

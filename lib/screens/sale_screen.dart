@@ -1265,43 +1265,98 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       );
     }
     final returned = _originalSale?.status == 'returned';
+    // Kotlin `isTabletWide = screenWidthDp >= 700`.
+    final wide = MediaQuery.of(context).size.width >= 700;
+
+    final headerWidgets = <Widget>[
+      PremiumHeader(
+        title: _isEdit ? Loc.t('Edit Sale', 'سیل میں ترمیم') : Loc.t('New Sale', 'نئی سیل'),
+        subtitle: _isEdit ? 'Invoice ${widget.editInvoice}' : 'RETAIL · WHOLESALE BILLING',
+      ),
+      if (returned)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            Loc.t('This sale is already Returned', 'یہ سیل پہلے ہی واپس ہو چکی ہے'),
+            style: TextStyle(color: ThemeManager.palette.red, fontWeight: FontWeight.bold),
+          ),
+        ),
+      _buildActionRow(),
+      _buildFirmCard(),
+      _buildTopRow(),
+      _buildCustomerCard(),
+      _buildItemEntryCard(),
+    ];
+
+    if (!wide) {
+      return Scaffold(
+        backgroundColor: ThemeManager.palette.bg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [...headerWidgets, _buildLinesList(), _buildTotalsCard()],
+                  ),
+                ),
+              ),
+              _buildSaveBar(),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Tablet (>= 700dp): Kotlin twoPane — left = customer/item entry (scroll),
+    // right = billed items (apni scroll) + Total/Payment/Save neeche pinned.
     return Scaffold(
       backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                controller: _scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 13,
+                child: SingleChildScrollView(
+                  controller: _scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(4, 20, 16, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: headerWidgets,
+                  ),
+                ),
+              ),
+              VerticalDivider(width: 1, thickness: 1, color: ThemeManager.palette.border),
+              Expanded(
+                flex: 10,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    PremiumHeader(
-                      title: _isEdit ? Loc.t('Edit Sale', 'سیل میں ترمیم') : Loc.t('New Sale', 'نئی سیل'),
-                      subtitle: _isEdit ? 'Invoice ${widget.editInvoice}' : 'Stock Out / Customer Bill',
-                    ),
-                    if (returned)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          Loc.t('This sale is already Returned', 'یہ سیل پہلے ہی واپس ہو چکی ہے'),
-                          style: TextStyle(color: ThemeManager.palette.red, fontWeight: FontWeight.bold),
-                        ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 20, 4, 8),
+                        child: _buildLinesList(),
                       ),
-                    _buildActionRow(),
-                    _buildFirmCard(),
-                    _buildTopRow(),
-                    _buildCustomerCard(),
-                    _buildItemEntryCard(),
-                    _buildLinesList(),
-                    _buildTotalsCard(),
+                    ),
+                    Flexible(
+                      flex: 0,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 4, 0),
+                        child: _buildTotalsCard(),
+                      ),
+                    ),
+                    _buildSaveBar(),
                   ],
                 ),
               ),
-            ),
-            _buildSaveBar(),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1530,6 +1585,18 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     return 'Total Amount: Rs ${(qty * price).round()}';
   }
 
+  /// Urdu/Arabic harf ho to RTL (text right par), warna app ki zabaan ke mutabiq.
+  TextDirection _nameDirection(String text) {
+    final rtl = RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]');
+    final latin = RegExp(r'[A-Za-z]');
+    for (final r in text.runes) {
+      final ch = String.fromCharCode(r);
+      if (rtl.hasMatch(ch)) return TextDirection.rtl;
+      if (latin.hasMatch(ch)) return TextDirection.ltr;
+    }
+    return Loc.isUrdu ? TextDirection.rtl : TextDirection.ltr;
+  }
+
   Widget _buildItemEntryCard() {
     final picked = _pickedProduct;
     final unitOptions = picked != null ? saleUnitChoices(picked) : <String>['pcs'];
@@ -1553,9 +1620,13 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 return _products.where((p) => p.matchesQuery(text.text));
               },
               onSelected: _onProductPicked,
-              fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
+              fieldViewBuilder: (context, controller, focusNode, onSubmit) => ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller,
+                builder: (context, value, _) => TextField(
                 controller: controller,
                 focusNode: focusNode,
+                textDirection: _nameDirection(value.text),
+                textAlign: _nameDirection(value.text) == TextDirection.rtl ? TextAlign.right : TextAlign.left,
                 onChanged: (v) {
                   // Typing a different name drops the previous pick.
                   final pp = _pickedProduct;
@@ -1569,6 +1640,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   }
                 },
                 decoration: const InputDecoration(hintText: 'Search a product to sell', border: InputBorder.none, isDense: true),
+                ),
               ),
               optionsViewBuilder: (context, onSelected, options) =>
                   autocompleteOptionsView<Product>(context, onSelected, options, (o) => o.name, maxWidth: 640),

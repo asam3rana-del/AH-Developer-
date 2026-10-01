@@ -133,6 +133,9 @@ class PremiumLabeledField extends StatelessWidget {
   /// false greys the box out (e.g. Paid Amount while a Split Payment is active).
   final bool enabled;
 
+  /// true: badge icon chhupa kar kam jagah mein (ek row mein kai fields ke liye).
+  final bool compact;
+
   const PremiumLabeledField({
     super.key,
     required this.emoji,
@@ -146,12 +149,13 @@ class PremiumLabeledField extends StatelessWidget {
     this.focusNode,
     this.onSubmitted,
     this.enabled = true,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14, vertical: 8),
       decoration: BoxDecoration(
         color: ThemeManager.palette.fieldFill,
         borderRadius: BorderRadius.circular(16),
@@ -160,14 +164,18 @@ class PremiumLabeledField extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          BadgeIcon(emoji: emoji, color: accent, size: 38),
-          const SizedBox(width: 14),
+          if (!compact) ...[
+            BadgeIcon(emoji: emoji, color: accent, size: 38),
+            const SizedBox(width: 14),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 9.5,
                     fontWeight: FontWeight.bold,
