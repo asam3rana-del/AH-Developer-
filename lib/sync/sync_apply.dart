@@ -225,11 +225,11 @@ Future<void> applySuppliers(DatabaseExecutor db, List<SyncDoc> rows, {required i
       await db.insert('suppliers', {
         'name': name,
         'phone': phone,
-        'balance': balance + localPending,
+        'balance': balance,
         'openingBalance': openingBalance,
         'serverId': serverId,
-        'updatedAt': serverUpdatedAt,
-        'dirty': localPending != 0.0 ? 1 : 0,
+        'updatedAt': nowMs(),
+        'dirty': 0,
       });
     }
   }

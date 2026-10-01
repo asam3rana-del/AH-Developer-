@@ -8,8 +8,10 @@ import 'package:ah_developer_kiryana_store/widgets/numeric_keypad.dart';
 void main() {
   test('lightenColor moves toward white like Kotlin lightenHex(0.82)', () {
     final c = lightenColor(const Color(0xFF0F9B8E));
-    expect(c.red, greaterThan(0xE0));
-    expect(c.green, greaterThan(0xF0));
+    // 0.82 ke saath: red = 15 + 240*0.82 ~ 212, green = 155 + 100*0.82 ~ 237 (sirf asli rang se bohat halka).
+    expect(c.red, inInclusiveRange(210, 214));
+    expect(c.green, inInclusiveRange(235, 239));
+    expect(c.red, greaterThan(0x0F));
   });
 
   test('palette follows dark flag', () {

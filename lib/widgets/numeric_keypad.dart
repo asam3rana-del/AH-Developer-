@@ -25,6 +25,7 @@ class NumericKeypad {
   }) {
     return showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true, // warna sheet 9/16 height par kat jati hai aur keypad overflow hota hai
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.35),
       builder: (sheetContext) => _KeypadSheet(

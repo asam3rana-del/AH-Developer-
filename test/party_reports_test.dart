@@ -72,9 +72,9 @@ void main() {
         (name: 'Sugar', qty: 1.0, amount: 300.0),
         (name: 'Rice', qty: 3.0, amount: 250.0),
       ]);
-      expect([for (final i in r) i.product], ['Sugar', 'Rice']);
-      expect(r[1].qty, 5);
-      expect(r[1].amount, 350);
+      expect([for (final i in r) i.product], ['Rice', 'Sugar']);
+      expect(r[0].qty, 5);
+      expect(r[0].amount, 350);
     });
   });
 

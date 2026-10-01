@@ -166,5 +166,6 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(runs, 3);
+    w.cancelPeriodic(); // testWidgets: pending Timer par fail hota hai (tearDown se pehle check)
   });
 }
