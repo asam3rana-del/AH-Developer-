@@ -42,6 +42,8 @@
 | 12 | Bluetooth print, Bill Preview, Bill Scan (OCR) | ✅ Mukammal — iPad par printer alag plugin (device par nazar-e-saani baaki) |
 | 13 | Bulk Translate, Merge Duplicates, Duplicate Unit Fix | ✅ Mukammal (Merge par preview + backup) |
 
+**CI status (2026-10-01): Build #96 — Android APK + Windows pass; analyze/test abhi verify nahi (naya `analyze-test` job push hona baaki).**
+
 Har phase ke baad: `flutter analyze`, `flutter test`, aur Android app ke saath ek sample bill/purchase ka number mila kar dekhein.
 
 ## 3. Android update ka tareeqa (aap ko bas 3 kaam)

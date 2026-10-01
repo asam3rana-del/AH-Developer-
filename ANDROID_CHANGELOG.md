@@ -6,7 +6,7 @@
 - [x] CI: `build.yml` mein `analyze-test` job (`flutter analyze --no-fatal-infos` + `flutter test`).
 - [x] Repo cleanup: `lib/AH-Developer-Purchase-Screen-Update.zip`, root `config/` (copy), `test/*.kt` (copy) hata diye. PORTING_PLAN ki phase table update.
 - [x] Purani unchecked items jo ab PORT_STATUS ke mutabiq ho chuki thin, tick kar di gayin.
-- [ ] Pehli baar `flutter analyze` / `flutter test` chalne par jo errors aayein wo yahan paste karein (ab tak kabhi nahi chale).
+- [ ] CI (2026-10-01): Build #96 mein Android APK + Windows pass, iOS in progress; us run mein 'Analyze + Test' job nazar nahi aaya (commit mein naya build.yml nahi tha). `flutter analyze` / `flutter test` ka result abhi nahi dekha — naya build.yml push karke 'Analyze + Test' job ka result yahan likhein.
 - [x] Language: bina `Loc.t` wale ~35 Text (Purchase/Sale totals, Held Bills, Sync section, Bulk screens, Payments dropdown wagaira) ab `Loc.t(en, ur)` se. Jaan boojh kar English: bill preview ki ITEM/QTY/RATE/AMOUNT header (printed receipt jaisa fixed), `Rs` amounts, brand naam, language toggle ka 'English'. Urdu alfaaz Kotlin ke Loc.t se liye jahan mile, baqi naye hain — dekh lein.
 - [ ] Device par: Firebase + 2-device sync, asli USB/Bluetooth printer, Xiaomi/Oppo background backup, Android ke saath ek bill ka number mila kar dekhna, Web `rateComparison.js`.
 
@@ -107,7 +107,7 @@
 ## Flutter side (2026-09-30) — Phase 3 / 4 / 6 band (baqi partial rows)
 - [x] `SaleActivity.kt`: Kotlin `SaleSaveResult.stockWarnings` — `SaleRepository.saveSale(stockWarnings:)` ab stock update na hone (0 rows) par warning jama karta hai, `sale_screen.dart` har warning toast mein dikhata hai (save phir bhi ho jata hai).
 - [x] `SettingsActivity.kt`, `MainActivity.kt`, `PartyDashboardActivity.kt`: function-by-function muqabla — sab rows/tiles/tabs Flutter mein maujood; `tools/port_map.json` mein `partial` -> `done`. PORT_STATUS ab 100%.
-- [ ] Ab bhi baaki (code nahi, verification): `flutter pub get && flutter analyze && flutter test`; device par Firebase setup + 2-device sync test; asli USB/Bluetooth printer test; Xiaomi/Oppo par background backup.
+- [ ] Ab bhi baaki (code nahi, verification): `flutter analyze && flutter test` (CI 'Analyze + Test' job se) device par Firebase setup + 2-device sync test; asli USB/Bluetooth printer test; Xiaomi/Oppo par background backup.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha).
 
 ## Flutter side (2026-09-30) — USB printing (Phase 12, PrinterHelper USB hissa)
@@ -133,7 +133,7 @@
 - [x] Sale: bill lines ab seedhi screen par nahi — "Billed Items (N) · Rs X" trigger card, tap par popup (Edit = fields refill + popup band, Delete, Close). Kotlin `openBilledItemsDialog` jaisa; Close par focus Paid par nahi jata. `lib/screens/sale_screen.dart`.
 - [x] Parties: phone field ke saath contact-picker icon (`flutter_contacts`), naam khali ho to contact ka naam bhi bharta hai. `lib/services/contact_picker.dart`. Android `READ_CONTACTS` `tools/android_fix.sh` se, iOS `NSContactsUsageDescription` `.github/workflows/build.yml` se (dono CI-patched — `.github` GitHub par replace karna na bhulein).
 - [x] Dashboard: "App crashed last time" dialog (Share / Copy / Dismiss). `lib/services/crash_handler.dart` (FlutterError.onError + PlatformDispatcher.onError -> SharedPreferences), `main()` mein sab se pehle install.
-- [ ] Ye sab zip mein bina `flutter analyze` / `flutter test` ke likha gaya (is environment mein Flutter SDK nahi) — pehle CI/PC par chalayein: `flutter pub get && flutter analyze && flutter test`.
+- [ ] Ye sab zip mein bina `flutter analyze` / `flutter test` ke likha gaya (is environment mein Flutter SDK nahi) — pehle CI/PC par chalayein: `flutter pub get && flutter analyze && flutter test`. (analyze/test abhi verify nahi hue)
 - [x] (2026-10-01 audit) Phase 4 ka `AppColors` -> `ThemeManager.palette` migration mukammal: ab `lib/` mein `AppColors` sirf `theme/app_colors.dart` aur `premium_widgets.dart` ke `fade()/fadeDark()` helpers mein hai. Settings ke baqi rows Kotlin se milaye — maujood. Sirf device par nazar-e-saani baaki.
 
 ## Flutter side (2026-09-29) — CI build fix 2
