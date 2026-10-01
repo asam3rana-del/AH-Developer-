@@ -22,6 +22,7 @@ String buildSaleBillText({
   required double total,
   required double paid,
   String paymentMethod = 'Cash',
+  double? netBalance,
   int width = 32,
 }) {
   final b = StringBuffer();
@@ -55,6 +56,10 @@ String buildSaleBillText({
   b.writeln(row('Paid ($paymentMethod)', paid.toStringAsFixed(2)));
   final due = total - paid;
   if (due > 0.009) b.writeln(row('DUE', due.toStringAsFixed(2)));
+  if (netBalance != null) {
+    b.writeln(row('Prev Balance', (netBalance - due).toStringAsFixed(2)));
+    b.writeln(row('Net Balance', netBalance.toStringAsFixed(2)));
+  }
   b.writeln(rule);
   b.writeln(center('Shukriya! Dobara tashreef layen'));
   return b.toString();
@@ -75,6 +80,7 @@ String buildPurchaseBillText({
   required double total,
   required double paid,
   String paymentMethod = 'Cash',
+  double? netBalance,
   int width = 32,
 }) {
   final b = StringBuffer();
@@ -109,6 +115,10 @@ String buildPurchaseBillText({
   b.writeln(row('Paid ($paymentMethod)', paid.toStringAsFixed(2)));
   final due = total - paid;
   if (due > 0.009) b.writeln(row('DUE', due.toStringAsFixed(2)));
+  if (netBalance != null) {
+    b.writeln(row('Prev Balance', (netBalance - due).toStringAsFixed(2)));
+    b.writeln(row('Net Balance', netBalance.toStringAsFixed(2)));
+  }
   return b.toString();
 }
 

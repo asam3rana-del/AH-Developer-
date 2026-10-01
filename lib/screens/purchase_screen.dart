@@ -333,7 +333,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       if (mounted && _supplierBalance != null) setState(() => _supplierBalance = null);
       return;
     }
-    final bal = await PartyRepository.instance.liveSupplierBalance(match.id!);
+    final bal = await PartyRepository.instance.closingBalance(isCustomer: false, partyId: match.id!);
     if (!mounted) return;
     // Is dauran naam badal chuka ho to purana jawab na dikhayen.
     if (_supplierCtrl.text.trim().toLowerCase() != q) return;
@@ -1239,6 +1239,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         paid: paid,
         paymentMethod: method,
       ),
+      justSaved: true,
     );
   }
 

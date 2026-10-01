@@ -71,7 +71,7 @@ class BillDoc {
       );
 
   /// Plain 32-column text (Copy / WhatsApp).
-  String toText() {
+  String toText({double? netBalance}) {
     if (isPurchase) {
       return buildPurchaseBillText(
         shopName: shopName,
@@ -85,6 +85,7 @@ class BillDoc {
         total: total,
         paid: paid,
         paymentMethod: paymentMethod,
+        netBalance: netBalance,
       );
     }
     return buildSaleBillText(
@@ -102,6 +103,7 @@ class BillDoc {
       total: total,
       paid: paid,
       paymentMethod: paymentMethod,
+      netBalance: netBalance,
     );
   }
 }

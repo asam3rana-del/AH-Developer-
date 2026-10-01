@@ -459,6 +459,69 @@ class PartyRepository {
     return l.isEmpty ? 0.0 : trueBalance(l.first);
   }
 
+  /// Party ka poora closing (opening + live ledger + stuck) — Kotlin `liveNetBalance`. Party list /
+  /// dashboard isi figure ko dikhate hain, is liye Bill Preview aur Purchase screen bhi yehi dikhayen.
+  Future<double> closingBalance({required bool isCustomer, required int partyId}) async {
+    final db = await AppDatabase.instance.database;
+    final party = await db.query(isCustomer ? 'customers' : 'suppliers', where: 'id = ?', whereArgs: [partyId], limit: 1);
+    if (party.isEmpty) return 0.0;
+    final opening = (party.first['openingBalance'] as num?)?.toDouble() ?? 0.0;
+    final stuck = isCustomer ? ((party.first['stuckBalance'] as num?)?.toDouble() ?? 0.0) : 0.0;
+    final running = isCustomer ? await liveCustomerBalance(partyId) : await liveSupplierBalance(partyId);
+    return partyClosing(opening: opening, running: running, stuck: stuck);
+  }
+
+  /// Party ka balance JIS WAQT yeh bill bani thi — bill se pehle ke bills + payments (opening
+  /// balance samet; customer ka stuck balance bhi). Is bill ka apna due isme shamil NAHI.
+  ///
+  /// Purani bill kholne par "aaj ka balance - is bill ka due" galat hai: baad ki payments
+  /// (jaise 3900 BANK) aaj ke balance ko 0 kar chuki hoti hain to Prev Balance -3900 aa jata tha.
+  /// Net Balance = yeh + bill ka due.
+  Future<double> balanceBeforeBill({
+    required bool isCustomer,
+    required int partyId,
+    required String billRef,
+    required DateTime billDate,
+  }) async {
+    final db = await AppDatabase.instance.database;
+    final partyTable = isCustomer ? 'customers' : 'suppliers';
+    final billTable = isCustomer ? 'sales' : 'purchases';
+    final billKey = isCustomer ? 'invoice' : 'billNo';
+    final partyCol = isCustomer ? 'customerId' : 'supplierId';
+    final partyType = isCustomer ? 'customer' : 'supplier';
+    final cutoff = billDate.millisecondsSinceEpoch;
+
+    final party = await db.query(partyTable, where: 'id = ?', whereArgs: [partyId], limit: 1);
+    final opening = party.isEmpty ? 0.0 : ((party.first['openingBalance'] as num?)?.toDouble() ?? 0.0);
+    final stuck = (party.isEmpty || !isCustomer) ? 0.0 : ((party.first['stuckBalance'] as num?)?.toDouble() ?? 0.0);
+
+    final bills = await db.query(billTable,
+        columns: [billKey, 'status', 'total', 'paid', 'createdAt'], where: '$partyCol = ?', whereArgs: [partyId]);
+    final pays = await db.query('payments',
+        columns: ['reference', 'billReference', 'amount', 'createdAt'],
+        where: 'partyType = ? AND partyId = ?',
+        whereArgs: [partyType, partyId]);
+
+    // Payment ko "bill ke andar" tab maanein jab wo kisi bhi (purani ya nayi) bill se juri ho.
+    final ids = {for (final b in bills) b[billKey] as String};
+    var owed = 0.0;
+    for (final b in bills) {
+      if ((b[billKey] as String) == billRef) continue;
+      if (((b['createdAt'] as num).toInt()) >= cutoff) continue;
+      if (((b['status'] as String?) ?? 'active') == 'returned') continue;
+      owed += (b['total'] as num).toDouble() - (b['paid'] as num).toDouble();
+    }
+    var paidSeparately = 0.0;
+    for (final p in pays) {
+      if (((p['createdAt'] as num).toInt()) >= cutoff) continue;
+      final ref = p['reference'] as String;
+      final bref = (p['billReference'] as String?) ?? '';
+      if (ids.contains(ref) || (bref.isNotEmpty && ids.contains(bref))) continue;
+      paidSeparately += (p['amount'] as num).toDouble();
+    }
+    return opening + stuck + owed - paidSeparately;
+  }
+
   // ---- Fix Balances -------------------------------------------------------
 
   /// Stored `balance` ko ledger ke hisaab se theek karta hai — sirf FARQ ka increment

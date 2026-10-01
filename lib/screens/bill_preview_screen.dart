@@ -18,11 +18,15 @@ import '../theme/theme_manager.dart';
 class BillPreviewScreen extends StatefulWidget {
   final BillDoc doc;
   final bool showNewBill;
-  const BillPreviewScreen({super.key, required this.doc, this.showNewBill = false});
+
+  /// true => bill abhi save hui hai: Prev/Net balance party ke current ledger se (backdated bill par bhi).
+  final bool justSaved;
+  const BillPreviewScreen({super.key, required this.doc, this.showNewBill = false, this.justSaved = false});
 
   /// Sab call sites yahi istemal karte hain.
-  static Future<String?> open(BuildContext context, BillDoc doc, {bool showNewBill = false}) =>
-      Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => BillPreviewScreen(doc: doc, showNewBill: showNewBill)));
+  static Future<String?> open(BuildContext context, BillDoc doc, {bool showNewBill = false, bool justSaved = false}) =>
+      Navigator.of(context).push<String>(
+          MaterialPageRoute(builder: (_) => BillPreviewScreen(doc: doc, showNewBill: showNewBill, justSaved: justSaved)));
 
   @override
   State<BillPreviewScreen> createState() => _BillPreviewScreenState();
@@ -31,7 +35,7 @@ class BillPreviewScreen extends StatefulWidget {
 class _BillPreviewScreenState extends State<BillPreviewScreen> {
   late BillDoc _doc = widget.doc;
   int? _partyId;
-  double? _net;
+  double? _net; // Net Balance = bill ke waqt ka Prev Balance + is bill ka due
   bool _printing = false;
 
   @override
@@ -56,14 +60,22 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
           if (s?.id != null) {
             _partyId = s!.id;
             d = d.copyWith(partyPhone: d.partyPhone.isEmpty ? s.phone : d.partyPhone);
-            _net = await PartyRepository.instance.liveSupplierBalance(s.id!);
+            _net = widget.justSaved
+                ? await PartyRepository.instance.closingBalance(isCustomer: false, partyId: s.id!)
+                : (await PartyRepository.instance.balanceBeforeBill(
+                        isCustomer: false, partyId: s.id!, billRef: d.ref, billDate: d.date)) +
+                    d.balance;
           }
         } else {
           final c = (await CustomerRepository.instance.listAll()).where((x) => x.name.trim().toLowerCase() == name).firstOrNull;
           if (c?.id != null) {
             _partyId = c!.id;
             d = d.copyWith(partyPhone: d.partyPhone.isEmpty ? c.phone : d.partyPhone);
-            _net = await PartyRepository.instance.liveCustomerBalance(c.id!);
+            _net = widget.justSaved
+                ? await PartyRepository.instance.closingBalance(isCustomer: true, partyId: c.id!)
+                : (await PartyRepository.instance.balanceBeforeBill(
+                        isCustomer: true, partyId: c.id!, billRef: d.ref, billDate: d.date)) +
+                    d.balance;
           }
         }
       }
@@ -132,14 +144,14 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     }
     final digits = whatsAppDigits(phone);
     if (digits.isEmpty) return _toast(Loc.t('Invalid number', 'نمبر درست نہیں'));
-    final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(_doc.toText())}');
+    final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(_doc.toText(netBalance: _partyId == null ? null : _net))}');
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        await Clipboard.setData(ClipboardData(text: _doc.toText()));
+        await Clipboard.setData(ClipboardData(text: _doc.toText(netBalance: _partyId == null ? null : _net)));
         _toast(Loc.t('WhatsApp not found — bill copied', 'واٹس ایپ نہیں ملا — بل کاپی ہو گیا'));
       }
     } catch (_) {
-      await Clipboard.setData(ClipboardData(text: _doc.toText()));
+      await Clipboard.setData(ClipboardData(text: _doc.toText(netBalance: _partyId == null ? null : _net)));
       _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
     }
   }
@@ -230,7 +242,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         _btn(Loc.t('WhatsApp par bhejein', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
         const SizedBox(height: 10),
         _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, ThemeManager.palette.navyLight, () async {
-          await Clipboard.setData(ClipboardData(text: d.toText()));
+          await Clipboard.setData(ClipboardData(text: d.toText(netBalance: _partyId == null ? null : _net)));
           _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
         }),
         const SizedBox(height: 10),

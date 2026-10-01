@@ -866,6 +866,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         paymentMethod: paymentLabel,
       ),
       showNewBill: showNew,
+      justSaved: showNew,
     );
   }
 
