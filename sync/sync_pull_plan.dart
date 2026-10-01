@@ -34,13 +34,16 @@ const List<String> pullCollections = [
 /// Har collection ke documents (`byCollection[collectionName]`) se `PullResult` banao.
 /// `serverTime` = sab documents mein sab se bara numeric `updatedAt` (kam az kam `since`) — agli pull
 /// ka checkpoint. `updatedAt` ke baghair document checkpoint ko nahi badhata (Kotlin `?: continue`).
-PullResult assemblePullResult(Map<String, List<SyncDoc>> byCollection, int since) {
+PullResult assemblePullResult(Map<String, List<SyncDoc>> byCollection, int since, {int? nowMs}) {
   List<SyncDoc> of(String c) => byCollection[c] ?? const [];
+  // Kisi device ki clock aage ho to uska updatedAt checkpoint ko future mein na dhakele (warna baqi
+  // devices darmiyan ke naye docs kabhi pull nahi karte): checkpoint 'ab + 5 min' se aage nahi jata.
+  final ceiling = (nowMs ?? DateTime.now().millisecondsSinceEpoch) + 5 * 60 * 1000;
   var maxUpdatedAt = since;
   for (final c in pullCollections) {
     for (final d in of(c)) {
       final t = asMillis(d['updatedAt']);
-      if (t != null && t > maxUpdatedAt) maxUpdatedAt = t;
+      if (t != null && t > maxUpdatedAt) maxUpdatedAt = t > ceiling ? (ceiling > since ? ceiling : since) : t;
     }
   }
   return PullResult(

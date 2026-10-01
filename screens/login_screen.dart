@@ -112,7 +112,16 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const DashboardScreen()));
   }
 
+  /// Koi bhi exception aaye to `_busy` wapas false (pehle DB error par button hamesha disabled reh jata).
   Future<void> _createAdmin() async {
+    try {
+      await _createAdminInner();
+    } catch (e) {
+      if (mounted) setState(() { _busy = false; _error = Loc.t('Could not continue: $e', 'آگے نہیں بڑھ سکا: $e'); });
+    }
+  }
+
+  Future<void> _createAdminInner() async {
     final displayName = _name.text.trim();
     final username = _user.text.trim();
     final password = _pass.text;
@@ -146,7 +155,25 @@ class _LoginScreenState extends State<LoginScreen> {
     _goMain();
   }
 
+  // Ghalat password par brute-force rokne ke liye: 5 ghalat koshishon ke baad 30 second ruk.
+  static int _failCount = 0;
+  static DateTime? _lockUntil;
+
   Future<void> _login() async {
+    final until = _lockUntil;
+    if (until != null && DateTime.now().isBefore(until)) {
+      final secs = until.difference(DateTime.now()).inSeconds + 1;
+      setState(() => _error = Loc.t('Too many wrong attempts. Try again in $secs s', 'بہت زیادہ غلط کوششیں۔ $secs سیکنڈ بعد دوبارہ کوشش کریں'));
+      return;
+    }
+    try {
+      await _loginInner();
+    } catch (e) {
+      if (mounted) setState(() { _busy = false; _error = Loc.t('Login failed: $e', 'لاگ اِن ناکام: $e'); });
+    }
+  }
+
+  Future<void> _loginInner() async {
     setState(() { _busy = true; _error = null; });
     final username = _user.text.trim();
     final typed = _pass.text;
@@ -171,6 +198,10 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
     if (!ok) {
+      if (++_failCount >= 5) {
+        _failCount = 0;
+        _lockUntil = DateTime.now().add(const Duration(seconds: 30));
+      }
       final msg = user == null
           ? Loc.t('User not found: "$username"', 'یوزر نہیں ملا: "$username"')
           : !user.active
@@ -178,6 +209,7 @@ class _LoginScreenState extends State<LoginScreen> {
               : Loc.t('Wrong password', 'پاس ورڈ غلط ہے');
       return setState(() { _busy = false; _error = msg; });
     }
+    _failCount = 0;
     await _repo.setSetting('last_username', user!.username);
     final method = await _repo.getSetting('login_method') ?? 'password';
     if (method == 'both') {
@@ -196,6 +228,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final user = await _repo.find(username);
     if (user == null) {
       return setState(() => _error = Loc.t('User not found: "$username"', 'یوزر نہیں ملا: "$username"'));
+    }
+    // SECURITY: ghair-faal (nikala hua) user phone PIN se password reset kar ke khud ko dobara active na kar sake.
+    if (!user.active) {
+      return setState(() => _error = Loc.t('This user is inactive', 'یہ یوزر غیر فعال ہے'));
     }
     final owner = await Biometric.authenticateDeviceOwner(
         reason: Loc.t('Verify with phone PIN / pattern to reset password', 'پاس ورڈ ری سیٹ کے لیے فون کا پن / پیٹرن ڈالیں'));
@@ -225,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
       displayName: user.displayName,
       role: user.role,
       passwordHash: await PasswordHasher.hash(newPass),
-      active: true,
+      active: user.active,
       phone: user.phone,
     ));
     await _repo.setSetting('login_method', 'password');

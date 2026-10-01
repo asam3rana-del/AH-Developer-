@@ -101,6 +101,7 @@ List<List<ReceiptLine>> paginateReceipt({
   required List<ReceiptLine> footer,
   int maxItemsPerPage = 18,
 }) {
+  if (maxItemsPerPage < 1) maxItemsPerPage = 1; // 0/negative par infinite loop na ho
   final tableHeader = items.isEmpty ? null : items.first;
   final rows = items.isEmpty ? <ReceiptLine>[] : items.sublist(1);
   if (rows.length <= maxItemsPerPage) return [[...header, ...items, ...footer]];

@@ -16,7 +16,7 @@ class ScannedItem {
 }
 
 final _skipWords = RegExp(
-  r'\b(total|subtotal|sub total|discount|paid|balance|change|cash|tax|gst|invoice|inv|bill no|date|time|phone|tel|mob|thank|shukriya|customer|supplier|amount due|due)\b',
+  r'\b(total|subtotal|sub total|discount|paid|balance|change|cash|tax|gst|invoice|inv|bill no|date|time|phone|mob|thank|shukriya|customer|supplier|amount due|due)\b',
   caseSensitive: false,
 );
 // "1,200" / "1,200,000.50" (hazaron ka comma) ek hi number; "2,5" = 2.5 (decimal comma).

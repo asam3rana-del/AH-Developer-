@@ -168,6 +168,14 @@ class MergeDuplicateProducts {
         }
       }
 
+      // Doosre devices `updatedAt > checkpoint` se pull karte hain — bump ke baghair naya barcode unhein nahi milta.
+      for (final inv in saleInvoices) {
+        await txn.rawUpdate('UPDATE sales SET dirty=1, updatedAt=? WHERE invoice=?', [now, inv]);
+      }
+      for (final bill in purchaseBills) {
+        await txn.rawUpdate('UPDATE purchases SET dirty=1, updatedAt=? WHERE billNo=?', [now, bill]);
+      }
+
       // Naye barcode wali taaza rows (ab DB mein keeper ka barcode hai) sync queue mein.
       for (final inv in saleInvoices) {
         await SyncQueueHelper.enqueueSale(txn, inv);

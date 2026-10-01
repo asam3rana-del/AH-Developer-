@@ -123,7 +123,10 @@ class BackupHelper {
 
   static Future<File?> _backupNowUnlocked() async {
     final dbFile = File(await AppDatabase.instance.databasePath);
-    if (!await dbFile.exists()) return null;
+    if (!await dbFile.exists()) {
+      lastError = 'Database file nahi mili';
+      return null;
+    }
 
     // Kotlin FIX: WAL ka data main .db mein aaye, warna taaza entries backup se reh jati hain.
     try {
