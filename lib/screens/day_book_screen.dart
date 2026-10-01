@@ -23,7 +23,6 @@ class DayBookScreen extends StatefulWidget {
 class _DayBookScreenState extends State<DayBookScreen> {
   DateTime _day = DateTime.now();
   DayBookData? _data;
-  bool _loading = true;
   String? _error;
   int _loadToken = 0; // a slow load for an old date must not overwrite a newer one
 
@@ -36,7 +35,6 @@ class _DayBookScreenState extends State<DayBookScreen> {
   Future<void> _load() async {
     final token = ++_loadToken;
     setState(() {
-      _loading = true;
       _error = null;
     });
     try {
@@ -44,13 +42,11 @@ class _DayBookScreenState extends State<DayBookScreen> {
       if (!mounted || token != _loadToken) return;
       setState(() {
         _data = d;
-        _loading = false;
       });
     } catch (e) {
       if (!mounted || token != _loadToken) return;
       setState(() {
         _error = e.toString();
-        _loading = false;
       });
     }
   }

@@ -16,7 +16,6 @@ import 'item_search_screen.dart';
 import 'login_screen.dart';
 import 'party_screen.dart';
 import 'party_transaction_screen.dart';
-import 'payments_screen.dart';
 import 'product_screen.dart';
 import 'purchase_history_screen.dart';
 import 'purchase_screen.dart';

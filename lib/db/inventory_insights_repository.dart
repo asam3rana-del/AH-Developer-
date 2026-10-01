@@ -2,7 +2,6 @@ import '../models/product.dart';
 import '../models/stock_movement.dart';
 import '../services/session.dart';
 import 'app_database.dart';
-import 'stock_report_repository.dart' show costPerSmallestUnit;
 
 /// Ports the data side of InventoryInsightsActivity.kt — 4 reports: Reorder, Damage/Loss, Margin, Movers.
 ///

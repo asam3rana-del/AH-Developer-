@@ -468,7 +468,6 @@ class PartyRepository {
     var suppliersFixed = 0;
     for (final isCustomer in const [true, false]) {
       final table = isCustomer ? 'customers' : 'suppliers';
-      final type = isCustomer ? 'customer' : 'supplier';
       for (final l in await _loadLedgers(ex, customers: isCustomer)) {
         final delta = trueBalance(l) - l.storedBalance;
         if (delta.abs() <= 0.009) continue;
