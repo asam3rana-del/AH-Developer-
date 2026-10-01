@@ -6,6 +6,26 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Analyze + test: har push par chalta hai. Builds se alag hai (fail ho to bhi APK/iOS build chalte hain),
+  # lekin result GitHub Actions mein dekhein.
+  analyze-test:
+    name: Analyze + Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - run: flutter pub get
+
+      # Sirf errors/warnings fail karte hain; info-level lints nahi.
+      - run: flutter analyze --no-fatal-infos
+
+      - run: flutter test
+
   build-ios:
     name: Build iOS (unsigned)
     runs-on: macos-15
