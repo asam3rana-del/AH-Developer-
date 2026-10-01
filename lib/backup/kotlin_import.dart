@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../db/app_database.dart';
 import '../db/stock_ledger.dart';
 
 /// Kotlin (Room, `grocery_pos_v11.db`, user_version 48) ke backup ka data Flutter DB mein copy karta hai.
@@ -77,7 +78,7 @@ class KotlinBackupImporter {
   ];
 
   /// Kotlin/Room ka DB hai? Teen nishaniyan (koi ek kafi): `room_master_table`, ya Kotlin-only column
-  /// (`sales.saleUid` / `purchases.purchaseUid`), ya `user_version` > 13 (Flutter ka apna max 13 hai).
+  /// (`sales.saleUid` / `purchases.purchaseUid`), ya `user_version` > 13 (Flutter ka apna max AppDatabase.schemaVersion hai).
   static Future<bool> isRoomDatabase(String path) async {
     Database? db;
     try {
@@ -93,7 +94,7 @@ class KotlinBackupImporter {
         if (info.any((r) => r['name'] == c[1])) return true;
       }
       final ver = Sqflite.firstIntValue(await db.rawQuery('PRAGMA user_version')) ?? 0;
-      return ver > 13;
+      return ver > AppDatabase.schemaVersion;
     } catch (_) {
       return false;
     } finally {

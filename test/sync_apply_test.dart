@@ -11,33 +11,89 @@ import 'package:ah_developer_kiryana_store/sync/sync_types.dart';
 /// Hissa 2 (sales ... cashRegisters): test/sync_apply_rest_test.dart.
 Future<String> _fakeHash(String p) async => 'hash($p)';
 
+const _sync = 'updatedAt INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 1';
+
 Future<Database> _memDb() async {
   final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
-  await db.execute('''CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+  Future<void> x(String sql) => db.execute(sql);
+  await x('''CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
     phone TEXT NOT NULL DEFAULT '', creditLimit REAL NOT NULL DEFAULT 0, openingBalance REAL NOT NULL DEFAULT 0,
-    balance REAL NOT NULL DEFAULT 0, stuckBalance REAL NOT NULL DEFAULT 0, serverId TEXT,
-    updatedAt INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 1)''');
-  await db.execute('''CREATE TABLE suppliers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+    balance REAL NOT NULL DEFAULT 0, stuckBalance REAL NOT NULL DEFAULT 0, serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE suppliers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
     phone TEXT NOT NULL DEFAULT '', openingBalance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0,
-    serverId TEXT, updatedAt INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 1)''');
-  await db.execute('''CREATE TABLE products (barcode TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL,
+    serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE products (barcode TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT '', cost REAL NOT NULL DEFAULT 0, salePrice REAL NOT NULL DEFAULT 0,
     stock REAL NOT NULL DEFAULT 0, reorderLevel REAL NOT NULL DEFAULT 0, expiry TEXT NOT NULL DEFAULT '',
     unit TEXT NOT NULL DEFAULT 'pcs', unitSize INTEGER NOT NULL DEFAULT 1, unitNote TEXT NOT NULL DEFAULT '',
     secondaryUnit TEXT NOT NULL DEFAULT '', secondaryUnitQty REAL NOT NULL DEFAULT 0,
     wholesalePrice REAL NOT NULL DEFAULT 0, openingStock REAL NOT NULL DEFAULT 0,
     tertiaryUnit TEXT NOT NULL DEFAULT '', tertiaryUnitQty REAL NOT NULL DEFAULT 0,
-    updatedAt INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 1, searchTag TEXT NOT NULL DEFAULT '',
+    $_sync, searchTag TEXT NOT NULL DEFAULT '',
     defaultUnitIndex INTEGER NOT NULL DEFAULT -1, quickSaleDefaultUnitIndex INTEGER NOT NULL DEFAULT -1)''');
-  await db.execute('''CREATE TABLE users (username TEXT PRIMARY KEY NOT NULL, displayName TEXT NOT NULL,
+  await x('''CREATE TABLE users (username TEXT PRIMARY KEY NOT NULL, displayName TEXT NOT NULL,
     role TEXT NOT NULL, passwordHash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
     phone TEXT NOT NULL DEFAULT '')''');
-  await db.execute('''CREATE TABLE audit (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
+  await x('''CREATE TABLE audit (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
     action TEXT NOT NULL, reference TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '',
     createdAt INTEGER NOT NULL)''');
-  await db.execute('''CREATE TABLE sync_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, entityType TEXT NOT NULL,
+  await x('''CREATE TABLE sync_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, entityType TEXT NOT NULL,
     entityId TEXT NOT NULL, operation TEXT NOT NULL, payloadJson TEXT NOT NULL, createdAt INTEGER NOT NULL,
     syncedAt INTEGER, retryCount INTEGER NOT NULL DEFAULT 0, lastError TEXT)''');
+  await x('''CREATE TABLE sales (invoice TEXT PRIMARY KEY NOT NULL, customerId INTEGER, subtotal REAL NOT NULL,
+    discount REAL NOT NULL, tax REAL NOT NULL, total REAL NOT NULL, paid REAL NOT NULL,
+    paymentMethod TEXT NOT NULL, saleType TEXT NOT NULL DEFAULT 'retail', createdAt INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active', $_sync, dueDate INTEGER NOT NULL DEFAULT 0, customerServerId TEXT)''');
+  await x('''CREATE TABLE sale_items (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice TEXT NOT NULL,
+    barcode TEXT NOT NULL, product TEXT NOT NULL, qty REAL NOT NULL, unit TEXT NOT NULL DEFAULT '',
+    unitPrice REAL NOT NULL, cost REAL NOT NULL, amount REAL NOT NULL, conversionFactor REAL NOT NULL DEFAULT 0)''');
+  await x('''CREATE TABLE purchases (billNo TEXT PRIMARY KEY NOT NULL, supplierId INTEGER, total REAL NOT NULL,
+    paid REAL NOT NULL, createdAt INTEGER NOT NULL, subtotal REAL NOT NULL DEFAULT 0,
+    discount REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', $_sync,
+    dueDate INTEGER NOT NULL DEFAULT 0, supplierInvoiceNo TEXT NOT NULL DEFAULT '', supplierServerId TEXT)''');
+  await x('''CREATE TABLE purchase_items (id INTEGER PRIMARY KEY AUTOINCREMENT, billNo TEXT NOT NULL,
+    barcode TEXT NOT NULL, qty REAL NOT NULL, unitCost REAL NOT NULL, amount REAL NOT NULL,
+    unit TEXT NOT NULL DEFAULT '', conversionFactor REAL NOT NULL DEFAULT 0, itemName TEXT NOT NULL DEFAULT '',
+    retailRate REAL NOT NULL DEFAULT 0, wholesaleRate REAL NOT NULL DEFAULT 0)''');
+  await x('''CREATE TABLE payments (id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT NOT NULL,
+    partyType TEXT NOT NULL, partyId INTEGER, amount REAL NOT NULL, method TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL, serverId TEXT, $_sync,
+    billReference TEXT NOT NULL DEFAULT '', partyServerId TEXT)''');
+  await x('''CREATE TABLE expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL,
+    description TEXT NOT NULL, amount REAL NOT NULL, method TEXT NOT NULL DEFAULT 'cash',
+    createdAt INTEGER NOT NULL, serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE cash_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL,
+    method TEXT NOT NULL, amount REAL NOT NULL, reason TEXT NOT NULL DEFAULT '',
+    reference TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL, serverId TEXT, $_sync)''');
+  await x('CREATE TABLE units (name TEXT PRIMARY KEY NOT NULL)');
+  await x('CREATE TABLE categories (name TEXT PRIMARY KEY NOT NULL)');
+  await x('''CREATE TABLE returns (id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT NOT NULL,
+    type TEXT NOT NULL, barcode TEXT NOT NULL, qty REAL NOT NULL, amount REAL NOT NULL,
+    createdAt INTEGER NOT NULL, serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE stock_movements (id INTEGER PRIMARY KEY AUTOINCREMENT, barcode TEXT NOT NULL,
+    type TEXT NOT NULL, qty REAL NOT NULL, unit TEXT NOT NULL DEFAULT '', cost REAL NOT NULL DEFAULT 0,
+    reference TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL,
+    serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE zakat_years (id INTEGER PRIMARY KEY AUTOINCREMENT, startDate INTEGER NOT NULL,
+    endDate INTEGER NOT NULL, assetsSnapshot REAL NOT NULL, totalPayable REAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'Rs', calendarType TEXT NOT NULL DEFAULT 'islamic',
+    createdAt INTEGER NOT NULL, serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE zakat_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, zakatYearId INTEGER NOT NULL,
+    amount REAL NOT NULL, method TEXT NOT NULL DEFAULT 'cash', note TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '', paymentDate INTEGER NOT NULL, createdAt INTEGER NOT NULL,
+    serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE shell_customers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '', shellsOwed INTEGER NOT NULL DEFAULT 0, createdAt INTEGER NOT NULL,
+    serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE shell_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, customerId INTEGER NOT NULL,
+    type TEXT NOT NULL, qty INTEGER NOT NULL, note TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL,
+    serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE shop_empty_shell_log (id INTEGER PRIMARY KEY AUTOINCREMENT, delta INTEGER NOT NULL,
+    reason TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL, serverId TEXT, $_sync)''');
+  await x('CREATE TABLE app_settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)');
+  await x('''CREATE TABLE cash_register (date TEXT PRIMARY KEY NOT NULL, openingCash REAL NOT NULL DEFAULT 0,
+    closingCash REAL NOT NULL DEFAULT 0, openingBank REAL NOT NULL DEFAULT 0,
+    closingBank REAL NOT NULL DEFAULT 0, closed INTEGER NOT NULL DEFAULT 0)''');
   return db;
 }
 

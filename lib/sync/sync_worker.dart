@@ -176,7 +176,9 @@ class _LifecycleHook with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       onResumed();
-    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+    } else if (state == AppLifecycleState.paused) {
+      // `hidden` par nahi: Flutter resume ke raste mein bhi hidden bhejta hai (paused -> hidden ->
+      // inactive -> resumed), jis se wapas aate waqt bila-wajah dobara sync chal jati thi.
       onPaused();
     }
   }

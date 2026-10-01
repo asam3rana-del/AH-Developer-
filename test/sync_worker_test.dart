@@ -133,23 +133,36 @@ void main() {
     w.schedulePeriodic();
     await w.syncNowOnce(); // lastFinishedAt = t
     expect(runs, 1);
+    void life(AppLifecycleState s) => tester.binding.handleAppLifecycleStateChanged(s);
+    // Maloom shuruaati halat: pehle background (abhi abhi sync hui => gap 0 => kuch nahi).
+    life(AppLifecycleState.paused);
+    await tester.pump();
+    await tester.pump();
+    expect(runs, 1);
     t += 20 * 1000;
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    life(AppLifecycleState.resumed);
     await tester.pump();
     expect(runs, 1); // 20 s — abhi zaroorat nahi
+    life(AppLifecycleState.paused);
+    await tester.pump();
+    await tester.pump();
+    expect(runs, 1); // 20 s < 30 s
     t += 2 * 60 * 1000;
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    life(AppLifecycleState.resumed);
     await tester.pump();
     await tester.pump();
-    expect(runs, 2);
+    expect(runs, 2); // 2 min+ purani => resume par sync
     // background jate waqt: abhi abhi sync hui hai to dobara nahi; 30 s baad ho jaye.
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    life(AppLifecycleState.paused);
+    await tester.pump();
     await tester.pump();
     expect(runs, 2);
     t += 45 * 1000;
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); // pehle wapas aao
+    life(AppLifecycleState.resumed); // 45 s < 1 min => resume par nahi
     await tester.pump();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(runs, 2);
+    life(AppLifecycleState.paused); // 45 s >= 30 s => paused par sync
     await tester.pump();
     await tester.pump();
     expect(runs, 3);
