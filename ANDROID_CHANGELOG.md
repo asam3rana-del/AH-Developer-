@@ -645,3 +645,7 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 
 ## Sale muqabla (Oct 2)
 - SaleActivity.kt ke 190 string/label Flutter se milaye: sab logic paths maujood. Farq sirf 2 labels the — customer hint ab "Customer Name (Walk-in)" aur Split link "+ Split Payment (multiple methods)" (Kotlin jaisa).
+
+## App ka naam (Oct 2)
+- [x] App ka naam "Hanna Solutions": Android icon label (tools/android_fix.sh), iOS home-screen naam aur Windows window title (build.yml), app ke andar title (lib/main.dart).
+- Package id (`com.…` / project name) nahi badla — warna purani app ke upar update nahi hota aur Firebase dobara set karna parta.

@@ -70,7 +70,7 @@ class AhDeveloperApp extends StatelessWidget {
           navigatorKey: AppLock.navigatorKey,
           // zabaan / theme badalne par saari screens dobara ban jayein
           key: ValueKey('$lang-$dark'),
-          title: 'AH Developer — Kiryana Store',
+          title: 'Hanna Solutions',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             useMaterial3: true,
