@@ -51,8 +51,9 @@ grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wire
 # --- Fixed signing key: har build par wahi key, taake APK purani app ke upar update ho sake. ---
 # Secret KEYSTORE_BASE64 (GitHub repo secret) se keystore banti hai. Na ho to debug key (update nahi hoga).
 if [ -n "$KEYSTORE_BASE64" ]; then
+  [ -n "$KEYSTORE_PASSWORD" ] || { echo "ERROR: KEYSTORE_PASSWORD secret set nahi (GitHub repo secret banayein)"; exit 1; }
   echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload.jks
-  sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword 'AhKiryana2026x'\n\1        keyAlias 'ahkey'\n\1        keyPassword 'AhKiryana2026x'\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
+  sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword System.getenv('KEYSTORE_PASSWORD')\n\1        keyAlias 'ahkey'\n\1        keyPassword System.getenv('KEY_PASSWORD') ?: System.getenv('KEYSTORE_PASSWORD')\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
   sed -i -E 's/signingConfigs\.debug/signingConfigs.release/' "$GRADLE"
   echo "=== app build.gradle (verify signing) ==="
   grep -n "signingConfig\|upload.jks" "$GRADLE"
@@ -60,6 +61,14 @@ if [ -n "$KEYSTORE_BASE64" ]; then
 else
   echo "WARNING: KEYSTORE_BASE64 secret nahi mila, debug key use hogi (update install nahi hoga)"
 fi
+
+# --- Security: Android auto-backup band (DeviceTag/sync prefs doosre phone par copy na hon). ---
+if ! grep -q 'android:allowBackup' "$MANIFEST"; then
+  sed -i '0,/<application/s//<application android:allowBackup="false"/' "$MANIFEST"
+else
+  sed -i -E 's/android:allowBackup="true"/android:allowBackup="false"/' "$MANIFEST"
+fi
+grep -q 'android:allowBackup="false"' "$MANIFEST" || { echo "ERROR: allowBackup=false not applied"; exit 1; }
 
 # --- Fingerprint (local_auth) Android requirements. Inke bina BiometricPrompt khulta hi nahi aur
 # authenticate() PlatformException (no_fragment_activity) deta hai => hamesha "Fingerprint not verified". ---
