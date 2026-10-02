@@ -220,4 +220,24 @@ void _desktopPrinterTests() {
       expect(const UsbPrinterInfo(1, 2, 'x').address, 'usb:1:2');
     });
   });
+
+  group('plain text print (Kotlin printText)', () {
+    test('payload = init + ASCII text + feed/cut', () {
+      final b = EscPos.textPayload('Hi\nOK');
+      expect(b.sublist(0, 2), EscPos.init);
+      expect(b.sublist(b.length - 4), EscPos.feedAndCut);
+      expect(String.fromCharCodes(b.sublist(2, b.length - 4)), 'Hi\nOK');
+    });
+
+    test('non-ASCII (Urdu) becomes ? and tab becomes space, CRLF becomes LF', () {
+      final b = EscPos.textPayload('a\tb\r\nاب');
+      expect(String.fromCharCodes(b.sublist(2, b.length - 4)), 'a b\n??');
+    });
+
+    test('test slip uses shop name or default and shows connection', () {
+      expect(EscPos.testText(shopName: ' Ali Store ', connection: 'NETWORK'), contains('Ali Store'));
+      expect(EscPos.testText(), contains('IBTISAAM Kiryana Store'));
+      expect(EscPos.testText(connection: 'USB'), contains('Connection: USB'));
+    });
+  });
 }

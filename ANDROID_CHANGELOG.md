@@ -637,3 +637,8 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
 
 - [x] `BackupScheduler.kt` WorkManager: `lib/backup/backup_background.dart` (workmanager ^0.5.2, Android only, 15 min, KEEP) + `checkCheckpoints` mein `prefs.reload()`. Baaki: device par verify (Xiaomi/Oppo battery saver).
+
+## Text-only print (Oct 2)
+- [x] Kotlin `printText` port: `EscPos.textPayload` + `PrinterService.printText` (Bluetooth / Network / USB) aur Settings mein "PLAIN TEXT TEST (English only)". Raster TEST PRINT garbled aaye to ye batata hai ke printer/connection theek hai.
+- Farq: sirf ASCII chhapta hai, baqi characters '?' (Kotlin UTF-8 bhejta tha). Windows driver printer par plain text nahi.
+- Test: `test/print_scan_test.dart` (plain text group). Compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test` chalayein.

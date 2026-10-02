@@ -8,6 +8,36 @@ class EscPos {
   // 1 line feed + GS V 1 (partial cut) — Kotlin FEED_AND_CUT.
   static final Uint8List feedAndCut = Uint8List.fromList([0x0A, 0x1D, 0x56, 0x01]);
 
+  /// Kotlin `printText` payload: init + plain text + feed/cut. Text sirf ASCII (English) chhapta hai —
+  /// baqi characters '?' ban jate hain (Kotlin UTF-8 bhejta tha jo zyadatar thermal printers par kachra chhapta hai).
+  /// Urdu / unicode ke liye raster print (receipt_renderer) use hota hai.
+  static Uint8List textPayload(String text) {
+    final out = <int>[...init];
+    for (final u in text.replaceAll('\r\n', '\n').codeUnits) {
+      if (u == 0x0A || (u >= 0x20 && u <= 0x7E)) {
+        out.add(u);
+      } else if (u == 0x09) {
+        out.add(0x20);
+      } else {
+        out.add(0x3F);
+      }
+    }
+    out.addAll(feedAndCut);
+    return Uint8List.fromList(out);
+  }
+
+  /// Kotlin `testPrint` ka plain-text slip (32 columns, 58mm).
+  static String testText({String shopName = '', String connection = 'BLUETOOTH'}) {
+    final name = shopName.trim().isEmpty ? 'IBTISAAM Kiryana Store' : shopName.trim();
+    return '================================\n'
+        '       TEST PRINT - 58mm\n'
+        '================================\n'
+        '$name\n'
+        'Printer connected successfully.\n'
+        'Connection: $connection\n'
+        '--------------------------------\n\n\n';
+  }
+
   static const int defaultDotsWidth = 384;
   static const int minDotsWidth = 256;
   static const int maxDotsWidth = 576;

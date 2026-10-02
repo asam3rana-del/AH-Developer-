@@ -191,6 +191,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _toast(err ?? Loc.t('Test print sent', 'ٹیسٹ پرنٹ بھیج دیا'));
   }
 
+  Future<void> _testPrintText() async {
+    if (_testing) return;
+    setState(() => _testing = true);
+    final err = await PrinterService.instance.testPrintText(shopName: _shopName.text.trim());
+    if (!mounted) return;
+    setState(() => _testing = false);
+    _toast(err ?? Loc.t('Plain text test sent', 'سادہ ٹیکسٹ ٹیسٹ بھیج دیا'));
+  }
+
   Future<void> _pickWidth() async {
     final options = [384, 448, 512, 576];
     final labels = {
@@ -385,6 +394,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           OutlinedButton(
             onPressed: _pickWidth,
             child: Text(Loc.t('PRINT WIDTH: $_dots (garbled print? try 384)', 'پرنٹ چوڑائی: $_dots')),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _testing ? null : _testPrintText,
+            child: Text(Loc.t('PLAIN TEXT TEST (English only)', 'سادہ ٹیکسٹ ٹیسٹ (صرف انگریزی)')),
           ),
         ]),
         // Kotlin Settings mein Backup/Export row (BackupExportScreen ka apna RoleGuard admin/manager).

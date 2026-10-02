@@ -295,6 +295,86 @@ class PrinterService {
     return _dispatch(p, images, dots);
   }
 
+  /// Kotlin printText(): sirf plain ASCII text (raster nahi). Bluetooth, Network aur USB par; Windows driver
+  /// printer ke liye raster print hi chalta hai. null = ok, warna error.
+  Future<String?> printText(String text) async {
+    final p = await selected();
+    if (p == null) return 'Pehle printer select karein';
+    final addr = p.mac;
+    if (isSystem(addr)) return 'Windows printer par plain text nahi — TEST PRINT (raster) use karein';
+    final payload = EscPos.textPayload(text);
+    if (isUsb(addr)) {
+      final id = UsbPrinter.parse(addr);
+      if (id == null) return 'USB printer ka address ghalat — Settings mein dobara select karein';
+      if (!UsbPrinter.supported) return 'USB printer sirf Android par hai';
+      try {
+        final attached = await UsbPrinter.list();
+        if (!attached.any((d) => d.vid == id.vid && d.pid == id.pid)) {
+          return 'USB printer nahi mila — cable lagi hai? Printer on hai?';
+        }
+        if (!await UsbPrinter.requestPermission(id.vid, id.pid)) {
+          return 'USB ki ijazat nahi mili — "Allow" dabayein aur dobara koshish karein';
+        }
+        if (!await UsbPrinter.open(id.vid, id.pid)) return 'USB printer khul nahi saka — cable nikaal kar dobara lagayein';
+        return await UsbPrinter.write(payload) ? null : 'Print nahi hua — USB printer on hai? Dobara koshish karein';
+      } catch (e) {
+        debugPrint('usb text print failed: $e');
+        return 'Print nahi hua — USB printer on hai? Dobara koshish karein';
+      } finally {
+        await UsbPrinter.close();
+      }
+    }
+    if (isTcp(addr)) {
+      Socket? socket;
+      try {
+        final hp = addr.substring(tcpPrefix.length);
+        final i = hp.lastIndexOf(':');
+        socket = await Socket.connect(hp.substring(0, i), int.parse(hp.substring(i + 1)), timeout: const Duration(seconds: 5));
+        socket.add(payload);
+        await socket.flush();
+        await _sleep(EscPos.settleDelayMs);
+        return null;
+      } catch (e) {
+        debugPrint('network text print failed: $e');
+        return 'Network printer se connect nahi hua — IP/port theek hai? Printer on hai?';
+      } finally {
+        try {
+          await socket?.close();
+        } catch (_) {}
+      }
+    }
+    if (!supported) return 'Bluetooth printer sirf Android / iOS par hai';
+    if (!await hasPermission()) return 'Bluetooth permission dein';
+    if (!await bluetoothOn()) return 'Bluetooth on karein';
+    try {
+      await PrintBluetoothThermal.disconnect;
+      if (!await PrintBluetoothThermal.connect(macPrinterAddress: addr)) {
+        return 'Print nahi hua — printer on/paired hai? Dobara koshish karein';
+      }
+      var ok = true;
+      for (var off = 0; off < payload.length; off += EscPos.btWritePieceBytes) {
+        final end = off + EscPos.btWritePieceBytes > payload.length ? payload.length : off + EscPos.btWritePieceBytes;
+        ok &= await PrintBluetoothThermal.writeBytes(payload.sublist(off, end).toList());
+        if (end < payload.length) await _sleep(EscPos.btWritePieceGapMs);
+      }
+      return ok ? null : 'Print nahi hua — printer on/paired hai? Dobara koshish karein';
+    } catch (e) {
+      debugPrint('text print failed: $e');
+      return 'Print nahi hua — printer on/paired hai? Dobara koshish karein';
+    } finally {
+      try {
+        await PrintBluetoothThermal.disconnect;
+      } catch (_) {}
+    }
+  }
+
+  /// Kotlin testPrint(): plain-text slip. Raster test garbled ho to ye batata hai ke printer/connection theek hai.
+  Future<String?> testPrintText({String shopName = ''}) async {
+    final p = await selected();
+    final conn = p == null ? 'BLUETOOTH' : (isTcp(p.mac) ? 'NETWORK' : (isUsb(p.mac) ? 'USB' : 'BLUETOOTH'));
+    return printText(EscPos.testText(shopName: shopName, connection: conn));
+  }
+
   Future<String?> testPrint({String shopName = ''}) async {
     final p = await selected();
     if (p == null) return 'Pehle printer select karein';
