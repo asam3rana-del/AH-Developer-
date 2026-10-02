@@ -56,16 +56,36 @@ class ProductRepository {
   ///
   /// [isNew] = true (naya product) aur stock != 0 ho to usi transaction mein OPENING_STOCK ledger
   /// row bhi likhta hai (Kotlin enqueueProductOpeningStock). Edit par stock ledger se nahi chhedta.
+  ///
+  /// SYNC FIX (edit, isNew = false): form ke paas product ka purana snapshot hota hai (sale/pull ke
+  /// baad stale ho sakta hai) aur `insert(replace)` use seedha DB mein likh deta tha — is se (1) local
+  /// stock chupke purani value par chala jata tha aur (2) unit-ladder badalne par rescaled stock ka
+  /// koi `increment_stock` delta queue nahi hota tha, to doosre devices par stock alag rehta tha.
+  /// Ab edit mein stock hamesha DB ki MAUJOODA value se nikalta hai (ladder badli ho to wahin se
+  /// rescale) aur farq ka delta sync queue mein jata hai.
   Future<void> upsert(Product product, {bool isNew = false}) async {
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
-      await txn.insert('products', product.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+      var row = product.toMap();
+      var stockDelta = 0.0;
+      if (!isNew) {
+        final cur = await txn.query('products', where: 'barcode=?', whereArgs: [product.barcode], limit: 1);
+        if (cur.isNotEmpty) {
+          final current = Product.fromMap(cur.first);
+          final r = rescaleStockForLadderChange(current, product);
+          row = {...row, 'stock': r.stock, 'openingStock': r.openingStock};
+          stockDelta = r.stock - current.stock;
+        }
+      }
+      await txn.insert('products', row, conflictAlgorithm: ConflictAlgorithm.replace);
       // Kotlin ProductActivity save: SyncQueueHelper.enqueue(product) — productJson mein "stock" nahi
       // hota (conflict-safe sync), is liye naye product ki opening stock alag increment_stock se jati hai.
       await SyncQueueHelper.enqueueProduct(txn, product.barcode);
       if (isNew && product.stock != 0) {
         await SyncQueueHelper.enqueueStockDelta(txn, product.barcode, product.stock);
         await StockLedger.logOpeningStock(txn, product.barcode, product.stock);
+      } else if (!isNew && stockDelta.abs() > 1e-9) {
+        await SyncQueueHelper.enqueueStockDelta(txn, product.barcode, stockDelta);
       }
     });
     await _notify();
