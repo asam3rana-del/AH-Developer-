@@ -25,7 +25,6 @@ import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
 import '../widgets/autocomplete_options.dart';
 import '../widgets/held_bills_dialog.dart';
-import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/role_guard.dart';
 import 'sale_quick_sale.dart';
@@ -1330,10 +1329,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     final wide = MediaQuery.of(context).size.width >= 700;
 
     final headerWidgets = <Widget>[
-      PremiumHeader(
-        title: _isEdit ? Loc.t('Edit Sale', 'سیل میں ترمیم') : Loc.t('New Sale', 'نئی سیل'),
-        subtitle: _isEdit ? 'Invoice ${widget.editInvoice}' : 'RETAIL · WHOLESALE BILLING',
-      ),
+      _buildSaleHeader(),
       if (returned)
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -1343,9 +1339,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           ),
         ),
       _buildActionRow(),
-      _buildFirmCard(),
       _buildTopRow(),
+      _buildFirmCard(),
       _buildCustomerCard(),
+      _buildSaleTypeCard(),
       _buildItemEntryCard(),
     ];
 
@@ -1423,26 +1420,104 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     ));
   }
 
-  Widget _pill(String emoji, String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(30)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 13)),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.bold)),
-          ],
+  Widget _softCard({required Widget child, EdgeInsets? padding, double radius = 14, EdgeInsets? margin}) => Container(
+        margin: margin ?? const EdgeInsets.only(bottom: 14),
+        padding: padding,
+        decoration: BoxDecoration(
+          color: ThemeManager.palette.cardWhite,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: ThemeManager.palette.border),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 3, offset: const Offset(0, 1))],
         ),
+        child: child,
+      );
+
+  /// Kotlin header: title + subtitle left; white "Quick Sale" / "History" pills and a round ⋮ menu right.
+  Widget _buildSaleHeader() {
+    final pal = ThemeManager.palette;
+    Widget chip(String label, VoidCallback onTap) => InkWell(
+          borderRadius: BorderRadius.circular(30),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)),
+            child: Text(label, style: TextStyle(color: pal.blue, fontSize: 13.5, fontWeight: FontWeight.bold)),
+          ),
+        );
+    final returned = _originalSale?.status == 'returned';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+      decoration: BoxDecoration(
+        color: pal.navy,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(26)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3))],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_isEdit ? Loc.t('Edit Sale', 'سیل میں ترمیم') : Loc.t('New Sale', 'نئی سیل'),
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(_isEdit ? 'Invoice ${widget.editInvoice}' : 'RETAIL · WHOLESALE BILLING',
+                    style: const TextStyle(color: Color(0xFF9FB4CC), fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+              ],
+            ),
+          ),
+          if (!_isEdit) ...[chip(Loc.t('Quick Sale', 'فوری سیل'), _openQuickSale), const SizedBox(width: 8)],
+          chip(Loc.t('History', 'ہسٹری'), () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SaleHistoryScreen()))),
+          const SizedBox(width: 6),
+          PopupMenuButton<String>(
+            tooltip: '',
+            color: Colors.white,
+            icon: Container(
+              width: 34,
+              height: 34,
+              decoration: const BoxDecoration(color: Color(0x22FFFFFF), shape: BoxShape.circle),
+              child: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+            ),
+            onSelected: (v) {
+              switch (v) {
+                case 'print':
+                case 'share':
+                  _printCurrent();
+                case 'return':
+                  if (!_saving) _returnSale();
+                case 'delete':
+                  if (!_saving) _deleteSale();
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'print', child: Text(Loc.t('Print', 'پرنٹ'))),
+              PopupMenuItem(value: 'share', child: Text(Loc.t('Share', 'شیئر کریں'))),
+              if (_isEdit && !returned) PopupMenuItem(value: 'return', child: Text(Loc.t('Return', 'واپس'))),
+              if (_isEdit) PopupMenuItem(value: 'delete', child: Text(Loc.t('Delete', 'حذف'))),
+            ],
+          ),
+        ],
       ),
     );
   }
 
+  Widget _holdRecallCard(String label, VoidCallback onTap, {required bool left}) => Expanded(
+        child: Padding(
+          padding: EdgeInsets.only(left: left ? 0 : 6, right: left ? 6 : 0),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: _softCard(
+              margin: EdgeInsets.zero,
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: Text(label, style: TextStyle(color: ThemeManager.palette.blue, fontSize: 14, fontWeight: FontWeight.bold))),
+            ),
+          ),
+        ),
+      );
+
   Widget _buildActionRow() {
-    final returned = _originalSale?.status == 'returned';
     final wideScreen = MediaQuery.of(context).size.width >= 700;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -1457,36 +1532,19 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
               ),
             ),
-          Wrap(
-        spacing: 10,
-        runSpacing: 8,
-        children: [
-          if (!_isEdit) ...[
-            _pill('⚡', Loc.t('Quick Sale', 'فوری سیل'), ThemeManager.palette.teal, _openQuickSale),
-            _pill('⏸', Loc.t('Hold', 'ہولڈ'), ThemeManager.palette.amber, _holdBill),
-            _pill('▶', Loc.t('Recall', 'ریکال'), ThemeManager.palette.blue, _openRecall),
-          ],
-          _pill('🕘', Loc.t('History', 'ہسٹری'), ThemeManager.palette.navyInk,
-              () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SaleHistoryScreen()))),
-          _pill('🖨', Loc.t('Print', 'پرنٹ'), ThemeManager.palette.navyInk, _printCurrent),
-          if (_isEdit && !returned) _pill('↩', Loc.t('Return', 'واپس'), ThemeManager.palette.orange, _saving ? () {} : _returnSale),
-          if (_isEdit) _pill('🗑', Loc.t('Delete', 'حذف'), ThemeManager.palette.red, _saving ? () {} : _deleteSale),
-        ],
-      ),
+          if (!_isEdit)
+            Row(children: [
+              _holdRecallCard('⏸  ${Loc.t('Hold', 'روکیں')}', _holdBill, left: true),
+              _holdRecallCard('↺  ${Loc.t('Recall', 'واپس لائیں')}', _openRecall, left: false),
+            ]),
         ],
       ),
     );
   }
 
-  /// Kotlin "FIRM NAME" card (shop_name, warna default naam).
-  Widget _buildFirmCard() => Container(
-        margin: const EdgeInsets.only(bottom: 14),
+  Widget _buildFirmCard() => _softCard(
+        radius: 18,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: ThemeManager.palette.cardWhite,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: ThemeManager.palette.border),
-        ),
         child: Column(children: [
           Text(Loc.t('Firm Name', 'فرم کا نام').toUpperCase(),
               style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: ThemeManager.palette.textMuted)),
@@ -1496,44 +1554,53 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       );
 
   Widget _buildTopRow() {
-    return PremiumCard(
-      accentTop: ThemeManager.palette.blue,
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                BadgeIcon(emoji: '📅', color: ThemeManager.palette.blue, size: 38),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(Loc.t('DATE', 'تاریخ'), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue)),
-                      GestureDetector(
-                        onTap: _pickDate,
-                        child: Text(DateFormat('dd MMM yyyy').format(_saleDate),
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    final pal = ThemeManager.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(30),
+            onTap: _pickDate,
+            child: _softCard(
+              radius: 30,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.calendar_today_outlined, size: 20, color: pal.textDark),
+                const SizedBox(width: 8),
+                Text(DateFormat('dd/MM/yyyy').format(_saleDate),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: pal.textDark)),
+                Text('  ›', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: pal.teal)),
+              ]),
             ),
           ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(color: ThemeManager.palette.fieldFill, borderRadius: BorderRadius.circular(30), border: Border.all(color: ThemeManager.palette.border)),
-            child: ToggleButtons(
-              isSelected: [!_isWholesale, _isWholesale],
-              borderRadius: BorderRadius.circular(30),
-              selectedColor: Colors.white,
-              fillColor: ThemeManager.palette.teal,
-              color: ThemeManager.palette.textMuted,
-              constraints: const BoxConstraints(minHeight: 36, minWidth: 72),
-              onPressed: _onSaleTypeChanged,
-              children: [Text(Loc.t('Retail', 'ریٹیل')), Text(Loc.t('Wholesale', 'ہول سیل'))],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSaleTypeCard() {
+    final pal = ThemeManager.palette;
+    return _softCard(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(Loc.t('Sale Type', 'سیل کی قسم').toUpperCase(),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: pal.textMuted)),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+              isExpanded: true,
+              value: _isWholesale ? 1 : 0,
+              style: TextStyle(fontSize: 18, color: pal.textDark),
+              items: [
+                DropdownMenuItem(value: 0, child: Text(Loc.t('Retail', 'ریٹیل'))),
+                DropdownMenuItem(value: 1, child: Text(Loc.t('Wholesale', 'ہول سیل'))),
+              ],
+              onChanged: (v) {
+                if (v != null) _onSaleTypeChanged(v);
+              },
             ),
           ),
         ],
@@ -1548,12 +1615,17 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       );
 
   Widget _buildCustomerCard() {
-    return PremiumCard(
-      accentTop: ThemeManager.palette.purple,
+    return _softCard(
+      radius: 18,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionLabel(emoji: '🧑‍🤝‍🧑', label: 'Customer (optional unless on credit)', accent: ThemeManager.palette.purple),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(Loc.t('Customer', 'کسٹمر').toUpperCase(),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: ThemeManager.palette.textMuted)),
+          ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [

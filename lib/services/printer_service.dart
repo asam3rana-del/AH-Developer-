@@ -111,10 +111,17 @@ class PrinterService {
     if (!supported) return false;
     try {
       await PrintBluetoothThermal.disconnect;
-      final ok = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+      var ok = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+      if (!ok) {
+        // Ek baar dobara koshish (printer kabhi pehli connect par jawab nahi deta).
+        await _sleep(700);
+        await PrintBluetoothThermal.disconnect;
+        ok = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+      }
       if (!ok) return false;
+      await _sleep(EscPos.connectSettleDelayMs);
       var allOk = true;
-      for (var s = 0; s < slips.length; s++) {
+      for (var s = 0; s < slips.length && allOk; s++) {
         allOk &= await PrintBluetoothThermal.writeBytes(EscPos.init.toList());
         await _sleep(EscPos.settleDelayMs);
         for (final chunk in slips[s]) {
@@ -124,14 +131,19 @@ class PrinterService {
             final end = off + EscPos.btWritePieceBytes > b.length ? b.length : off + EscPos.btWritePieceBytes;
             allOk &= await PrintBluetoothThermal.writeBytes(b.sublist(off, end).toList());
             off = end;
+            if (!allOk) break;
             if (off < b.length) await _sleep(EscPos.btWritePieceGapMs);
           }
+          if (!allOk) break;
           await _sleep(EscPos.interChunkDelayMs(chunk.stripHeight));
         }
+        if (!allOk) break;
         await _sleep(EscPos.settleDelayMs);
         allOk &= await PrintBluetoothThermal.writeBytes(EscPos.feedAndCut.toList());
         if (s < slips.length - 1) await _sleep(EscPos.settleDelayMs);
       }
+      // Socket foran band karne se bill ka akhri hissa kat jata tha — printer ko poora print karne dein.
+      await _sleep(EscPos.closeDrainDelayMs);
       return allOk;
     } catch (e) {
       debugPrint('print failed: $e');
@@ -161,7 +173,7 @@ class PrinterService {
         await socket.flush();
         if (s < slips.length - 1) await _sleep(EscPos.settleDelayMs);
       }
-      await _sleep(EscPos.settleDelayMs);
+      await _sleep(EscPos.closeDrainDelayMs);
       return true;
     } catch (e) {
       debugPrint('network print failed: $e');
@@ -202,6 +214,7 @@ class PrinterService {
         allOk &= await UsbPrinter.write(EscPos.feedAndCut);
         if (s < slips.length - 1) await _sleep(EscPos.settleDelayMs);
       }
+      await _sleep(EscPos.closeDrainDelayMs);
       return allOk ? null : 'Print nahi hua — USB printer on hai? Dobara koshish karein';
     } catch (e) {
       debugPrint('usb print failed: $e');
@@ -357,6 +370,7 @@ class PrinterService {
         ok &= await PrintBluetoothThermal.writeBytes(payload.sublist(off, end).toList());
         if (end < payload.length) await _sleep(EscPos.btWritePieceGapMs);
       }
+      await _sleep(EscPos.closeDrainDelayMs);
       return ok ? null : 'Print nahi hua — printer on/paired hai? Dobara koshish karein';
     } catch (e) {
       debugPrint('text print failed: $e');

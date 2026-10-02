@@ -1,5 +1,11 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-10-02) — Sale screen Kotlin jaisi + print adhura hona
+- [x] Sale: header mein Quick Sale / History white pills + gol ⋮ menu (Print, Share, Return, Delete); Hold / Recall full-width do card; date chip (dd/MM/yyyy ›); Firm card; Customer card (CUSTOMER label, hara +); Sale Type dropdown card (Retail/Wholesale) — screenshot jaisa.
+- [x] Print adhura: aakhri feed/cut ke foran baad Bluetooth socket band ho jata tha (bill ka neeche ka hissa kat jata). Ab connect ke baad 500ms settle, band karne se pehle 1500ms drain (BT/USB/Network), write fail par ruk jana, connect ek baar retry.
+- [ ] Device par check: tablet par Sale layout, aur lambe bill ka poora print. Agar phir bhi adhura ho to Settings mein printer width (58mm=384, 80mm=576 dots) dekhein.
+- Note: Flutter SDK nahi tha — `flutter analyze && flutter test` chalayein.
+
 
 ## Flutter side (2026-10-01) — Purchase/Sale UI muqabla + phase-wise audit
 - [x] Purchase: product naam Urdu par right-aligned (RTL auto-detect); Qty+Unit+Rate+**Total Lot Price** ek row (tablet 4 fields, phone 2x2); Lot<->Rate auto-calc (qty x rate = lot, lot / qty = rate) — Kotlin `totalLotPrice` jaisa; tab order Qty -> Rate -> Lot -> Retail -> Wholesale -> Add. `PremiumLabeledField(compact: true)` (badge icon chhupa kar).

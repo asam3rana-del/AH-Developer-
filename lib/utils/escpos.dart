@@ -49,6 +49,10 @@ class EscPos {
   static const int settleDelayMs = 150;
   static const int btWritePieceBytes = 128;
   static const int btWritePieceGapMs = 20;
+  // Connect ke baad printer ko tayyar hone ka waqt, aur aakhri feed/cut ke baad socket band karne se pehle
+  // ka intezar — warna connection foran band hone par printer ke buffer ka baqi bill (neeche ka hissa) kat jata hai.
+  static const int connectSettleDelayMs = 500;
+  static const int closeDrainDelayMs = 1500;
 
   /// Clamp + 8 ka multiple (raster row poore bytes).
   static int normalizeDotsWidth(int? requested) {
