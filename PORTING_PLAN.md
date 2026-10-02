@@ -53,6 +53,7 @@ Har phase ke baad: `flutter analyze`, `flutter test`, aur Android app ke saath e
    (aur agar web mein bhi badla to `kotlin_reference/config/` — root par `config/` copy hata di gayi).
 2. `ANDROID_CHANGELOG.md` mein ek chhota entry sabse upar: kya badla (2-3 lines).
 3. `python3 tools/port_status.py` — 🔁 wali files batati hain kaunsi Flutter screen update chahiye.
+Root par `main/`, `config/`, `androidTest/` ya `test/*.kt` na banen — `bash tools/check_root.sh` pakadta hai (build nahi rokta); import zip sirf zaroori files paste karta hai. `--fix` unhein `kotlin_reference/` mein merge kar deta hai.
 Phir zip Claude ko dein: "PORTING_PLAN.md ke mutabiq aage barho".
 
 ## 4. Pehle se ki gayi Android tabdeeliyan (Flutter mein lani hain)
