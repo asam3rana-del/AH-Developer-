@@ -111,6 +111,7 @@ PartyTxStats computePartyTxStats({
   double stuck = 0.0,
   double creditLimit = 0.0,
   int? nowMillis,
+  Set<String>? knownBillIds,
 }) {
   final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
   var total = 0.0, paidOnBills = 0.0, overdue = 0.0, outstanding = 0.0;
@@ -125,7 +126,11 @@ PartyTxStats computePartyTxStats({
     if (last == null || b.createdAt > last) last = b.createdAt;
   }
   // Bill se linked payment pehle hi bill ke `paid` mein hai — dobara na ginein (Kotlin FIX audit).
-  final paymentsSum = standalone.where((p) => p.billReference.isEmpty).fold<double>(0, (a, p) => a + p.amount);
+  // [knownBillIds] diye hon to sirf wahi payment "bill ke andar" maani jati hai jiska bill maujood ho
+  // (trueBalance jaisa rule); warna purana rule: koi bhi billReference => bill ke andar.
+  bool insideBill(TxPay p) =>
+      p.billReference.isNotEmpty && (knownBillIds == null || knownBillIds.contains(p.billReference));
+  final paymentsSum = standalone.where((p) => !insideBill(p)).fold<double>(0, (a, p) => a + p.amount);
   return PartyTxStats(
     totalAmount: total,
     totalPaid: paidOnBills + paymentsSum,

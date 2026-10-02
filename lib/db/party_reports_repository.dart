@@ -78,7 +78,8 @@ List<LedgerLine> buildLedgerLines({
     for (final b in bills)
       if (!b.isReturned) LedgerLine(b.createdAt, b.total, b.paid, b.total - b.paid),
     for (final p in payments)
-      if (p.billReference.isEmpty && !ownBillIds.contains(p.reference))
+      // trueBalance jaisa rule: payment tab skip jab uska reference ya billReference is party ki kisi bill se mile.
+      if (!ownBillIds.contains(p.reference) && !(p.billReference.isNotEmpty && ownBillIds.contains(p.billReference)))
         LedgerLine(p.createdAt, 0.0, p.amount, -p.amount, isPayment: true),
   ];
   // Dart ka List.sort stable nahi hota — index se stable bana rahe hain.

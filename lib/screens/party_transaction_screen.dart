@@ -128,6 +128,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         opening: d.opening,
         stuck: d.stuck,
         creditLimit: d.creditLimit,
+        knownBillIds: {for (final s in d.sales) s.invoice, for (final b in d.purchases) b.billNo},
       );
 
       final saleLabel = Loc.t('Sale', 'سیل');

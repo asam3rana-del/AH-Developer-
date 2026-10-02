@@ -67,6 +67,16 @@ class PaymentRepository {
     await _enqueue(txn, isCustomer ? 'sale' : 'purchase', billRef, 'update', {'paid': newPaid});
   }
 
+  /// Bill ka baaqi (total - paid); bill na mile to null.
+  Future<double?> _billRemaining(DatabaseExecutor txn, bool isCustomer, String billRef) async {
+    if (billRef.isEmpty) return null;
+    final rows = await txn.query(isCustomer ? 'sales' : 'purchases',
+        columns: ['total', 'paid'], where: '${isCustomer ? 'invoice' : 'billNo'} = ?', whereArgs: [billRef], limit: 1);
+    if (rows.isEmpty) return null;
+    final left = (rows.first['total'] as num).toDouble() - (rows.first['paid'] as num).toDouble();
+    return left < 0 ? 0.0 : left;
+  }
+
   /// Recent (unreturned) bills of one party, newest first, max 50.
   ///
   /// [alsoInclude]: edit karte waqt payment ka maujooda bill (agar wo naye 50 mein na aaye, ya returned ho)
@@ -115,36 +125,93 @@ class PaymentRepository {
     // Device-unique (Expense jaisa): do devices par ek hi ms mein ek hi party ka payment ho to reference na takraye.
     final reference = 'manual-$partyType-$partyId-${DeviceTag.current}-${DateTime.now().millisecondsSinceEpoch}';
     await db.transaction((txn) async {
-      final payment = Payment(
-        reference: reference,
-        partyType: partyType,
-        partyId: partyId,
-        amount: amount,
-        method: method,
-        note: note,
-        billReference: billRef,
-        createdAt: dateMillis,
-      );
-      final id = await txn.insert('payments', payment.toMap());
-      await _enqueue(txn, 'payment', id.toString(), 'create', payment.toMap());
-
-      // Customer pays us -> they owe less; we pay supplier -> we owe less.
-      await _adjustBalance(txn, isCustomer, partyId, -amount);
-
-      final cash = CashTransaction(
-        type: isCustomer ? 'IN' : 'OUT',
-        method: method.toLowerCase(),
-        amount: amount,
-        reason: _reason(isCustomer, partyName, note),
-        reference: reference,
-        createdAt: dateMillis,
-      );
-      final cashId = await txn.insert('cash_transactions', cash.toMap());
-      await _enqueue(txn, 'cash_transaction', cashId.toString(), 'create', cash.toMap());
-
-      await _applyBillPaidDelta(txn, isCustomer, billRef, amount);
+      // Bill ke baaqi se zyada payment: bill ka `paid` total par ruk jata hai, is liye poori raqam
+      // bill se jorne par party balance aur bill alag ho jate (advance chupke se gayab). Isliye
+      // bill ke baaqi jitna hissa bill se juray, extra hissa alag (general) payment banay.
+      final remaining = await _billRemaining(txn, isCustomer, billRef);
+      var linked = amount;
+      var extra = 0.0;
+      var linkRef = billRef;
+      if (remaining != null && amount > remaining + 0.009) {
+        linked = remaining;
+        extra = amount - remaining;
+        if (linked <= 0.009) {
+          linked = 0.0;
+          linkRef = '';
+        }
+      }
+      if (linked > 0.009 || extra <= 0.009) {
+        await _insertPayment(txn,
+            isCustomer: isCustomer,
+            partyType: partyType,
+            partyId: partyId,
+            partyName: partyName,
+            amount: linked > 0.009 ? linked : amount,
+            method: method,
+            note: note,
+            billRef: linkRef,
+            dateMillis: dateMillis,
+            reference: reference);
+      }
+      if (extra > 0.009) {
+        await _insertPayment(txn,
+            isCustomer: isCustomer,
+            partyType: partyType,
+            partyId: partyId,
+            partyName: partyName,
+            amount: extra,
+            method: method,
+            note: linked > 0.009 ? (note.isEmpty ? 'Extra (bill se zyada)' : '$note | Extra (bill se zyada)') : note,
+            billRef: '',
+            dateMillis: dateMillis,
+            reference: linked > 0.009 ? '$reference-x' : reference);
+      }
     });
     await _refreshParties();
+  }
+
+  /// Ek payment row + party balance + cash row + (agar linked) bill ka `paid`.
+  Future<void> _insertPayment(
+    DatabaseExecutor txn, {
+    required bool isCustomer,
+    required String partyType,
+    required int partyId,
+    required String partyName,
+    required double amount,
+    required String method,
+    required String note,
+    required String billRef,
+    required int dateMillis,
+    required String reference,
+  }) async {
+    final payment = Payment(
+      reference: reference,
+      partyType: partyType,
+      partyId: partyId,
+      amount: amount,
+      method: method,
+      note: note,
+      billReference: billRef,
+      createdAt: dateMillis,
+    );
+    final id = await txn.insert('payments', payment.toMap());
+    await _enqueue(txn, 'payment', id.toString(), 'create', payment.toMap());
+
+    // Customer pays us -> they owe less; we pay supplier -> we owe less.
+    await _adjustBalance(txn, isCustomer, partyId, -amount);
+
+    final cash = CashTransaction(
+      type: isCustomer ? 'IN' : 'OUT',
+      method: method.toLowerCase(),
+      amount: amount,
+      reason: _reason(isCustomer, partyName, note),
+      reference: reference,
+      createdAt: dateMillis,
+    );
+    final cashId = await txn.insert('cash_transactions', cash.toMap());
+    await _enqueue(txn, 'cash_transaction', cashId.toString(), 'create', cash.toMap());
+
+    await _applyBillPaidDelta(txn, isCustomer, billRef, amount);
   }
 
   /// Mirrors updatePayment() — balance moves only by the change in amount.
@@ -163,6 +230,14 @@ class PaymentRepository {
     final db = await AppDatabase.instance.database;
     final delta = newAmount - original.amount;
     await db.transaction((txn) async {
+      // Naye bill ka baaqi (is payment ka apna purana hissa wapis jod kar) — usse zyada link nahi ho sakta.
+      final left = await _billRemaining(txn, isCustomer, newBillRef);
+      if (left != null) {
+        final allowed = left + (original.billReference == newBillRef ? original.amount : 0.0);
+        if (newAmount > allowed + 0.009) {
+          throw ArgumentError('Amount bill ke baaqi (Rs ${allowed.toStringAsFixed(2)}) se zyada hai — amount kam karein ya bill se link hata dein');
+        }
+      }
       final updated = original.copyWith(
         amount: newAmount,
         method: newMethod,

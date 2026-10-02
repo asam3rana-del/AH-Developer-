@@ -28,6 +28,19 @@ double stockValueAtCost(Iterable<Product> products) {
   return total;
 }
 
+/// Closings ko (positive total, negative total ka absolute) mein baantna.
+({double positive, double negative}) splitClosings(Iterable<double> closings) {
+  var pos = 0.0, neg = 0.0;
+  for (final c in closings) {
+    if (c > 0) {
+      pos += c;
+    } else if (c < 0) {
+      neg += -c;
+    }
+  }
+  return (positive: pos, negative: neg);
+}
+
 class BalanceSheetFigures {
   // Assets
   final double cashInHand;
@@ -119,16 +132,38 @@ class BalanceSheetRepository {
 
     final products = (await db.query('products')).map(Product.fromMap).toList();
 
+    // Receivable / payable LIVE ledger se (opening + bills - payments, customer ka stuck bhi) —
+    // stored `balance` field se nahi, taake Dashboard / Party list ke figures se mel khaye.
+    final custRows = await db.query('customers', columns: ['id', 'openingBalance', 'stuckBalance']);
+    final suppRows = await db.query('suppliers', columns: ['id', 'openingBalance']);
+    final liveCust = await PartyRepository.instance.liveCustomerBalances();
+    final liveSupp = await PartyRepository.instance.liveSupplierBalances();
+    final custSplit = splitClosings([
+      for (final c in custRows)
+        partyClosing(
+          opening: (c['openingBalance'] as num?)?.toDouble() ?? 0.0,
+          running: liveCust[c['id'] as int] ?? 0.0,
+          stuck: (c['stuckBalance'] as num?)?.toDouble() ?? 0.0,
+        ),
+    ]);
+    final suppSplit = splitClosings([
+      for (final p in suppRows)
+        partyClosing(
+          opening: (p['openingBalance'] as num?)?.toDouble() ?? 0.0,
+          running: liveSupp[p['id'] as int] ?? 0.0,
+        ),
+    ]);
+
     final figures = buildBalanceSheet(
       cashIn: await cashTotal('IN', 'cash'),
       cashOut: await cashTotal('OUT', 'cash'),
       bankIn: await cashTotal('IN', 'bank'),
       bankOut: await cashTotal('OUT', 'bank'),
       stockValue: stockValueAtCost(products),
-      receivables: await scalar('SELECT COALESCE(SUM(balance),0) FROM customers WHERE balance>0'),
-      advancePaidToSuppliers: await scalar('SELECT COALESCE(SUM(-balance),0) FROM suppliers WHERE balance<0'),
-      payables: await scalar('SELECT COALESCE(SUM(balance),0) FROM suppliers WHERE balance>0'),
-      advanceFromCustomers: await scalar('SELECT COALESCE(SUM(-balance),0) FROM customers WHERE balance<0'),
+      receivables: custSplit.positive,
+      advancePaidToSuppliers: suppSplit.negative,
+      payables: suppSplit.positive,
+      advanceFromCustomers: custSplit.negative,
       sales: await scalar("SELECT COALESCE(SUM(total),0) FROM sales WHERE status != 'returned'"),
       cogs: await scalar('SELECT COALESCE(SUM(si.cost),0) FROM sale_items si '
           "JOIN sales s ON si.invoice = s.invoice WHERE s.status != 'returned'"),

@@ -432,6 +432,9 @@ class SaleRepository {
         throw ArgumentError('Ye bill nahi mila — shayad delete ho chuka hai');
       }
       original = Sale.fromMap(rows.first);
+      if (original.status == 'returned') {
+        throw ArgumentError('Returned sale edit nahi ho sakti (stock aur balance do baar ulta ho jate hain)');
+      }
       final itemRows =
           await db.query('sale_items', where: 'invoice=?', whereArgs: [editInvoice], orderBy: 'id ASC');
       originalItems = itemRows.map(SaleItem.fromMap).toList();
