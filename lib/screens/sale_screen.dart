@@ -53,6 +53,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   final _itemCtrl = TextEditingController();
   final _itemFocus = FocusNode();
   final _qtyCtrl = TextEditingController();
+  final _qtyFocus = FocusNode();
+  final _priceFocus = FocusNode();
+  final _discountFocus = FocusNode();
+  final _paidFocus = FocusNode();
   final _priceCtrl = TextEditingController();
   final _discountCtrl = TextEditingController();
   final _paidCtrl = TextEditingController();
@@ -116,7 +120,24 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       if (!_customerFocus.hasFocus) _suggestCustomerRate();
     });
     _load();
+    // Tablet / desktop (keyboard wali screen): bill kholte hi item search pe
+    // cursor, taake seedha likhna shuru ho. Phone pe keyboard na khule.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isEdit) return;
+      if (MediaQuery.of(context).size.width >= 700) _itemFocus.requestFocus();
+    });
   }
+
+  /// Focus agle frame mein dete hain taake Enter ka default focus-move aur
+  /// rebuild pehle ho jaye, aur hamara focus aakhir mein lage.
+  void _focus(FocusNode n) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && n.canRequestFocus) n.requestFocus();
+    });
+  }
+
+  /// Items khatam: Enter khali item box pe -> Discount.
+  void _focusAfterItems() => _focus(_discountFocus);
 
   // Kotlin loadFirmName(): saved shop_name, warna "IBTISAAM Kiryana Store".
   String _firmName = 'IBTISAAM Kiryana Store';
@@ -184,6 +205,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     _itemCtrl.dispose();
     _itemFocus.dispose();
     _qtyCtrl.dispose();
+    _qtyFocus.dispose();
+    _priceFocus.dispose();
+    _discountFocus.dispose();
+    _paidFocus.dispose();
     _priceCtrl.dispose();
     _discountCtrl.dispose();
     _paidCtrl.dispose();
@@ -355,6 +380,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     });
     // A regular customer's own usual rate replaces the standard one.
     _suggestCustomerRate();
+    _focus(_qtyFocus);
   }
 
   void _refillAutoPrice() {
@@ -534,7 +560,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _editingIndex = null;
       _clearItemEntry();
     });
-    _itemFocus.requestFocus();
+    _focus(_itemFocus);
   }
 
   void _clearItemEntry() {
@@ -1253,6 +1279,40 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   // ------------------------------------------------------------------- UI
 
+  /// Sale screen ke keyboard shortcuts.
+  Map<ShortcutActivator, VoidCallback> get _shortcuts => {
+        const SingleActivator(LogicalKeyboardKey.f2): () => _itemFocus.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.f3): () => _customerFocus.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.f4): () => _discountFocus.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.f6): () {
+          if (_splitPayments.isEmpty) _paidFocus.requestFocus();
+        },
+        const SingleActivator(LogicalKeyboardKey.f7): () => _onSaleTypeChanged(_isWholesale ? 0 : 1),
+        const SingleActivator(LogicalKeyboardKey.f8): _toggleAmountMode,
+        const SingleActivator(LogicalKeyboardKey.f9): () { if (!_saving) _save(); },
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () { if (!_saving) _save(); },
+        const SingleActivator(LogicalKeyboardKey.keyP, control: true): _printCurrent,
+        if (!_isEdit) ...{
+          const SingleActivator(LogicalKeyboardKey.keyQ, control: true): _openQuickSale,
+          const SingleActivator(LogicalKeyboardKey.keyH, control: true): _holdBill,
+          const SingleActivator(LogicalKeyboardKey.keyR, control: true): _openRecall,
+        },
+        // Esc: line edit cancel, warna item entry saaf (autocomplete khula ho to wo pehle band hota hai).
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_editingIndex != null) {
+            _cancelLineEdit();
+          } else if (_itemCtrl.text.isNotEmpty || _qtyCtrl.text.isNotEmpty || _priceCtrl.text.isNotEmpty) {
+            setState(_clearItemEntry);
+          }
+          _itemFocus.requestFocus();
+        },
+      };
+
+  Widget _withShortcuts(Widget child) => CallbackShortcuts(
+        bindings: _shortcuts,
+        child: Focus(autofocus: true, skipTraversal: true, child: child),
+      );
+
   @override
   Widget build(BuildContext context) {
     // Editing a saved bill is admin-only.
@@ -1290,7 +1350,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     ];
 
     if (!wide) {
-      return Scaffold(
+      return _withShortcuts(Scaffold(
         backgroundColor: ThemeManager.palette.bg,
         body: SafeArea(
           child: Column(
@@ -1309,12 +1369,12 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
-      );
+      ));
     }
 
     // Tablet (>= 700dp): Kotlin twoPane — left = customer/item entry (scroll),
     // right = billed items (apni scroll) + Total/Payment/Save neeche pinned.
-    return Scaffold(
+    return _withShortcuts(Scaffold(
       backgroundColor: ThemeManager.palette.bg,
       body: SafeArea(
         child: Padding(
@@ -1360,7 +1420,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _pill(String emoji, String label, Color color, VoidCallback onTap) {
@@ -1383,9 +1443,21 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   Widget _buildActionRow() {
     final returned = _originalSale?.status == 'returned';
+    final wideScreen = MediaQuery.of(context).size.width >= 700;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: Wrap(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (wideScreen)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'F2 Item · F3 Customer · F4 Discount · F6 Paid · F7 Retail/Wholesale · F8 Rs · F9/Ctrl+S Save · Ctrl+H Hold · Ctrl+R Recall · Ctrl+Q Quick · Esc Clear',
+                style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
+              ),
+            ),
+          Wrap(
         spacing: 10,
         runSpacing: 8,
         children: [
@@ -1399,6 +1471,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           _pill('🖨', Loc.t('Print', 'پرنٹ'), ThemeManager.palette.navyInk, _printCurrent),
           if (_isEdit && !returned) _pill('↩', Loc.t('Return', 'واپس'), ThemeManager.palette.orange, _saving ? () {} : _returnSale),
           if (_isEdit) _pill('🗑', Loc.t('Delete', 'حذف'), ThemeManager.palette.red, _saving ? () {} : _deleteSale),
+        ],
+      ),
         ],
       ),
     );
@@ -1488,7 +1562,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   child: RawAutocomplete<String>(
                     textEditingController: _customerCtrl,
                     focusNode: _customerFocus,
-                    onSelected: (_) => _suggestCustomerRate(),
+                    onSelected: (_) {
+                      _suggestCustomerRate();
+                      _focus(_itemFocus);
+                    },
                     optionsBuilder: (text) {
                       final q = text.text.trim().toLowerCase();
                       final names = _customers.map((c) => c.name);
@@ -1499,6 +1576,12 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       controller: controller,
                       focusNode: focusNode,
                       onChanged: (_) => setState(() {}),
+                      onEditingComplete: () {},
+                      onSubmitted: (_) {
+                        // Khali = walk-in (pehla customer na chunein); warna highlighted chunein.
+                        if (_customerCtrl.text.trim().isNotEmpty) onSubmit();
+                        _focus(_itemFocus);
+                      },
                       decoration: InputDecoration(hintText: Loc.t('Customer Name (Walk-in)', 'کسٹمر کا نام (واک ان)'), border: InputBorder.none, isDense: true),
                     ),
                     optionsViewBuilder: (context, onSelected, options) =>
@@ -1640,7 +1723,22 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                     });
                   }
                 },
-                decoration: const InputDecoration(hintText: 'Search a product to sell', border: InputBorder.none, isDense: true),
+                onEditingComplete: () {},
+                onSubmitted: (_) {
+                  final t = _itemCtrl.text.trim();
+                  if (t.isEmpty) {
+                    // Khali Enter: items ho chuke -> Discount/Paid.
+                    _focus(_lines.isNotEmpty ? _discountFocus : _itemFocus);
+                    return;
+                  }
+                  if (_pickedProduct != null && _pickedProduct!.name == t) {
+                    _focus(_qtyFocus);
+                    return;
+                  }
+                  onSubmit(); // highlighted product chun lo (onSelected qty pe focus dega)
+                  if (_pickedProduct == null) _focus(_itemFocus); // match nahi mila
+                },
+                decoration: const InputDecoration(hintText: 'Search a product to sell  (F2)', border: InputBorder.none, isDense: true),
                 ),
               ),
               optionsViewBuilder: (context, onSelected, options) =>
@@ -1665,6 +1763,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   accent: ThemeManager.palette.amber,
                   controller: _qtyCtrl,
                   hint: _qtyIsAmountMode ? Loc.t('Amount in Rs', 'روپے میں رقم') : '0',
+                  focusNode: _qtyFocus,
+                  onSubmitted: () => _focus(_priceFocus),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -1720,7 +1820,15 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             label: 'Unit Price (auto-filled, editable)',
             accent: ThemeManager.palette.teal,
             controller: _priceCtrl,
+            focusNode: _priceFocus,
             onChanged: _onPriceChanged,
+            // Enter = Add to Bill. Na ho paya to wahin focus rahe.
+            onSubmitted: () {
+              _addLine();
+              if (_itemCtrl.text.trim().isNotEmpty) {
+                _focus(_qtyCtrl.text.trim().isEmpty ? _qtyFocus : _priceFocus);
+              }
+            },
           ),
           if (_customerRateName != null)
             Padding(
@@ -1898,7 +2006,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 12),
-          PremiumLabeledField(emoji: '➖', label: 'Discount', accent: ThemeManager.palette.orange, controller: _discountCtrl, onChanged: (_) => setState(() {})),
+          PremiumLabeledField(emoji: '➖', label: 'Discount', accent: ThemeManager.palette.orange, controller: _discountCtrl, focusNode: _discountFocus, onSubmitted: () => _focus(_paidFocus), onChanged: (_) => setState(() {})),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1908,7 +2016,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 12),
-          PremiumLabeledField(emoji: '💵', label: 'Paid Amount', accent: ThemeManager.palette.purple, controller: _paidCtrl, enabled: _splitPayments.isEmpty, onChanged: (_) => setState(() {})),
+          PremiumLabeledField(emoji: '💵', label: 'Paid Amount', accent: ThemeManager.palette.purple, controller: _paidCtrl, focusNode: _paidFocus, enabled: _splitPayments.isEmpty, onSubmitted: () { if (!_saving) _save(); }, onChanged: (_) => setState(() {})),
           const SizedBox(height: 8),
           if (_splitPayments.isEmpty)
             Row(
