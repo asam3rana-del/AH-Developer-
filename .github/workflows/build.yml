@@ -40,6 +40,12 @@ jobs:
       # Repo has no ios/ or android/ folders, so generate them.
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
+      # App ka naam (home screen par): Hanna Solutions.
+      - name: Set iOS app name
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Hanna Solutions'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName 'Hanna Solutions'" ios/Runner/Info.plist
+
       # Firebase needs iOS 13+ and google_mlkit_* (Bill Scan OCR) needs iOS 15.5+; Flutter's template defaults to 12.
       - name: Set iOS deployment target to 15.5
         run: |
@@ -120,6 +126,11 @@ jobs:
       - run: flutter create --platforms=windows --project-name ah_developer_kiryana_store .
 
       - run: flutter pub get
+
+      # Window title: Hanna Solutions.
+      - name: Set Windows window title
+        shell: pwsh
+        run: (Get-Content windows/runner/main.cpp) -replace 'L"ah_developer_kiryana_store"', 'L"Hanna Solutions"' | Set-Content windows/runner/main.cpp
 
       - run: flutter build windows --release
 
