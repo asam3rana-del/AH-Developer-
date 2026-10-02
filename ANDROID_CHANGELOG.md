@@ -642,3 +642,6 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [x] Kotlin `printText` port: `EscPos.textPayload` + `PrinterService.printText` (Bluetooth / Network / USB) aur Settings mein "PLAIN TEXT TEST (English only)". Raster TEST PRINT garbled aaye to ye batata hai ke printer/connection theek hai.
 - Farq: sirf ASCII chhapta hai, baqi characters '?' (Kotlin UTF-8 bhejta tha). Windows driver printer par plain text nahi.
 - Test: `test/print_scan_test.dart` (plain text group). Compile/test nahi hua (Flutter SDK nahi) — `flutter analyze && flutter test` chalayein.
+
+## Sale muqabla (Oct 2)
+- SaleActivity.kt ke 190 string/label Flutter se milaye: sab logic paths maujood. Farq sirf 2 labels the — customer hint ab "Customer Name (Walk-in)" aur Split link "+ Split Payment (multiple methods)" (Kotlin jaisa).

@@ -1499,7 +1499,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       controller: controller,
                       focusNode: focusNode,
                       onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(hintText: 'Walk-in customer — leave blank if fully paid', border: InputBorder.none, isDense: true),
+                      decoration: InputDecoration(hintText: Loc.t('Customer Name (Walk-in)', 'کسٹمر کا نام (واک ان)'), border: InputBorder.none, isDense: true),
                     ),
                     optionsViewBuilder: (context, onSelected, options) =>
                         autocompleteOptionsView<String>(context, onSelected, options, (o) => o, maxWidth: 640),
@@ -1930,7 +1930,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 const SizedBox(width: 8),
                 TextButton(
                   onPressed: _openSplitPaymentDialog,
-                  child: Text(Loc.t('+ Split Payment', '+ ادائیگی تقسیم کریں')),
+                  child: Text(Loc.t('+ Split Payment (multiple methods)', '+ ادائیگی تقسیم کریں (ایک سے زیادہ طریقے)')),
                 ),
               ],
             )
