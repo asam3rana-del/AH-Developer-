@@ -432,6 +432,23 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     _priceCtrl.text = price > 0 ? price.toStringAsFixed(2) : '';
   }
 
+  /// Retail sale mein jab miqdar item ki bulkMinQty tak pohnche to rate khud bulkPrice par aa jaye
+  /// (aur kam hone par wapas retail). Cashier ka apna likha rate ya customer ka rate kabhi nahi chhera jata.
+  void _applyBulkRate() {
+    final p = _pickedProduct;
+    if (p == null || _isWholesale || _qtyIsAmountMode) return;
+    if (p.bulkPrice <= 0 || p.bulkMinQty <= 0) return;
+    if (_lastMainPrice > 0 || _customerRateName != null) return;
+    final unit = _selectedUnit.isEmpty ? p.unit : _selectedUnit;
+    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
+    final factor = p.smallestUnitFactor();
+    final mainQty = factor > 0 ? p.toSmallestUnits(qty, unit) / factor : qty;
+    final base = mainQty >= p.bulkMinQty ? p.bulkPrice : p.salePrice;
+    final price = p.fromPrimaryUnitRate(base, unit);
+    final text = price > 0 ? price.toStringAsFixed(2) : '';
+    if (_priceCtrl.text != text) _priceCtrl.text = text;
+  }
+
   void _onPriceChanged(String v) {
     final p = _pickedProduct;
     if (p != null) {
@@ -1882,7 +1899,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   hint: _qtyIsAmountMode ? Loc.t('Amount in Rs', 'روپے میں رقم') : '0',
                   focusNode: _qtyFocus,
                   onSubmitted: () => _focus(_priceFocus),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => setState(_applyBulkRate),
                 ),
               ),
               const SizedBox(width: 8),

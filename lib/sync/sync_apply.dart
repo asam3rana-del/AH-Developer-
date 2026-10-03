@@ -295,6 +295,9 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
       'dirty': localPendingStock != 0.0 ? 1 : 0,
       'updatedAt': serverUpdatedAt,
     };
+    // Bulk rate sirf tab lo jab cloud doc mein ho: purane device / Kotlin app ka doc local bulk rate 0 na kar de.
+    if (row.containsKey('bulkPrice')) common['bulkPrice'] = _d(row['bulkPrice']) ?? 0.0;
+    if (row.containsKey('bulkMinQty')) common['bulkMinQty'] = _d(row['bulkMinQty']) ?? 0.0;
     if (existing != null) {
       if (existing['dirty'] == 1 && (existing['name'] != name || _dbl(existing['salePrice']) != salePrice)) {
         await _conflict(db, 'product:$barcode', '${existing['name']} / ${_dbl(existing['salePrice'])}',

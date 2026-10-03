@@ -181,7 +181,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   // ------------------------------------------------------------------ getters
 
   double get _subtotal => _lines.fold(0.0, (sum, l) => sum + l.amount);
-  double get _grandTotal => _subtotal.roundToDouble();
+  double get _grandTotal => (_subtotal * 100).roundToDouble() / 100;
+
+  /// Poora rupee ho to bina decimal, warna 2 decimal (5059.73) — total ab round nahi hota.
+  String _fmtMoney(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   String get _effectiveUnit => _selectedUnit.isNotEmpty ? _selectedUnit : (_pickedProduct?.unit ?? 'pcs');
 
@@ -1048,7 +1051,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     if (paid <= 0.009 && grandTotal > 0) {
       final confirmed = await _confirm(
         title: 'Confirm Credit Purchase',
-        message: 'You have not entered Paid Amount.\nTotal: Rs ${grandTotal.toStringAsFixed(0)}\n\n'
+        message: 'You have not entered Paid Amount.\nTotal: Rs ${_fmtMoney(grandTotal)}\n\n'
             'This bill will be saved as CREDIT (Udhaar).\nSupplier balance will increase.\n\nAre you sure?',
         yes: 'Yes, Save as Credit',
         no: 'Enter Payment',
@@ -1102,8 +1105,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       final go = await _confirm(
         title: Loc.t('Possible Duplicate Bill', 'ممکنہ ڈپلیکیٹ بل'),
         message: Loc.t(
-          'A purchase from $party for Rs ${grandTotal.toStringAsFixed(0)} was already saved on $when (Bill #${dup.billNo}).\n\nSave this one anyway?',
-          '$party کی طرف سے Rs ${grandTotal.toStringAsFixed(0)} کی خریداری پہلے ہی $when کو محفوظ ہو چکی ہے (بل نمبر ${dup.billNo})۔\n\nکیا پھر بھی محفوظ کریں؟',
+          'A purchase from $party for Rs ${_fmtMoney(grandTotal)} was already saved on $when (Bill #${dup.billNo}).\n\nSave this one anyway?',
+          '$party کی طرف سے Rs ${_fmtMoney(grandTotal)} کی خریداری پہلے ہی $when کو محفوظ ہو چکی ہے (بل نمبر ${dup.billNo})۔\n\nکیا پھر بھی محفوظ کریں؟',
         ),
         yes: Loc.t('Save Anyway', 'پھر بھی محفوظ کریں'),
       );
@@ -2182,7 +2185,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        summaryCard(Loc.t('Total Amount', 'کل رقم'), 'Rs ${total.toStringAsFixed(0)}', _kBlue, 21),
+        summaryCard(Loc.t('Total Amount', 'کل رقم'), 'Rs ${_fmtMoney(total)}', _kBlue, 21),
         _kCard(
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
           child: Column(
@@ -2286,7 +2289,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             ],
           ),
         ),
-        summaryCard(Loc.t('Due Amount', 'باقی رقم'), 'Rs ${due.toStringAsFixed(0)}', dueColor, 18),
+        summaryCard(Loc.t('Due Amount', 'باقی رقم'), 'Rs ${_fmtMoney(due)}', dueColor, 18),
       ],
     );
   }

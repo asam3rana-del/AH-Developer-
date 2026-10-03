@@ -30,6 +30,8 @@ class _ProductScreenState extends State<ProductScreen> {
   final _tagCtrl = TextEditingController();
   final _costCtrl = TextEditingController();
   final _wholesaleCtrl = TextEditingController();
+  final _bulkPriceCtrl = TextEditingController();
+  final _bulkQtyCtrl = TextEditingController();
   final _saleCtrl = TextEditingController();
   final _stockCtrl = TextEditingController();
   final _reorderCtrl = TextEditingController();
@@ -68,6 +70,8 @@ class _ProductScreenState extends State<ProductScreen> {
     _tagCtrl.dispose();
     _costCtrl.dispose();
     _wholesaleCtrl.dispose();
+    _bulkPriceCtrl.dispose();
+    _bulkQtyCtrl.dispose();
     _saleCtrl.dispose();
     _stockCtrl.dispose();
     _reorderCtrl.dispose();
@@ -181,6 +185,8 @@ class _ProductScreenState extends State<ProductScreen> {
       _openingStockUnit = _primaryUnit;
       _costCtrl.text = p.cost > 0 ? p.cost.toString() : '';
       _wholesaleCtrl.text = p.wholesalePrice > 0 ? p.wholesalePrice.toString() : '';
+      _bulkPriceCtrl.text = p.bulkPrice > 0 ? p.bulkPrice.toString() : '';
+      _bulkQtyCtrl.text = p.bulkMinQty > 0 ? _trimNum(p.bulkMinQty) : '';
       _saleCtrl.text = p.salePrice > 0 ? p.salePrice.toString() : '';
       _reorderCtrl.text = p.reorderLevel > 0 ? _trimNum(p.reorderLevel) : '';
       _stockCtrl.text = _trimNum(p.stock);
@@ -194,6 +200,8 @@ class _ProductScreenState extends State<ProductScreen> {
       _tagCtrl.clear();
       _costCtrl.clear();
       _wholesaleCtrl.clear();
+      _bulkPriceCtrl.clear();
+      _bulkQtyCtrl.clear();
       _saleCtrl.clear();
       _stockCtrl.clear();
       _reorderCtrl.clear();
@@ -302,6 +310,10 @@ class _ProductScreenState extends State<ProductScreen> {
     if (saleVal == null) return;
     final wholesaleVal = parseMoneyOrWarn(context, _wholesaleCtrl.text, 'Wholesale Price', 'ہول سیل قیمت');
     if (wholesaleVal == null) return;
+    final bulkPriceVal = parseMoneyOrWarn(context, _bulkPriceCtrl.text, 'Bulk Rate', 'بلک قیمت');
+    if (bulkPriceVal == null) return;
+    final bulkQtyVal = parseMoneyOrWarn(context, _bulkQtyCtrl.text, 'Bulk Min Qty', 'بلک کم از کم مقدار');
+    if (bulkQtyVal == null) return;
 
     final product = Product(
       barcode: barcode,
@@ -311,6 +323,8 @@ class _ProductScreenState extends State<ProductScreen> {
       cost: costVal,
       salePrice: saleVal,
       wholesalePrice: wholesaleVal,
+      bulkPrice: bulkPriceVal,
+      bulkMinQty: bulkQtyVal,
       stock: resolvedStock,
       openingStock: resolvedOpeningStock,
       unit: _primaryUnit,
@@ -633,6 +647,10 @@ class _ProductScreenState extends State<ProductScreen> {
               PremiumLabeledField(emoji: '📦', label: Loc.t('Wholesale Sale Rate', 'تھوک فروخت کی قیمت'), accent: ThemeManager.palette.blue, controller: _wholesaleCtrl),
               const SizedBox(height: 12),
               PremiumLabeledField(emoji: '🏪', label: Loc.t('Retail Sale Rate', 'پرچون فروخت کی قیمت'), accent: ThemeManager.palette.teal, controller: _saleCtrl),
+              const SizedBox(height: 12),
+              PremiumLabeledField(emoji: '🧺', label: Loc.t('Bulk Rate (retail, optional)', 'بلک قیمت (پرچون، اختیاری)'), accent: ThemeManager.palette.blue, controller: _bulkPriceCtrl),
+              const SizedBox(height: 12),
+              PremiumLabeledField(emoji: '📏', label: Loc.t('Bulk Min Qty (main unit)', 'بلک کم از کم مقدار (مین یونٹ)'), accent: ThemeManager.palette.blue, controller: _bulkQtyCtrl),
               const SizedBox(height: 12),
               _buildOpeningStockRow(),
               if (_stockPreview.isNotEmpty)

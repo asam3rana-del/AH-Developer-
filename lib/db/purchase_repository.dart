@@ -328,7 +328,8 @@ class PurchaseRepository {
     if (lineError != null) throw PurchaseSaveException(lineError);
 
     final subtotal = lines.fold<double>(0, (sum, l) => sum + l.amount);
-    final grandTotal = subtotal.roundToDouble().clamp(0.0, double.infinity).toDouble();
+    // Paisa tak durust (poore rupee par round nahi): bill ka total supplier ke bill se match kare.
+    final grandTotal = ((subtotal * 100).roundToDouble() / 100).clamp(0.0, double.infinity).toDouble();
 
     final db = await AppDatabase.instance.database;
     final suppliers = await SupplierRepository.instance.listAll();
