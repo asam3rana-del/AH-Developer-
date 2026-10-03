@@ -371,9 +371,15 @@ class PurchaseRepository {
 
       // ---- edit: purana bill utaro (sirf badli hui lines ka stock/cost)
       final diff = original != null ? purchaseEditDiff(lines, originalItems) : null;
+      // Edit mein purani line ka stock baad ki sale se kam ho chuka ho to bhi edit allow hai (rate/unit theek
+      // karne ke liye): stock beech mein minus ja sakta hai, aur AKHIR mein (nayi qty add hone ke baad) stock
+      // minus raha tabhi edit rokta hai. [pendingValue] = us barcode ka stock-value jab tak weighted cost taiyar ho.
+      final pendingValue = <String, double>{};
+      final reversedBarcodes = <String>{};
       if (original != null) {
         for (final it in diff!.itemsToReverse) {
-          await _reverseLine(txn, it, billNo, now);
+          await _reverseLine(txn, it, billNo, now, pendingValue);
+          reversedBarcodes.add(it.barcode);
         }
         final originalOutstanding = original.total - original.paid;
         if (original.supplierId != null && originalOutstanding.abs() > 0.009) {
@@ -464,13 +470,23 @@ class PurchaseRepository {
               '"${before.name}" ke liye qty (${line.qty} ${line.unit}) whole ${before.smallestUnitName()} mein convert nahi hoti — qty check karen.',
             );
           }
-          final newCost = addPurchaseLineCost(
-            productCost: before.cost,
-            productStock: before.stock,
-            factor: before.smallestUnitFactor(),
-            addedSmallestQty: purchasedSmallest,
-            lineAmount: line.amount,
-          );
+          double newCost;
+          if (pendingValue.containsKey(barcode)) {
+            // Reverse ke waqt stock kam tha: weighted cost value-based (reverse + add ka net, wahi formula).
+            final factor = before.smallestUnitFactor();
+            final stockAfter = before.stock + purchasedSmallest;
+            final value = (pendingValue[barcode] ?? 0.0) + line.amount;
+            pendingValue[barcode] = value;
+            newCost = stockAfter > 0 ? (value / stockAfter) * factor : before.cost;
+          } else {
+            newCost = addPurchaseLineCost(
+              productCost: before.cost,
+              productStock: before.stock,
+              factor: before.smallestUnitFactor(),
+              addedSmallestQty: purchasedSmallest,
+              lineAmount: line.amount,
+            );
+          }
           await txn.rawUpdate(
             'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
             [purchasedSmallest, newCost, now, barcode],
@@ -501,6 +517,17 @@ class PurchaseRepository {
           touched = true;
         }
         if (touched) await _enqueueProduct(txn, barcode);
+      }
+
+      // ---- edit ke baad bhi stock minus ho to rok do (poora transaction rollback)
+      for (final bc in reversedBarcodes) {
+        final after = await _productOrNull(txn, bc);
+        if (after != null && after.stock < -0.0001) {
+          throw PurchaseSaveException(
+            '"${after.name}" ka stock is edit ke baad minus ho jata — nayi qty purani sale ke hisaab se kam hai. '
+            'Qty barha kar dobara try karen ya stock adjustment karen.',
+          );
+        }
       }
 
       // ---- supplier ka baaqi
@@ -557,11 +584,37 @@ class PurchaseRepository {
 
   /// Edit mein wo purani line jo ab as-is nahi rahi: stock/cost wapas. Stock baad ki sale se kam ho chuka ho
   /// to poora edit rok do (cost galat ho jata) — Kotlin `reverseStockAndCostForItems`.
-  Future<void> _reverseLine(Transaction txn, PurchaseItem it, String billNo, int now) async {
+  Future<void> _reverseLine(
+      Transaction txn, PurchaseItem it, String billNo, int now, Map<String, double> pendingValue) async {
     final product = await _productOrNull(txn, it.barcode);
     if (product == null) return;
     final smallest = purchaseItemSmallestQty(it, product);
     if (smallest <= 0) return;
+
+    // Stock is purchase se kam reh gaya (baad ki sale): stock beech mein minus jane do, cost ki value alag
+    // rakho; akhri check savePurchase mein hota hai (nayi qty add hone ke baad).
+    if (product.stock < smallest || pendingValue.containsKey(it.barcode)) {
+      final factor = product.smallestUnitFactor();
+      final costPer = factor > 0 ? product.cost / factor : product.cost;
+      final current = pendingValue[it.barcode] ?? (product.stock * costPer);
+      final value = (current - it.amount) < 0 ? 0.0 : (current - it.amount);
+      pendingValue[it.barcode] = value;
+      await txn.rawUpdate(
+        'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+        [smallest, now, it.barcode],
+      );
+      await SyncQueueHelper.enqueueStockDelta(txn, it.barcode, -smallest);
+      await StockLedger.log(txn,
+          barcode: it.barcode,
+          type: MovementType.purchaseReversal,
+          signedQty: -smallest,
+          reference: billNo,
+          unitCost: product.cost,
+          now: now);
+      await _enqueueProduct(txn, it.barcode);
+      return;
+    }
+
     final newCost = reversePurchaseLineCost(
       productCost: product.cost,
       productStock: product.stock,
