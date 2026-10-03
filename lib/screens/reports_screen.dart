@@ -15,6 +15,7 @@ import 'rate_comparison_screen.dart';
 import 'stock_adjustment_screen.dart';
 import 'stock_audit_screen.dart';
 import 'stock_movement_screen.dart';
+import 'stock_rebuild_screen.dart';
 import 'stock_report_screen.dart';
 import 'stock_taking_screen.dart';
 import 'zakat_screen.dart';
@@ -140,6 +141,9 @@ class _ReportsBodyState extends State<_ReportsBody> {
             _row(p, Loc.t('Stock Adjustment', 'اسٹاک ایڈجسٹمنٹ'),
                 Loc.t('Log damage, loss, or a correction', 'نقصان یا درستگی درج کریں'), p.red,
                 () => _open(const StockAdjustmentScreen())),
+            _row(p, Loc.t('Stock Rebuild (Sep)', 'اسٹاک ری بلڈ (ستمبر)'),
+                Loc.t('One time: stock = Sep purchases - later sales', 'ایک بار: اسٹاک = ستمبر خریداری - بعد کی سیلز'), p.red,
+                () => _open(const StockRebuildScreen())),
             _row(p, Loc.t('Stock Taking', 'اسٹاک گنتی'), Loc.t('Physical count vs system stock', 'اصل گنتی بمقابلہ سسٹم اسٹاک'),
                 p.flatBlueFg, () => _open(const StockTakingScreen())),
             _row(p, Loc.t('Reorder Suggestions', 'دوبارہ آرڈر تجاویز'),
