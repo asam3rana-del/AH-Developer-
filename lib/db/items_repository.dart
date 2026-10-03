@@ -216,6 +216,7 @@ class ItemsRepository {
     requireItemsAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
+      await SyncQueueHelper.assertProductDeletable(txn, barcode);
       await txn.delete('products', where: 'barcode=?', whereArgs: [barcode]);
       await _enqueue(txn, 'product', barcode, 'delete', {'barcode': barcode});
     });

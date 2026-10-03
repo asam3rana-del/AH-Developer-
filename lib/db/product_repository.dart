@@ -96,6 +96,7 @@ class ProductRepository {
     _requireProductAdmin();
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
+      await SyncQueueHelper.assertProductDeletable(txn, product.barcode);
       await txn.delete('products', where: 'barcode=?', whereArgs: [product.barcode]);
       // Kotlin confirmDeleteProduct: enqueue(product, "delete") — server par tombstone.
       await SyncQueueHelper.enqueueDelete(txn, 'product', SyncQueueHelper.productEntityId({'barcode': product.barcode}));

@@ -11,6 +11,7 @@ import '../db/product_repository.dart';
 import '../models/category_unit.dart' as models;
 import '../models/product.dart';
 import '../services/session.dart';
+import '../sync/sync_queue_helper.dart' show ProductDeleteBlockedException;
 import '../utils/loc.dart';
 import '../utils/rate_list_csv.dart';
 import '../widgets/premium_header.dart';
@@ -231,7 +232,12 @@ class _ItemsScreenState extends State<ItemsScreen> {
   Future<void> _confirmDeleteProduct(Product p) async {
     if (!await _confirm(Loc.t('Delete Product', 'پروڈکٹ حذف کریں'),
         Loc.t('Delete "${p.name}"? This cannot be undone.', '"${p.name}" حذف کریں؟ یہ واپس نہیں ہو سکتا۔'), Loc.t('Delete', 'حذف کریں'))) return;
-    await ItemsRepository.instance.deleteProduct(p.barcode);
+    try {
+      await ItemsRepository.instance.deleteProduct(p.barcode);
+    } on ProductDeleteBlockedException catch (e) {
+      _toast(e.message);
+      return;
+    }
     await _loadAll();
     _toast(Loc.t('Product deleted', 'پروڈکٹ حذف ہو گئی'));
   }

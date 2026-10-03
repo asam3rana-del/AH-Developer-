@@ -603,8 +603,9 @@ class SaleRepository {
           'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
           [smallest, now, line.barcode],
         );
-        if (rowsAffected == 0) {
-          stockWarnings?.add('Warning: "${line.itemName}" ka stock update nahi ho saka — check karen.');
+        if (rowsAffected != 1) {
+          // Warning nahi: poori sale rollback, warna bill ban jata hai aur stock kam nahi hota.
+          throw SaleStockException('"${line.itemName}" ka stock update nahi ho saka. Sale save nahi hui — dobara try karen.');
         }
         await SyncQueueHelper.enqueueStockDelta(txn, line.barcode, -smallest);
         await StockLedger.log(txn,

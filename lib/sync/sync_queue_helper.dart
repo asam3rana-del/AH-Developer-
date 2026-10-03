@@ -6,6 +6,14 @@ import 'package:sqflite/sqflite.dart';
 import 'branch_config_store.dart';
 import 'device_tag.dart';
 
+/// Product delete roki gayi (pending sync) — toString == message, taake toast mein "Bad state:" na aaye.
+class ProductDeleteBlockedException implements Exception {
+  final String message;
+  const ProductDeleteBlockedException(this.message);
+  @override
+  String toString() => message;
+}
+
 /// Kotlin `SyncQueueHelper.kt` — Firestore schema Android jaisa (dono apps ek backend).
 ///
 /// Har `enqueueX` DB se taaza row parh kar Android wala payload banata hai aur `sync_queue` mein likhta
@@ -382,6 +390,25 @@ class SyncQueueHelper {
     final eid = supplierEntityId(s);
     await _stampServerId(ex, 'suppliers', s, eid);
     await enqueue(ex, 'supplier', eid, 'upsert', supplierPayload(s));
+  }
+
+  /// Product delete se pehle: is product ka koi unsynced upsert/stock ya is barcode wali pending
+  /// sale/purchase ho to delete na ho (warna dusre device par stock/bill ka hisaab toot jata hai).
+  static Future<void> assertProductDeletable(DatabaseExecutor ex, String barcode) async {
+    final own = await ex.rawQuery(
+      "SELECT 1 FROM sync_queue WHERE syncedAt IS NULL AND entityType = 'product' AND entityId = ? "
+      "AND operation != 'delete' LIMIT 1",
+      [barcode],
+    );
+    final bills = await ex.rawQuery(
+      "SELECT 1 FROM sync_queue WHERE syncedAt IS NULL AND entityType IN ('sale','purchase') "
+      "AND payloadJson LIKE ? LIMIT 1",
+      ['%"barcode":"$barcode"%'],
+    );
+    if (own.isNotEmpty || bills.isNotEmpty) {
+      throw const ProductDeleteBlockedException(
+          'Is item ka sync abhi baqi hai. Internet par sync mukammal hone dein, phir delete karen.');
+    }
   }
 
   static Future<void> enqueueProduct(DatabaseExecutor ex, String barcode) async {

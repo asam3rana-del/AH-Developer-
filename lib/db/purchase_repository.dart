@@ -487,10 +487,14 @@ class PurchaseRepository {
               lineAmount: line.amount,
             );
           }
-          await txn.rawUpdate(
+          final stockRows = await txn.rawUpdate(
             'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
             [purchasedSmallest, newCost, now, barcode],
           );
+          if (stockRows != 1) {
+            // Chup chap skip nahi: poori purchase rollback, taake stock aur bill alag na hon.
+            throw PurchaseSaveException('"${before.name}" ka stock update nahi ho saka. Purchase save nahi hui — dobara try karen.');
+          }
           await SyncQueueHelper.enqueueStockDelta(txn, barcode, purchasedSmallest);
           await StockLedger.log(txn,
               barcode: barcode,

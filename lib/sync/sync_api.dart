@@ -157,13 +157,30 @@ class SyncApi implements SyncBackend {
         default:
           // upsert & baaki: last-write-wins; der se aane wali entry naye cloud edit ko nahi todti.
           final st = stampPayload(decodePayload(entry.payloadJson), branch, nowMs());
+          var skippedStale = false;
+          int? skippedServerAt;
           await fs.runTransaction((tx) async {
+            skippedStale = false;
             final snap = await tx.get(docRef);
             final serverUpdatedAt = asMillis(snap.data()?['updatedAt']);
             if (shouldApplyUpsert(st.incomingUpdatedAt, serverUpdatedAt)) {
               tx.set(docRef, st.map, SetOptions(merge: true));
+            } else {
+              skippedStale = true;
+              skippedServerAt = serverUpdatedAt;
             }
           });
+          // Cloud par is se naya edit pehle se tha: yeh device ka change nahi gaya. Chup chap nahi —
+          // audit log mein likho (agla pull cloud ki nayi value le aayega).
+          if (skippedStale) {
+            await logMaintenanceAudit(
+              localDb,
+              username: 'sync',
+              action: 'sync_push_skipped_stale',
+              reference: '${entry.entityType}:${entry.entityId}',
+              details: 'Local ${st.incomingUpdatedAt} < cloud $skippedServerAt — cloud ki nayi value rakhi gayi.',
+            );
+          }
       }
       return true;
     } catch (e) {
