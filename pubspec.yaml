@@ -40,6 +40,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2  # backup password (Android Keystore / iOS Keychain)
   share_plus: ^10.0.0             # backup / PDF / CSV share
   file_picker: ^8.1.2             # restore: file chunna
+  archive: ^3.6.1                 # restore: .zip import (zip ke andar .ibbackup / .db)
   pdf: ^3.11.1                    # PDF report
   printing: ^5.13.1               # PDF print / preview
   open_filex: ^4.5.0              # PDF / CSV kholna

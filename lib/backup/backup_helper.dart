@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -99,8 +100,18 @@ class BackupHelper {
   }
 
   /// Password chahiye? (sirf header dekhta hai.)
-  static Future<bool> needsPassword(File file) async =>
-      await BackupCrypto.isEncryptedBackup(file) || await BackupCrypto.isLegacyEncryptedBackup(file);
+  static Future<bool> needsPassword(File file) async {
+    if (await _isZip(file)) {
+      // Zip: andar .ibbackup ho to password chahiye (wo hamesha encrypted hoti hai).
+      try {
+        final a = ZipDecoder().decodeBytes(await file.readAsBytes());
+        return a.any((e) => e.isFile && e.name.toLowerCase().endsWith('.$backupExtension'));
+      } catch (_) {
+        return false;
+      }
+    }
+    return await BackupCrypto.isEncryptedBackup(file) || await BackupCrypto.isLegacyEncryptedBackup(file);
+  }
 
   // ---------------- backup ----------------
 
@@ -198,14 +209,79 @@ class BackupHelper {
       return false;
     }
     _busy = true;
+    Directory? zipTemp;
     try {
-      return await _restoreSafely(backupFile, pass);
+      var source = backupFile;
+      // Kotlin jaisa "IMPORT BACKUP FILE": .zip bhi chalta hai — andar ki backup file nikal kar wahi restore flow.
+      if (await _isZip(backupFile)) {
+        zipTemp = await Directory.systemTemp.createTemp('ib_zip_import_');
+        final inner = await _extractBackupFromZip(backupFile, zipTemp);
+        if (inner == null) {
+          lastError = 'Zip ke andar koi backup file (.ibbackup / .db) nahi mili';
+          return false;
+        }
+        source = inner;
+      }
+      return await _restoreSafely(source, pass);
     } catch (e) {
       lastError = e is BackupCryptoException ? e.message : e.toString();
       return false;
     } finally {
       _busy = false;
+      if (zipTemp != null) {
+        try {
+          await zipTemp.delete(recursive: true);
+        } catch (_) {}
+      }
     }
+  }
+
+  static Future<bool> _isZip(File f) async {
+    try {
+      final raf = await f.open();
+      try {
+        final h = await raf.read(4);
+        return h.length == 4 && h[0] == 0x50 && h[1] == 0x4B && h[2] == 3 && h[3] == 4;
+      } finally {
+        await raf.close();
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Zip ki saari files temp folder mein (flat) utaro, phir sab se munasib backup chuno:
+  /// .ibbackup pehle, warna .db/.sqlite (sab se bari). Agar .db ke saath -wal ho to pehle checkpoint
+  /// taake WAL ka naya data bhi shamil ho.
+  static Future<File?> _extractBackupFromZip(File zip, Directory out) async {
+    final archive = ZipDecoder().decodeBytes(await zip.readAsBytes());
+    final written = <File>[];
+    for (final entry in archive) {
+      if (!entry.isFile) continue;
+      final name = p.basename(entry.name);
+      if (name.isEmpty || name.startsWith('.') || entry.name.contains('__MACOSX')) continue;
+      final f = File(p.join(out.path, name));
+      await f.writeAsBytes(entry.content as List<int>, flush: true);
+      written.add(f);
+    }
+    bool ext(File f, List<String> e) => e.any((x) => f.path.toLowerCase().endsWith(x));
+    final ib = written.where((f) => ext(f, ['.$backupExtension'])).toList();
+    final dbs = written.where((f) => ext(f, ['.db', '.sqlite', '.sqlite3'])).toList();
+    int bySize(File a, File b) => b.lengthSync().compareTo(a.lengthSync());
+    ib.sort(bySize);
+    dbs.sort(bySize);
+    if (ib.isNotEmpty) return ib.first;
+    if (dbs.isEmpty) return null;
+    final db = dbs.first;
+    final wal = File('${db.path}-wal');
+    if (await wal.exists() && await wal.length() > 0) {
+      try {
+        final d = await openDatabase(db.path, singleInstance: false);
+        await d.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+        await d.close();
+      } catch (_) {}
+    }
+    return db;
   }
 
   static Future<bool> _restoreSafely(File backupFile, String? pass) async {

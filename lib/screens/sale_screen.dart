@@ -114,6 +114,11 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Kotlin jaisa: qty / rate / discount / paid par focus aate hi purani value select.
+    _selectAllOnFocus(_qtyFocus, _qtyCtrl);
+    _selectAllOnFocus(_priceFocus, _priceCtrl);
+    _selectAllOnFocus(_discountFocus, _discountCtrl);
+    _selectAllOnFocus(_paidFocus, _paidCtrl);
     _customerFocus.addListener(() {
       // Customer picked/typed AFTER the item: re-check their usual rate.
       if (!_customerFocus.hasFocus) _suggestCustomerRate();
@@ -124,6 +129,41 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isEdit) return;
       if (MediaQuery.of(context).size.width >= 700) _itemFocus.requestFocus();
+    });
+  }
+
+  void _selectAllOnFocus(FocusNode f, TextEditingController c) {
+    f.addListener(() {
+      if (!f.hasFocus || c.text.isEmpty) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (f.hasFocus) c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length);
+      });
+    });
+  }
+
+  final GlobalKey _saleTypeKey = GlobalKey();
+
+  /// Kotlin goToSaleTypeFromCustomer(): Customer ke baad Sale Type ka dropdown khud khul jaye,
+  /// phir chunne par seedha Item Name par cursor + keyboard.
+  void _goToSaleTypeFromCustomer() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      GestureDetector? tap;
+      void search(Element e) {
+        if (tap != null) return;
+        if (e.widget is GestureDetector) {
+          tap = e.widget as GestureDetector;
+          return;
+        }
+        e.visitChildren(search);
+      }
+      _saleTypeKey.currentContext?.visitChildElements(search);
+      if (tap?.onTap != null) {
+        tap!.onTap!.call();
+      } else {
+        _focus(_itemFocus); // dropdown na khul sakay to seedha item par
+      }
     });
   }
 
@@ -612,6 +652,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     if (_scrollCtrl.hasClients) {
       _scrollCtrl.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
     }
+    _focus(_qtyFocus);
   }
 
   void _cancelLineEdit() {
@@ -1591,6 +1632,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: pal.textMuted)),
           DropdownButtonHideUnderline(
             child: DropdownButton<int>(
+              key: _saleTypeKey,
               isExpanded: true,
               value: _isWholesale ? 1 : 0,
               style: TextStyle(fontSize: 18, color: pal.textDark),
@@ -1599,7 +1641,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 DropdownMenuItem(value: 1, child: Text(Loc.t('Wholesale', 'ہول سیل'))),
               ],
               onChanged: (v) {
-                if (v != null) _onSaleTypeChanged(v);
+                if (v == null) return;
+                _onSaleTypeChanged(v);
+                // Kotlin: sale type chunte hi Item Name par cursor + keyboard.
+                _focus(_itemFocus);
               },
             ),
           ),
@@ -1636,7 +1681,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                     focusNode: _customerFocus,
                     onSelected: (_) {
                       _suggestCustomerRate();
-                      _focus(_itemFocus);
+                      _goToSaleTypeFromCustomer();
                     },
                     optionsBuilder: (text) {
                       final q = text.text.trim().toLowerCase();
@@ -1652,7 +1697,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       onSubmitted: (_) {
                         // Khali = walk-in (pehla customer na chunein); warna highlighted chunein.
                         if (_customerCtrl.text.trim().isNotEmpty) onSubmit();
-                        _focus(_itemFocus);
+                        _goToSaleTypeFromCustomer();
                       },
                       decoration: InputDecoration(hintText: Loc.t('Customer Name (Walk-in)', 'کسٹمر کا نام (واک ان)'), border: InputBorder.none, isDense: true),
                     ),

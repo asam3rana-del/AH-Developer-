@@ -112,6 +112,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _loadFirmName();
     _qtyCtrl.addListener(_syncLotFromRate);
     _rateCtrl.addListener(_syncLotFromRate);
+    // Kotlin jaisa: field par focus aate hi purani value select ho, taake naya number seedha likha jaye.
+    _selectAllOnFocus(_qtyFocus, _qtyCtrl);
+    _selectAllOnFocus(_rateFocus, _rateCtrl);
+    _selectAllOnFocus(_lotFocus, _lotCtrl);
+    _selectAllOnFocus(_retailFocus, _retailCtrl);
+    _selectAllOnFocus(_wholesaleFocus, _wholesaleCtrl);
+    _selectAllOnFocus(_paidFocus, _paidCtrl);
     ProductRepository.instance.listAll().then((v) {
       if (mounted) setState(() => _products = v);
     });
@@ -473,6 +480,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     return Loc.isUrdu ? TextDirection.rtl : TextDirection.ltr;
   }
 
+  void _selectAllOnFocus(FocusNode f, TextEditingController c) {
+    f.addListener(() {
+      if (!f.hasFocus || c.text.isEmpty) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (f.hasFocus) c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length);
+      });
+    });
+  }
+
   /// Enter/Next dabane par agli KHALI field par jao; jo field pehle se bhari ho (auto-fill rate,
   /// lot, retail, wholesale) usay skip karo. Sab bhari hon to seedha line add ho jaye.
   void _advanceFrom(FocusNode current) {
@@ -576,6 +592,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _lastPurchaseMainRate = 0.0;
     });
     _fillRetailWholesaleText();
+    _qtyFocus.requestFocus();
+    _ensureVisibleLater(_qtyFocus);
   }
 
   void _cancelLineEdit() => setState(_clearItemEntry);
