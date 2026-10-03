@@ -502,19 +502,24 @@ class PurchaseRepository {
           touched = true;
         }
 
-        // Retail / wholesale: 0 = "na badlo". Jo line aur uske rates dono na badle unke PURANE rates product
-        // par wapas na thopo (Product screen par baad mein set kiye naye rate mit jate).
-        final orig = diff?.unchangedOriginalByIndex[i];
-        final ratesUntouched =
-            orig != null && orig.retailRate == line.retailRate && orig.wholesaleRate == line.wholesaleRate;
-        if ((line.retailRate > 0.0 || line.wholesaleRate > 0.0) && !ratesUntouched) {
+        // Retail / wholesale: 0 = "na badlo". Purchase line par jo rate set ho wo product par khud lag jaye,
+        // lekin SIRF tab jab yeh bill is item ki sab se nayi date wali purchase ho. Purani date ki entry
+        // (back-date) product ka mojooda naya rate nahi badalti.
+        if (line.retailRate > 0.0 || line.wholesaleRate > 0.0) {
+          final newer = await txn.rawQuery(
+            'SELECT 1 FROM purchase_items pi JOIN purchases p ON p.billNo = pi.billNo '
+            'WHERE pi.barcode = ? AND p.billNo != ? AND p.createdAt > ? LIMIT 1',
+            [barcode, billNo, purchaseDateMillis],
+          );
           final newSale = line.retailRate > 0.0 ? line.retailRate : before.salePrice;
           final newWholesale = line.wholesaleRate > 0.0 ? line.wholesaleRate : before.wholesalePrice;
-          await txn.rawUpdate(
-            'UPDATE products SET salePrice = ?, wholesalePrice = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
-            [newSale, newWholesale, now, barcode],
-          );
-          touched = true;
+          if (newer.isEmpty && (newSale != before.salePrice || newWholesale != before.wholesalePrice)) {
+            await txn.rawUpdate(
+              'UPDATE products SET salePrice = ?, wholesalePrice = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+              [newSale, newWholesale, now, barcode],
+            );
+            touched = true;
+          }
         }
         if (touched) await _enqueueProduct(txn, barcode);
       }

@@ -286,7 +286,9 @@ extension ProductUnitLogic on Product {
     if (ladder.length == 1) return '${_trimZero(stock)} ${ladder[0].unit}';
 
     final largestToSmallest = ladder.reversed.toList();
-    var remaining = stock;
+    // Minus stock bhi dikhao ("-4 Kg"), warna multi-unit item par "0 Gram" nazar aata aur masla chhup jata.
+    final negative = stock < 0;
+    var remaining = stock.abs();
     final parts = <String>[];
 
     for (var i = 0; i < largestToSmallest.length; i++) {
@@ -302,7 +304,7 @@ extension ProductUnitLogic on Product {
     }
 
     if (parts.isEmpty) return '0 ${smallestUnitName()}';
-    return parts.join(' ');
+    return '${negative ? '-' : ''}${parts.join(' ')}';
   }
 }
 

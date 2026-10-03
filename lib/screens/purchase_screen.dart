@@ -1056,6 +1056,20 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       if (!confirmed || !mounted) return;
     }
 
+    // Jo line kisi product se juri nahi (barcode khali) uska stock add nahi hota — pehle batao.
+    final unlinked = _lines.where((l) => l.barcode == null || l.barcode!.isEmpty).map((l) => l.itemName).toList();
+    if (unlinked.isNotEmpty) {
+      final go = await _confirm(
+        title: Loc.t('Item product se juri nahi', 'آئٹم پروڈکٹ سے منسلک نہیں'),
+        message: Loc.t(
+          'In items ka stock add NAHI hoga:\n${unlinked.join('\n')}\n\nUnhe list se dobara chun kar add karen. Phir bhi save karen?',
+          'ان آئٹمز کا اسٹاک شامل نہیں ہوگا:\n${unlinked.join('\n')}\n\nانہیں فہرست سے دوبارہ چنیں۔ پھر بھی محفوظ کریں؟',
+        ),
+        yes: Loc.t('Save Anyway', 'پھر بھی محفوظ کریں'),
+      );
+      if (!go || !mounted) return;
+    }
+
     final invoiceNo = _invoiceCtrl.text.trim();
 
     // 1) Exact duplicate: usi supplier ka usi invoice number.
