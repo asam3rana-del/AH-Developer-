@@ -47,8 +47,8 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
   _ItemDetail? _detail;
   bool _loadingDetail = false;
   bool _showCost = false;
-  bool _showAllSales = false;
   bool _showAllPurchases = false;
+  bool _showAllSuppliers = false;
 
   bool get _canSeeCost => Session.isAdminOrManager;
 
@@ -79,7 +79,7 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
   }
 
   Future<void> _open(Product p) async {
-    setState(() { _loadingDetail = true; _showCost = false; _showAllSales = false; _showAllPurchases = false; });
+    setState(() { _loadingDetail = true; _showCost = false; _showAllSuppliers = false; _showAllPurchases = false; });
     final repo = ItemRateRepository.instance;
     final sales = await repo.saleRecordsForItem(p.barcode);
     final purchases = _canSeeCost ? await repo.purchaseRecordsForItem(p.barcode) : <ItemPurchaseRecord>[];
@@ -182,9 +182,18 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
               ]),
           ]),
         if (p.wholesalePrice > 0) ...[
-          const SizedBox(height: 10),
-          Text('${Loc.t('Wholesale', 'ہول سیل')}: ${_tierRateLine(p, p.wholesalePrice)}',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.orange)),
+          const SizedBox(height: 14),
+          Text(Loc.t('WHOLESALE RATE', 'ہول سیل ریٹ'),
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.orange)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 22, runSpacing: 6, children: [
+            for (final t in tiers)
+              Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(t.unit, style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
+                Text('Rs ${_fmtRate(p.fromPrimaryUnitRate(p.wholesalePrice, t.unit))}',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ThemeManager.palette.orange)),
+              ]),
+          ]),
         ],
       ]),
     );
@@ -252,7 +261,14 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
       final lastUnit = u(recs.first);
       final lastRate = recs.first.unitCost;
       final primaryLast = p.toPrimaryUnitRate(lastRate, lastUnit);
-      final avgPrimary = recs.map((r) => p.toPrimaryUnitRate(r.unitCost, u(r))).reduce((a, b) => a + b) / recs.length;
+      final prim = recs.map((r) => p.toPrimaryUnitRate(r.unitCost, u(r))).toList();
+      // Ghalat unit/rate wali entry (jaise Bag ka rate Gram unit mein) average ko arbon tak le jati thi:
+      // median se 10x door wali entries average se bahar rakhi jati hain (history mein wo dikhti rehti hain).
+      final sorted = [...prim]..sort();
+      final median = sorted[sorted.length ~/ 2];
+      final sane = median > 0 ? prim.where((x) => x >= median / 10 && x <= median * 10).toList() : prim;
+      final used = sane.isEmpty ? prim : sane;
+      final avgPrimary = used.reduce((a, b) => a + b) / used.length;
       out.add(_SupplierSummary(
         supplier, lastRate, lastUnit, primaryLast, p.fromPrimaryUnitRate(avgPrimary, lastUnit), recs.length,
         recs.first.createdAt,
@@ -351,9 +367,16 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
       if (summaries.isEmpty)
         _emptyRow(Loc.t('No supplier data yet for this item', 'اس آئٹم کا سپلائر ڈیٹا نہیں'))
       else
-        for (final s in summaries)
-          _supplierRow(s, s.primaryLastRate == summaries.first.primaryLastRate, savingsPrimary,
-              ((now - s.lastPurchaseAt) / (1000 * 60 * 60 * 24)).floor(), p),
+        ..._collapsible(
+          [
+            for (final s in summaries)
+              _supplierRow(s, s.primaryLastRate == summaries.first.primaryLastRate, savingsPrimary,
+                  ((now - s.lastPurchaseAt) / (1000 * 60 * 60 * 24)).floor(), p),
+          ],
+          _showAllSuppliers,
+          () => setState(() => _showAllSuppliers = !_showAllSuppliers),
+          ThemeManager.palette.navyInk,
+        ),
       _sectionHeader(Loc.t('Purchase Rate History', 'خریداری ریٹ کی تاریخ'), ThemeManager.palette.orange,
           Loc.t('Newest first', 'نیا پہلے')),
       if (purchaseRows.isEmpty)
@@ -365,19 +388,6 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
 
   Widget _detailView(_ItemDetail d) {
     final p = d.product;
-    final saleRows = <Widget>[
-      for (var i = 0; i < d.sales.length; i++)
-        _rateRow(
-          party: d.sales[i].customerName,
-          qtyLabel: '${_qty(d.sales[i].qty)} ${d.sales[i].unit.trim().isEmpty ? p.unit : d.sales[i].unit}',
-          rate: d.sales[i].unitPrice,
-          unit: d.sales[i].unit.trim().isEmpty ? p.unit : d.sales[i].unit,
-          createdAt: d.sales[i].createdAt,
-          color: ThemeManager.palette.teal,
-          isLatest: i == 0,
-          p: p,
-        ),
-    ];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         IconButton(onPressed: () => setState(() => _detail = null), icon: const Icon(Icons.arrow_back)),
@@ -385,12 +395,6 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
       ]),
       _saleRateCard(p),
       _quickSummary(d),
-      _sectionHeader(Loc.t('Sale Rate History', 'سیل ریٹ کی تاریخ'), ThemeManager.palette.teal,
-          Loc.t('Rates this item was sold at, newest first', 'جس ریٹ پر یہ آئٹم بکا، نیا پہلے')),
-      if (saleRows.isEmpty)
-        _emptyRow(Loc.t('No sales of this item yet', 'اس آئٹم کی ابھی کوئی سیل نہیں'))
-      else
-        ..._collapsible(saleRows, _showAllSales, () => setState(() => _showAllSales = !_showAllSales), ThemeManager.palette.teal),
       // Cost: sirf admin/manager, default band.
       if (_canSeeCost) ...[
         const SizedBox(height: 8),
