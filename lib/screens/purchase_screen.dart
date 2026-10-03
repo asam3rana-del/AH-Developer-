@@ -473,6 +473,35 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     return Loc.isUrdu ? TextDirection.rtl : TextDirection.ltr;
   }
 
+  /// Enter/Next dabane par agli KHALI field par jao; jo field pehle se bhari ho (auto-fill rate,
+  /// lot, retail, wholesale) usay skip karo. Sab bhari hon to seedha line add ho jaye.
+  void _advanceFrom(FocusNode current) {
+    final order = <MapEntry<TextEditingController, FocusNode>>[
+      MapEntry(_qtyCtrl, _qtyFocus),
+      MapEntry(_rateCtrl, _rateFocus),
+      MapEntry(_lotCtrl, _lotFocus),
+      MapEntry(_retailCtrl, _retailFocus),
+      MapEntry(_wholesaleCtrl, _wholesaleFocus),
+    ];
+    final i = order.indexWhere((e) => identical(e.value, current));
+    for (var j = i + 1; j < order.length; j++) {
+      if (order[j].key.text.trim().isEmpty) {
+        order[j].value.requestFocus();
+        _ensureVisibleLater(order[j].value);
+        return;
+      }
+    }
+    _addLine();
+  }
+
+  void _ensureVisibleLater(FocusNode f) {
+    Future.delayed(const Duration(milliseconds: 320), () {
+      final ctx = f.context;
+      if (!mounted || ctx == null || !f.hasFocus) return;
+      Scrollable.ensureVisible(ctx, alignment: 0.3, duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+    });
+  }
+
   Future<void> _addLine() async {
     final name = _itemCtrl.text.trim();
     final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
@@ -1331,6 +1360,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         focusNode: focus,
         keyboardType: number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
         textInputAction: action,
+        // Keyboard + Save bar ke upar field nazar aaye (Retail/Wholesale chhupti thi).
+        scrollPadding: const EdgeInsets.fromLTRB(20, 20, 20, 220),
         onChanged: onChanged,
         onSubmitted: (_) => onSubmitted?.call(),
         style: TextStyle(fontSize: 15.5, color: ThemeManager.palette.textDark),
@@ -1445,7 +1476,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         Expanded(
           child: SingleChildScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 180),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1478,7 +1509,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             flex: 13,
             child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.fromLTRB(4, 20, 16, 20),
+              padding: const EdgeInsets.fromLTRB(4, 20, 16, 180),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1904,7 +1935,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       setState(() {});
                       _saveEntrySoon();
                     },
-                    onSubmitted: () => _rateFocus.requestFocus(),
+                    onSubmitted: () => _advanceFrom(_qtyFocus),
                   ),
                 ),
               ),
@@ -1943,7 +1974,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       _onRateChanged(v);
                       _saveEntrySoon();
                     },
-                    onSubmitted: () => _lotFocus.requestFocus(),
+                    onSubmitted: () => _advanceFrom(_rateFocus),
                   ),
                 ),
               ),
@@ -1956,7 +1987,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                     focus: _lotFocus,
                     hint: 'e.g. 5000 for 2 Ctn',
                     onChanged: _onLotChanged,
-                    onSubmitted: () => _retailFocus.requestFocus(),
+                    onSubmitted: () => _advanceFrom(_lotFocus),
                   ),
                 ),
               ),
@@ -1978,7 +2009,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       _onRetailChanged(v);
                       _saveEntrySoon();
                     },
-                    onSubmitted: () => _wholesaleFocus.requestFocus(),
+                    onSubmitted: () => _advanceFrom(_retailFocus),
                   ),
                 ),
               ),
