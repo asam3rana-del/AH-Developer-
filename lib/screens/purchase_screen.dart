@@ -1135,7 +1135,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _toast(_isEdit ? 'Purchase updated: $billNo' : 'Purchase saved: $billNo');
 
       // Bill Preview (print / WhatsApp / share) pehle jaisa: edit ho ya naya bill, dono par dikhao.
-      await _showBillPreview(
+      final previewResult = await _showBillPreview(
+        showNew: !_isEdit,
         billNo: billNo,
         supplier: party,
         date: snapshotDate,
@@ -1146,7 +1147,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       );
       if (!mounted) return;
 
-      if (_isEdit) {
+      if (_isEdit || previewResult == 'done') {
+        // DONE => purchase screen band, seedha dashboard par.
         Navigator.of(context).pop(true);
         return;
       }
@@ -1277,7 +1279,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     );
   }
 
-  Future<void> _showBillPreview({
+  Future<String?> _showBillPreview({
+    bool showNew = false,
     required String billNo,
     required String supplier,
     required DateTime date,
@@ -1286,8 +1289,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     required double paid,
     required String method,
   }) async {
-    if (!mounted) return;
-    await BillPreviewScreen.open(
+    if (!mounted) return null;
+    return BillPreviewScreen.open(
       context,
       BillDoc(
         isPurchase: true,
@@ -1303,6 +1306,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         paid: paid,
         paymentMethod: method,
       ),
+      showNewBill: showNew,
       justSaved: true,
     );
   }

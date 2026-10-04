@@ -241,15 +241,23 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         const SizedBox(height: 10),
         _btn(Loc.t('WhatsApp par bhejein', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
         const SizedBox(height: 10),
-        _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, ThemeManager.palette.navyLight, () async {
-          await Clipboard.setData(ClipboardData(text: d.toText(netBalance: _partyId == null ? null : _net)));
-          _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
-        }),
+        // Naya purchase bill abhi save hua: COPY TEXT ki jagah "NEW PURCHASE" (naya purchase window),
+        // aur DONE seedha dashboard par ('done' wapas jata hai, purchase screen band ho jati hai).
+        if (d.isPurchase && widget.showNewBill)
+          _btn(Loc.t('NEW PURCHASE', 'نئی خریداری'), Icons.add, ThemeManager.palette.navyLight,
+              () => Navigator.of(context).pop('new'))
+        else
+          _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, ThemeManager.palette.navyLight, () async {
+            await Clipboard.setData(ClipboardData(text: d.toText(netBalance: _partyId == null ? null : _net)));
+            _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
+          }),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: _btn(Loc.t('DONE', 'مکمل'), Icons.check, ThemeManager.palette.teal, () => Navigator.of(context).pop())),
+          Expanded(
+              child: _btn(Loc.t('DONE', 'مکمل'), Icons.check, ThemeManager.palette.teal,
+                  () => Navigator.of(context).pop(d.isPurchase && widget.showNewBill ? 'done' : null))),
         ]),
-        if (widget.showNewBill) ...[
+        if (widget.showNewBill && !d.isPurchase) ...[
           const SizedBox(height: 10),
           _btn(d.isPurchase ? Loc.t('+ NAYA PURCHASE BILL', '+ نیا خریداری بل') : Loc.t('+ NAYI SALE BILL', '+ نیا سیل بل'),
               Icons.add, ThemeManager.palette.navyInk, () => Navigator.of(context).pop('new')),
