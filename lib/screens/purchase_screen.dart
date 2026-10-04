@@ -1754,7 +1754,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           Row(
             children: [
               Expanded(
-                child: RawAutocomplete<String>(
+                child: LayoutBuilder(builder: (context, fieldBox) => RawAutocomplete<String>(
                   textEditingController: _supplierCtrl,
                   focusNode: _supplierFocus,
                   onSelected: (v) {
@@ -1797,8 +1797,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                     ),
                   ),
                   optionsViewBuilder: (context, onSelected, options) =>
-                      autocompleteOptionsView<String>(context, onSelected, options, (o) => o, maxWidth: 640),
-                ),
+                      autocompleteOptionsView<String>(context, onSelected, options, (o) => o, maxWidth: fieldBox.maxWidth),
+                )),
               ),
               _kCircle('+', _kGreen, 36, _promptAddSupplier, tooltip: Loc.t('Add Supplier', 'سپلائر شامل کریں')),
             ],
@@ -1887,7 +1887,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             child: Row(
               children: [
                 Expanded(
-                  child: RawAutocomplete<Product>(
+                  child: LayoutBuilder(builder: (context, fieldBox) => RawAutocomplete<Product>(
                     textEditingController: _itemCtrl,
                     focusNode: _itemFocus,
                     displayStringForOption: (p) => p.name,
@@ -1945,8 +1945,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       ),
                     ),
                     optionsViewBuilder: (context, onSelected, options) =>
-                        autocompleteOptionsView<Product>(context, onSelected, options, (o) => o.name, maxWidth: 640),
-                  ),
+                        autocompleteOptionsView<Product>(context, onSelected, options, (o) => o.name, maxWidth: fieldBox.maxWidth),
+                  )),
                 ),
                 // 📊 = supplier rate comparison (admin/manager), + = naya product.
                 if (Session.isAdminOrManager)
