@@ -108,6 +108,10 @@ class _SyncSectionState extends State<SyncSection> {
               title: Text(Loc.t('Force full push — resend ALL local data (push)', 'فل پش — سارا لوکل ڈیٹا دوبارہ بھیجیں')),
               onTap: () => Navigator.pop(ctx, 1)),
           ListTile(
+              leading: const Icon(Icons.inventory_2_outlined),
+              title: Text(Loc.t('Push THIS device\'s stock to cloud (fix stock mismatch)', 'اس ڈیوائس کا اسٹاک کلاؤڈ پر بھیجیں (اسٹاک فرق ٹھیک کریں)')),
+              onTap: () => Navigator.pop(ctx, 5)),
+          ListTile(
               leading: const Icon(Icons.event_repeat),
               title: Text(Loc.t('Fix back-dated Purchase/Sale cash entries', 'پرانی تاریخ کی کیش انٹریز ٹھیک کریں')),
               onTap: () => Navigator.pop(ctx, 2)),
@@ -134,6 +138,8 @@ class _SyncSectionState extends State<SyncSection> {
         return _recalculateBalances();
       case 4:
         return _deleteByWrongBranch();
+      case 5:
+        return _pushStockToCloud();
     }
   }
 
@@ -170,6 +176,24 @@ class _SyncSectionState extends State<SyncSection> {
     if (!ok || !mounted) return;
     _toast(Loc.t('Queuing all local data…', 'سارا لوکل ڈیٹا قطار میں…'));
     await SettingsSync.forceFullPush();
+    await _syncNow();
+  }
+
+  Future<void> _pushStockToCloud() async {
+    final ok = await _confirm(
+      Loc.t('Push this device\'s stock?', 'اس ڈیوائس کا اسٹاک بھیجیں؟'),
+      Loc.t(
+        "Sets the cloud stock of EVERY product to this device's current stock, then other devices pick it up on "
+            "their next Sync Now. Use it only on the device whose stock is correct (do it after both devices have "
+            'synced their sales/purchases). Continue?',
+        'کلاؤڈ پر ہر پروڈکٹ کا اسٹاک اس ڈیوائس کے موجودہ اسٹاک کے برابر کر دے گا، پھر دوسری ڈیوائسز اگلے Sync Now پر لے لیں '
+            'گی۔ صرف اس ڈیوائس پر کریں جس کا اسٹاک درست ہو (دونوں ڈیوائسز کی سیل/پرچیز سنک ہونے کے بعد)۔ جاری رکھیں؟',
+      ),
+    );
+    if (!ok || !mounted) return;
+    _toast(Loc.t('Queuing stock…', 'اسٹاک قطار میں…'));
+    final n = await SettingsSync.pushStockToCloud();
+    _toast(Loc.t('$n products queued.', '$n پروڈکٹس قطار میں۔'), long: true);
     await _syncNow();
   }
 

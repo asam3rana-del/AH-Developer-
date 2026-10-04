@@ -269,6 +269,9 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
     final stock = _d(row['stock']);
     final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
     final localPendingStock = await pendingDelta(q, 'product', barcode, 'increment_stock');
+    // Is device ka "cloud stock = mera stock" abhi push nahi hua => pull local stock ko purani cloud value se
+    // overwrite na kare.
+    final keepLocalStock = (await q.pendingForEntityAnyRetry('product', barcode, 'set_stock')).isNotEmpty;
     // Sirf pending "upsert" (naam/qeemat) rokta hai — pending increment_stock nahi (warna product sync
     // hamesha atka rahe).
     if ((await q.pendingForEntityAnyRetry('product', barcode, 'upsert')).isNotEmpty) continue;
@@ -305,7 +308,10 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
       }
       await db.update(
         'products',
-        {...common, 'stock': (stock ?? _dbl(existing['stock'])) + localPendingStock},
+        {
+          ...common,
+          if (!keepLocalStock) 'stock': (stock ?? _dbl(existing['stock'])) + localPendingStock,
+        },
         where: 'barcode = ?',
         whereArgs: [barcode],
       );

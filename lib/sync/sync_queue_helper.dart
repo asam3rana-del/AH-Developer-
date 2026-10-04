@@ -622,6 +622,30 @@ class SyncQueueHelper {
     await enqueue(ex, 'product', barcode, 'increment_stock', deltaPayload(delta));
   }
 
+  /// "Cloud ka stock is device ke stock jaisa karo": har product ka ABSOLUTE stock `set_stock` se.
+  /// Is device ke pehle se pending increment_stock/set_stock hata diye jate hain (un ka asar local
+  /// stock mein pehle se hai — warna cloud par do baar lagta). Is ke BAAD ke naye sale/purchase deltas
+  /// normal tarah upar lagte hain. Kitne products queue hue wo lautata hai.
+  static Future<int> enqueueStockSetAll(Database db) async {
+    var n = 0;
+    await db.transaction((txn) async {
+      for (final r in await txn.query('products', columns: ['barcode', 'stock'])) {
+        final bc = r['barcode'] as String;
+        final stock = (r['stock'] as num?)?.toDouble() ?? 0.0;
+        await txn.delete(
+          'sync_queue',
+          where: "syncedAt IS NULL AND entityType = 'product' AND entityId = ? "
+              "AND operation IN ('increment_stock', 'set_stock')",
+          whereArgs: [bc],
+        );
+        await enqueue(txn, 'product', bc, 'set_stock',
+            {'stock': stock, 'updatedAt': nowMs(), 'branchId': branchId()});
+        n++;
+      }
+    });
+    return n;
+  }
+
   // ------------------------------------------------- delete helpers (Kotlin)
 
   /// Kotlin `deletePaymentsByReference`: rows padho (serverId samet), local delete, har ka sync delete.

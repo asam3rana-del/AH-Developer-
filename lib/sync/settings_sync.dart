@@ -225,6 +225,12 @@ class SettingsSync {
     await SyncQueueHelper.resyncAllLocalData(db);
   }
 
+  /// Cloud par har product ka stock is device ke stock jaisa (absolute). Kitne products queue hue.
+  static Future<int> pushStockToCloud() async {
+    final db = await openDb();
+    return SyncQueueHelper.enqueueStockSetAll(db);
+  }
+
   /// Kotlin `fixBackdatedCashTransactionDatesClicked` — kitni cash entries theek hui.
   static Future<int> fixBackdatedCash() async {
     final db = await openDb();

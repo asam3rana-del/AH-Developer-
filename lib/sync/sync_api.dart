@@ -154,6 +154,30 @@ class SyncApi implements SyncBackend {
           });
           break;
 
+        case 'set_stock':
+          // ABSOLUTE stock (increment nahi): cloud ka total is device ke total par. Naya/tombstone doc ho
+          // to seed fields bhi (bina naam ka ghost doc na bane). updatedAt push ke waqt ka, taake doosre
+          // devices ka pull ye doc dobara utha le.
+          final setStock = (decodePayload(entry.payloadJson)['stock'] as num?)?.toDouble() ?? 0.0;
+          final setTs = nowMs();
+          final setSeed = await loadSeedFields(localDb,
+              entityType: entry.entityType, entityId: entry.entityId);
+          await fs.runTransaction((tx) async {
+            final snap = await tx.get(docRef);
+            final isNew = !snap.exists || snap.data()?['_deleted'] == true;
+            tx.set(
+              docRef,
+              <String, Object?>{
+                'stock': setStock,
+                'updatedAt': setTs,
+                'branchId': branch,
+                if (isNew) ...{'serverId': entry.entityId, '_deleted': false, ...setSeed},
+              },
+              SetOptions(merge: true),
+            );
+          });
+          break;
+
         default:
           // upsert & baaki: last-write-wins; der se aane wali entry naye cloud edit ko nahi todti.
           final st = stampPayload(decodePayload(entry.payloadJson), branch, nowMs());
