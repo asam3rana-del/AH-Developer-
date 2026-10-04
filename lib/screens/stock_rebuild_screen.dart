@@ -104,7 +104,7 @@ class _StockRebuildScreenState extends State<StockRebuildScreen> {
                             itemCount: plan.lines.length,
                             itemBuilder: (_, i) {
                               final l = plan.lines[i];
-                              final unit = l.product.smallestUnitName();
+                              final unit = l.product.unit;
                               return ListTile(
                                 dense: true,
                                 title: Text(l.product.name),
