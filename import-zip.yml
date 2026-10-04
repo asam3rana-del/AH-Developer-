@@ -1,0 +1,38 @@
+name: Import zip
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '*.zip'
+permissions:
+  contents: write
+  actions: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip into repo
+        run: |
+          set -e
+          ls *.zip >/dev/null 2>&1 || { echo "no zip"; exit 0; }
+          for z in *.zip; do
+            rm -rf /tmp/x && mkdir /tmp/x
+            unzip -q "$z" -d /tmp/x
+            SRC=$(find /tmp/x -mindepth 1 -maxdepth 1 -type d | head -1)
+            rsync -a --exclude '.github' --exclude '.git' "$SRC"/ ./
+            rm -f "$z"
+          done
+      - name: Commit
+        run: |
+          git config user.name "import-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Import porting plan and Kotlin reference" || echo "nothing to commit"
+          git push
+      # GITHUB_TOKEN ka push doosra workflow shuru nahi karta, is liye Build yahan se khud chalate hain
+      # (warna Build zip wale commit par chalta hai jis mein code abhi unzip nahi hua hota).
+      - name: Trigger Build on updated code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --ref main
