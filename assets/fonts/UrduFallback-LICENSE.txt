@@ -1,0 +1,3 @@
+UrduFallback.ttf is a subset (Arabic/Urdu + basic Latin) of GNU FreeFont "FreeSerif" (c) GNU FreeFont contributors,
+licensed GPLv3+ with the font-embedding exception (documents embedding the font are not covered by the GPL).
+https://www.gnu.org/software/freefont/

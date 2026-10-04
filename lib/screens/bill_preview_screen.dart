@@ -181,7 +181,8 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
   Widget build(BuildContext context) {
     final d = _doc;
     final due = d.total - d.paid;
-    final title = d.isPurchase ? Loc.t('Purchase Bill', 'خریداری بل') : Loc.t('Bill Preview', 'بل پری ویو');
+    // "(v2)" = naya NEW PURCHASE / DONE->dashboard wali build. Ye sirf pehchan ke liye hai (baad mein hata sakte hain).
+    final title = d.isPurchase ? '${Loc.t('Purchase Bill', 'خریداری بل')} (v2)' : Loc.t('Bill Preview', 'بل پری ویو');
     return Scaffold(
       backgroundColor: ThemeManager.palette.bg,
       appBar: AppBar(backgroundColor: ThemeManager.palette.navy, foregroundColor: Colors.white, title: Text(title)),

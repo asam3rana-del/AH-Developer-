@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart' show PdfGoogleFonts;
 
 import '../db/app_database.dart';
 import '../models/product.dart';
@@ -331,19 +332,39 @@ class BackupExport {
   static const _blue = PdfColor.fromInt(0xFF5B6EE8);
   static const _line = PdfColor.fromInt(0xFFEEF0F7);
 
-  /// Agar app mein `assets/fonts/NotoNastaliqUrdu-Regular.ttf` declare ho to Urdu naam PDF mein bhi
-  /// aayenge (fallback font); warna standard Helvetica — Urdu glyph kharab/khali aa sakte hain.
-  static Future<pw.ThemeData> _theme() async {
-    try {
-      final urdu = pw.Font.ttf(await rootBundle.load('assets/fonts/NotoNastaliqUrdu-Regular.ttf'));
-      return pw.ThemeData.withFont(
-        base: pw.Font.helvetica(),
-        bold: pw.Font.helveticaBold(),
-        fontFallback: [urdu],
-      );
-    } catch (_) {
-      return pw.ThemeData.withFont(base: pw.Font.helvetica(), bold: pw.Font.helveticaBold());
+  static pw.Font? _urduFont; // ek baar load, phir cache
+
+  /// Urdu font (PDF report / print). assets/fonts/ se, is tarteeb se (pehla jo load ho jaye):
+  /// (1) NotoNaskhArabic-Regular.ttf (agar aap rakhein — PDF ke liye sab se behtar Noto font),
+  /// (2) UrduFallback.ttf (FreeSerif ka Urdu hissa — jore hue huroof ke "presentation forms" ke saath, PDF library
+  ///     ke liye safe), (3) NotoNastaliqUrdu-Regular.ttf — ye font jorne ka kaam sirf GSUB se karta hai jo `pdf`
+  ///     library nahi chalati, is liye PDF mein ye aakhri option hai. Phir Google Fonts (internet).
+  static Future<pw.Font?> _loadUrduFont() async {
+    if (_urduFont != null) return _urduFont;
+    for (final path in const [
+      'assets/fonts/NotoNaskhArabic-Regular.ttf',
+      'assets/fonts/UrduFallback.ttf',
+      'assets/fonts/NotoNastaliqUrdu-Regular.ttf',
+    ]) {
+      try {
+        _urduFont = pw.Font.ttf(await rootBundle.load(path));
+        return _urduFont;
+      } catch (_) {}
     }
+    try {
+      _urduFont = await PdfGoogleFonts.notoNaskhArabicRegular().timeout(const Duration(seconds: 25));
+      return _urduFont;
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<pw.ThemeData> _theme() async {
+    final urdu = await _loadUrduFont();
+    return pw.ThemeData.withFont(
+      base: pw.Font.helvetica(),
+      bold: pw.Font.helveticaBold(),
+      fontFallback: urdu == null ? const [] : [urdu],
+    );
   }
 
   static pw.Widget _heading(String t) => pw.Padding(
