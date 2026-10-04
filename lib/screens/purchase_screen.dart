@@ -1136,7 +1136,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
 
       // Bill Preview (print / WhatsApp / share) pehle jaisa: edit ho ya naya bill, dono par dikhao.
       final previewResult = await _showBillPreview(
-        showNew: !_isEdit,
+        showNew: true,
         billNo: billNo,
         supplier: party,
         date: snapshotDate,
@@ -1147,6 +1147,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       );
       if (!mounted) return;
 
+      if (_isEdit && previewResult == 'new') {
+        // Edit ke baad "+ NAYA PURCHASE BILL": isi jagah naya khali purchase screen.
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const PurchaseScreen()));
+        return;
+      }
       if (_isEdit || previewResult == 'done') {
         // DONE => purchase screen band, seedha dashboard par.
         Navigator.of(context).pop(true);
