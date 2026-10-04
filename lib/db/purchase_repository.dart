@@ -1,4 +1,5 @@
 
+import '../sync/device_tag.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -153,17 +154,24 @@ class PurchaseRepository {
     if (!Session.isAdmin) throw const PurchaseSaveException('Sirf Admin ye action kar sakta hai');
   }
 
-  /// Mirrors `genBillNo()`: PUR-<MonYY>-0001, incrementing per month.
+  /// `genBillNo()`: PUR-<MonYY>-0001-<deviceTag>, incrementing per month.
+  /// Device tag is appended so two devices never generate the SAME bill number while offline/at the
+  /// same time (billNo is the primary key AND the cloud doc id — a clash made one purchase overwrite
+  /// the other after sync). Old bills without a tag still count towards the sequence.
   Future<String> nextBillNo() async {
     final db = await AppDatabase.instance.database;
+    await DeviceTag.init();
+    final tag = DeviceTag.current;
     final prefix = 'PUR-${DateFormat('MMMyy').format(DateTime.now())}-';
     final rows = await db.query('purchases', columns: ['billNo']);
     final existing = rows.map((r) => r['billNo'] as String).toSet();
     var seq = existing.where((b) => b.startsWith(prefix)).length + 1;
-    var candidate = '$prefix${seq.toString().padLeft(4, '0')}';
-    while (existing.contains(candidate)) {
+    String build(int n) => '$prefix${n.toString().padLeft(4, '0')}-$tag';
+    var candidate = build(seq);
+    while (existing.contains(candidate) ||
+        existing.contains('$prefix${seq.toString().padLeft(4, '0')}')) {
       seq++;
-      candidate = '$prefix${seq.toString().padLeft(4, '0')}';
+      candidate = build(seq);
     }
     return candidate;
   }
