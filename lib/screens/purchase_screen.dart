@@ -186,9 +186,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   // ------------------------------------------------------------------ getters
 
   double get _subtotal => _lines.fold(0.0, (sum, l) => sum + l.amount);
-  double get _grandTotal => (_subtotal * 100).roundToDouble() / 100;
+  double get _grandTotal => roundBillTotal(_subtotal);
 
-  /// Poora rupee ho to bina decimal, warna 2 decimal (5059.73) — total ab round nahi hota.
+  /// Poora rupee ho to bina decimal, warna 2 decimal (line amounts ke liye; bill total ab poore rupee par round hota hai).
   String _fmtMoney(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   String get _effectiveUnit => _selectedUnit.isNotEmpty ? _selectedUnit : (_pickedProduct?.unit ?? 'pcs');

@@ -8,6 +8,7 @@ import '../models/product.dart';
 import '../models/purchase.dart';
 import '../models/stock_movement.dart' show MovementType;
 import '../services/session.dart';
+import '../utils/purchase_calc.dart' show roundBillTotal;
 import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
 import 'app_database.dart';
@@ -336,8 +337,8 @@ class PurchaseRepository {
     if (lineError != null) throw PurchaseSaveException(lineError);
 
     final subtotal = lines.fold<double>(0, (sum, l) => sum + l.amount);
-    // Paisa tak durust (poore rupee par round nahi): bill ka total supplier ke bill se match kare.
-    final grandTotal = ((subtotal * 100).roundToDouble() / 100).clamp(0.0, double.infinity).toDouble();
+    // Bill total poore rupee par round: .50+ upar, .50 se kam neeche (106.79 -> 107).
+    final grandTotal = roundBillTotal(subtotal).clamp(0.0, double.infinity).toDouble();
 
     final db = await AppDatabase.instance.database;
     final suppliers = await SupplierRepository.instance.listAll();

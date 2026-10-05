@@ -54,6 +54,7 @@ PurchaseItem _item(String barcode, double qty, String unit, double rate,
     );
 
 void main() {
+  _roundBillTotalTests();
   group('purchaseMargin', () {
     test('sale ya purchase rate 0 => koi warning nahi', () {
       expect(purchaseMargin(salePriceMain: 0, purchaseRateMain: 50).level, MarginLevel.none);
@@ -297,6 +298,17 @@ void main() {
       expect(Purchase.fromMap(p.toMap()).supplierInvoiceNo, 'INV-9');
       final old = Purchase.fromMap({'billNo': 'PUR-2', 'total': 1, 'paid': 0, 'createdAt': 1});
       expect(old.supplierInvoiceNo, '');
+    });
+  });
+}
+
+void _roundBillTotalTests() {
+  group('roundBillTotal', () {
+    test('rounds to whole rupee', () {
+      expect(roundBillTotal(106.79), 107);
+      expect(roundBillTotal(106.50), 107);
+      expect(roundBillTotal(106.49), 106);
+      expect(roundBillTotal(100.0), 100);
     });
   });
 }

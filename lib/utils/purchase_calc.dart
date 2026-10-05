@@ -33,6 +33,9 @@ PurchaseMargin purchaseMargin({required double salePriceMain, required double pu
   return PurchaseMargin(level, margin, pct, salePriceMain);
 }
 
+/// Bill ka total poore rupee par: .50 ya us se zyada => upar (106.50 -> 107), .50 se kam => neeche (106.49 -> 106).
+double roundBillTotal(double subtotal) => subtotal.roundToDouble();
+
 /// Rate/qty text field ke liye: "12" nahi "12.00" (2 decimals), 0 = khali.
 String rateText(double v) => v <= 0 ? '' : v.toStringAsFixed(2);
 
