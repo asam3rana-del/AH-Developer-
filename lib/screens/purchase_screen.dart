@@ -103,6 +103,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   bool _saving = false;
   bool _loading = false;
 
+  /// Bill save ho chuka => draft / adhoora-item dobara DISK par na likho. Pehle dispose() (DONE par screen band hote
+  /// waqt) aur app lifecycle (Print / WhatsApp se app inactive) save ho chuke bill ki lines ko "unsaved draft" bana
+  /// kar wapas likh dete thay, aur agli baar Purchase kholne par wohi purani purchase unsaved dikhti thi.
+  bool _draftSuppressed = false;
+
   bool get _isEdit => widget.editBillNo != null;
 
   @override
@@ -206,13 +211,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       );
 
   void _saveDraftSoon() {
-    if (_isEdit) return;
+    if (_isEdit || _draftSuppressed) return;
     _draftTimer?.cancel();
     _draftTimer = Timer(const Duration(milliseconds: 500), _saveDraftNow);
   }
 
   void _saveDraftNow() {
-    if (_isEdit) return;
+    if (_isEdit || _draftSuppressed) return;
     PurchaseDraftStore.save(_currentDraft());
   }
 
@@ -237,13 +242,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   Timer? _entryTimer;
 
   void _saveEntrySoon() {
-    if (_isEdit) return;
+    if (_isEdit || _draftSuppressed) return;
     _entryTimer?.cancel();
     _entryTimer = Timer(const Duration(milliseconds: 400), _saveEntryNow);
   }
 
   void _saveEntryNow() {
-    if (_isEdit) return;
+    if (_isEdit || _draftSuppressed) return;
     final data = jsonEncode({
       'item': _itemCtrl.text,
       'qty': _qtyCtrl.text,
@@ -1129,6 +1134,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         supplierInvoiceNo: invoiceNo,
         payments: _splitPayments,
       );
+      // Save ho gaya: pending draft timers band, aur jab tak naya bill shuru na ho draft dobara na likho.
+      _draftSuppressed = true;
+      _draftTimer?.cancel();
+      _entryTimer?.cancel();
       await PurchaseDraftStore.clear();
       await _clearEntryDraft();
       if (!mounted) return;
@@ -1145,6 +1154,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         paid: paid.clamp(0.0, grandTotal).toDouble(),
         method: snapshotMethod == 'credit' ? 'Credit' : snapshotMethod,
       );
+      // Preview ke dauran (Print / WhatsApp / share) kuch dobara likha gaya ho to bhi saaf.
+      await PurchaseDraftStore.clear();
+      await _clearEntryDraft();
       if (!mounted) return;
 
       if (_isEdit && previewResult == 'new') {
@@ -1167,6 +1179,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         _supplierBalance = null;
         _purchaseDate = DateTime.now();
       });
+      _draftSuppressed = false; // naya bill shuru: draft dobara chalu
       _supplierFocus.requestFocus(); // naya bill: cursor seedha supplier par
     } catch (e) {
       _toast('Could not save purchase: $e');
