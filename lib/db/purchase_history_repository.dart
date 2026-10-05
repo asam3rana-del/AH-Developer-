@@ -400,7 +400,7 @@ class PurchaseHistoryRepository {
 
   /// Poori purchase delete (admin): stock+cost wapas, supplier balance (overpaid bhi), bill + items +
   /// payments + cash rows, sab sync_queue ke saath — ek transaction. Stock bik chuka ho to rok deta hai.
-  Future<void> deletePurchase(String billNo) async {
+  Future<void> deletePurchase(String billNo, {bool force = false}) async {
     _requireAdmin();
     final db = await AppDatabase.instance.database;
     Purchase? deleted;
@@ -417,28 +417,36 @@ class PurchaseHistoryRepository {
           final product = await _product(txn, it.barcode);
           if (product == null) continue;
           final smallest = purchaseItemSmallestQty(it, product);
-          final newCost = reversePurchaseLineCost(
+          var removed = smallest;
+          var newCost = reversePurchaseLineCost(
             productCost: product.cost,
             productStock: product.stock,
             factor: product.smallestUnitFactor(),
             itemAmount: it.amount,
             smallestQtyToRemove: smallest,
           );
-          final n = await txn.rawUpdate(
-              'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock >= ?',
-              [smallest, newCost, now, it.barcode, smallest]);
-          if (n == 0) {
-            throw InsufficientStockException(
-                '"${product.name}" ka stock is purchase ke baad kam ho chuka hai — delete karne se stock/cost galat ho jayega.');
+          if (product.stock < smallest) {
+            if (!force) {
+              throw InsufficientStockException(
+                  '\"${product.name}\" ka stock is purchase ke baad kam ho chuka hai — delete karne se stock/cost galat ho jayega.');
+            }
+            // Force: jitna stock bacha hai bas utna nikalo (0 se neeche nahi), cost jo thi wahi.
+            removed = product.stock > 0 ? product.stock : 0.0;
+            newCost = product.cost;
           }
-          await SyncQueueHelper.enqueueStockDelta(txn, it.barcode, -smallest);
-          await StockLedger.log(txn,
-              barcode: it.barcode,
-              type: MovementType.purchaseReversal,
-              signedQty: -smallest,
-              reference: billNo,
-              unitCost: newCost,
-              now: now);
+          await txn.rawUpdate(
+              'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+              [removed, newCost, now, it.barcode]);
+          if (removed > 0) {
+            await SyncQueueHelper.enqueueStockDelta(txn, it.barcode, -removed);
+            await StockLedger.log(txn,
+                barcode: it.barcode,
+                type: MovementType.purchaseReversal,
+                signedQty: -removed,
+                reference: billNo,
+                unitCost: newCost,
+                now: now);
+          }
           await _enqueueProduct(txn, it.barcode);
         }
         final outstanding = purchase.total - purchase.paid;

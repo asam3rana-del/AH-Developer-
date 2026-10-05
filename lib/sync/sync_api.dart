@@ -254,10 +254,11 @@ class SyncApi implements SyncBackend {
     }
 
     Future<MapEntry<String, List<SyncDoc>>> load(String collection) async {
+      final overlap = stockPullCollections.contains(collection) ? stockPullOverlapMs : pullOverlapMs;
       final snap = await fs
           .collection(collection)
           .where('branchId', isEqualTo: branch)
-          .where('updatedAt', isGreaterThan: since > pullOverlapMs ? since - pullOverlapMs : 0)
+          .where('updatedAt', isGreaterThan: since > overlap ? since - overlap : 0)
           .get(const GetOptions(source: Source.server));
       return MapEntry(collection, [for (final d in snap.docs) Map<String, Object?>.from(d.data())]);
     }

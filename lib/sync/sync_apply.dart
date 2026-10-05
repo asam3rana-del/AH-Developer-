@@ -274,7 +274,19 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
     final keepLocalStock = (await q.pendingForEntityAnyRetry('product', barcode, 'set_stock')).isNotEmpty;
     // Sirf pending "upsert" (naam/qeemat) rokta hai — pending increment_stock nahi (warna product sync
     // hamesha atka rahe).
-    if ((await q.pendingForEntityAnyRetry('product', barcode, 'upsert')).isNotEmpty) continue;
+    if ((await q.pendingForEntityAnyRetry('product', barcode, 'upsert')).isNotEmpty) {
+      // Naam/qeemat ka apna edit bacha rahe, magar STOCK phir bhi cloud se aaye: purchase (rate set) ya edit ke
+      // baad product upsert queue mein atak jaye to pehle is product ka stock hamesha ke liye purana rehta tha.
+      if (stock != null && !keepLocalStock) {
+        await db.update(
+          'products',
+          {'stock': stock + localPendingStock, 'dirty': 1},
+          where: 'barcode = ?',
+          whereArgs: [barcode],
+        );
+      }
+      continue;
+    }
 
     final existing = await _findBy(db, 'products', 'barcode', barcode);
     final common = <String, Object?>{

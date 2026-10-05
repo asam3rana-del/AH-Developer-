@@ -5,7 +5,17 @@ import 'sync_types.dart';
 
 /// Pull har baar checkpoint se itna pichhe se shuru hota hai (late-push / thora clock farq ke docs na chhoote).
 /// Apply idempotent hai, is liye dobara pull nuqsan nahi karta.
-const int pullOverlapMs = 2 * 60 * 1000;
+const int pullOverlapMs = 10 * 60 * 1000;
+
+/// Stock / balance wali collections (products, customers, suppliers) ka overlap bada. `updatedAt` PUSH karne
+/// wale device ki apni clock se banta hai: kisi device ki clock peeche ho to uski stock/balance change doosre
+/// device ke checkpoint se purani nazar aati thi aur kabhi pull nahi hoti thi (stock/balance hamesha alag).
+/// 1 ghante ke andar badle hue docs har sync par dobara aate hain; apply idempotent hai (cloud + local pending),
+/// is liye dobara lagana nuqsan nahi karta. (Firestore reads ka khayal: 1 ghanta, 24 nahi.)
+const int stockPullOverlapMs = 60 * 60 * 1000;
+
+/// Un collections ke naam jin par [stockPullOverlapMs] lagta hai.
+const Set<String> stockPullCollections = {'products', 'customers', 'suppliers'};
 
 /// Kotlin `pull()` ki tarteeb mein 20 collections (Firestore naam).
 const List<String> pullCollections = [

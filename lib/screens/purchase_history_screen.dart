@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/purchase_history_repository.dart';
+import '../db/party_transaction_repository.dart' show InsufficientStockException;
 import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
 import '../utils/bill_text.dart';
@@ -184,7 +185,25 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
     );
     if (ok != true) return;
     try {
-      await _repo.deletePurchase(r.billNo);
+      try {
+        await _repo.deletePurchase(r.billNo);
+      } on InsufficientStockException catch (e) {
+        if (!mounted) return;
+        final force = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Stock kam hai'),
+            content: Text('${e.message}\n\nPhir bhi delete karen? Stock 0 tak kam hoga (minus nahi), cost wahi rahegi. '
+                'Baad mein Stock Movement / Adjustment se check kar len.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('DELETE ANYWAY')),
+            ],
+          ),
+        );
+        if (force != true) return;
+        await _repo.deletePurchase(r.billNo, force: true);
+      }
       _toast(Loc.t('Purchase deleted', 'خریداری حذف ہو گئی'));
     } catch (e) {
       _toast('$e');

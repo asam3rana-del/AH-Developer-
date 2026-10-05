@@ -10,6 +10,7 @@ import '../db/party_repository.dart';
 import '../db/product_repository.dart';
 import '../db/purchase_history_repository.dart' show PurchaseHistoryRepository;
 import '../db/purchase_repository.dart';
+import '../db/party_transaction_repository.dart' show InsufficientStockException;
 import '../db/rate_comparison_repository.dart' show RateComparisonRepository, SupplierRateRow;
 import '../db/supplier_repository.dart';
 import '../db/user_repository.dart';
@@ -1097,7 +1098,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       }
     }
 
-    // 2) Andaza: same supplier + same total + same bill date.
+    // 2) Andaza: same supplier + same total + aas-paas ki date (alag din ka bhi).
     final dup = await _repo.findPossibleDuplicate(
       supplierName: party,
       total: grandTotal,
@@ -1106,7 +1107,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     );
     if (!mounted) return;
     if (dup != null) {
-      final when = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.fromMillisecondsSinceEpoch(dup.createdAt));
+      final when = DateFormat('dd MMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(dup.createdAt));
       final go = await _confirm(
         title: Loc.t('Possible Duplicate Bill', 'ممکنہ ڈپلیکیٹ بل'),
         message: Loc.t(
@@ -1211,7 +1212,19 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     if (!confirmed || !mounted) return;
     setState(() => _saving = true);
     try {
-      await PurchaseHistoryRepository.instance.deletePurchase(billNo);
+      try {
+        await PurchaseHistoryRepository.instance.deletePurchase(billNo);
+      } on InsufficientStockException catch (e) {
+        if (!mounted) return;
+        final force = await _confirm(
+          title: 'Stock kam hai',
+          message: '${e.message}\n\nPhir bhi delete karen? Stock 0 tak kam hoga (minus nahi), cost wahi rahegi. '
+              'Baad mein Stock Movement / Adjustment se check kar len.',
+          yes: 'DELETE ANYWAY',
+        );
+        if (!force || !mounted) return;
+        await PurchaseHistoryRepository.instance.deletePurchase(billNo, force: true);
+      }
       await ProductRepository.instance.refresh();
       await SupplierRepository.instance.refresh();
       if (!mounted) return;

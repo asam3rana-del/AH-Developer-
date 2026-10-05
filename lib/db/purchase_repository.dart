@@ -94,13 +94,18 @@ bool isDuplicatePurchase({
   required String wantedSupplier,
   required double wantedTotal,
   required DateTime wantedDate,
+  int windowDays = 0,
 }) {
   if (candidateSupplier.trim().toLowerCase() != wantedSupplier.trim().toLowerCase()) return false;
   if ((candidateTotal - wantedTotal).abs() > 0.009) return false;
-  return candidateDate.year == wantedDate.year &&
-      candidateDate.month == wantedDate.month &&
-      candidateDate.day == wantedDate.day;
+  // [windowDays] = 0 => sirf wahi calendar din; > 0 => aas-paas ke itne din (alag date ka duplicate bhi pakde).
+  final a = DateTime(candidateDate.year, candidateDate.month, candidateDate.day);
+  final b = DateTime(wantedDate.year, wantedDate.month, wantedDate.day);
+  return a.difference(b).inDays.abs() <= windowDays;
 }
+
+/// Alag date par bhi duplicate pakadne ke liye: bill-date ke aage/peeche itne din tak dekho.
+const int kDuplicateWindowDays = 7;
 
 /// Kotlin `SavePurchaseUseCase` ki validation: khali bill, qty <= 0, negative rate. Pehli galti ka paigham,
 /// sab theek ho to null. Pure.
@@ -276,7 +281,7 @@ class PurchaseRepository {
     return rows.isEmpty ? null : Purchase.fromMap(rows.first);
   }
 
-  /// Andaza-wala duplicate alert: usi supplier ka usi total ka, usi bill-date ka, na-return shuda bill.
+  /// Andaza-wala duplicate alert: usi supplier ka usi total ka, bill-date ke +-[kDuplicateWindowDays] din ke andar, na-return shuda bill.
   Future<Purchase?> findPossibleDuplicate({
     required String supplierName,
     required double total,
@@ -299,6 +304,7 @@ class PurchaseRepository {
         wantedSupplier: supplierName,
         wantedTotal: total,
         wantedDate: wantedDate,
+        windowDays: kDuplicateWindowDays,
       )) {
         return p;
       }

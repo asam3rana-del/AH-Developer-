@@ -100,7 +100,20 @@ void main() {
     test('same supplier (case-insensitive) + total + din => duplicate', () => expect(dup(), isTrue));
     test('doosra supplier', () => expect(dup(s: 'Bilal'), isFalse));
     test('total farq', () => expect(dup(t: 1001), isFalse));
-    test('doosra din', () => expect(dup(d: DateTime(2026, 9, 30)), isFalse));
+    test('doosra din (window 0)', () => expect(dup(d: DateTime(2026, 9, 30)), isFalse));
+    test('alag din magar window ke andar => duplicate', () {
+      expect(
+          isDuplicatePurchase(
+            candidateSupplier: 'ali traders',
+            candidateTotal: 1000,
+            candidateDate: day,
+            wantedSupplier: 'Ali Traders',
+            wantedTotal: 1000,
+            wantedDate: DateTime(2026, 10, 3),
+            windowDays: kDuplicateWindowDays,
+          ),
+          isTrue);
+    });
   });
 
   group('validatePurchaseLines', () {
