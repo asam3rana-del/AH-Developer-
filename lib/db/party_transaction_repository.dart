@@ -677,7 +677,7 @@ class PartyTransactionRepository {
   }
 
   /// Purchase ki ek line delete (stock + cost wapas). true = poori purchase delete hui.
-  Future<bool> deletePurchaseItem(PurchaseItem item) async {
+  Future<bool> deletePurchaseItem(PurchaseItem item, {bool force = false}) async {
     _requireAdmin();
     if (item.id == null) throw ArgumentError('Item id missing');
     final db = await AppDatabase.instance.database;
@@ -690,24 +690,32 @@ class PartyTransactionRepository {
       final product = await _product(txn, cur.barcode);
 
       if (product != null) {
-        final delta = purchaseItemSmallestQty(cur, product);
-        final newCost = reversePurchaseLineCost(
+        final fullQty = purchaseItemSmallestQty(cur, product);
+        var delta = fullQty;
+        var newCost = reversePurchaseLineCost(
             productCost: product.cost,
             productStock: product.stock,
             factor: product.smallestUnitFactor(),
             itemAmount: cur.amount,
-            smallestQtyToRemove: delta);
-        final rows = await txn.rawUpdate(
-            'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock >= ?',
-            [delta, newCost, _now(), cur.barcode, delta]);
-        if (rows == 0) throw const InsufficientStockException('Cannot delete: stock already used');
-        await SyncQueueHelper.enqueueStockDelta(txn, cur.barcode, -delta);
-        await StockLedger.log(txn,
-            barcode: cur.barcode,
-            type: MovementType.purchaseItemDelete,
-            signedQty: -delta,
-            reference: cur.billNo,
-            unitCost: newCost);
+            smallestQtyToRemove: fullQty);
+        if (product.stock < fullQty) {
+          if (!force) throw const InsufficientStockException('Cannot delete: stock already used');
+          // Force: jitna stock bacha hai bas utna nikalo (0 se neeche nahi), cost jo thi wahi.
+          delta = product.stock > 0 ? product.stock : 0.0;
+          newCost = product.cost;
+        }
+        await txn.rawUpdate(
+            'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+            [delta, newCost, _now(), cur.barcode]);
+        if (delta > 0) await SyncQueueHelper.enqueueStockDelta(txn, cur.barcode, -delta);
+        if (delta > 0) {
+          await StockLedger.log(txn,
+              barcode: cur.barcode,
+              type: MovementType.purchaseItemDelete,
+              signedQty: -delta,
+              reference: cur.billNo,
+              unitCost: newCost);
+        }
         await _enqueueProduct(txn, cur.barcode);
       }
       await txn.delete('purchase_items', where: 'id = ?', whereArgs: [cur.id]);

@@ -823,7 +823,26 @@ class _BilledItemsDialogState extends State<_BilledItemsDialog> {
     if (!Session.isAdmin) return _toast(Loc.t('Only Admin can do this action', 'صرف ایڈمن یہ عمل کر سکتا ہے'));
     if (!await _confirmDelete(_names[it.barcode] ?? it.barcode)) return;
     await _run(() async {
-      final whole = await _repo.deletePurchaseItem(it);
+      bool whole;
+      try {
+        whole = await _repo.deletePurchaseItem(it);
+      } on InsufficientStockException {
+        if (!mounted) return;
+        final force = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Stock kam hai'),
+            content: const Text('Is item ka stock is purchase ke baad kam ho chuka hai. Phir bhi delete karen? '
+                'Stock 0 tak kam hoga (minus nahi), cost wahi rahegi. Baad mein Stock Movement / Adjustment se check kar len.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('DELETE ANYWAY')),
+            ],
+          ),
+        );
+        if (force != true) return;
+        whole = await _repo.deletePurchaseItem(it, force: true);
+      }
       if (whole) _toast(Loc.t('Purchase deleted', 'خریداری ڈیلیٹ ہو گئی'));
     }, failPrefix: 'Could not delete item');
   }
