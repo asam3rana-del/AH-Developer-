@@ -99,6 +99,52 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
     setState(() => set(to));
   }
 
+  /// Purchase bills par likhe rate/cost se wo products bharo jin ka product-level rate 0 hai.
+  Future<void> _fillFromPurchases() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final plan = await ProductRepository.instance.planFillFromPurchases();
+      if (!mounted) return;
+      if (plan.isEmpty) {
+        _toast(Loc.t('No purchase bill has rates for these products', 'ان پروڈکٹس کے لیے کسی خریداری بل پر ریٹ درج نہیں'));
+        return;
+      }
+      final sample = plan.take(8).map((f) {
+        final parts = <String>[
+          if (f.cost != null) '${Loc.t('cost', 'لاگت')} ${formatConvertedRate(f.cost!)}',
+          if (f.salePrice != null) '${Loc.t('retail', 'خوردہ')} ${formatConvertedRate(f.salePrice!)}',
+          if (f.wholesalePrice != null) '${Loc.t('wholesale', 'ہول سیل')} ${formatConvertedRate(f.wholesalePrice!)}',
+        ];
+        return '• ${f.product.name}: ${parts.join(', ')}';
+      }).join('\n');
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(Loc.t('Fill from purchases?', 'خریداری سے بھریں؟')),
+          content: SingleChildScrollView(
+            child: Text(Loc.t(
+                '${plan.length} products ka 0 rate/cost sab se nayi purchase bill se bhara jayega (jo pehle se set hai wo nahi badlega):\n\n$sample${plan.length > 8 ? '\n…' : ''}',
+                '${plan.length} پروڈکٹس کا 0 ریٹ/لاگت سب سے نئی خریداری بل سے بھری جائے گی (جو پہلے سے سیٹ ہے وہ نہیں بدلے گا):\n\n$sample${plan.length > 8 ? '\n…' : ''}')),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Fill', 'بھریں'))),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      final n = await ProductRepository.instance.applyFillFromPurchases(plan);
+      await _load();
+      if (!mounted) return;
+      _toast(Loc.t('Done: $n products updated', 'مکمل: $n پروڈکٹس اپڈیٹ ہوئیں'));
+    } catch (e) {
+      if (mounted) _toast(Loc.t('Could not fill: $e', 'بھرا نہیں جا سکا: $e'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _saveAndNext() async {
     if (_queue.isEmpty || _saving) return;
     final current = _queue.first;
@@ -194,12 +240,12 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
         if (p.secondaryUnit.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
           row(Loc.t('Secondary Unit', 'ثانوی یونٹ'),
-              p.secondaryUnit + (p.secondaryUnitQty > 0 ? ' (1 ${p.secondaryUnit} = ${trimNum(p.secondaryUnitQty)} ${p.unit})' : '')),
+              p.secondaryUnit + (p.secondaryUnitQty > 0 ? ' (1 ${p.unit} = ${trimNum(p.secondaryUnitQty)} ${p.secondaryUnit})' : '')),
         ],
         if (p.tertiaryUnit.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
           row(Loc.t('Tertiary Unit', 'تیسرا یونٹ'),
-              p.tertiaryUnit + (p.tertiaryUnitQty > 0 ? ' (1 ${p.tertiaryUnit} = ${trimNum(p.tertiaryUnitQty)} ${p.unit})' : '')),
+              p.tertiaryUnit + (p.tertiaryUnitQty > 0 ? ' (1 ${p.secondaryUnit.trim().isNotEmpty ? p.secondaryUnit : p.unit} = ${trimNum(p.tertiaryUnitQty)} ${p.tertiaryUnit})' : '')),
         ],
         Padding(
           padding: const EdgeInsets.only(top: 10),
@@ -297,6 +343,15 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(14), children: [
           _header(),
+          if (!_loading)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: OutlinedButton.icon(
+                onPressed: _saving ? null : _fillFromPurchases,
+                icon: const Icon(Icons.auto_fix_high, size: 18),
+                label: Text(Loc.t('Fill from purchase bills', 'خریداری بلز سے بھریں')),
+              ),
+            ),
           if (_loading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),

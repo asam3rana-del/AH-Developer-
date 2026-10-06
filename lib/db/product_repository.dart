@@ -18,6 +18,15 @@ void _requireProductAdmin() {
   if (!Session.isAdmin) throw StateError('Only Admin can change products');
 }
 
+/// Purchase se bhara jane wala ek product: sirf wohi fields (null = na badlo). Sab PRIMARY unit par.
+class PurchaseRateFill {
+  final Product product;
+  final double? cost;
+  final double? salePrice;
+  final double? wholesalePrice;
+  const PurchaseRateFill(this.product, {this.cost, this.salePrice, this.wholesalePrice});
+}
+
 class ProductRepository {
   ProductRepository._();
   static final ProductRepository instance = ProductRepository._();
@@ -162,6 +171,67 @@ class ProductRepository {
     });
     await _notify();
     return rows.length;
+  }
+
+  /// Jin products ka cost / retail / wholesale 0 hai magar purchase bill par likha hua hai: sab se nayi purchase
+  /// (date ke hisaab se) ki line se bharne ka plan. Kuch badalta nahi — sirf preview. Jo rate pehle se set hai
+  /// us ko kabhi nahi chhoota.
+  Future<List<PurchaseRateFill>> planFillFromPurchases() async {
+    final db = await AppDatabase.instance.database;
+    final products = await listAll();
+    final need = {
+      for (final p in products)
+        if (p.cost <= 0 || p.salePrice <= 0 || p.wholesalePrice <= 0) p.barcode: p
+    };
+    if (need.isEmpty) return const [];
+    final rows = await db.rawQuery(
+      'SELECT pi.barcode AS barcode, pi.unit AS unit, pi.unitCost AS unitCost, pi.retailRate AS retailRate, '
+      'pi.wholesaleRate AS wholesaleRate FROM purchase_items pi JOIN purchases p ON p.billNo = pi.billNo '
+      'ORDER BY p.createdAt DESC, pi.id DESC',
+    );
+    final cost = <String, double>{}, sale = <String, double>{}, wh = <String, double>{};
+    for (final r in rows) {
+      final bc = r['barcode'] as String;
+      final prod = need[bc];
+      if (prod == null) continue;
+      final uc = (r['unitCost'] as num?)?.toDouble() ?? 0.0;
+      final rr = (r['retailRate'] as num?)?.toDouble() ?? 0.0;
+      final wr = (r['wholesaleRate'] as num?)?.toDouble() ?? 0.0;
+      if (prod.cost <= 0 && uc > 0 && !cost.containsKey(bc)) {
+        cost[bc] = prod.toPrimaryUnitRate(uc, (r['unit'] as String?) ?? prod.unit);
+      }
+      if (prod.salePrice <= 0 && rr > 0 && !sale.containsKey(bc)) sale[bc] = rr;
+      if (prod.wholesalePrice <= 0 && wr > 0 && !wh.containsKey(bc)) wh[bc] = wr;
+    }
+    final out = <PurchaseRateFill>[];
+    for (final bc in {...cost.keys, ...sale.keys, ...wh.keys}) {
+      out.add(PurchaseRateFill(need[bc]!, cost: cost[bc], salePrice: sale[bc], wholesalePrice: wh[bc]));
+    }
+    out.sort((a, b) => a.product.name.toLowerCase().compareTo(b.product.name.toLowerCase()));
+    return out;
+  }
+
+  /// [planFillFromPurchases] ka plan ek transaction mein lagao (har product sync_queue mein).
+  Future<int> applyFillFromPurchases(List<PurchaseRateFill> plan) async {
+    _requireProductAdmin();
+    if (plan.isEmpty) return 0;
+    final db = await AppDatabase.instance.database;
+    await db.transaction((txn) async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final f in plan) {
+        final ch = <String, Object?>{
+          if (f.cost != null) 'cost': f.cost,
+          if (f.salePrice != null) 'salePrice': f.salePrice,
+          if (f.wholesalePrice != null) 'wholesalePrice': f.wholesalePrice,
+        };
+        if (ch.isEmpty) continue;
+        await txn.update('products', {...ch, 'dirty': 1, 'updatedAt': now},
+            where: 'barcode=?', whereArgs: [f.product.barcode]);
+        await SyncQueueHelper.enqueueProduct(txn, f.product.barcode);
+      }
+    });
+    await _notify();
+    return plan.length;
   }
 
   Future<void> _updateAndEnqueue(String barcode, Map<String, Object?> changes) async {

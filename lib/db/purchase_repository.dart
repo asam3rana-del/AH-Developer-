@@ -531,9 +531,13 @@ class PurchaseRepository {
             'WHERE pi.barcode = ? AND p.billNo != ? AND p.createdAt > ? LIMIT 1',
             [barcode, billNo, purchaseDateMillis],
           );
-          final newSale = line.retailRate > 0.0 ? line.retailRate : before.salePrice;
-          final newWholesale = line.wholesaleRate > 0.0 ? line.wholesaleRate : before.wholesalePrice;
-          if (newer.isEmpty && (newSale != before.salePrice || newWholesale != before.wholesalePrice)) {
+          // Agar product ka rate abhi 0 (missing) hai to back-date / purani bill se bhi bhar do — warna "Missing
+          // Rates" mein wohi product baar baar aata rehta tha jab ke bill par rate likha hota tha.
+          final allowSale = newer.isEmpty || before.salePrice <= 0.0;
+          final allowWholesale = newer.isEmpty || before.wholesalePrice <= 0.0;
+          final newSale = (line.retailRate > 0.0 && allowSale) ? line.retailRate : before.salePrice;
+          final newWholesale = (line.wholesaleRate > 0.0 && allowWholesale) ? line.wholesaleRate : before.wholesalePrice;
+          if (newSale != before.salePrice || newWholesale != before.wholesalePrice) {
             await txn.rawUpdate(
               'UPDATE products SET salePrice = ?, wholesalePrice = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
               [newSale, newWholesale, now, barcode],
