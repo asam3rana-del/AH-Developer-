@@ -159,6 +159,8 @@ class SyncQueueHelper {
         'wholesalePrice': p['wholesalePrice'],
         'bulkPrice': p['bulkPrice'] ?? 0,
         'bulkMinQty': p['bulkMinQty'] ?? 0,
+        'wholesaleBulkPrice': p['wholesaleBulkPrice'] ?? 0,
+        'wholesaleBulkMinQty': p['wholesaleBulkMinQty'] ?? 0,
         'reorderLevel': p['reorderLevel'],
         'expiry': p['expiry'],
         'unit': p['unit'],

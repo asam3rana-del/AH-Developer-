@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 15;
+  static const _dbVersion = 16;
 
   Database? _db;
 
@@ -91,6 +91,8 @@ class AppDatabase {
         wholesalePrice REAL NOT NULL DEFAULT 0,
         bulkPrice REAL NOT NULL DEFAULT 0,
         bulkMinQty REAL NOT NULL DEFAULT 0,
+        wholesaleBulkPrice REAL NOT NULL DEFAULT 0,
+        wholesaleBulkMinQty REAL NOT NULL DEFAULT 0,
         openingStock REAL NOT NULL DEFAULT 0,
         tertiaryUnit TEXT NOT NULL DEFAULT '',
         tertiaryUnitQty REAL NOT NULL DEFAULT 0,
@@ -423,6 +425,11 @@ class AppDatabase {
       // v15: item-wise bulk rate (retail grahak jab bulkMinQty tak khareedey to bulkPrice).
       await _addColumnIfMissing(db, 'products', 'bulkPrice', 'REAL NOT NULL DEFAULT 0');
       await _addColumnIfMissing(db, 'products', 'bulkMinQty', 'REAL NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 16) {
+      // v16: wholesale mode ka apna bulk rate (wholesaleBulkMinQty tak khareedey to wholesaleBulkPrice).
+      await _addColumnIfMissing(db, 'products', 'wholesaleBulkPrice', 'REAL NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'products', 'wholesaleBulkMinQty', 'REAL NOT NULL DEFAULT 0');
     }
   }
 

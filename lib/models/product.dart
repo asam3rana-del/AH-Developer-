@@ -20,6 +20,8 @@ class Product {
   /// Retail grahak ke liye bulk rate (0 = nahi) aur kam az kam miqdar (primary unit mein; 0 = nahi).
   final double bulkPrice;
   final double bulkMinQty;
+  final double wholesaleBulkPrice;
+  final double wholesaleBulkMinQty;
   final double openingStock;
   final String tertiaryUnit;
   final double tertiaryUnitQty;
@@ -55,6 +57,8 @@ class Product {
     this.wholesalePrice = 0.0,
     this.bulkPrice = 0.0,
     this.bulkMinQty = 0.0,
+    this.wholesaleBulkPrice = 0.0,
+    this.wholesaleBulkMinQty = 0.0,
     this.openingStock = 0.0,
     this.tertiaryUnit = '',
     this.tertiaryUnitQty = 0.0,
@@ -85,6 +89,8 @@ class Product {
     double? wholesalePrice,
     double? bulkPrice,
     double? bulkMinQty,
+    double? wholesaleBulkPrice,
+    double? wholesaleBulkMinQty,
     double? openingStock,
     String? tertiaryUnit,
     double? tertiaryUnitQty,
@@ -108,6 +114,8 @@ class Product {
       wholesalePrice: wholesalePrice ?? this.wholesalePrice,
       bulkPrice: bulkPrice ?? this.bulkPrice,
       bulkMinQty: bulkMinQty ?? this.bulkMinQty,
+      wholesaleBulkPrice: wholesaleBulkPrice ?? this.wholesaleBulkPrice,
+      wholesaleBulkMinQty: wholesaleBulkMinQty ?? this.wholesaleBulkMinQty,
       openingStock: openingStock ?? this.openingStock,
       tertiaryUnit: tertiaryUnit ?? this.tertiaryUnit,
       tertiaryUnitQty: tertiaryUnitQty ?? this.tertiaryUnitQty,
@@ -136,6 +144,8 @@ class Product {
         'wholesalePrice': wholesalePrice,
         'bulkPrice': bulkPrice,
         'bulkMinQty': bulkMinQty,
+        'wholesaleBulkPrice': wholesaleBulkPrice,
+        'wholesaleBulkMinQty': wholesaleBulkMinQty,
         'openingStock': openingStock,
         'tertiaryUnit': tertiaryUnit,
         'tertiaryUnitQty': tertiaryUnitQty,
@@ -163,6 +173,8 @@ class Product {
         wholesalePrice: (m['wholesalePrice'] as num?)?.toDouble() ?? 0.0,
         bulkPrice: (m['bulkPrice'] as num?)?.toDouble() ?? 0.0,
         bulkMinQty: (m['bulkMinQty'] as num?)?.toDouble() ?? 0.0,
+        wholesaleBulkPrice: (m['wholesaleBulkPrice'] as num?)?.toDouble() ?? 0.0,
+        wholesaleBulkMinQty: (m['wholesaleBulkMinQty'] as num?)?.toDouble() ?? 0.0,
         openingStock: (m['openingStock'] as num?)?.toDouble() ?? 0.0,
         tertiaryUnit: (m['tertiaryUnit'] as String?) ?? '',
         tertiaryUnitQty: (m['tertiaryUnitQty'] as num?)?.toDouble() ?? 0.0,

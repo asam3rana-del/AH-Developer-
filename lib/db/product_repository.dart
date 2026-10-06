@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
 
 import '../models/product.dart';
+import '../utils/bulk_rate_planner.dart' show BulkRateRow, BulkRateTarget;
 import 'app_database.dart';
 import 'stock_ledger.dart';
 import '../services/session.dart';
@@ -140,6 +141,27 @@ class ProductRepository {
           {required double cost, required double salePrice, required double wholesalePrice}) {
     _requireProductAdmin();
     return _updateAndEnqueue(barcode, {'cost': cost, 'salePrice': salePrice, 'wholesalePrice': wholesalePrice});
+  }
+
+  /// Bulk Rate Tool: bohat si products ka bulk rate + min qty ek hi transaction mein (har product sync_queue mein).
+  /// Adhoora save nahi hota — koi ek fail ho to sab rollback. Wapas gina hua tabdeel shuda count.
+  Future<int> applyBulkRates(List<BulkRateRow> rows, BulkRateTarget target) async {
+    _requireProductAdmin();
+    if (rows.isEmpty) return 0;
+    final db = await AppDatabase.instance.database;
+    await db.transaction((txn) async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final r in rows) {
+        final changes = target == BulkRateTarget.retail
+            ? {'bulkPrice': r.newBulkPrice, 'bulkMinQty': r.newMinQty}
+            : {'wholesaleBulkPrice': r.newBulkPrice, 'wholesaleBulkMinQty': r.newMinQty};
+        await txn.update('products', {...changes, 'dirty': 1, 'updatedAt': now},
+            where: 'barcode=?', whereArgs: [r.product.barcode]);
+        await SyncQueueHelper.enqueueProduct(txn, r.product.barcode);
+      }
+    });
+    await _notify();
+    return rows.length;
   }
 
   Future<void> _updateAndEnqueue(String barcode, Map<String, Object?> changes) async {

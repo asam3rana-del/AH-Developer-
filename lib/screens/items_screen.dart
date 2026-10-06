@@ -18,6 +18,7 @@ import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import 'bulk_default_unit_screen.dart';
 import 'bulk_missing_rates_screen.dart';
+import 'bulk_rate_tool_screen.dart';
 import 'bulk_translate_screen.dart';
 import 'product_screen.dart';
 import '../theme/theme_manager.dart';
@@ -304,6 +305,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
             _pill(Loc.t('Rate List', 'ریٹ لسٹ'), Icons.description_outlined,
                 () => _push(const RoleGuard(allowed: {'admin'}, child: BulkMissingRatesScreen()))),
             if (_admin) _pill(Loc.t('Import', 'امپورٹ'), Icons.undo, _importRateList),
+            _pill(Loc.t('Bulk Rates', 'بلک ریٹ'), Icons.layers_outlined,
+                () => _push(const RoleGuard(allowed: {'admin'}, child: BulkRateToolScreen()))),
             _pill(Loc.t('Translate', 'ترجمہ'), Icons.language,
                 () => _push(const RoleGuard(allowed: {'admin'}, child: BulkTranslateScreen()))),
             _pill(Loc.t('Units', 'یونٹس'), Icons.straighten,
