@@ -377,20 +377,20 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                 d.partyName.trim().isEmpty ? (d.isPurchase ? 'Cash Purchase' : 'Walk-in') : d.partyName.trim()),
             const Divider(height: 20),
             Row(children: const [
-              Expanded(flex: 4, child: Text('ITEM', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-              Expanded(flex: 2, child: Text('QTY', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+              Expanded(flex: 3, child: Text('AMOUNT', textAlign: TextAlign.left, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
               Expanded(flex: 2, child: Text('RATE', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-              Expanded(flex: 3, child: Text('AMOUNT', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+              Expanded(flex: 2, child: Text('QTY', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+              Expanded(flex: 4, child: Text('ITEM', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
             ]),
             const SizedBox(height: 6),
             for (final i in d.items)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(flex: 4, child: Text(i.name, style: const TextStyle(fontSize: 13))),
-                  Expanded(flex: 2, child: Text('${_q(i.qty)} ${i.unit}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
+                  Expanded(flex: 3, child: Text(i.amount.toStringAsFixed(2), textAlign: TextAlign.left, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 2, child: Text(i.rate.toStringAsFixed(2), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
-                  Expanded(flex: 3, child: Text(i.amount.toStringAsFixed(2), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
+                  Expanded(flex: 2, child: Text('${_q(i.qty)} ${i.unit}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
+                  Expanded(flex: 4, child: Text(i.name, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                 ]),
               ),
             const Divider(height: 20),

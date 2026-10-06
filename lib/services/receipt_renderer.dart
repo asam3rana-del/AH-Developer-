@@ -57,8 +57,9 @@ Future<ReceiptImage> renderReceipt(List<ReceiptLine> lines, {double fontSizePx =
   }
 
   final tableFont = fontSizePx * 0.88;
-  // Columns: item 40%, qty 20%, rate 17%, amount 23%.
-  final cw = [inner * 0.40, inner * 0.20, inner * 0.17, inner * 0.23];
+  // Columns (left -> right): amount 23%, rate 17%, qty 20%, item 40%.
+  // Amount left par, Item right par (Urdu naam right se shuru hota hai).
+  final cw = [inner * 0.23, inner * 0.17, inner * 0.20, inner * 0.40];
 
   for (final l in lines) {
     switch (l) {
@@ -79,11 +80,11 @@ Future<ReceiptImage> renderReceipt(List<ReceiptLine> lines, {double fontSizePx =
         });
       case RlItemRow():
         final hdr = l.header;
-        final cells = [l.name, l.qty, l.rate, l.amount];
+        final cells = [l.amount, l.rate, l.qty, l.name];
         final tps = <TextPainter>[];
         for (var i = 0; i < 4; i++) {
-          tps.add(_tp(cells[i], tableFont, bold: hdr, maxWidth: cw[i] - _cellPadH, maxLines: i == 0 ? 3 : 1,
-              align: i == 0 ? TextAlign.start : TextAlign.right));
+          tps.add(_tp(cells[i], tableFont, bold: hdr, maxWidth: cw[i] - _cellPadH, maxLines: i == 3 ? 3 : 1,
+              align: TextAlign.right));
         }
         var h = 0.0;
         for (final t in tps) {
@@ -94,7 +95,7 @@ Future<ReceiptImage> renderReceipt(List<ReceiptLine> lines, {double fontSizePx =
           var x = _padX;
           for (var i = 0; i < 4; i++) {
             final t = tps[i];
-            final dx = i == 0 ? x : x + cw[i] - _cellPadH / 2 - t.width;
+            final dx = x + cw[i] - _cellPadH / 2 - t.width;
             t.paint(c, Offset(dx, y + _rowPadV / 2));
             x += cw[i];
           }
