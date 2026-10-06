@@ -51,7 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _headerShop = 'My Shop'; // Kotlin loadHeaderShopName: saved shop_name, warna "My Shop"
   String _printerName = '';
   int _dots = EscPos.defaultDotsWidth;
-  bool _safePrint = true;
+  bool _safePrint = false;
   bool _compatPrint = false;
   bool _testing = false;
 
@@ -400,7 +400,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             dense: true,
             value: _safePrint,
             title: Text(Loc.t('Safe print (slower)', 'محفوظ پرنٹ (آہستہ)')),
-            subtitle: Text(Loc.t('ON rakhein agar print mein Chinese / ulta seedha kachra aaye', 'اگر پرنٹ میں چینی جیسا کچرا آئے تو آن رکھیں')),
+            subtitle: Text(Loc.t('ON karein agar print mein Chinese / kachra aaye (aam tor par OFF theek hai)', 'اگر پرنٹ میں چینی جیسا کچرا آئے تو آن رکھیں')),
             onChanged: (v) async {
               await PrinterService.instance.saveSafeMode(v);
               if (mounted) setState(() => _safePrint = v);

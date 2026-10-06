@@ -13,6 +13,7 @@ import '../db/user_repository.dart';
 import '../utils/bill_doc.dart';
 import '../utils/escpos.dart';
 import '../utils/receipt_lines.dart';
+import 'bt_printer.dart';
 import 'receipt_renderer.dart';
 import 'usb_printer.dart';
 
@@ -79,9 +80,9 @@ class PrinterService {
     await _repo.setSetting('printer_width', '58');
   }
 
-  /// Safe print (default ON): chhoti strips + lambe pause, taa ke printer ka buffer na bhare.
-  /// Setting `printer_safe` = '0' ho to purani tez raftar.
-  Future<bool> safeMode() async => ((await _repo.getSetting('printer_safe')) ?? '1') != '0';
+  /// Safe print (default OFF — seedha Bluetooth socket par Kotlin wali raftar kaafi hai): chhoti strips +
+  /// lambe pause. Setting `printer_safe` = '1' ho to ON.
+  Future<bool> safeMode() async => ((await _repo.getSetting('printer_safe')) ?? '0') == '1';
 
   Future<void> saveSafeMode(bool on) => _repo.setSetting('printer_safe', on ? '1' : '0');
 
@@ -90,7 +91,7 @@ class PrinterService {
 
   Future<void> saveCompatibleMode(bool on) => _repo.setSetting('printer_mode', on ? 'bitimage' : 'raster');
 
-  PrintPacing _pacing = PrintPacing.safe;
+  PrintPacing _pacing = PrintPacing.normal;
 
   Future<int> dotsWidth() async =>
       EscPos.normalizeDotsWidth(int.tryParse((await _repo.getSetting('printer_dots')) ?? ''));
@@ -119,30 +120,53 @@ class PrinterService {
 
   Future<void> _sleep(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
 
+  // Bluetooth transport: Android par seedha RFCOMM socket (BtPrinter, Kotlin jaisa); warna plugin.
+  Future<bool> _btConnect(String mac) async {
+    final r = await BtPrinter.connect(mac);
+    if (r != null) return r;
+    return await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+  }
+
+  Future<bool> _btWrite(List<int> bytes) async {
+    final r = await BtPrinter.write(bytes is Uint8List ? bytes : Uint8List.fromList(bytes));
+    if (r != null) return r;
+    return await PrintBluetoothThermal.writeBytes(bytes);
+  }
+
+  Future<void> _btClose() async {
+    if (BtPrinter.available) {
+      await BtPrinter.close();
+      return;
+    }
+    try {
+      await PrintBluetoothThermal.disconnect;
+    } catch (_) {}
+  }
+
   /// Ek connection par init -> strips (chhote tukron mein, pause ke saath) -> feed+cut.
   Future<bool> _sendSlips(String mac, List<List<({Uint8List bytes, int stripHeight})>> slips) async {
     if (!supported) return false;
     try {
-      await PrintBluetoothThermal.disconnect;
-      var ok = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+      await _btClose();
+      var ok = await _btConnect(mac);
       if (!ok) {
         // Ek baar dobara koshish (printer kabhi pehli connect par jawab nahi deta).
         await _sleep(700);
-        await PrintBluetoothThermal.disconnect;
-        ok = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+        await _btClose();
+        ok = await _btConnect(mac);
       }
       if (!ok) return false;
       await _sleep(EscPos.connectSettleDelayMs);
       var allOk = true;
       for (var s = 0; s < slips.length && allOk; s++) {
-        allOk &= await PrintBluetoothThermal.writeBytes(EscPos.init.toList());
+        allOk &= await _btWrite(EscPos.init);
         await _sleep(EscPos.settleDelayMs);
         for (final chunk in slips[s]) {
           final b = chunk.bytes;
           var off = 0;
           while (off < b.length) {
             final end = off + _pacing.pieceBytes > b.length ? b.length : off + _pacing.pieceBytes;
-            allOk &= await PrintBluetoothThermal.writeBytes(b.sublist(off, end).toList());
+            allOk &= await _btWrite(b.sublist(off, end));
             off = end;
             if (!allOk) break;
             if (off < b.length) await _sleep(_pacing.pieceGapMs);
@@ -152,7 +176,7 @@ class PrinterService {
         }
         if (!allOk) break;
         await _sleep(EscPos.settleDelayMs);
-        allOk &= await PrintBluetoothThermal.writeBytes(EscPos.feedAndCut.toList());
+        allOk &= await _btWrite(EscPos.feedAndCut);
         if (s < slips.length - 1) await _sleep(EscPos.settleDelayMs);
       }
       // Socket foran band karne se bill ka akhri hissa kat jata tha — printer ko poora print karne dein.
@@ -162,9 +186,7 @@ class PrinterService {
       debugPrint('print failed: $e');
       return false;
     } finally {
-      try {
-        await PrintBluetoothThermal.disconnect;
-      } catch (_) {}
+      await _btClose();
     }
   }
 
@@ -380,15 +402,15 @@ class PrinterService {
     if (!await hasPermission()) return 'Bluetooth permission dein';
     if (!await bluetoothOn()) return 'Bluetooth on karein';
     try {
-      await PrintBluetoothThermal.disconnect;
-      if (!await PrintBluetoothThermal.connect(macPrinterAddress: addr)) {
+      await _btClose();
+      if (!await _btConnect(addr)) {
         return 'Print nahi hua — printer on/paired hai? Dobara koshish karein';
       }
       var ok = true;
       _pacing = await safeMode() ? PrintPacing.safe : PrintPacing.normal;
       for (var off = 0; off < payload.length; off += _pacing.pieceBytes) {
         final end = off + _pacing.pieceBytes > payload.length ? payload.length : off + _pacing.pieceBytes;
-        ok &= await PrintBluetoothThermal.writeBytes(payload.sublist(off, end).toList());
+        ok &= await _btWrite(payload.sublist(off, end));
         if (end < payload.length) await _sleep(_pacing.pieceGapMs);
       }
       await _sleep(EscPos.closeDrainDelayMs);
@@ -397,9 +419,7 @@ class PrinterService {
       debugPrint('text print failed: $e');
       return 'Print nahi hua — printer on/paired hai? Dobara koshish karein';
     } finally {
-      try {
-        await PrintBluetoothThermal.disconnect;
-      } catch (_) {}
+      await _btClose();
     }
   }
 

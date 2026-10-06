@@ -120,7 +120,11 @@ case "$MAIN" in
     cat > "$MAIN" <<KT
 package $PKG
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothSocket
 import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
@@ -140,6 +144,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
+import java.io.OutputStream
+import java.util.UUID
 
 // FlutterFragmentActivity: local_auth (fingerprint). Channel: backup ki Downloads copy.
 class MainActivity : FlutterFragmentActivity() {
@@ -169,6 +175,7 @@ class MainActivity : FlutterFragmentActivity() {
                 }.start()
             }
         setupUsbChannel(flutterEngine)
+        setupBtChannel(flutterEngine)
     }
 
     // ---- USB thermal printer (Kotlin PrinterHelper USB hissa: host mode, bulk OUT endpoint). Plugin nahi. ----
@@ -284,6 +291,93 @@ class MainActivity : FlutterFragmentActivity() {
             }
     }
 
+    // ---- Bluetooth thermal printer: Kotlin PrinterHelper jaisa seedha RFCOMM socket (plugin nahi). ----
+    // print_bluetooth_thermal plugin se bhejne par tasveer wale (raster) bill tukron mein chhap rahe the;
+    // Kotlin ka seedha socket theek chhapta tha. Channel "ah_developer/bt": connect / write / close.
+    // Delays Dart mein (printer_service.dart), yahan sirf write + flush.
+    private var btSocket: BluetoothSocket? = null
+    private var btOut: OutputStream? = null
+    private val sppUuid: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+
+    private fun btClose() {
+        try { btOut?.flush() } catch (_: Exception) {}
+        try { btSocket?.close() } catch (_: Exception) {}
+        btSocket = null; btOut = null
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun btOpenSocket(device: BluetoothDevice): BluetoothSocket {
+        return try {
+            val socket = device.createRfcommSocketToServiceRecord(sppUuid)
+            socket.connect()
+            socket
+        } catch (e: Exception) {
+            // Sasti printers SDP ka jawab nahi deti: channel 1 par seedha insecure socket (Kotlin wala fallback).
+            val fallback = try {
+                val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                m.invoke(device, 1) as BluetoothSocket
+            } catch (re: Exception) {
+                throw e
+            }
+            fallback.connect()
+            fallback
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun setupBtChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ah_developer/bt")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "connect" -> {
+                        val mac = call.argument<String>("mac")
+                        Thread {
+                            var ok = false
+                            try {
+                                btClose()
+                                val adapter = BluetoothAdapter.getDefaultAdapter()
+                                if (adapter != null && mac != null) {
+                                    adapter.cancelDiscovery()
+                                    val sock = btOpenSocket(adapter.getRemoteDevice(mac))
+                                    btSocket = sock
+                                    btOut = sock.outputStream
+                                    ok = true
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                btClose()
+                            }
+                            runOnUiThread { result.success(ok) }
+                        }.start()
+                    }
+                    "write" -> {
+                        val bytes = call.argument<ByteArray>("bytes")
+                        val out = btOut
+                        if (bytes == null || out == null) {
+                            result.success(false)
+                        } else Thread {
+                            var ok = true
+                            try {
+                                out.write(bytes)
+                                out.flush()
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                ok = false
+                            }
+                            runOnUiThread { result.success(ok) }
+                        }.start()
+                    }
+                    "close" -> {
+                        Thread {
+                            btClose()
+                            runOnUiThread { result.success(true) }
+                        }.start()
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
     private fun copyToDownloads(source: File, fileName: String, folder: String): Boolean {
         if (!source.exists()) return false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -308,6 +402,7 @@ KT
     echo "=== MainActivity (Downloads channel) ==="; cat "$MAIN"
     grep -q 'ah_developer/downloads' "$MAIN" || { echo "ERROR: Downloads channel not written"; exit 1; }
     grep -q 'ah_developer/usb' "$MAIN" || { echo "ERROR: USB channel not written"; exit 1; }
+    grep -q 'ah_developer/bt' "$MAIN" || { echo "ERROR: Bluetooth channel not written"; exit 1; }
     # USB host: required=false (USB na ho to bhi app install ho; Play Store filter na lage)
     if ! grep -q 'android.hardware.usb.host' "$MANIFEST"; then
       sed -i '0,/<manifest[^>]*>/s//&\n    <uses-feature android:name="android.hardware.usb.host" android:required="false" \/>/' "$MANIFEST"
