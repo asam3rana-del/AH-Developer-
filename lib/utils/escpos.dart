@@ -95,6 +95,41 @@ class EscPos {
     return scaled > minInterChunkDelayMs ? scaled : minInterChunkDelayMs;
   }
 
+  /// "Compatible" mode: GS v 0 ki jagah purana ESC * 33 (24-dot bit image) — har strip 24 rows ki,
+  /// ESC 3 24 (line spacing = 24 dots) + ESC * 33 nL nH + data + LF. Zyadatar sasti 58mm printers
+  /// isi ko behtar samajhte hain. Height 24 ke multiple tak safed pattiyon se bhari jati hai.
+  static List<({Uint8List bytes, int stripHeight})> bitImageChunks(
+    Uint8List rgba,
+    int width,
+    int height, {
+    int threshold = 215,
+  }) {
+    const strip = 24;
+    final chunks = <({Uint8List bytes, int stripHeight})>[];
+    for (var y0 = 0; y0 < height; y0 += strip) {
+      final out = Uint8List(3 + 5 + width * 3 + 1);
+      out.setAll(0, [0x1B, 0x33, strip]); // ESC 3 24
+      out.setAll(3, [0x1B, 0x2A, 33, width & 0xFF, (width >> 8) & 0xFF]); // ESC * 33 nL nH
+      for (var x = 0; x < width; x++) {
+        for (var k = 0; k < 3; k++) {
+          var b = 0;
+          for (var i = 0; i < 8; i++) {
+            final y = y0 + k * 8 + i;
+            if (y >= height) continue;
+            final p = (y * width + x) * 4;
+            final a = rgba[p + 3];
+            final lum = a == 0 ? 255.0 : rgba[p] * 0.3 + rgba[p + 1] * 0.59 + rgba[p + 2] * 0.11;
+            if (lum < threshold) b |= 1 << (7 - i);
+          }
+          out[8 + x * 3 + k] = b;
+        }
+      }
+      out[out.length - 1] = 0x0A; // LF — line print + 24 dots feed
+      chunks.add((bytes: out, stripHeight: strip));
+    }
+    return chunks;
+  }
+
   /// [rgba] = width*height*4 bytes (dart:ui rawRgba). Luminance < [threshold] => black dot.
   /// Return: (GS v 0 command bytes, strip height) list.
   static List<({Uint8List bytes, int stripHeight})> rasterChunks(

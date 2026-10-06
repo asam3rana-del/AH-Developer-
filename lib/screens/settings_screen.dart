@@ -52,6 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _printerName = '';
   int _dots = EscPos.defaultDotsWidth;
   bool _safePrint = true;
+  bool _compatPrint = false;
   bool _testing = false;
 
   @override
@@ -68,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _printerName = pr?.name ?? '';
     _dots = await PrinterService.instance.dotsWidth();
     _safePrint = await PrinterService.instance.safeMode();
+    _compatPrint = await PrinterService.instance.compatibleMode();
     final m = await _repo.getSetting('login_method') ?? 'password';
     if (mounted) setState(() => _loginMethod = const ['none', 'fingerprint', 'both', 'otp'].contains(m) ? m : 'password');
   }
@@ -402,6 +404,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) async {
               await PrinterService.instance.saveSafeMode(v);
               if (mounted) setState(() => _safePrint = v);
+            },
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: _compatPrint,
+            title: Text(Loc.t('Compatible print mode', 'کمپیٹیبل پرنٹ موڈ')),
+            subtitle: Text(Loc.t('Chinese / kachra aaye to ON karke TEST PRINT karein', 'چینی کچرا آئے تو آن کر کے ٹیسٹ پرنٹ کریں')),
+            onChanged: (v) async {
+              await PrinterService.instance.saveCompatibleMode(v);
+              if (mounted) setState(() => _compatPrint = v);
             },
           ),
           OutlinedButton(

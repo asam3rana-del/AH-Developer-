@@ -85,6 +85,11 @@ class PrinterService {
 
   Future<void> saveSafeMode(bool on) => _repo.setSetting('printer_safe', on ? '1' : '0');
 
+  /// `printer_mode`: 'raster' (GS v 0, default) ya 'bitimage' (ESC * 33, compatible — garbled print par try karein).
+  Future<bool> compatibleMode() async => ((await _repo.getSetting('printer_mode')) ?? 'raster') == 'bitimage';
+
+  Future<void> saveCompatibleMode(bool on) => _repo.setSetting('printer_mode', on ? 'bitimage' : 'raster');
+
   PrintPacing _pacing = PrintPacing.safe;
 
   Future<int> dotsWidth() async =>
@@ -284,8 +289,12 @@ class PrinterService {
           : 'Print nahi hua — Windows printer install/on hai? Dobara koshish karein';
     }
     _pacing = await safeMode() ? PrintPacing.safe : PrintPacing.normal;
+    final compat = await compatibleMode();
     final slips = [
-      for (final img in images) EscPos.rasterChunks(img.rgba, img.width, img.height, maxStripHeight: _pacing.stripHeightPx)
+      for (final img in images)
+        compat
+            ? EscPos.bitImageChunks(img.rgba, img.width, img.height)
+            : EscPos.rasterChunks(img.rgba, img.width, img.height, maxStripHeight: _pacing.stripHeightPx)
     ];
     if (isTcp(addr)) {
       return await _sendTcp(addr, slips)

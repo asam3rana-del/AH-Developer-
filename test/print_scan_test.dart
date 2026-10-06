@@ -74,6 +74,29 @@ void main() {
       expect(chunks.map((c) => c.stripHeight).toList(), [16, 16, 8]);
     });
 
+    test('bitImageChunks: ESC 3 / ESC * 33 header, column bytes, LF', () {
+      const w = 8, h = 30;
+      final rgba = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 255);
+      void black(int x, int y) {
+        final p = (y * w + x) * 4;
+        rgba[p] = 0;
+        rgba[p + 1] = 0;
+        rgba[p + 2] = 0;
+      }
+
+      black(2, 0); // pehli strip, column 2, top bit of byte 0
+      black(3, 9); // column 3, row 9 => byte 1, bit 6
+      black(1, 26); // doosri strip, row 2 => byte 0, bit 5
+      final c = EscPos.bitImageChunks(rgba, w, h);
+      expect(c.length, 2);
+      expect(c.first.bytes.sublist(0, 8), [0x1B, 0x33, 24, 0x1B, 0x2A, 33, 8, 0]);
+      expect(c.first.bytes.length, 8 + w * 3 + 1);
+      expect(c.first.bytes.last, 0x0A);
+      expect(c.first.bytes[8 + 2 * 3 + 0], 0x80);
+      expect(c.first.bytes[8 + 3 * 3 + 1], 0x40);
+      expect(c[1].bytes[8 + 1 * 3 + 0], 0x20);
+    });
+
     test('transparent pixels stay white', () {
       final rgba = Uint8List(8 * 1 * 4); // all zero alpha
       final c = EscPos.rasterChunks(rgba, 8, 1);
