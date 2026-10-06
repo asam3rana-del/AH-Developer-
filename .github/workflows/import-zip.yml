@@ -6,26 +6,43 @@ on:
       - '*.zip'
 permissions:
   contents: write
+  actions: write
 jobs:
   import:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Unzip into repo
+        id: unzip
         run: |
-          set -e
-          ls *.zip >/dev/null 2>&1 || { echo "no zip"; exit 0; }
+          shopt -s nullglob
+          did=0
           for z in *.zip; do
+            # Kharab / adhoori zip: skip karo aur hata do, baqi zips ko na roke.
+            if ! unzip -tq "$z" >/dev/null 2>&1; then
+              echo "BAD ZIP, deleting: $z"
+              rm -f "$z"
+              continue
+            fi
             rm -rf /tmp/x && mkdir /tmp/x
             unzip -q "$z" -d /tmp/x
             SRC=$(find /tmp/x -mindepth 1 -maxdepth 1 -type d | head -1)
+            [ -n "$SRC" ] || SRC=/tmp/x
             rsync -a --exclude '.github' --exclude '.git' "$SRC"/ ./
             rm -f "$z"
+            did=1
           done
+          echo "did=$did" >> "$GITHUB_OUTPUT"
       - name: Commit
         run: |
           git config user.name "import-bot"
           git config user.email "bot@users.noreply.github.com"
           git add -A
-          git commit -m "Import porting plan and Kotlin reference" || echo "nothing to commit"
+          git commit -m "Import zip" || echo "nothing to commit"
+          git pull --rebase origin main || true
           git push
+      - name: Trigger Build on updated code
+        if: steps.unzip.outputs.did == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --ref main
