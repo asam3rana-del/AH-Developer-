@@ -412,11 +412,14 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         _btn(_printing ? Loc.t('Printing…', 'پرنٹ ہو رہا ہے…') : Loc.t('PRINT', 'پرنٹ'), Icons.print, ThemeManager.palette.blue, _printing ? null : _print),
         const SizedBox(height: 10),
         _btn(Loc.t('WhatsApp par bhejein', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
-        const SizedBox(height: 10),
-        _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, ThemeManager.palette.navyLight, () async {
-          await Clipboard.setData(ClipboardData(text: d.toText(netBalance: _partyId == null ? null : _net)));
-          _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
-        }),
+        // Save ke foran baad (Purchase ki tarah) Copy Text nahi dikhana.
+        if (!widget.justSaved) ...[
+          const SizedBox(height: 10),
+          _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, ThemeManager.palette.navyLight, () async {
+            await Clipboard.setData(ClipboardData(text: d.toText(netBalance: _partyId == null ? null : _net)));
+            _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
+          }),
+        ],
         const SizedBox(height: 10),
         Row(children: [
           Expanded(child: _btn(Loc.t('DONE', 'مکمل'), Icons.check, ThemeManager.palette.teal, () => Navigator.of(context).pop())),

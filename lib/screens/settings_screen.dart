@@ -51,6 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _headerShop = 'My Shop'; // Kotlin loadHeaderShopName: saved shop_name, warna "My Shop"
   String _printerName = '';
   int _dots = EscPos.defaultDotsWidth;
+  bool _safePrint = true;
   bool _testing = false;
 
   @override
@@ -66,6 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final pr = await PrinterService.instance.selected();
     _printerName = pr?.name ?? '';
     _dots = await PrinterService.instance.dotsWidth();
+    _safePrint = await PrinterService.instance.safeMode();
     final m = await _repo.getSetting('login_method') ?? 'password';
     if (mounted) setState(() => _loginMethod = const ['none', 'fingerprint', 'both', 'otp'].contains(m) ? m : 'password');
   }
@@ -391,6 +393,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Expanded(child: OutlinedButton(onPressed: _testing ? null : _testPrint, child: Text(Loc.t('TEST PRINT', 'ٹیسٹ پرنٹ')))),
           ]),
           const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: _safePrint,
+            title: Text(Loc.t('Safe print (slower)', 'محفوظ پرنٹ (آہستہ)')),
+            subtitle: Text(Loc.t('ON rakhein agar print mein Chinese / ulta seedha kachra aaye', 'اگر پرنٹ میں چینی جیسا کچرا آئے تو آن رکھیں')),
+            onChanged: (v) async {
+              await PrinterService.instance.saveSafeMode(v);
+              if (mounted) setState(() => _safePrint = v);
+            },
+          ),
           OutlinedButton(
             onPressed: _pickWidth,
             child: Text(Loc.t('PRINT WIDTH: $_dots (garbled print? try 384)', 'پرنٹ چوڑائی: $_dots')),

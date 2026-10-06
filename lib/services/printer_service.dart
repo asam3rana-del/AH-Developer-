@@ -79,6 +79,14 @@ class PrinterService {
     await _repo.setSetting('printer_width', '58');
   }
 
+  /// Safe print (default ON): chhoti strips + lambe pause, taa ke printer ka buffer na bhare.
+  /// Setting `printer_safe` = '0' ho to purani tez raftar.
+  Future<bool> safeMode() async => ((await _repo.getSetting('printer_safe')) ?? '1') != '0';
+
+  Future<void> saveSafeMode(bool on) => _repo.setSetting('printer_safe', on ? '1' : '0');
+
+  PrintPacing _pacing = PrintPacing.safe;
+
   Future<int> dotsWidth() async =>
       EscPos.normalizeDotsWidth(int.tryParse((await _repo.getSetting('printer_dots')) ?? ''));
 
@@ -128,14 +136,14 @@ class PrinterService {
           final b = chunk.bytes;
           var off = 0;
           while (off < b.length) {
-            final end = off + EscPos.btWritePieceBytes > b.length ? b.length : off + EscPos.btWritePieceBytes;
+            final end = off + _pacing.pieceBytes > b.length ? b.length : off + _pacing.pieceBytes;
             allOk &= await PrintBluetoothThermal.writeBytes(b.sublist(off, end).toList());
             off = end;
             if (!allOk) break;
-            if (off < b.length) await _sleep(EscPos.btWritePieceGapMs);
+            if (off < b.length) await _sleep(_pacing.pieceGapMs);
           }
           if (!allOk) break;
-          await _sleep(EscPos.interChunkDelayMs(chunk.stripHeight));
+          await _sleep(_pacing.delayFor(chunk.stripHeight));
         }
         if (!allOk) break;
         await _sleep(EscPos.settleDelayMs);
@@ -206,7 +214,7 @@ class PrinterService {
         await _sleep(EscPos.settleDelayMs);
         for (final chunk in slips[s]) {
           allOk &= await UsbPrinter.write(chunk.bytes);
-          await _sleep(EscPos.interChunkDelayMs(chunk.stripHeight));
+          await _sleep(_pacing.delayFor(chunk.stripHeight));
           if (!allOk) break;
         }
         if (!allOk) break;
@@ -275,7 +283,10 @@ class PrinterService {
           ? null
           : 'Print nahi hua — Windows printer install/on hai? Dobara koshish karein';
     }
-    final slips = [for (final img in images) EscPos.rasterChunks(img.rgba, img.width, img.height)];
+    _pacing = await safeMode() ? PrintPacing.safe : PrintPacing.normal;
+    final slips = [
+      for (final img in images) EscPos.rasterChunks(img.rgba, img.width, img.height, maxStripHeight: _pacing.stripHeightPx)
+    ];
     if (isTcp(addr)) {
       return await _sendTcp(addr, slips)
           ? null
@@ -365,10 +376,11 @@ class PrinterService {
         return 'Print nahi hua — printer on/paired hai? Dobara koshish karein';
       }
       var ok = true;
-      for (var off = 0; off < payload.length; off += EscPos.btWritePieceBytes) {
-        final end = off + EscPos.btWritePieceBytes > payload.length ? payload.length : off + EscPos.btWritePieceBytes;
+      _pacing = await safeMode() ? PrintPacing.safe : PrintPacing.normal;
+      for (var off = 0; off < payload.length; off += _pacing.pieceBytes) {
+        final end = off + _pacing.pieceBytes > payload.length ? payload.length : off + _pacing.pieceBytes;
         ok &= await PrintBluetoothThermal.writeBytes(payload.sublist(off, end).toList());
-        if (end < payload.length) await _sleep(EscPos.btWritePieceGapMs);
+        if (end < payload.length) await _sleep(_pacing.pieceGapMs);
       }
       await _sleep(EscPos.closeDrainDelayMs);
       return ok ? null : 'Print nahi hua — printer on/paired hai? Dobara koshish karein';

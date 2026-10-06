@@ -1462,7 +1462,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                     Expanded(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.fromLTRB(16, 20, 4, 8),
-                        child: _buildLinesList(),
+                        child: _buildLinesList(inline: true),
                       ),
                     ),
                     Flexible(
@@ -1698,7 +1698,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             children: [
               Expanded(
                 child: _fieldBox(
-                  child: RawAutocomplete<String>(
+                  child: LayoutBuilder(builder: (context, fieldBox) => RawAutocomplete<String>(
                     textEditingController: _customerCtrl,
                     focusNode: _customerFocus,
                     onSelected: (_) {
@@ -1724,8 +1724,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       decoration: InputDecoration(hintText: Loc.t('Customer Name (Walk-in)', 'کسٹمر کا نام (واک ان)'), border: InputBorder.none, isDense: true),
                     ),
                     optionsViewBuilder: (context, onSelected, options) =>
-                        autocompleteOptionsView<String>(context, onSelected, options, (o) => o, maxWidth: 640),
-                  ),
+                        autocompleteOptionsView<String>(context, onSelected, options, (o) => o, maxWidth: fieldBox.maxWidth),
+                  )),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1834,7 +1834,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         children: [
           SectionLabel(emoji: '➕', label: 'Add Item', accent: ThemeManager.palette.amber),
           _fieldBox(
-            child: RawAutocomplete<Product>(
+            child: LayoutBuilder(builder: (context, fieldBox) => RawAutocomplete<Product>(
               textEditingController: _itemCtrl,
               focusNode: _itemFocus,
               displayStringForOption: (p) => p.name,
@@ -1881,8 +1881,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 ),
               ),
               optionsViewBuilder: (context, onSelected, options) =>
-                  autocompleteOptionsView<Product>(context, onSelected, options, (o) => o.name, maxWidth: 640),
-            ),
+                  autocompleteOptionsView<Product>(context, onSelected, options, (o) => o.name, maxWidth: fieldBox.maxWidth),
+            )),
           ),
           if (picked != null)
             Padding(
@@ -2013,7 +2013,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   /// Compact trigger (Kotlin `billedItemsTrigger`): the full list lives in a popup
   /// so the entry fields and totals stay on screen while items are added.
-  Widget _buildLinesList() {
+  Widget _buildLinesList({bool inline = false}) {
+    if (inline) return _buildInlineLines();
     if (_lines.isEmpty) return const SizedBox.shrink();
     return PremiumCard(
       accentTop: ThemeManager.palette.navy,
@@ -2036,6 +2037,33 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Tablet right pane: billed items always visible (Purchase ki tarah), apni scroll ke saath.
+  Widget _buildInlineLines() {
+    if (_lines.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: Center(
+          child: Text(Loc.t('No items added yet', 'ابھی تک کوئی آئٹم شامل نہیں'),
+              style: TextStyle(color: ThemeManager.palette.textMuted)),
+        ),
+      );
+    }
+    return PremiumCard(
+      accentTop: ThemeManager.palette.navy,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SectionLabel(
+              emoji: '🧾',
+              label: '${Loc.t('Billed Items', 'بل کردہ آئٹمز')} (${_lines.length})',
+              accent: ThemeManager.palette.navyInk),
+          for (var i = 0; i < _lines.length; i++)
+            _billedLineTile(i, _lines[i], onEdit: () => _editLine(i), onDelete: () => _removeLine(i)),
+        ],
       ),
     );
   }

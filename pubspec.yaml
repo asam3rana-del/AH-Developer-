@@ -63,3 +63,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/
+  fonts:
+    # Urdu: PDF (lib/utils/pdf_urdu.dart) aur bill print (receipt_renderer.dart) dono isi se likhte hain.
+    - family: NotoNastaliqUrdu
+      fonts:
+        - asset: assets/fonts/NotoNastaliqUrdu-Regular.ttf

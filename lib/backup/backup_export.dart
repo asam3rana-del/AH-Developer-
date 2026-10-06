@@ -11,6 +11,7 @@ import 'package:printing/printing.dart' show PdfGoogleFonts;
 
 import '../db/app_database.dart';
 import '../models/product.dart';
+import '../utils/pdf_urdu.dart';
 
 /// Mirrors BackupExportActivity.kt (data + CSV + PDF hissa; screen `backup_export_screen.dart` mein).
 /// Sales, Purchases, Day Book, Customers/Suppliers (+ledgers), Products/Stock, Expenses, Cash/Bank
@@ -369,8 +370,23 @@ class BackupExport {
 
   static pw.Widget _heading(String t) => pw.Padding(
         padding: const pw.EdgeInsets.only(top: 10, bottom: 6),
-        child: pw.Text(t, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _teal)),
+        child: UrduPdf.widget(t, fontSize: 13, argb: 0xFF0F9B8E, bold: true) ??
+            pw.Text(t, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _teal)),
       );
+
+  /// Table ka ek cell: Urdu ho to Noto Nastaliq ki tasveer, warna aam pw.Text.
+  static pw.Widget _cell(String t, {bool header = false}) {
+    final size = header ? 8.5 : 8.3;
+    final child = UrduPdf.widget(t, fontSize: size, argb: header ? 0xFFFFFFFF : 0xFF2E3242, bold: header) ??
+        pw.Text(t,
+            style: header
+                ? pw.TextStyle(fontSize: size, fontWeight: pw.FontWeight.bold, color: PdfColors.white)
+                : pw.TextStyle(fontSize: size, color: _navy));
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      child: pw.Align(alignment: pw.Alignment.centerLeft, child: child),
+    );
+  }
 
   static pw.Widget _table(List<String> headers, List<double> weights, List<List<String>> rows) {
     if (rows.isEmpty) {
@@ -381,16 +397,16 @@ class BackupExport {
     }
     return pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 8),
-      child: pw.TableHelper.fromTextArray(
-        headers: headers,
-        data: rows,
+      child: pw.Table(
         columnWidths: {for (var i = 0; i < weights.length; i++) i: pw.FlexColumnWidth(weights[i])},
-        headerStyle: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-        headerDecoration: const pw.BoxDecoration(color: _blue),
-        cellStyle: const pw.TextStyle(fontSize: 8.3, color: _navy),
-        cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        cellAlignment: pw.Alignment.centerLeft,
         border: const pw.TableBorder(horizontalInside: pw.BorderSide(color: _line, width: 0.6)),
+        children: [
+          pw.TableRow(
+            decoration: const pw.BoxDecoration(color: _blue),
+            children: [for (final h in headers) _cell(h, header: true)],
+          ),
+          for (final r in rows) pw.TableRow(children: [for (final c in r) _cell(c)]),
+        ],
       ),
     );
   }
@@ -400,7 +416,7 @@ class BackupExport {
     final gen = DateFormat('dd MMM yyyy hh:mm a').format(generatedAt ?? DateTime.now());
 
     final t = data.totals;
-    final widgets = <pw.Widget>[
+    List<pw.Widget> makeWidgets() => <pw.Widget>[
       pw.Text('Grocery POS - Business Backup Report',
           style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: _navy)),
       pw.SizedBox(height: 4),
@@ -457,6 +473,11 @@ class BackupExport {
       _table(['Date', 'Type', 'Method', 'Amount', 'Reason'], [1.4, 0.8, 0.9, 0.9, 1.6],
           [for (final c in data.cashTx) [_dt(c.createdAt), c.type, c.method, _rs(c.amount), c.reason]]),
     ];
+
+    // Pass 1: kaunsa Urdu text chahiye (yaad rakhta hai) -> tasveerein banao -> Pass 2: asli widgets.
+    makeWidgets();
+    await UrduPdf.flush();
+    final widgets = makeWidgets();
 
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,

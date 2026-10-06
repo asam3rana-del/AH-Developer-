@@ -22,12 +22,21 @@ const _cellPadH = 8.0;
 bool _isRtl(String s) => RegExp(r'[\u0590-\u08FF\uFB50-\uFEFF]').hasMatch(s);
 
 TextPainter _tp(String text, double size, {bool bold = false, TextAlign align = TextAlign.start, double? maxWidth, int? maxLines}) {
+  final rtl = _isRtl(text);
   final p = TextPainter(
     text: TextSpan(
       text: text,
-      style: TextStyle(color: const Color(0xFF000000), fontSize: size, fontWeight: bold ? FontWeight.w800 : FontWeight.w600, height: 1.25),
+      // Urdu: bundled Noto Nastaliq (pubspec fonts) — device ke system font par bharosa nahi.
+      // Nastaliq ki apni lambi line-height hoti hai, is liye height null.
+      style: TextStyle(
+        color: const Color(0xFF000000),
+        fontSize: rtl ? size * 0.95 : size,
+        fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+        height: rtl ? null : 1.25,
+        fontFamily: rtl ? 'NotoNastaliqUrdu' : null,
+      ),
     ),
-    textDirection: _isRtl(text) ? TextDirection.rtl : TextDirection.ltr,
+    textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
     textAlign: align,
     maxLines: maxLines,
     ellipsis: maxLines == null ? null : '…',

@@ -60,6 +60,20 @@ void main() {
       expect(second[8 + 6 * 2 + 1], 0x40);
     });
 
+    test('PrintPacing: safe is slower and smaller than normal', () {
+      expect(PrintPacing.safe.stripHeightPx, lessThan(PrintPacing.normal.stripHeightPx));
+      expect(PrintPacing.safe.pieceBytes, lessThan(PrintPacing.normal.pieceBytes));
+      expect(PrintPacing.safe.delayFor(1), PrintPacing.safe.minDelayMs);
+      expect(PrintPacing.normal.delayFor(24), EscPos.interChunkDelayMs(24));
+    });
+
+    test('rasterChunks honours a smaller strip height', () {
+      const w = 16, h = 40;
+      final rgba = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 255);
+      final chunks = EscPos.rasterChunks(rgba, w, h, maxStripHeight: PrintPacing.safe.stripHeightPx);
+      expect(chunks.map((c) => c.stripHeight).toList(), [16, 16, 8]);
+    });
+
     test('transparent pixels stay white', () {
       final rgba = Uint8List(8 * 1 * 4); // all zero alpha
       final c = EscPos.rasterChunks(rgba, 8, 1);

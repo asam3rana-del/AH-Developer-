@@ -1,6 +1,36 @@
 import 'dart:typed_data';
 
 /// ESC/POS helpers (Kotlin PrinterHelper ke constants + bitmapToEscPosRasterChunks).
+/// Bluetooth/USB printer ko data bhejne ki raftar. Sasti 58mm printers ka buffer chhota hota hai:
+/// data tez aaye to bytes raste mein gir jate hain, printer raster command ka beech bhool jata hai
+/// aur baqi bytes text samajh kar Chinese/CJK jaisa kachra chhap deta hai.
+/// `safe` = chhoti strips + lambe pause (Kotlin PrinterHelper ke "agla qadam" wale values).
+class PrintPacing {
+  final int stripHeightPx;
+  final int minDelayMs;
+  final double msPerRow;
+  final int pieceBytes;
+  final int pieceGapMs;
+  const PrintPacing({
+    required this.stripHeightPx,
+    required this.minDelayMs,
+    required this.msPerRow,
+    required this.pieceBytes,
+    required this.pieceGapMs,
+  });
+
+  /// Pehle wale (Kotlin FIX 5) values.
+  static const normal = PrintPacing(stripHeightPx: 24, minDelayMs: 200, msPerRow: 10, pieceBytes: 128, pieceGapMs: 20);
+
+  /// Garbled / Chinese print ke liye: 16px strips, 64-byte tukde, lambe pause.
+  static const safe = PrintPacing(stripHeightPx: 16, minDelayMs: 300, msPerRow: 14, pieceBytes: 64, pieceGapMs: 35);
+
+  int delayFor(int stripHeight) {
+    final scaled = (stripHeight * msPerRow).toInt();
+    return scaled > minDelayMs ? scaled : minDelayMs;
+  }
+}
+
 class EscPos {
   EscPos._();
 
@@ -72,12 +102,13 @@ class EscPos {
     int width,
     int height, {
     int threshold = 215,
+    int maxStripHeight = maxStripHeightPx,
   }) {
     final bytesPerRow = (width + 7) ~/ 8;
     final chunks = <({Uint8List bytes, int stripHeight})>[];
     var y = 0;
     while (y < height) {
-      final strip = (height - y) < maxStripHeightPx ? (height - y) : maxStripHeightPx;
+      final strip = (height - y) < maxStripHeight ? (height - y) : maxStripHeight;
       final out = Uint8List(8 + bytesPerRow * strip);
       out.setAll(0, [
         0x1D, 0x76, 0x30, 0x00,
