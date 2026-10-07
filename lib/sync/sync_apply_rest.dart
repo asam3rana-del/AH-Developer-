@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 
 import '../db/maintenance_sync.dart';
 import 'sync_queue_dao.dart';
+import 'sync_queue_helper.dart';
 import 'sync_types.dart';
 
 /// Kotlin `SyncApi.applyServerChanges()` ka HISSA 2 — sales, purchases, expenses, payments,
@@ -644,8 +647,43 @@ Future<void> applyAppSettings(DatabaseExecutor db, List<SyncDoc> rows) async {
     if ((await q.pendingForEntityAnyRetry('app_setting', key, 'upsert')).isNotEmpty) continue;
     final value = _s(row['value']);
     if (value == null) continue;
+    if (key.startsWith(SyncQueueHelper.monthClosePrefix)) {
+      await applyMonthCloseSetting(db, key, value);
+      continue;
+    }
     await db.insert('app_settings', {'key': key, 'value': value},
         conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+}
+
+/// `month_close:<yyyy-MM>` setting => local `period_closes` (closed:true = band/update, closed:false = Reopen).
+/// `app_settings` table mein nahi likhta. Kharab key/JSON khamoshi se skip (baqi pull na ruke).
+Future<void> applyMonthCloseSetting(DatabaseExecutor db, String key, String value) async {
+  final periodKey = key.substring(SyncQueueHelper.monthClosePrefix.length);
+  if (!RegExp(r'^\d{4}-(0[1-9]|1[0-2])$').hasMatch(periodKey)) return;
+  Object? decoded;
+  try {
+    decoded = jsonDecode(value);
+  } catch (_) {
+    return;
+  }
+  if (decoded is! Map) return;
+  if (decoded['closed'] == true) {
+    await db.insert(
+      'period_closes',
+      {
+        'periodKey': periodKey,
+        'closedAt': _i(decoded['closedAt']) ?? 0,
+        'closedBy': _s(decoded['closedBy']) ?? '',
+        'saleTotal': _d(decoded['saleTotal']) ?? 0.0,
+        'purchaseTotal': _d(decoded['purchaseTotal']) ?? 0.0,
+        'expenseTotal': _d(decoded['expenseTotal']) ?? 0.0,
+        'note': _s(decoded['note']) ?? '',
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  } else {
+    await db.delete('period_closes', where: 'periodKey = ?', whereArgs: [periodKey]);
   }
 }
 

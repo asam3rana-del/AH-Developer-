@@ -38,6 +38,17 @@ class SyncQueueHelper {
     'shop_name', 'shop_phone', 'shop_address', 'receipt_footer', 'currency', 'tax_percent',
   };
 
+  /// Month Close sync: har mahine ki state `app_settings` collection mein key `month_close:<yyyy-MM>`
+  /// ke tor par jati hai (value = JSON; `closed:false` = Reopen). Nayi Firestore collection nahi — rules/index
+  /// badalne ki zaroorat nahi, aur purani collections ki pull kabhi nahi tootti.
+  static const String monthClosePrefix = 'month_close:';
+
+  static String monthCloseKey(String periodKey) => '$monthClosePrefix$periodKey';
+
+  /// Sync hone wali app_settings key? (fixed whitelist ya `month_close:*`).
+  static bool isSyncedAppSettingKey(String key) =>
+      syncedAppSettingKeys.contains(key) || key.startsWith(monthClosePrefix);
+
   // ------------------------------------------------------------------ ids
 
   static String _tag() => DeviceTag.current;
@@ -566,7 +577,7 @@ class SyncQueueHelper {
 
   /// Whitelist se bahar ki key par khamoshi se kuch nahi.
   static Future<void> enqueueAppSetting(DatabaseExecutor ex, String key, String value) async {
-    if (!syncedAppSettingKeys.contains(key)) return;
+    if (!isSyncedAppSettingKey(key)) return;
     await enqueue(ex, 'app_setting', appSettingEntityId(key), 'upsert', appSettingPayload(key, value));
   }
 
@@ -791,6 +802,18 @@ class SyncQueueHelper {
       }
       for (final r in await txn.query('cash_register')) {
         await enqueueCashRegister(txn, r['date'] as String);
+      }
+      // Band mahine (Month Close) — doosre device par bhi lock lagne ke liye.
+      for (final r in await txn.query('period_closes')) {
+        await enqueueAppSetting(txn, monthCloseKey(r['periodKey'] as String), jsonEncode({
+          'closed': true,
+          'closedAt': r['closedAt'],
+          'closedBy': r['closedBy'],
+          'saleTotal': r['saleTotal'],
+          'purchaseTotal': r['purchaseTotal'],
+          'expenseTotal': r['expenseTotal'],
+          'note': r['note'],
+        }));
       }
       for (final r in await txn.query('shell_customers')) {
         await enqueueShellCustomer(txn, r['id'] as int);

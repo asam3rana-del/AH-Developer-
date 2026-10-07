@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 16;
+  static const _dbVersion = 17;
 
   Database? _db;
 
@@ -325,7 +325,7 @@ class AppDatabase {
       )
     ''');
 
-    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql]) {
+    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._periodClosesSql]) {
       batch.execute(sql);
     }
 
@@ -431,7 +431,28 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'products', 'wholesaleBulkPrice', 'REAL NOT NULL DEFAULT 0');
       await _addColumnIfMissing(db, 'products', 'wholesaleBulkMinQty', 'REAL NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 17) {
+      // v17: optional Month Close (sirf user ke kehne par). Sync: app_settings key 'month_close:<yyyy-MM>' ke zariye (period_close_repository.dart).
+      for (final sql in _periodClosesSql) {
+        await db.execute(sql);
+      }
+    }
   }
+
+  /// Optional Month Close: ek row = ek band mahina (periodKey 'yyyy-MM') + band karte waqt ke figures.
+  static const _periodClosesSql = <String>[
+    '''
+      CREATE TABLE IF NOT EXISTS period_closes (
+        periodKey TEXT PRIMARY KEY NOT NULL,
+        closedAt INTEGER NOT NULL,
+        closedBy TEXT NOT NULL DEFAULT '',
+        saleTotal REAL NOT NULL DEFAULT 0,
+        purchaseTotal REAL NOT NULL DEFAULT 0,
+        expenseTotal REAL NOT NULL DEFAULT 0,
+        note TEXT NOT NULL DEFAULT ''
+      )
+    ''',
+  ];
 
   static const _stockMovementsSql = <String>[
     '''

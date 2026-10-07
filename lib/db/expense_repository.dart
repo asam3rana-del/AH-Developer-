@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart' show Transaction;
 
 import '../models/misc_entities.dart';
 import 'app_database.dart';
+import 'period_close_repository.dart';
 import 'cash_repository.dart' show planCashEntry;
 import '../sync/device_tag.dart';
 import '../sync/sync_queue_helper.dart';
@@ -123,6 +124,7 @@ class ExpenseRepository {
     if (id == null) return;
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
+      await PeriodCloseRepository.assertOpen(txn, e.createdAt);
       // Entity id (serverId-preferred) row delete se PEHLE — doosre device se aayi row ki asal id na khoye.
       final eid = await SyncQueueHelper.entityIdFor(txn, 'expense', '$id');
       await txn.delete('expenses', where: 'id = ?', whereArgs: [id]);

@@ -6,6 +6,7 @@ import '../models/product.dart';
 import '../models/purchase.dart';
 import '../services/session.dart';
 import 'app_database.dart';
+import 'period_close_repository.dart';
 import 'party_transaction_repository.dart'
     show InsufficientStockException, purchaseItemSmallestQty, reconcilePaid, reversePurchaseLineCost;
 import '../models/stock_movement.dart' show MovementType;
@@ -306,6 +307,7 @@ class PurchaseHistoryRepository {
     await db.transaction((txn) async {
       final pr = await txn.query('purchases', where: 'billNo = ?', whereArgs: [billNo], limit: 1);
       if (pr.isEmpty) throw StateError('Ye bill nahi mila');
+      await PeriodCloseRepository.assertOpen(txn, (pr.first['createdAt'] as num).toInt());
       final purchase = Purchase.fromMap(pr.first);
       if (purchase.status == 'returned') throw StateError('Ye purchase pehle hi return ho chuki hai');
       final now = _now();
@@ -407,6 +409,7 @@ class PurchaseHistoryRepository {
     await db.transaction((txn) async {
       final pr = await txn.query('purchases', where: 'billNo = ?', whereArgs: [billNo], limit: 1);
       if (pr.isEmpty) throw StateError('Ye bill nahi mila');
+      await PeriodCloseRepository.assertOpen(txn, (pr.first['createdAt'] as num).toInt());
       final purchase = Purchase.fromMap(pr.first);
       final items = (await txn.query('purchase_items', where: 'billNo = ?', whereArgs: [billNo])).map(PurchaseItem.fromMap).toList();
       final now = _now();

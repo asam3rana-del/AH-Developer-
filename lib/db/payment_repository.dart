@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/misc_entities.dart';
 import '../services/session.dart';
 import 'app_database.dart';
+import 'period_close_repository.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
 import '../sync/device_tag.dart';
@@ -230,6 +231,8 @@ class PaymentRepository {
     final db = await AppDatabase.instance.database;
     final delta = newAmount - original.amount;
     await db.transaction((txn) async {
+      await PeriodCloseRepository.assertOpen(txn, original.createdAt);
+      await PeriodCloseRepository.assertOpen(txn, newDateMillis);
       // Naye bill ka baaqi (is payment ka apna purana hissa wapis jod kar) — usse zyada link nahi ho sakta.
       final left = await _billRemaining(txn, isCustomer, newBillRef);
       if (left != null) {
@@ -285,6 +288,7 @@ class PaymentRepository {
     if (!Session.isAdmin) throw StateError('Sirf Admin ye action kar sakta hai');
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
+      await PeriodCloseRepository.assertOpen(txn, payment.createdAt);
       // Tombstone ki entity id (serverId-preferred) row delete se PEHLE nikalti hai.
       await SyncQueueHelper.deletePaymentsByReference(txn, payment.reference);
       await SyncQueueHelper.deleteCashTransactionsByReference(txn, payment.reference);
