@@ -57,9 +57,10 @@ Future<ReceiptImage> renderReceipt(List<ReceiptLine> lines, {double fontSizePx =
   }
 
   final tableFont = fontSizePx * 0.88;
-  // Columns (left -> right): amount 23%, rate 17%, qty 20%, item 40%.
+  // Columns (left -> right): amount 22%, rate 17%, qty 22%, item 39%.
   // Amount left par, Item right par (Urdu naam right se shuru hota hai).
-  final cw = [inner * 0.23, inner * 0.17, inner * 0.20, inner * 0.40];
+  // Qty column thoda chaura: "0.615 Qtr" / "9.091 Gram" jaisi lambi qty ab `...` mein nahi katti.
+  final cw = [inner * 0.22, inner * 0.17, inner * 0.22, inner * 0.39];
 
   for (final l in lines) {
     switch (l) {
@@ -83,7 +84,7 @@ Future<ReceiptImage> renderReceipt(List<ReceiptLine> lines, {double fontSizePx =
         final cells = [l.amount, l.rate, l.qty, l.name];
         final tps = <TextPainter>[];
         for (var i = 0; i < 4; i++) {
-          tps.add(_tp(cells[i], tableFont, bold: hdr, maxWidth: cw[i] - _cellPadH, maxLines: i == 3 ? 3 : 1,
+          tps.add(_tp(cells[i], tableFont, bold: hdr, maxWidth: cw[i] - _cellPadH, maxLines: i == 3 ? 3 : (i == 2 ? 2 : 1), // qty: lambi ho to space par 2 lines (number / unit)
               align: TextAlign.right));
         }
         var h = 0.0;
