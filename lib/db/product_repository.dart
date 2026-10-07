@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
 
 import '../models/product.dart';
+import '../utils/sale_cart.dart' show saleTierCount;
 import '../utils/bulk_rate_planner.dart' show BulkRateRow, BulkRateTarget;
 import 'app_database.dart';
 import 'stock_ledger.dart';
@@ -136,6 +137,61 @@ class ProductRepository {
   Future<void> setDefaultUnitIndex(String barcode, int index) {
     _requireProductAdmin();
     return _updateAndEnqueue(barcode, {'defaultUnitIndex': index});
+  }
+
+  /// Default Sale Unit screen: 2+ unit wale sab products (naam ke hisaab se). Category filter screen karti hai.
+  Future<List<Product>> multiUnitProducts() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query('products', where: "secondaryUnit != ''", orderBy: 'name COLLATE NOCASE ASC');
+    return rows.map(Product.fromMap).toList();
+  }
+
+  /// Ek product ka Sale aur/ya Quick Sale default unit (index; -1 = Auto). `null` = us ko mat chhedo.
+  Future<void> setSaleUnitDefaults(String barcode, {int? saleIndex, int? quickIndex}) {
+    _requireProductAdmin();
+    final changes = <String, Object?>{
+      if (saleIndex != null) 'defaultUnitIndex': saleIndex,
+      if (quickIndex != null) 'quickSaleDefaultUnitIndex': quickIndex,
+    };
+    if (changes.isEmpty) return Future.value();
+    return _updateAndEnqueue(barcode, changes);
+  }
+
+  /// Category-wise: bohat si products par ek hi unit position (0 = pehla/primary, 1 = doosra, 2 = teesra, -1 = Auto)
+  /// ek transaction mein (har product sync_queue mein). Jis product mein itne unit nahi, wo skip.
+  /// Wapas: (badli hui, skip hui) products ki ginti.
+  Future<({int changed, int skipped})> applySaleUnitDefaultsBulk(List<Product> products,
+      {int? saleIndex, int? quickIndex}) async {
+    _requireProductAdmin();
+    if (saleIndex == null && quickIndex == null) return (changed: 0, skipped: 0);
+    final db = await AppDatabase.instance.database;
+    var changed = 0, skipped = 0;
+    await db.transaction((txn) async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final p in products) {
+        final tiers = saleTierCount(p);
+        final saleOk = saleIndex != null && saleIndex < tiers;
+        final quickOk = quickIndex != null && quickIndex < tiers;
+        if (!saleOk && !quickOk) {
+          skipped++;
+          continue;
+        }
+        await txn.update(
+            'products',
+            {
+              if (saleOk) 'defaultUnitIndex': saleIndex,
+              if (quickOk) 'quickSaleDefaultUnitIndex': quickIndex,
+              'dirty': 1,
+              'updatedAt': now,
+            },
+            where: 'barcode=?',
+            whereArgs: [p.barcode]);
+        await SyncQueueHelper.enqueueProduct(txn, p.barcode);
+        changed++;
+      }
+    });
+    await _notify();
+    return (changed: changed, skipped: skipped);
   }
 
   /// updateRatesReview + enqueueProduct, ek transaction mein. Rates PRIMARY unit par.
