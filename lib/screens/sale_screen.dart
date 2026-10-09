@@ -23,6 +23,7 @@ import '../utils/loc.dart';
 import '../utils/sale_cart.dart';
 import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
+import '../utils/stock_policy.dart';
 import '../widgets/autocomplete_options.dart';
 import '../widgets/held_bills_dialog.dart';
 import '../widgets/premium_widgets.dart';
@@ -113,6 +114,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    StockPolicy.load();
     WidgetsBinding.instance.addObserver(this);
     // Kotlin jaisa: qty / rate / discount / paid par focus aate hi purani value select.
     _selectAllOnFocus(_qtyFocus, _qtyCtrl);
@@ -587,8 +589,13 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         product.stock + (_originalSmallestByBarcode[product.barcode] ?? 0.0) - alreadyInCartSmallest;
 
     if (availableForThisAdd < neededSmallest) {
-      _toast('Stock kam hai — "${product.name}" mein sirf ${formatQty(availableForThisAdd < 0 ? 0 : availableForThisAdd)} ${product.smallestUnitName()} bacha hai');
-      return;
+      final left = formatQty(availableForThisAdd < 0 ? 0 : availableForThisAdd);
+      if (!StockPolicy.allowShortStock) {
+        _toast('Stock kam hai — "${product.name}" mein sirf $left ${product.smallestUnitName()} bacha hai');
+        return;
+      }
+      // Setting ON: item add ho jata hai, sirf warning.
+      _toast('Stock kam hai — "${product.name}" mein sirf $left ${product.smallestUnitName()} bacha hai (sale phir bhi hogi, stock minus mein jayega)');
     }
 
     final factor = product.smallestUnitFactor();
@@ -1011,6 +1018,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _toast(result.isCredit
           ? 'Quick Sale (credit) saved: ${result.invoice}'
           : 'Quick Sale saved: ${result.invoice}');
+      final shortNeeded = r.product.toSmallestUnits(r.qty, r.unit);
+      if (shortNeeded > r.product.stock) {
+        _toast(StockPolicy.shortWarning(r.product.name, r.product.stock, shortNeeded, r.product.smallestUnitName()));
+      }
     } on SaleCreditLimitException catch (e) {
       if (!mounted) return;
       if (await _confirmCreditLimit(e) == true && mounted) {

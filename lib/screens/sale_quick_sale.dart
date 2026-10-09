@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/party.dart';
 import '../models/product.dart';
+import '../utils/stock_policy.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart';
 import '../widgets/autocomplete_options.dart';
@@ -154,7 +155,7 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
     final price = typedPrice ?? product.fromPrimaryUnitRate(product.salePrice, unit);
 
     final needed = product.toSmallestUnits(qty, unit);
-    if (product.stock < needed) {
+    if (product.stock < needed && !StockPolicy.allowShortStock) {
       setState(() => _error =
           'Stock kam hai (available: ${formatQty(product.stock)} ${product.smallestUnitName()})');
       return;

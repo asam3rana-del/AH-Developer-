@@ -16,6 +16,7 @@ import 'customer_repository.dart';
 import 'product_repository.dart';
 import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
+import '../utils/stock_policy.dart';
 import 'watch_util.dart';
 
 /// One line the user has added to the sale bill before saving — mirrors
@@ -495,6 +496,7 @@ class SaleRepository {
         indicesByBarcode.putIfAbsent(lines[i].barcode, () => <int>[]).add(i);
       }
       final productByBarcode = <String, Product>{};
+      final allowShort = await StockPolicy.readFrom(txn);
       for (final entry in indicesByBarcode.entries) {
         final anyNeedsStock = entry.value.any(needsStock);
         final rows = await txn.query('products', where: 'barcode=?', whereArgs: [entry.key], limit: 1);
@@ -510,9 +512,13 @@ class SaleRepository {
               .where(needsStock)
               .fold<double>(0, (sum, i) => sum + product.toSmallestUnits(lines[i].qty, lines[i].unit));
           if (product.stock < needed) {
-            throw SaleStockException(
-              'Stock badal gaya hai — "${product.name}" mein sirf ${_trimNum(product.stock)} ${product.smallestUnitName()} available hai. Bill dobara check karen.',
-            );
+            if (!allowShort) {
+              throw SaleStockException(
+                'Stock badal gaya hai — "${product.name}" mein sirf ${_trimNum(product.stock)} ${product.smallestUnitName()} available hai. Bill dobara check karen.',
+              );
+            }
+            // Setting ON: sale rukti nahi — stock minus mein jata hai, sirf warning.
+            stockWarnings?.add(StockPolicy.shortWarning(product.name, product.stock, needed, product.smallestUnitName()));
           }
         }
         productByBarcode[entry.key] = product;
@@ -855,7 +861,9 @@ class SaleRepository {
       if (rows.isEmpty) throw SaleStockException('Stock badal gaya hai, dobara try karen');
       final current = Product.fromMap(rows.first);
       final smallest = current.toSmallestUnits(qty, unit);
-      if (current.stock < smallest) throw SaleStockException('Stock badal gaya hai, dobara try karen');
+      if (current.stock < smallest && !await StockPolicy.readFrom(txn)) {
+        throw SaleStockException('Stock badal gaya hai, dobara try karen');
+      }
       if (!current.isValidSmallestQty(smallest)) {
         throw ArgumentError('Qty ($qty $unit) whole ${current.smallestUnitName()} mein convert nahi hoti');
       }

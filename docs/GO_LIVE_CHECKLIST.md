@@ -27,6 +27,7 @@ Aakhri update: 2026-10-07 (CI Build #215 tak). "User" = dukaan wale ki apni devi
 |---------|-------|
 | Month Close / Reopen (`period_closes`) | ✅ Code shamil. Sync `app_settings` key `month_close:<yyyy-MM>` se hota hai (nayi Firestore collection / rules nahi). Test: `test/month_close_sync_test.dart` |
 | Default Sale + Quick Sale Unit screen | ✅ Code shamil. "Review" (ek ek) aur "All Products" (category chips, search, "Apply to shown"); sab badlav sync queue mein |
+| Rate Search (cost) saaf kiya | ✅ Code shamil. Cost kholne par sirf Last Cost, Profit Margin (maujooda sale rate par) aur Purchase Rate History; Average Cost aur Supplier Comparison hata diye |
 
 ## Note
 - Month Close aur Unit screen wale changes ab Build #215 mein hain (pass). Month Close ka close/reopen alag device-test aur baaki release checks (update test, backup-restore, do devices par ek saath sale) abhi list mein nahi.

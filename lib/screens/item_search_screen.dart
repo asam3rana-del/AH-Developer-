@@ -19,19 +19,6 @@ class ItemSearchScreen extends StatefulWidget {
   State<ItemSearchScreen> createState() => _ItemSearchScreenState();
 }
 
-class _SupplierSummary {
-  final String supplier;
-  final double lastRate;
-  final String lastUnit;
-  final double primaryLastRate;
-  final double avgRate;
-  final int purchaseCount;
-  final int lastPurchaseAt;
-  final double? prevPrimaryRate;
-  const _SupplierSummary(this.supplier, this.lastRate, this.lastUnit, this.primaryLastRate, this.avgRate,
-      this.purchaseCount, this.lastPurchaseAt, this.prevPrimaryRate);
-}
-
 class _ItemDetail {
   final Product product;
   final List<ItemSaleRecord> sales;
@@ -40,15 +27,12 @@ class _ItemDetail {
 }
 
 class _ItemSearchScreenState extends State<ItemSearchScreen> {
-  static const _staleRateDays = 30;
-
   final _search = TextEditingController();
   List<Product> _products = [];
   _ItemDetail? _detail;
   bool _loadingDetail = false;
   bool _showCost = false;
   bool _showAllPurchases = false;
-  bool _showAllSuppliers = false;
 
   bool get _canSeeCost => Session.isAdminOrManager;
 
@@ -79,7 +63,7 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
   }
 
   Future<void> _open(Product p) async {
-    setState(() { _loadingDetail = true; _showCost = false; _showAllSuppliers = false; _showAllPurchases = false; });
+    setState(() { _loadingDetail = true; _showCost = false; _showAllPurchases = false; });
     final repo = ItemRateRepository.instance;
     final sales = await repo.saleRecordsForItem(p.barcode);
     final purchases = _canSeeCost ? await repo.purchaseRecordsForItem(p.barcode) : <ItemPurchaseRecord>[];
@@ -249,100 +233,26 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
     ];
   }
 
-  List<_SupplierSummary> _supplierSummaries(Product p, List<ItemPurchaseRecord> records) {
-    if (records.isEmpty) return const [];
-    final by = <String, List<ItemPurchaseRecord>>{};
-    for (final r in records) {
-      by.putIfAbsent(r.supplierName, () => []).add(r); // records pehle se newest-first
-    }
-    String u(ItemPurchaseRecord r) => r.unit.trim().isEmpty ? p.unit : r.unit;
-    final out = <_SupplierSummary>[];
-    by.forEach((supplier, recs) {
-      final lastUnit = u(recs.first);
-      final lastRate = recs.first.unitCost;
-      final primaryLast = p.toPrimaryUnitRate(lastRate, lastUnit);
-      final prim = recs.map((r) => p.toPrimaryUnitRate(r.unitCost, u(r))).toList();
-      // Ghalat unit/rate wali entry (jaise Bag ka rate Gram unit mein) average ko arbon tak le jati thi:
-      // median se 10x door wali entries average se bahar rakhi jati hain (history mein wo dikhti rehti hain).
-      final sorted = [...prim]..sort();
-      final median = sorted[sorted.length ~/ 2];
-      final sane = median > 0 ? prim.where((x) => x >= median / 10 && x <= median * 10).toList() : prim;
-      final used = sane.isEmpty ? prim : sane;
-      final avgPrimary = used.reduce((a, b) => a + b) / used.length;
-      out.add(_SupplierSummary(
-        supplier, lastRate, lastUnit, primaryLast, p.fromPrimaryUnitRate(avgPrimary, lastUnit), recs.length,
-        recs.first.createdAt,
-        recs.length > 1 ? p.toPrimaryUnitRate(recs[1].unitCost, u(recs[1])) : null,
-      ));
-    });
-    out.sort((a, b) => a.primaryLastRate.compareTo(b.primaryLastRate));
-    return out;
-  }
-
-  Widget _supplierRow(_SupplierSummary s, bool isBest, double? savingsPrimary, int days, Product p) {
-    final savings = savingsPrimary == null ? null : p.fromPrimaryUnitRate(savingsPrimary, s.lastUnit);
-    final prev = s.prevPrimaryRate;
-    return _card(
-      border: isBest ? ThemeManager.palette.navyInk : ThemeManager.palette.border,
-      fill: isBest ? const Color(0xFFEAF2FF) : ThemeManager.palette.cardWhite,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(s.supplier, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark))),
-          if (isBest)
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(color: ThemeManager.palette.navy, borderRadius: BorderRadius.circular(20)),
-              child: Text(Loc.t('BEST RATE', 'بہترین ریٹ'), style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold)),
-            ),
-          if (prev != null && s.primaryLastRate > prev) Text('▲ ', style: TextStyle(color: ThemeManager.palette.orange)),
-          if (prev != null && s.primaryLastRate < prev) Text('▼ ', style: TextStyle(color: ThemeManager.palette.teal)),
-          Text('Rs ${s.lastRate.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, color: isBest ? ThemeManager.palette.navyInk : ThemeManager.palette.textDark)),
-        ]),
-        Text('${s.lastUnit}', style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
-        const SizedBox(height: 4),
-        Text(
-          '${Loc.t('Last rate', 'آخری ریٹ')}  •  ${Loc.t('Avg', 'اوسط')} Rs ${s.avgRate.toStringAsFixed(2)} / ${s.purchaseCount} ${Loc.t('purchase(s)', 'خریداری')}',
-          style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted),
-        ),
-        if (isBest && savings != null && savings > 0)
-          Text('Rs ${savings.toStringAsFixed(2)} ${Loc.t('cheaper than the next best rate', 'اگلے بہترین ریٹ سے سستا')}',
-              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
-        if (days >= _staleRateDays)
-          Text('⚠ ${Loc.t('Rate may be outdated — last bought $days days ago', 'ریٹ پرانا ہو سکتا ہے — آخری خریداری $days دن پہلے')}',
-              style: TextStyle(fontSize: 11, color: ThemeManager.palette.orange)),
-      ]),
-    );
+  /// Last cost (sab se naya purchase), primary unit mein. Records newest-first.
+  double? _lastCost(Product p, List<ItemPurchaseRecord> recs) {
+    if (recs.isEmpty) return null;
+    final r = recs.first;
+    return p.toPrimaryUnitRate(r.unitCost, r.unit.trim().isEmpty ? p.unit : r.unit);
   }
 
   Widget _costSection(_ItemDetail d) {
     final p = d.product;
-    final summaries = _supplierSummaries(p, d.purchases);
-    final best = summaries.isEmpty ? null : summaries.first;
-    final last = d.sales.isEmpty ? null : d.sales.first;
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    double? savingsPrimary;
-    if (summaries.isNotEmpty) {
-      final distinct = summaries.map((s) => s.primaryLastRate).toSet().toList()..sort();
-      if (distinct.length > 1) savingsPrimary = distinct[1] - distinct[0];
-    }
-
-    // Best purchase rate + profit margin (quick-summary ki cost wali lines)
+    // Cost summary: Last cost aur maujooda sale rate par munafa (primary unit mein).
+    final lastCost = _lastCost(p, d.purchases);
     final extra = <Widget>[];
-    if (best != null) {
-      extra.add(_statRow(Loc.t('Best Purchase Rate', 'بہترین خریداری ریٹ'),
-          'Rs ${best.lastRate.toStringAsFixed(2)} / ${best.lastUnit}  (${best.supplier})', ThemeManager.palette.orange));
-      if (last != null) {
-        final saleUnit = last.unit.trim().isEmpty ? p.unit : last.unit;
-        final costInSaleUnit = p.fromPrimaryUnitRate(best.primaryLastRate, saleUnit);
-        if (costInSaleUnit > 0) {
-          final margin = last.unitPrice - costInSaleUnit;
-          final pct = margin / costInSaleUnit * 100;
-          extra.add(_statRow(Loc.t('Profit Margin', 'منافع'),
-              '${margin >= 0 ? '+' : ''}Rs ${margin.toStringAsFixed(2)} / $saleUnit  (${pct.toStringAsFixed(1)}%)',
-              margin >= 0 ? ThemeManager.palette.teal : const Color(0xFFD9534F)));
-        }
+    if (lastCost != null) {
+      extra.add(_statRow(Loc.t('Last Cost', 'آخری لاگت'), 'Rs ${lastCost.toStringAsFixed(2)} / ${p.unit}', ThemeManager.palette.orange));
+      if (lastCost > 0 && p.salePrice > 0) {
+        final margin = p.salePrice - lastCost;
+        final pct = margin / lastCost * 100;
+        extra.add(_statRow(Loc.t('Profit Margin', 'منافع'),
+            '${margin >= 0 ? '+' : ''}Rs ${margin.toStringAsFixed(2)} / ${p.unit}  (${pct.toStringAsFixed(1)}%)',
+            margin >= 0 ? ThemeManager.palette.teal : const Color(0xFFD9534F)));
       }
     }
 
@@ -362,21 +272,6 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (extra.isNotEmpty) _card(child: Column(children: extra)),
-      _sectionHeader(Loc.t('Compare Suppliers', 'سپلائرز کا موازنہ'), ThemeManager.palette.navyInk,
-          Loc.t('Each supplier\'s last rate — cheapest first', 'ہر سپلائر کا آخری ریٹ — سب سے سستا اوپر')),
-      if (summaries.isEmpty)
-        _emptyRow(Loc.t('No supplier data yet for this item', 'اس آئٹم کا سپلائر ڈیٹا نہیں'))
-      else
-        ..._collapsible(
-          [
-            for (final s in summaries)
-              _supplierRow(s, s.primaryLastRate == summaries.first.primaryLastRate, savingsPrimary,
-                  ((now - s.lastPurchaseAt) / (1000 * 60 * 60 * 24)).floor(), p),
-          ],
-          _showAllSuppliers,
-          () => setState(() => _showAllSuppliers = !_showAllSuppliers),
-          ThemeManager.palette.navyInk,
-        ),
       _sectionHeader(Loc.t('Purchase Rate History', 'خریداری ریٹ کی تاریخ'), ThemeManager.palette.orange,
           Loc.t('Newest first', 'نیا پہلے')),
       if (purchaseRows.isEmpty)

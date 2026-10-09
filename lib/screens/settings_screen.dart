@@ -10,6 +10,7 @@ import '../utils/escpos.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
+import '../utils/stock_policy.dart';
 import '../utils/password_hasher.dart';
 import '../widgets/menu_row.dart';
 import '../widgets/premium_header.dart';
@@ -52,6 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _printerName = '';
   int _dots = EscPos.defaultDotsWidth;
   bool _safePrint = false;
+  bool _allowShort = true;
   bool _compatPrint = false;
   bool _testing = false;
 
@@ -68,6 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final pr = await PrinterService.instance.selected();
     _printerName = pr?.name ?? '';
     _dots = await PrinterService.instance.dotsWidth();
+    _allowShort = await StockPolicy.load();
     _safePrint = await PrinterService.instance.safeMode();
     _compatPrint = await PrinterService.instance.compatibleMode();
     final m = await _repo.getSetting('login_method') ?? 'password';
@@ -341,6 +344,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _tf(_shopName, Loc.t('Shop Name', 'دکان کا نام')),
             _tf(_shopPhone, Loc.t('Phone', 'فون')),
             FilledButton(onPressed: _saveShop, child: Text(Loc.t('SAVE SETTINGS', 'محفوظ کریں'))),
+          ]),
+        if (admin)
+          _card(Loc.t('Sale', 'سیل'), Icons.point_of_sale, [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              value: _allowShort,
+              title: Text(Loc.t('Stock kam ho tab bhi sale karne den', 'اسٹاک کم ہو تب بھی سیل کرنے دیں')),
+              subtitle: Text(Loc.t(
+                  'ON: sale nahi rukegi, stock minus mein jayega aur warning aayegi. OFF: stock kam ho to sale block.',
+                  'آن: سیل نہیں رکے گی، اسٹاک مائنس میں جائے گا۔ آف: اسٹاک کم ہو تو سیل بلاک۔')),
+              onChanged: (v) async {
+                await StockPolicy.save(v);
+                if (mounted) setState(() => _allowShort = v);
+              },
+            ),
           ]),
         if (admin)
           _card(Loc.t('Login Method', 'لاگ اِن کا طریقہ'), Icons.security, [
