@@ -28,7 +28,7 @@ class _BillScanScreenState extends State<BillScanScreen> {
   Future<void> _pick(ImageSource source) async {
     final XFile? file;
     try {
-      file = await _picker.pickImage(source: source, imageQuality: 92, maxWidth: 2600);
+      file = await _picker.pickImage(source: source, imageQuality: 95, maxWidth: 3200);
     } catch (e) {
       if (!mounted) return;
       setState(() => _status = Loc.t('Could not open camera/gallery: $e', 'کیمرہ/گیلری نہیں کھلی: $e'));
@@ -45,15 +45,42 @@ class _BillScanScreenState extends State<BillScanScreen> {
     final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
     try {
       final result = await recognizer.processImage(InputImage.fromFilePath(file.path));
-      final parsed = parseBillText(result.text);
+      // Text-pieces ko unki jagah se dobara qatar (row) mein jorte hain: table wale bill mein naam aur
+      // qty/rate alag pieces mein aate hain aur seedha result.text ka tarteeb bigad jata hai.
+      final boxes = <OcrBox>[
+        for (final b in result.blocks)
+          for (final l in b.lines)
+            OcrBox(l.text, l.boundingBox.left, l.boundingBox.top, l.boundingBox.right, l.boundingBox.bottom),
+      ];
+      final rowsText = rebuildRowsText(boxes);
+      var parsed = parseBillText(rowsText);
+      var usedText = rowsText;
+      if (parsed.isEmpty) {
+        parsed = parseBillText(result.text);
+        usedText = result.text;
+      }
+      final billTotal = detectBillTotal(usedText);
       if (!mounted) return;
+      var sum = 0.0;
+      for (final l in parsed) {
+        sum += (double.tryParse(l.qty) ?? 0) * (double.tryParse(l.rate) ?? 0);
+      }
+      String totalNote = '';
+      if (billTotal != null && parsed.isNotEmpty) {
+        final ok = (billTotal - sum).abs() <= (billTotal.abs() * 0.01 + 1);
+        totalNote = ok
+            ? Loc.t(' Items total ${_n(sum)} matches the bill total ✓', ' آئٹمز کا جمع ${_n(sum)} بل کے ٹوٹل سے مل گیا ✓')
+            : Loc.t(' Items total ${_n(sum)} but bill total is ${_n(billTotal)} — some line may be misread or missing.',
+                ' آئٹمز کا جمع ${_n(sum)} ہے مگر بل کا ٹوٹل ${_n(billTotal)} ہے — کوئی لائن غلط پڑھی گئی یا رہ گئی ہو سکتی ہے۔');
+      }
       setState(() {
         _lines.addAll(parsed);
         _processed = true;
         _status = parsed.isEmpty
             ? Loc.t('No items found. Add manually below or scan again.', 'کوئی آئٹم نہیں ملا۔ نیچے دستی طور پر شامل کریں یا دوبارہ سکین کریں۔')
             : Loc.t('${parsed.length} lines detected — check qty/rate, then confirm.',
-                '${parsed.length} لائنیں ملیں — qty/rate چیک کر کے تصدیق کریں۔');
+                    '${parsed.length} لائنیں ملیں — qty/rate چیک کر کے تصدیق کریں۔') +
+                totalNote;
       });
     } catch (e) {
       debugPrint('OCR failed: $e');
@@ -67,6 +94,8 @@ class _BillScanScreenState extends State<BillScanScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  String _n(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   void _confirm() {
     final items = confirmedItems(_lines);

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../db/monthly_repository.dart';
-import '../db/period_close_repository.dart';
-import '../services/session.dart';
 import '../models/product.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
@@ -51,7 +49,6 @@ class _MonthlyBodyState extends State<_MonthlyBody> {
   double _totalSale = 0;
   double _totalPurchase = 0;
   int _seq = 0;
-  Map<String, PeriodClose> _closed = const {};
 
   AppPalette get _p => ThemeManager.palette;
   String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
@@ -74,55 +71,13 @@ class _MonthlyBodyState extends State<_MonthlyBody> {
       final b = await _repo.load();
       if (!mounted) return;
       _base = b;
-      await _loadClosed();
       await _apply();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     }
   }
 
-  Future<void> _loadClosed() async {
-    try {
-      final m = await PeriodCloseRepository.instance.closedMap();
-      if (mounted) setState(() => _closed = m);
-    } catch (_) {}
-  }
-
   void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-
-  /// Optional: sirf user ke dabane par. Close se pehle confirm; Reopen sirf Admin.
-  Future<void> _toggleClose(PeriodTotals t) async {
-    final isClosed = _closed.containsKey(t.key);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(isClosed ? Loc.t('Reopen month?', 'مہینہ دوبارہ کھولیں؟') : Loc.t('Close month?', 'مہینہ بند کریں؟')),
-        content: Text(isClosed
-            ? Loc.t('${t.label} dobara khul jayega aur bills/expenses edit ho sakenge.',
-                '${t.label} دوبارہ کھل جائے گا اور بل/خرچے بدلے جا سکیں گے۔')
-            : Loc.t(
-                '${t.label} ke figures save ho jayenge aur is mahine ke bills, returns, expenses aur payments edit/delete nahi ho sakenge. Admin baad mein Reopen kar sakta hai.',
-                '${t.label} کے اعداد محفوظ ہو جائیں گے اور اس مہینے کے بل، واپسی، خرچے اور ادائیگیاں بدلی/حذف نہیں ہو سکیں گی۔ ایڈمن بعد میں دوبارہ کھول سکتا ہے۔')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
-          TextButton(
-              onPressed: () => Navigator.pop(c, true),
-              child: Text(isClosed ? Loc.t('Reopen', 'دوبارہ کھولیں') : Loc.t('Close Month', 'مہینہ بند کریں'))),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      if (isClosed) {
-        await PeriodCloseRepository.instance.reopen(t.key);
-      } else {
-        await PeriodCloseRepository.instance.close(t.key);
-      }
-      await _loadClosed();
-    } catch (e) {
-      _snack(e.toString());
-    }
-  }
 
   Future<void> _apply() async {
     final base = _base;
@@ -351,7 +306,6 @@ class _MonthlyBodyState extends State<_MonthlyBody> {
       );
 
   Widget _periodRow(AppPalette p, PeriodTotals t) {
-    final isClosed = _mode == GroupMode.month && _closed.containsKey(t.key);
     Widget col(String label, double v, Color c) => Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: TextStyle(fontSize: 10.5, color: p.textMuted)),
@@ -371,23 +325,10 @@ class _MonthlyBodyState extends State<_MonthlyBody> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
-            child: Text(isClosed ? '\u{1F512} ${t.label}' : t.label,
+            child: Text(t.label,
                 style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.textDark)),
           ),
-          if (_mode == GroupMode.month && Session.isAdmin)
-            TextButton(
-              onPressed: () => _toggleClose(t),
-              child: Text(isClosed ? Loc.t('Reopen', 'دوبارہ کھولیں') : Loc.t('Close Month', 'مہینہ بند کریں'),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isClosed ? p.red : p.teal)),
-            ),
         ]),
-        if (isClosed)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-                Loc.t('Closed — expenses: ${_rs(_closed[t.key]!.expenseTotal)}', 'بند — خرچے: ${_rs(_closed[t.key]!.expenseTotal)}'),
-                style: TextStyle(fontSize: 10.5, color: p.textMuted)),
-          ),
         const SizedBox(height: 8),
         Row(children: [
           col(Loc.t('Total Sale', 'کل سیل'), t.sale, p.flatTealFg),

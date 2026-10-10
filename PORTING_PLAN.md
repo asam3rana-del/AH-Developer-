@@ -37,7 +37,7 @@
 | 7 | Sale/Purchase History (edit/return/delete admin-only) | ✅ Mukammal (device par nazar-e-saani baaki) |
 | 8 | Cash, Cash Register, Expense, Day Book, Payments, Balance Sheet, Zakat, Shell Ledger | ✅ Mukammal (device par nazar-e-saani baaki) |
 | 9 | Reports, Monthly, Stock Report/Audit/Taking/Adjustment/Movement, Inventory Insights | ✅ Mukammal (device par nazar-e-saani baaki) |
-| 10 | Cloud sync (SyncApi/Queue/Worker/Repository/Settings, Branch, DeviceTag) | ✅ Mukammal (Phone OTP samet). 2-device test: user ke mutabiq (2026-10-07) do devices par sab kuch theek sync ho raha hai (Month Close samet) |
+| 10 | Cloud sync (SyncApi/Queue/Worker/Repository/Settings, Branch, DeviceTag) | ✅ Mukammal (Phone OTP samet). 2-device test: user ke mutabiq (2026-10-07) do devices par sab kuch theek sync ho raha hai |
 | 11 | Backup/Export/Crypto/Scheduler | ✅ Mukammal — Format Android se compatible (device par nazar-e-saani baaki) |
 | 12 | Bluetooth print, Bill Preview, Bill Scan (OCR) | ✅ Mukammal — iPad par printer alag plugin. User ke mutabiq (2026-10-07) device par printer theek chal raha hai, Urdu print aur PDF reports bhi theek ho gaye; bill ki lambi qty (unit) ka fix bhi ok (2026-10-07), CI Build #215 pass |
 | 13 | Bulk Translate, Merge Duplicates, Duplicate Unit Fix | ✅ Mukammal (Merge par preview + backup) |

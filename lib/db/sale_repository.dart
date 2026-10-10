@@ -11,7 +11,6 @@ import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
 import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
-import 'period_close_repository.dart';
 import 'customer_repository.dart';
 import 'product_repository.dart';
 import '../sync/sync_queue_helper.dart';
@@ -690,7 +689,6 @@ class SaleRepository {
       final rows = await txn.query('sales', where: 'invoice=?', whereArgs: [invoice], limit: 1);
       if (rows.isEmpty) throw ArgumentError('Ye bill nahi mila');
       final sale = Sale.fromMap(rows.first);
-      await PeriodCloseRepository.assertOpen(txn, sale.createdAt);
       final itemRows = await txn.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       final now = DateTime.now().millisecondsSinceEpoch;
 
@@ -737,7 +735,6 @@ class SaleRepository {
       if (rows.isEmpty) throw ArgumentError('Ye bill nahi mila');
       final sale = Sale.fromMap(rows.first);
       if (sale.status == 'returned') throw ArgumentError('Ye sale pehle hi return ho chuki hai');
-      await PeriodCloseRepository.assertOpen(txn, sale.createdAt);
       final itemRows = await txn.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       final now = DateTime.now().millisecondsSinceEpoch;
 
