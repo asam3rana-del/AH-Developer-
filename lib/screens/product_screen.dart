@@ -30,6 +30,7 @@ class _ProductScreenState extends State<ProductScreen> {
   final _tagCtrl = TextEditingController();
   final _costCtrl = TextEditingController();
   final _wholesaleCtrl = TextEditingController();
+  final _shopkeeperCtrl = TextEditingController();
   final _bulkPriceCtrl = TextEditingController();
   final _bulkQtyCtrl = TextEditingController();
   final _wBulkPriceCtrl = TextEditingController();
@@ -72,6 +73,7 @@ class _ProductScreenState extends State<ProductScreen> {
     _tagCtrl.dispose();
     _costCtrl.dispose();
     _wholesaleCtrl.dispose();
+    _shopkeeperCtrl.dispose();
     _bulkPriceCtrl.dispose();
     _bulkQtyCtrl.dispose();
     _wBulkPriceCtrl.dispose();
@@ -189,6 +191,7 @@ class _ProductScreenState extends State<ProductScreen> {
       _openingStockUnit = _primaryUnit;
       _costCtrl.text = p.cost > 0 ? p.cost.toString() : '';
       _wholesaleCtrl.text = p.wholesalePrice > 0 ? p.wholesalePrice.toString() : '';
+      _shopkeeperCtrl.text = p.shopkeeperPrice > 0 ? p.shopkeeperPrice.toString() : '';
       _bulkPriceCtrl.text = p.bulkPrice > 0 ? p.bulkPrice.toString() : '';
       _bulkQtyCtrl.text = p.bulkMinQty > 0 ? _trimNum(p.bulkMinQty) : '';
       _wBulkPriceCtrl.text = p.wholesaleBulkPrice > 0 ? p.wholesaleBulkPrice.toString() : '';
@@ -206,6 +209,7 @@ class _ProductScreenState extends State<ProductScreen> {
       _tagCtrl.clear();
       _costCtrl.clear();
       _wholesaleCtrl.clear();
+      _shopkeeperCtrl.clear();
       _bulkPriceCtrl.clear();
       _bulkQtyCtrl.clear();
       _wBulkPriceCtrl.clear();
@@ -318,6 +322,8 @@ class _ProductScreenState extends State<ProductScreen> {
     if (saleVal == null) return;
     final wholesaleVal = parseMoneyOrWarn(context, _wholesaleCtrl.text, 'Wholesale Price', 'ہول سیل قیمت');
     if (wholesaleVal == null) return;
+    final shopkeeperVal = parseMoneyOrWarn(context, _shopkeeperCtrl.text, 'Shopkeeper Price', 'دکاندار قیمت');
+    if (shopkeeperVal == null) return;
     final bulkPriceVal = parseMoneyOrWarn(context, _bulkPriceCtrl.text, 'Bulk Rate', 'بلک قیمت');
     if (bulkPriceVal == null) return;
     final bulkQtyVal = parseMoneyOrWarn(context, _bulkQtyCtrl.text, 'Bulk Min Qty', 'بلک کم از کم مقدار');
@@ -335,6 +341,7 @@ class _ProductScreenState extends State<ProductScreen> {
       cost: costVal,
       salePrice: saleVal,
       wholesalePrice: wholesaleVal,
+      shopkeeperPrice: shopkeeperVal,
       bulkPrice: bulkPriceVal,
       bulkMinQty: bulkQtyVal,
       wholesaleBulkPrice: wBulkPriceVal,
@@ -659,6 +666,8 @@ class _ProductScreenState extends State<ProductScreen> {
               PremiumLabeledField(emoji: '🛒', label: Loc.t('Purchase Rate', 'خریداری کی قیمت'), accent: ThemeManager.palette.amber, controller: _costCtrl),
               const SizedBox(height: 12),
               PremiumLabeledField(emoji: '📦', label: Loc.t('Wholesale Sale Rate', 'تھوک فروخت کی قیمت'), accent: ThemeManager.palette.blue, controller: _wholesaleCtrl),
+              const SizedBox(height: 12),
+              PremiumLabeledField(emoji: '🤝', label: Loc.t('Shopkeeper Rate (lowest margin, optional)', 'دکاندار قیمت (کم ترین مارجن، اختیاری)'), accent: ThemeManager.palette.blue, controller: _shopkeeperCtrl),
               const SizedBox(height: 12),
               PremiumLabeledField(emoji: '🏪', label: Loc.t('Retail Sale Rate', 'پرچون فروخت کی قیمت'), accent: ThemeManager.palette.teal, controller: _saleCtrl),
               const SizedBox(height: 12),

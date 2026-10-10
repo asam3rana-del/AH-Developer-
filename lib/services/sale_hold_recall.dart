@@ -21,6 +21,7 @@ const String kSaleHoldPrefix = 'HOLD';
 class HeldSaleDraft {
   final String customerName;
   final bool isWholesale;
+  final bool isShopkeeper;
   final bool isCash;
   final String discountText;
   final List<SaleLine> lines;
@@ -28,6 +29,7 @@ class HeldSaleDraft {
   const HeldSaleDraft({
     required this.customerName,
     required this.isWholesale,
+    this.isShopkeeper = false,
     required this.isCash,
     required this.discountText,
     required this.lines,
@@ -37,7 +39,7 @@ class HeldSaleDraft {
 String encodeHold(HeldSaleDraft d) {
   final header = [
     d.customerName,
-    d.isWholesale ? 'Wholesale' : 'Retail',
+    d.isShopkeeper ? 'Shopkeeper' : (d.isWholesale ? 'Wholesale' : 'Retail'),
     d.isCash ? 'CASH' : 'CREDIT',
     d.discountText,
   ].join(_sepHeaderField);
@@ -70,6 +72,7 @@ HeldSaleDraft decodeHold(String payload) {
 
   var customer = '';
   var wholesale = false;
+  var shopkeeper = false;
   var cash = true;
   var discount = '';
   if (parts.isNotEmpty) {
@@ -77,6 +80,7 @@ HeldSaleDraft decodeHold(String payload) {
     if (header.length >= 4) {
       customer = header[0];
       wholesale = header[1] == 'Wholesale';
+      shopkeeper = header[1] == 'Shopkeeper';
       cash = header[2] != 'CREDIT';
       discount = header[3];
     }
@@ -108,6 +112,7 @@ HeldSaleDraft decodeHold(String payload) {
   return HeldSaleDraft(
     customerName: customer,
     isWholesale: wholesale,
+    isShopkeeper: shopkeeper,
     isCash: cash,
     discountText: discount,
     lines: lines,

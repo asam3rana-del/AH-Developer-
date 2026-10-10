@@ -247,6 +247,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     final opening = TextEditingController(text: c.openingBalance.toString());
     final stuck = _canEditStuck ? TextEditingController(text: c.stuckBalance == 0.0 ? '' : c.stuckBalance.toString()) : null;
     const money = TextInputType.numberWithOptions(decimal: true);
+    var rateType = c.rateType;
 
     var nameError = false;
     final ok = await showDialog<bool>(
@@ -273,6 +274,22 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
                     controller: stuck,
                     keyboardType: money,
                     decoration: _dlgDeco(Loc.t('Stuck Balance (optional)', 'اسٹک بیلنس (اختیاری)'))),
+              ],
+              if (_canEditStuck) ...[
+                const SizedBox(height: 10),
+                // Rate-type: sale mein is customer ko chunte hi rate khud isi hisab se lagta hai.
+                DropdownButtonFormField<String>(
+                  value: const ['', 'retail', 'wholesale', 'shopkeeper'].contains(rateType) ? rateType : '',
+                  isExpanded: true,
+                  decoration: _dlgDeco(Loc.t('Rate Type', 'ریٹ کی قسم')),
+                  items: [
+                    DropdownMenuItem(value: '', child: Text(Loc.t('Follow bill (default)', 'بل کے مطابق (ڈیفالٹ)'))),
+                    DropdownMenuItem(value: 'retail', child: Text(Loc.t('Retail', 'ریٹیل'))),
+                    DropdownMenuItem(value: 'wholesale', child: Text(Loc.t('Wholesale', 'ہول سیل'))),
+                    DropdownMenuItem(value: 'shopkeeper', child: Text(Loc.t('Shopkeeper (lowest margin)', 'دکاندار (کم ترین مارجن)'))),
+                  ],
+                  onChanged: (v) => setLocal(() => rateType = v ?? ''),
+                ),
               ],
             ]),
           ),
@@ -309,6 +326,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           creditLimit: double.tryParse(limit.text.trim()) ?? c.creditLimit,
           openingBalance: double.tryParse(opening.text.trim()) ?? c.openingBalance,
           stuckBalance: stuckValue, // null (cashier) => purana stuck barqarar
+          rateType: _canEditStuck ? rateType : null, // cashier rate-type nahi badal sakta
         );
         if (mounted) _toast(Loc.t('Updated', 'اپ ڈیٹ ہو گیا'));
         await _reload();

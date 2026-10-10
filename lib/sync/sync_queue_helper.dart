@@ -152,6 +152,7 @@ class SyncQueueHelper {
         'openingBalance': c['openingBalance'],
         // Stuck Balance: plain snapshot (sales/payments se nahi hilta).
         'stuckBalance': c['stuckBalance'],
+        'rateType': c['rateType'] ?? '',
       });
 
   static Map<String, Object?> supplierPayload(Map<String, Object?> s) => _stamp({
@@ -168,6 +169,7 @@ class SyncQueueHelper {
         'cost': p['cost'],
         'salePrice': p['salePrice'],
         'wholesalePrice': p['wholesalePrice'],
+        'shopkeeperPrice': p['shopkeeperPrice'] ?? 0,
         'bulkPrice': p['bulkPrice'] ?? 0,
         'bulkMinQty': p['bulkMinQty'] ?? 0,
         'wholesaleBulkPrice': p['wholesaleBulkPrice'] ?? 0,

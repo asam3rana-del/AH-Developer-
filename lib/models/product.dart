@@ -17,6 +17,8 @@ class Product {
   final String secondaryUnit;
   final double secondaryUnitQty;
   final double wholesalePrice;
+  /// Shopkeeper (bilkul kam margin) rate, primary unit par. 0 = set nahi => wholesale rate istemal hota hai.
+  final double shopkeeperPrice;
   /// Retail grahak ke liye bulk rate (0 = nahi) aur kam az kam miqdar (primary unit mein; 0 = nahi).
   final double bulkPrice;
   final double bulkMinQty;
@@ -55,6 +57,7 @@ class Product {
     this.secondaryUnit = '',
     this.secondaryUnitQty = 0.0,
     this.wholesalePrice = 0.0,
+    this.shopkeeperPrice = 0.0,
     this.bulkPrice = 0.0,
     this.bulkMinQty = 0.0,
     this.wholesaleBulkPrice = 0.0,
@@ -87,6 +90,7 @@ class Product {
     String? secondaryUnit,
     double? secondaryUnitQty,
     double? wholesalePrice,
+    double? shopkeeperPrice,
     double? bulkPrice,
     double? bulkMinQty,
     double? wholesaleBulkPrice,
@@ -112,6 +116,7 @@ class Product {
       secondaryUnit: secondaryUnit ?? this.secondaryUnit,
       secondaryUnitQty: secondaryUnitQty ?? this.secondaryUnitQty,
       wholesalePrice: wholesalePrice ?? this.wholesalePrice,
+      shopkeeperPrice: shopkeeperPrice ?? this.shopkeeperPrice,
       bulkPrice: bulkPrice ?? this.bulkPrice,
       bulkMinQty: bulkMinQty ?? this.bulkMinQty,
       wholesaleBulkPrice: wholesaleBulkPrice ?? this.wholesaleBulkPrice,
@@ -142,6 +147,7 @@ class Product {
         'secondaryUnit': secondaryUnit,
         'secondaryUnitQty': secondaryUnitQty,
         'wholesalePrice': wholesalePrice,
+        'shopkeeperPrice': shopkeeperPrice,
         'bulkPrice': bulkPrice,
         'bulkMinQty': bulkMinQty,
         'wholesaleBulkPrice': wholesaleBulkPrice,
@@ -171,6 +177,7 @@ class Product {
         secondaryUnit: (m['secondaryUnit'] as String?) ?? '',
         secondaryUnitQty: (m['secondaryUnitQty'] as num?)?.toDouble() ?? 0.0,
         wholesalePrice: (m['wholesalePrice'] as num?)?.toDouble() ?? 0.0,
+        shopkeeperPrice: (m['shopkeeperPrice'] as num?)?.toDouble() ?? 0.0,
         bulkPrice: (m['bulkPrice'] as num?)?.toDouble() ?? 0.0,
         bulkMinQty: (m['bulkMinQty'] as num?)?.toDouble() ?? 0.0,
         wholesaleBulkPrice: (m['wholesaleBulkPrice'] as num?)?.toDouble() ?? 0.0,

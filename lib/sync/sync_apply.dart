@@ -108,6 +108,8 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
     final openingBalance = _d(row['openingBalance']) ?? 0.0;
     // Purani build ka doc (stuckBalance nahi) => apna stuck amount na todo.
     final stuckRemote = _d(row['stuckBalance']);
+    // Rate-type: purane doc mein na ho to local tag na todo.
+    final rateRemote = row.containsKey('rateType') ? (_s(row['rateType']) ?? '') : null;
     final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
     final localPending = await pendingDelta(q, 'customer', serverId, 'increment_balance');
     // 2-device FIX: is device ka apna naam/phone edit abhi push nahi hua => server ki purani copy se
@@ -144,6 +146,7 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
           'creditLimit': creditLimit,
           'openingBalance': openingBalance,
           'stuckBalance': stuckRemote ?? _dbl(existing['stuckBalance']),
+          if (rateRemote != null) 'rateType': rateRemote,
           'updatedAt': serverUpdatedAt,
           'dirty': localPending != 0.0 ? 1 : 0,
         },
@@ -158,6 +161,7 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
         'creditLimit': creditLimit,
         'openingBalance': openingBalance,
         'stuckBalance': stuckRemote ?? 0.0,
+        if (rateRemote != null) 'rateType': rateRemote,
         'serverId': serverId,
         'updatedAt': serverUpdatedAt,
         'dirty': localPending != 0.0 ? 1 : 0,
@@ -315,6 +319,8 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
     if (row.containsKey('bulkMinQty')) common['bulkMinQty'] = _d(row['bulkMinQty']) ?? 0.0;
     if (row.containsKey('wholesaleBulkPrice')) common['wholesaleBulkPrice'] = _d(row['wholesaleBulkPrice']) ?? 0.0;
     if (row.containsKey('wholesaleBulkMinQty')) common['wholesaleBulkMinQty'] = _d(row['wholesaleBulkMinQty']) ?? 0.0;
+    // Shopkeeper rate: purane device ka doc (field nahi) local rate zero na kare.
+    if (row.containsKey('shopkeeperPrice')) common['shopkeeperPrice'] = _d(row['shopkeeperPrice']) ?? 0.0;
     if (existing != null) {
       if (existing['dirty'] == 1 && (existing['name'] != name || _dbl(existing['salePrice']) != salePrice)) {
         await _conflict(db, 'product:$barcode', '${existing['name']} / ${_dbl(existing['salePrice'])}',

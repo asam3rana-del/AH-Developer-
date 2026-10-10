@@ -249,6 +249,7 @@ class PartyRepository {
     required double creditLimit,
     required double openingBalance,
     double? stuckBalance,
+    String? rateType,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
@@ -258,6 +259,7 @@ class PartyRepository {
       creditLimit: creditLimit,
       openingBalance: openingBalance,
       stuckBalance: stuckBalance ?? existing.stuckBalance,
+      rateType: rateType ?? existing.rateType,
     ));
     return SavePartyResult.success;
   }

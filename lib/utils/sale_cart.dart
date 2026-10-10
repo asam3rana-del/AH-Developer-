@@ -1,5 +1,6 @@
 import '../db/sale_repository.dart' show SaleLine;
 import '../models/product.dart';
+import 'rate_mode.dart';
 
 /// Dart port of the pure (non-UI) helpers in SaleCart.kt.
 ///
@@ -87,6 +88,7 @@ RepriceResult repriceLinesForSaleType(
   List<SaleLine> lines,
   List<Product> products, {
   required bool isWholesale,
+  bool isShopkeeper = false,
 }) {
   if (lines.isEmpty) return RepriceResult(lines, false);
   var changed = false;
@@ -109,7 +111,8 @@ RepriceResult repriceLinesForSaleType(
       out.add(line);
       continue;
     }
-    final basePrice = isWholesale ? product.wholesalePrice : product.salePrice;
+    final basePrice = basePriceFor(
+        product, isShopkeeper ? RateMode.shopkeeper : (isWholesale ? RateMode.wholesale : RateMode.retail));
     if (basePrice <= 0.0) {
       out.add(line);
       continue;

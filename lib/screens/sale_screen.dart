@@ -24,6 +24,7 @@ import '../utils/sale_cart.dart';
 import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
 import '../utils/stock_policy.dart';
+import '../utils/rate_mode.dart';
 import '../widgets/autocomplete_options.dart';
 import '../widgets/held_bills_dialog.dart';
 import '../widgets/premium_widgets.dart';
@@ -63,6 +64,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   DateTime _saleDate = DateTime.now();
   bool _isWholesale = false;
+  bool _isShopkeeper = false;
+  RateMode get _rateMode => _isShopkeeper ? RateMode.shopkeeper : (_isWholesale ? RateMode.wholesale : RateMode.retail);
   Product? _pickedProduct;
   String _selectedUnit = '';
 
@@ -269,6 +272,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   SaleDraft _currentDraft() => SaleDraft(
         customer: _customerCtrl.text,
         isWholesale: _isWholesale,
+        isShopkeeper: _isShopkeeper,
         discount: _discountCtrl.text,
         paid: _paidCtrl.text,
         pendingItemName: _itemCtrl.text,
@@ -306,6 +310,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       setState(() {
         _customerCtrl.text = draft.customer;
         _isWholesale = draft.isWholesale;
+        _isShopkeeper = draft.isShopkeeper;
         if (draft.discount.isNotEmpty) _discountCtrl.text = draft.discount;
         if (draft.paid.isNotEmpty) _paidCtrl.text = draft.paid;
         // The saved date is intentionally not restored (see SaleDraft) —
@@ -370,6 +375,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         _saleDate = DateTime.fromMillisecondsSinceEpoch(edit.sale.createdAt);
         _customerCtrl.text = edit.customerName;
         _isWholesale = edit.sale.saleType == 'wholesale';
+        _isShopkeeper = edit.sale.saleType == 'shopkeeper';
         _discountCtrl.text = edit.sale.discount > 0 ? edit.sale.discount.toStringAsFixed(2) : '';
         _paidCtrl.text = edit.sale.paid.toStringAsFixed(2);
         _paymentMethod = edit.sale.paymentMethod.toLowerCase() == 'bank' ? 'Bank' : 'Cash';
@@ -427,7 +433,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   void _refillAutoPrice() {
     final p = _pickedProduct;
     if (p == null) return;
-    final basePrice = _isWholesale ? p.wholesalePrice : p.salePrice;
+    final basePrice = basePriceFor(p, _rateMode);
     final unit = _selectedUnit.isEmpty ? p.unit : _selectedUnit;
     final base = _lastMainPrice > 0 ? _lastMainPrice : basePrice;
     final price = p.fromPrimaryUnitRate(base, unit);
@@ -439,6 +445,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   void _applyBulkRate() {
     final p = _pickedProduct;
     if (p == null || _qtyIsAmountMode) return;
+    // Shopkeeper rate pehle hi sab se kam hai: us par bulk rate nahi lagta.
+    if (_isShopkeeper) return;
     // Retail ka apna bulk rate, wholesale ka apna (alag fields): dono mode mein miqdar par rate khud badle.
     final bulkPrice = _isWholesale ? p.wholesaleBulkPrice : p.bulkPrice;
     final bulkMin = _isWholesale ? p.wholesaleBulkMinQty : p.bulkMinQty;
@@ -507,17 +515,33 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     });
   }
 
+  /// Customer ka rate-type tag ('' = kuch nahi) ho to bill ka rate khud usi par aa jaye (quantity se bila-wasta).
+  void _applyCustomerRateType() {
+    final name = _customerCtrl.text.trim().toLowerCase();
+    if (name.isEmpty) return;
+    for (final c in _customers) {
+      if (c.name.toLowerCase() == name) {
+        if (c.rateType.isEmpty) return;
+        final mode = rateModeFromString(c.rateType);
+        _onSaleTypeChanged(mode == RateMode.shopkeeper ? 2 : (mode == RateMode.wholesale ? 1 : 0));
+        return;
+      }
+    }
+  }
+
   void _onSaleTypeChanged(int index) {
     final wholesale = index == 1;
-    if (wholesale == _isWholesale) return;
+    final shopkeeper = index == 2;
+    if (wholesale == _isWholesale && shopkeeper == _isShopkeeper) return;
     setState(() {
       _isWholesale = wholesale;
+      _isShopkeeper = shopkeeper;
       _lastMainPrice = 0.0;
       _customerRateName = null;
       _refillAutoPrice();
       _applyBulkRate();
       // Lines already in the cart are re-rated too (cost untouched).
-      final result = repriceLinesForSaleType(_lines, _products, isWholesale: wholesale);
+      final result = repriceLinesForSaleType(_lines, _products, isWholesale: wholesale, isShopkeeper: shopkeeper);
       if (result.changed) {
         _lines
           ..clear()
@@ -717,6 +741,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _paymentMethod = 'Cash';
       _saleDate = DateTime.now();
       _isWholesale = false;
+      _isShopkeeper = false;
       _editingIndex = null;
       _clearItemEntry();
     });
@@ -774,7 +799,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         customerName: _customerCtrl.text.trim(),
         discountInput: double.tryParse(_discountCtrl.text.trim()) ?? 0.0,
         paidInput: double.tryParse(_paidCtrl.text.trim()) ?? 0.0,
-        saleType: _isWholesale ? 'wholesale' : 'retail',
+        saleType: rateModeName(_rateMode),
         saleDateMillis: _saleDate.millisecondsSinceEpoch,
         paymentMethod: _paymentMethod,
         payments: _splitPayments,
@@ -1046,6 +1071,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     final payload = encodeHold(HeldSaleDraft(
       customerName: _customerCtrl.text.trim(),
       isWholesale: _isWholesale,
+        isShopkeeper: _isShopkeeper,
       isCash: _customerCtrl.text.trim().isEmpty,
       discountText: _discountCtrl.text.trim(),
       lines: List.of(_lines),
@@ -1095,6 +1121,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _clearItemEntry();
       _customerCtrl.text = draft.customerName;
       _isWholesale = draft.isWholesale;
+        _isShopkeeper = draft.isShopkeeper;
       _discountCtrl.text = draft.discountText;
       _paidCtrl.clear();
       _splitPayments = [];
@@ -1360,7 +1387,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         const SingleActivator(LogicalKeyboardKey.f6): () {
           if (_splitPayments.isEmpty) _paidFocus.requestFocus();
         },
-        const SingleActivator(LogicalKeyboardKey.f7): () => _onSaleTypeChanged(_isWholesale ? 0 : 1),
+        const SingleActivator(LogicalKeyboardKey.f7): () => _onSaleTypeChanged(_isShopkeeper ? 0 : (_isWholesale ? 2 : 1)),
         const SingleActivator(LogicalKeyboardKey.f8): _toggleAmountMode,
         const SingleActivator(LogicalKeyboardKey.f9): () { if (!_saving) _save(); },
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): () { if (!_saving) _save(); },
@@ -1667,11 +1694,12 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             child: DropdownButton<int>(
               key: _saleTypeKey,
               isExpanded: true,
-              value: _isWholesale ? 1 : 0,
+              value: _isShopkeeper ? 2 : (_isWholesale ? 1 : 0),
               style: TextStyle(fontSize: 18, color: pal.textDark),
               items: [
                 DropdownMenuItem(value: 0, child: Text(Loc.t('Retail', 'ریٹیل'))),
                 DropdownMenuItem(value: 1, child: Text(Loc.t('Wholesale', 'ہول سیل'))),
+                DropdownMenuItem(value: 2, child: Text(Loc.t('Shopkeeper', 'دکاندار'))),
               ],
               onChanged: (v) {
                 if (v == null) return;
@@ -1713,6 +1741,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                     textEditingController: _customerCtrl,
                     focusNode: _customerFocus,
                     onSelected: (_) {
+                      _applyCustomerRateType();
                       _suggestCustomerRate();
                       _goToSaleTypeFromCustomer();
                     },
@@ -1730,6 +1759,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       onSubmitted: (_) {
                         // Khali = walk-in (pehla customer na chunein); warna highlighted chunein.
                         if (_customerCtrl.text.trim().isNotEmpty) onSubmit();
+                        _applyCustomerRateType();
                         _goToSaleTypeFromCustomer();
                       },
                       decoration: InputDecoration(hintText: Loc.t('Customer Name (Walk-in)', 'کسٹمر کا نام (واک ان)'), border: InputBorder.none, isDense: true),

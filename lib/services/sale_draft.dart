@@ -16,6 +16,7 @@ const String kSaleDraftPrefsKey = 'sale_draft_json';
 class SaleDraft {
   final String customer;
   final bool isWholesale;
+  final bool isShopkeeper;
   final String discount;
   final String paid;
   final String pendingItemName;
@@ -26,6 +27,7 @@ class SaleDraft {
   const SaleDraft({
     this.customer = '',
     this.isWholesale = false,
+    this.isShopkeeper = false,
     this.discount = '',
     this.paid = '',
     this.pendingItemName = '',
@@ -48,7 +50,7 @@ class SaleDraft {
 
 String encodeSaleDraft(SaleDraft d) => jsonEncode({
       'customer': d.customer,
-      'saleType': d.isWholesale ? 'Wholesale' : 'Retail',
+      'saleType': d.isShopkeeper ? 'Shopkeeper' : (d.isWholesale ? 'Wholesale' : 'Retail'),
       'discount': d.discount,
       'paid': d.paid,
       'pendingItemName': d.pendingItemName,
@@ -105,6 +107,7 @@ SaleDraft? decodeSaleDraft(String raw) {
     return SaleDraft(
       customer: _s(o['customer']),
       isWholesale: _s(o['saleType']) == 'Wholesale',
+      isShopkeeper: _s(o['saleType']) == 'Shopkeeper',
       discount: _s(o['discount']),
       paid: _s(o['paid']),
       pendingItemName: _s(o['pendingItemName']),

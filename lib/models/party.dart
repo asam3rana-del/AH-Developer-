@@ -13,6 +13,9 @@ class Customer {
   /// Kotlin "Stuck Balance": purana ruka hua amount jo daily sale ke saath nahi hilta.
   /// Sirf admin/manager set kar sakte hain (data layer bhi check karta hai). 0 = koi nahi.
   final double stuckBalance;
+
+  /// Is customer ka rate-type: '' (bill ke sale type ke mutabiq) | 'retail' | 'wholesale' | 'shopkeeper'.
+  final String rateType;
   final String? serverId;
   final int updatedAt;
   final bool dirty;
@@ -25,6 +28,7 @@ class Customer {
     this.openingBalance = 0.0,
     this.balance = 0.0,
     this.stuckBalance = 0.0,
+    this.rateType = '',
     this.serverId,
     this.updatedAt = 0,
     this.dirty = true,
@@ -42,6 +46,7 @@ class Customer {
     double? openingBalance,
     double? balance,
     double? stuckBalance,
+    String? rateType,
     int? updatedAt,
     bool? dirty,
   }) =>
@@ -53,6 +58,7 @@ class Customer {
         openingBalance: openingBalance ?? this.openingBalance,
         balance: balance ?? this.balance,
         stuckBalance: stuckBalance ?? this.stuckBalance,
+        rateType: rateType ?? this.rateType,
         serverId: serverId,
         updatedAt: updatedAt ?? this.updatedAt,
         dirty: dirty ?? this.dirty,
@@ -66,6 +72,7 @@ class Customer {
         'openingBalance': openingBalance,
         'balance': balance,
         'stuckBalance': stuckBalance,
+        'rateType': rateType,
         'serverId': serverId,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
@@ -79,6 +86,7 @@ class Customer {
         openingBalance: (m['openingBalance'] as num?)?.toDouble() ?? 0.0,
         balance: (m['balance'] as num?)?.toDouble() ?? 0.0,
         stuckBalance: (m['stuckBalance'] as num?)?.toDouble() ?? 0.0,
+        rateType: (m['rateType'] as String?) ?? '',
         serverId: m['serverId'] as String?,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,
