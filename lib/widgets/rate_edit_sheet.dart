@@ -10,18 +10,19 @@ import 'rate_margin_dialog.dart';
 /// Admin ke liye quick rate edit: Retail / Wholesale / Shopkeeper ek hi jagah.
 /// Unit chips: jis unit mein likhna aasaan ho likhein, save par PRIMARY unit mein convert hota hai.
 /// Wapas `true` agar save hua. Cost se kam rate par "Save anyway?" poochta hai.
-Future<bool> showRateEditSheet(BuildContext context, Product product) async {
+Future<bool> showRateEditSheet(BuildContext context, Product product, {bool focusShopkeeper = false}) async {
   final saved = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    builder: (_) => _RateEditSheet(product: product),
+    builder: (_) => _RateEditSheet(product: product, focusShopkeeper: focusShopkeeper),
   );
   return saved == true;
 }
 
 class _RateEditSheet extends StatefulWidget {
   final Product product;
-  const _RateEditSheet({required this.product});
+  final bool focusShopkeeper;
+  const _RateEditSheet({required this.product, this.focusShopkeeper = false});
 
   @override
   State<_RateEditSheet> createState() => _RateEditSheetState();
@@ -99,7 +100,7 @@ class _RateEditSheetState extends State<_RateEditSheet> {
     }
   }
 
-  Widget _field(String label, TextEditingController c, {String? hint}) {
+  Widget _field(String label, TextEditingController c, {String? hint, bool autofocus = false}) {
     final pal = ThemeManager.palette;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -109,6 +110,7 @@ class _RateEditSheetState extends State<_RateEditSheet> {
         const SizedBox(height: 4),
         TextField(
           controller: c,
+          autofocus: autofocus,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onTap: () => c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length),
           decoration: InputDecoration(
@@ -146,6 +148,7 @@ class _RateEditSheetState extends State<_RateEditSheet> {
           _field(Loc.t('RETAIL RATE (per $_unit)', 'خوردہ ریٹ (فی $_unit)'), _retail),
           _field(Loc.t('WHOLESALE RATE (per $_unit)', 'ہول سیل ریٹ (فی $_unit)'), _wholesale),
           _field(Loc.t('SHOPKEEPER RATE (per $_unit, optional)', 'دکاندار ریٹ (فی $_unit، اختیاری)'), _shopkeeper,
+              autofocus: widget.focusShopkeeper,
               hint: Loc.t('Empty = Wholesale rate is used.', 'خالی = ہول سیل ریٹ لگے گا۔')),
           const SizedBox(height: 4),
           SizedBox(

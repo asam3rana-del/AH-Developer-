@@ -205,20 +205,23 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
               ]),
           ]),
         ],
-        if (p.shopkeeperPrice > 0) ...[
-          const SizedBox(height: 14),
-          Text(Loc.t('SHOPKEEPER RATE', 'دکاندار ریٹ'),
-              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue)),
-          const SizedBox(height: 6),
+        const SizedBox(height: 14),
+        Text(Loc.t('SHOPKEEPER RATE', 'دکاندار ریٹ'),
+            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue)),
+        const SizedBox(height: 6),
+        if (p.shopkeeperPrice > 0)
           Wrap(spacing: 22, runSpacing: 6, children: [
             for (final t in tiers)
               Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 Text(t.unit, style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
                 Text('Rs ${_fmtRate(p.fromPrimaryUnitRate(p.shopkeeperPrice, t.unit))}',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ThemeManager.palette.blue)),
-              ]),
-          ]),
-        ],
+              ])
+          ])
+        else
+          Text(
+              Loc.t('Not set — Wholesale rate is used', 'سیٹ نہیں — ہول سیل ریٹ لگتا ہے'),
+              style: TextStyle(fontSize: 12.5, color: ThemeManager.palette.textMuted)),
       ]),
     );
   }

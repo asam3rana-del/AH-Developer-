@@ -14,6 +14,7 @@ import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import 'bulk_default_unit_screen.dart';
 import 'bulk_missing_rates_screen.dart';
+import 'shop_rate_screen.dart';
 import 'bulk_rate_tool_screen.dart';
 import 'bulk_translate_screen.dart';
 import 'product_screen.dart';
@@ -279,6 +280,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
           child: Row(children: [
             _pill(Loc.t('Rate List', 'ریٹ لسٹ'), Icons.description_outlined,
                 () => _push(const RoleGuard(allowed: {'admin'}, child: BulkMissingRatesScreen()))),
+            _pill(Loc.t('Shop Rate', 'دکاندار ریٹ'), Icons.storefront_outlined,
+                () => _push(const RoleGuard(allowed: {'admin'}, child: ShopRateScreen()))),
             _pill(Loc.t('Bulk Rates', 'بلک ریٹ'), Icons.layers_outlined,
                 () => _push(const RoleGuard(allowed: {'admin'}, child: BulkRateToolScreen()))),
             _pill(Loc.t('Translate', 'ترجمہ'), Icons.language,
@@ -378,6 +381,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
               padding: const EdgeInsets.only(top: 10),
               child: Row(children: [
                 _priceCol(Loc.t('Sale Price', 'سیل قیمت'), p.salePrice),
+                if (p.shopkeeperPrice > 0) _priceCol(Loc.t('Shop Rate', 'دکاندار ریٹ'), p.shopkeeperPrice),
                 if (_canSeeCost) _priceCol(Loc.t('Purchase Price', 'خرید قیمت'), p.cost),
               ]),
             ),
@@ -467,6 +471,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Row(children: [
                   _priceCol(Loc.t('Sale Price', 'سیل قیمت'), p.salePrice),
+                  if (p.shopkeeperPrice > 0) _priceCol(Loc.t('Shop Rate', 'دکاندار ریٹ'), p.shopkeeperPrice),
                   if (_canSeeCost) _priceCol(Loc.t('Purchase Price', 'خرید قیمت'), p.cost),
                 ]),
               ),
