@@ -225,16 +225,17 @@ void main() {
       expect(await loadSeedFields(db, entityType: 'customer', entityId: 'customer:ZZ99-1', deviceTag: 'AB12'), isEmpty);
     });
 
-    test('product barcode se, 17 fields', () async {
+    test('product barcode se, 18 fields (shopkeeperPrice samet)', () async {
       await db.insert('products', {
         'barcode': '111', 'name': 'Rice', 'category': 'Grocery', 'cost': 90.0, 'salePrice': 100.0, 'stock': 5.0,
         'reorderLevel': 2.0, 'expiry': '', 'unit': 'kg', 'unitSize': 1, 'unitNote': '', 'secondaryUnit': 'bag',
         'secondaryUnitQty': 50.0, 'wholesalePrice': 95.0, 'tertiaryUnit': '', 'tertiaryUnitQty': 0.0,
-        'defaultUnitIndex': -1, 'quickSaleDefaultUnitIndex': 0, 'searchTag': 'chawal',
+        'defaultUnitIndex': -1, 'quickSaleDefaultUnitIndex': 0, 'searchTag': 'chawal', 'shopkeeperPrice': 92.0,
       });
       final s = await loadSeedFields(db, entityType: 'product', entityId: '111');
-      expect(s.length, 17);
+      expect(s.length, 18);
       expect(s['name'], 'Rice');
+      expect(s['shopkeeperPrice'], 92.0);
       expect(s['searchTag'], 'chawal');
       expect(s.containsKey('stock'), isFalse);
       expect(await loadSeedFields(db, entityType: 'product', entityId: 'nope'), isEmpty);
