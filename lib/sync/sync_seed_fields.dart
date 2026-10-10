@@ -46,6 +46,7 @@ Future<Map<String, Object?>> loadSeedFields(
         'cost': p['cost'],
         'salePrice': p['salePrice'],
         'wholesalePrice': p['wholesalePrice'],
+        'shopkeeperPrice': p['shopkeeperPrice'] ?? 0,
         'reorderLevel': p['reorderLevel'],
         'expiry': p['expiry'],
         'unit': p['unit'],
