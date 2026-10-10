@@ -6,6 +6,7 @@ import '../db/product_repository.dart';
 import '../models/product.dart';
 import '../services/session.dart';
 import '../utils/loc.dart';
+import '../widgets/rate_edit_sheet.dart';
 import '../theme/theme_manager.dart';
 
 /// Mirrors ItemSearchActivity.kt (spec: docs/specs/item_rate_search.md).
@@ -69,6 +70,17 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
     final purchases = _canSeeCost ? await repo.purchaseRecordsForItem(p.barcode) : <ItemPurchaseRecord>[];
     if (!mounted) return;
     setState(() { _detail = _ItemDetail(p, sales, purchases); _loadingDetail = false; });
+  }
+
+  /// Admin: rate card se hi Retail/Wholesale/Shopkeeper rate badlein, phir list + detail dobara load.
+  Future<void> _editRates(Product p) async {
+    final saved = await showRateEditSheet(context, p);
+    if (!saved || !mounted) return;
+    final list = await ProductRepository.instance.listAll();
+    if (!mounted) return;
+    setState(() => _products = list);
+    final match = list.where((x) => x.barcode == p.barcode);
+    if (match.isNotEmpty) await _open(match.first);
   }
 
   // ---------- rate formatting ----------
@@ -152,7 +164,21 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
       border: ThemeManager.palette.teal,
       fill: ThemeManager.palette.savedHighlightBg,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(Loc.t('SALE RATE', 'سیل ریٹ'), style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.tealDark)),
+        Row(children: [
+          Expanded(
+            child: Text(Loc.t('SALE RATE', 'سیل ریٹ'),
+                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.tealDark)),
+          ),
+          if (Session.isAdmin)
+            IconButton(
+              tooltip: Loc.t('Edit rates', 'ریٹ تبدیل کریں'),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: Icon(Icons.edit, size: 18, color: ThemeManager.palette.tealDark),
+              onPressed: () => _editRates(p),
+            ),
+        ]),
         const SizedBox(height: 8),
         if (p.salePrice <= 0)
           Text(Loc.t('Sale rate not set', 'سیل ریٹ سیٹ نہیں'), style: TextStyle(color: ThemeManager.palette.textMuted))
@@ -176,6 +202,20 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
                 Text(t.unit, style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
                 Text('Rs ${_fmtRate(p.fromPrimaryUnitRate(p.wholesalePrice, t.unit))}',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ThemeManager.palette.orange)),
+              ]),
+          ]),
+        ],
+        if (p.shopkeeperPrice > 0) ...[
+          const SizedBox(height: 14),
+          Text(Loc.t('SHOPKEEPER RATE', 'دکاندار ریٹ'),
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 22, runSpacing: 6, children: [
+            for (final t in tiers)
+              Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(t.unit, style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
+                Text('Rs ${_fmtRate(p.fromPrimaryUnitRate(p.shopkeeperPrice, t.unit))}',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ThemeManager.palette.blue)),
               ]),
           ]),
         ],

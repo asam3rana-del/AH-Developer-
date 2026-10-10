@@ -9,6 +9,8 @@ import '../utils/loc.dart';
 /// Bulk Rate Tool: sab products (ya ek category) par ek saath Retail ya Wholesale BULK RATE lagao ya hatao.
 /// Rate asal rate se % ya Rs kam; min qty (main unit) sab par ek jaisi. Pehle preview, phir confirm.
 /// Ek transaction mein save + sync_queue (har product doosre devices par bhi jata hai).
+/// "Shopkeeper rate" mode: sab (ya ek category) ka Shopkeeper rate = Wholesale rate minus % / Rs.
+/// Jo rate cost se kam ho uski preview mein warning aati hai.
 class BulkRateToolScreen extends StatefulWidget {
   const BulkRateToolScreen({super.key});
 
@@ -25,6 +27,7 @@ class _BulkRateToolScreenState extends State<BulkRateToolScreen> {
 
   BulkRateTarget _target = BulkRateTarget.retail;
   BulkRateRule _rule = BulkRateRule.percentOff;
+  bool _shopkeeperMode = false; // true = Shopkeeper rate set karo (bulk qty rate nahi)
   bool _clearMode = false;
   bool _onlyUnset = true;
   bool _roundToRupee = true;
@@ -85,6 +88,15 @@ class _BulkRateToolScreenState extends State<BulkRateToolScreen> {
     );
   }
 
+  ShopkeeperRatePlan get _skPlan => planShopkeeperRates(
+        products: _products,
+        rule: _rule,
+        value: double.tryParse(_value.text.trim()) ?? 0,
+        category: _category,
+        onlyUnset: _onlyUnset,
+        roundToRupee: _roundToRupee,
+      );
+
   static String _n(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
 
   Future<void> _apply(BulkRatePlan plan) async {
@@ -109,6 +121,40 @@ class _BulkRateToolScreenState extends State<BulkRateToolScreen> {
     setState(() => _saving = true);
     try {
       final n = await ProductRepository.instance.applyBulkRates(plan.rows, _target);
+      await _load();
+      if (!mounted) return;
+      _toast(Loc.t('Done: $n products updated', 'مکمل: $n پروڈکٹس اپڈیٹ ہوئیں'));
+    } catch (e) {
+      if (!mounted) return;
+      _toast(Loc.t('Could not save: $e', 'محفوظ نہیں ہو سکا: $e'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _applyShopkeeper(ShopkeeperRatePlan plan) async {
+    if (plan.rows.isEmpty || _saving) return;
+    final warn = plan.belowCostCount;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Set shopkeeper rates?', 'دکاندار ریٹ لگائیں؟')),
+        content: Text(Loc.t(
+          'Shopkeeper rate will be set on ${plan.rows.length} products. This syncs to all devices.'
+              '${warn > 0 ? '\n\n⚠ $warn of them are below cost (loss).' : ''}',
+          'دکاندار ریٹ ${plan.rows.length} پروڈکٹس پر لگے گا۔ یہ تمام ڈیوائسز پر سنک ہوگا۔'
+              '${warn > 0 ? '\n\n⚠ ان میں سے $warn لاگت سے کم ہیں (نقصان)۔' : ''}',
+        )),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Confirm', 'تصدیق'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _saving = true);
+    try {
+      final n = await ProductRepository.instance.applyShopkeeperRates(plan.rows);
       await _load();
       if (!mounted) return;
       _toast(Loc.t('Done: $n products updated', 'مکمل: $n پروڈکٹس اپڈیٹ ہوئیں'));
@@ -163,8 +209,8 @@ class _BulkRateToolScreenState extends State<BulkRateToolScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                Loc.t('Set (or remove) bulk rate on many products at once. Preview first, then confirm.',
-                    'کئی پروڈکٹس پر ایک ساتھ بلک ریٹ لگائیں یا ہٹائیں۔ پہلے پریویو، پھر تصدیق۔'),
+                Loc.t('Set (or remove) bulk rate, or set Shopkeeper rate (Wholesale minus %), on many products at once. Preview first, then confirm.',
+                    'کئی پروڈکٹس پر ایک ساتھ بلک ریٹ لگائیں/ہٹائیں یا دکاندار ریٹ (ہول سیل منفی ٪) لگائیں۔ پہلے پریویو، پھر تصدیق۔'),
                 style: TextStyle(color: ThemeManager.palette.headerSubtitleColor, fontSize: 12),
               ),
             ]),
@@ -194,12 +240,102 @@ class _BulkRateToolScreenState extends State<BulkRateToolScreen> {
     );
   }
 
+  Widget _skPreviewRow(ShopkeeperRateRow r) {
+    final p = ThemeManager.palette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(r.product.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.textDark)),
+            Text('${Loc.t('Wholesale', 'ہول سیل')} ${_n(r.baseRate)}  →  ${Loc.t('Shopkeeper', 'دکاندار')} ${_n(r.newRate)}',
+                style: TextStyle(fontSize: 12, color: p.textMuted)),
+            if (r.belowCost)
+              Text('⚠ ${Loc.t('below cost', 'لاگت سے کم')} (${_n(r.product.cost)})',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: p.red)),
+          ]),
+        ),
+        if (r.oldRate > 0) Text('${Loc.t('was', 'پہلے')} ${_n(r.oldRate)}', style: TextStyle(fontSize: 11.5, color: p.amber)),
+      ]),
+    );
+  }
+
+  Widget _shopkeeperPreview(ShopkeeperRatePlan plan, bool inputReady) {
+    final p = ThemeManager.palette;
+    final skipped = plan.skippedNoBase + plan.skippedInvalid + plan.skippedAlreadySet;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: p.cardWhite,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+          inputReady
+              ? Loc.t('${plan.rows.length} products will change', '${plan.rows.length} پروڈکٹس تبدیل ہوں گی')
+              : Loc.t('Fill the discount to see preview', 'پریویو کے لیے رعایت بھریں'),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.textDark),
+        ),
+        if (inputReady && skipped > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              [
+                if (plan.skippedNoBase > 0) Loc.t('${plan.skippedNoBase} skipped (no wholesale rate)', '${plan.skippedNoBase} چھوڑی (ہول سیل ریٹ نہیں)'),
+                if (plan.skippedAlreadySet > 0) Loc.t('${plan.skippedAlreadySet} skipped (shopkeeper rate already set)', '${plan.skippedAlreadySet} چھوڑی (دکاندار ریٹ پہلے سے سیٹ)'),
+                if (plan.skippedInvalid > 0) Loc.t('${plan.skippedInvalid} skipped (rate would be 0 or not lower)', '${plan.skippedInvalid} چھوڑی (ریٹ 0 یا کم نہیں)'),
+              ].join(' • '),
+              style: TextStyle(fontSize: 12, color: p.textMuted),
+            ),
+          ),
+        if (inputReady && plan.belowCostCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              Loc.t('⚠ ${plan.belowCostCount} products would be below cost (loss)', '⚠ ${plan.belowCostCount} پروڈکٹس لاگت سے کم ہوں گی (نقصان)'),
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: p.red),
+            ),
+          ),
+        if (inputReady) ...[
+          const Divider(height: 20),
+          for (final r in plan.rows.take(60)) _skPreviewRow(r),
+          if (plan.rows.length > 60)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(Loc.t('…and ${plan.rows.length - 60} more', '…اور ${plan.rows.length - 60} مزید'),
+                  style: TextStyle(fontSize: 12, color: p.textMuted)),
+            ),
+        ],
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: p.teal,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            onPressed: (_saving || !inputReady || plan.rows.isEmpty) ? null : () => _applyShopkeeper(plan),
+            icon: const Icon(Icons.check, size: 18),
+            label: Text(Loc.t('SET SHOPKEEPER RATES', 'دکاندار ریٹ لگائیں'),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+          ),
+        ),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = ThemeManager.palette;
-    final plan = _loading ? const BulkRatePlan([]) : _plan;
+    final plan = (_loading || _shopkeeperMode) ? const BulkRatePlan([]) : _plan;
     final cats = _categories;
-    final inputReady = _clearMode || ((double.tryParse(_minQty.text.trim()) ?? 0) > 0 && (double.tryParse(_value.text.trim()) ?? 0) > 0);
+    final valueOk = (double.tryParse(_value.text.trim()) ?? 0) > 0;
+    final inputReady = _shopkeeperMode
+        ? valueOk
+        : (_clearMode || ((double.tryParse(_minQty.text.trim()) ?? 0) > 0 && valueOk));
     return Scaffold(
       backgroundColor: p.bg,
       body: SafeArea(
@@ -219,20 +355,31 @@ class _BulkRateToolScreenState extends State<BulkRateToolScreen> {
                 border: Border.all(color: p.border),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _label(Loc.t('FOR WHICH RATE', 'کس ریٹ کے لیے')),
-                _chips<BulkRateTarget>([
-                  (BulkRateTarget.retail, Loc.t('Retail', 'پرچون')),
-                  (BulkRateTarget.wholesale, Loc.t('Wholesale', 'تھوک')),
-                ], _target, (v) => _target = v),
-                _label(Loc.t('ACTION', 'عمل')),
+                _label(Loc.t('WHAT TO SET', 'کیا لگانا ہے')),
                 _chips<bool>([
-                  (false, Loc.t('Set bulk rate', 'بلک ریٹ لگاؤ')),
-                  (true, Loc.t('Remove bulk rate', 'بلک ریٹ ہٹاؤ')),
-                ], _clearMode, (v) => _clearMode = v),
-                if (!_clearMode) ...[
-                  _label(Loc.t('BULK MIN QTY (main unit)', 'بلک کم از کم مقدار (مین یونٹ)')),
-                  _field(_minQty, 'e.g. 10'),
-                  _label(Loc.t('BULK RATE = RATE MINUS', 'بلک ریٹ = ریٹ منفی')),
+                  (false, Loc.t('Bulk (qty) rate', 'بلک (مقدار) ریٹ')),
+                  (true, Loc.t('Shopkeeper rate', 'دکاندار ریٹ')),
+                ], _shopkeeperMode, (v) => _shopkeeperMode = v),
+                if (!_shopkeeperMode) ...[
+                  _label(Loc.t('FOR WHICH RATE', 'کس ریٹ کے لیے')),
+                  _chips<BulkRateTarget>([
+                    (BulkRateTarget.retail, Loc.t('Retail', 'پرچون')),
+                    (BulkRateTarget.wholesale, Loc.t('Wholesale', 'تھوک')),
+                  ], _target, (v) => _target = v),
+                  _label(Loc.t('ACTION', 'عمل')),
+                  _chips<bool>([
+                    (false, Loc.t('Set bulk rate', 'بلک ریٹ لگاؤ')),
+                    (true, Loc.t('Remove bulk rate', 'بلک ریٹ ہٹاؤ')),
+                  ], _clearMode, (v) => _clearMode = v),
+                  if (!_clearMode) ...[
+                    _label(Loc.t('BULK MIN QTY (main unit)', 'بلک کم از کم مقدار (مین یونٹ)')),
+                    _field(_minQty, 'e.g. 10'),
+                  ],
+                ],
+                if (_shopkeeperMode || !_clearMode) ...[
+                  _label(_shopkeeperMode
+                      ? Loc.t('SHOPKEEPER RATE = WHOLESALE MINUS', 'دکاندار ریٹ = ہول سیل منفی')
+                      : Loc.t('BULK RATE = RATE MINUS', 'بلک ریٹ = ریٹ منفی')),
                   _chips<BulkRateRule>([
                     (BulkRateRule.percentOff, Loc.t('% off', '٪ کم')),
                     (BulkRateRule.amountOff, Loc.t('Rs off', 'روپے کم')),
@@ -242,7 +389,11 @@ class _BulkRateToolScreenState extends State<BulkRateToolScreen> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
-                    title: Text(Loc.t('Only products without bulk rate', 'صرف جن کا بلک ریٹ سیٹ نہیں'), style: TextStyle(fontSize: 13, color: p.textDark)),
+                    title: Text(
+                        _shopkeeperMode
+                            ? Loc.t('Only products without shopkeeper rate', 'صرف جن کا دکاندار ریٹ سیٹ نہیں')
+                            : Loc.t('Only products without bulk rate', 'صرف جن کا بلک ریٹ سیٹ نہیں'),
+                        style: TextStyle(fontSize: 13, color: p.textDark)),
                     value: _onlyUnset,
                     onChanged: (v) => setState(() => _onlyUnset = v),
                   ),
@@ -273,6 +424,9 @@ class _BulkRateToolScreenState extends State<BulkRateToolScreen> {
             ),
           if (!_loading) ...[
             const SizedBox(height: 14),
+            if (_shopkeeperMode)
+              _shopkeeperPreview(_skPlan, inputReady)
+            else
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

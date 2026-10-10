@@ -4,7 +4,7 @@ import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
 
 import '../models/product.dart';
 import '../utils/sale_cart.dart' show saleTierCount;
-import '../utils/bulk_rate_planner.dart' show BulkRateRow, BulkRateTarget;
+import '../utils/bulk_rate_planner.dart' show BulkRateRow, BulkRateTarget, ShopkeeperRateRow;
 import 'app_database.dart';
 import 'stock_ledger.dart';
 import '../services/session.dart';
@@ -195,9 +195,15 @@ class ProductRepository {
   }
 
   /// updateRatesReview + enqueueProduct, ek transaction mein. Rates PRIMARY unit par.
-  Future<void> setRates(String barcode, {required double salePrice, required double wholesalePrice}) {
+  /// [shopkeeperPrice] null = purana shopkeeper rate jyon ka tyon (sirf diya ho to badalta hai).
+  Future<void> setRates(String barcode,
+      {required double salePrice, required double wholesalePrice, double? shopkeeperPrice}) {
     _requireProductAdmin();
-    return _updateAndEnqueue(barcode, {'salePrice': salePrice, 'wholesalePrice': wholesalePrice});
+    return _updateAndEnqueue(barcode, {
+      'salePrice': salePrice,
+      'wholesalePrice': wholesalePrice,
+      if (shopkeeperPrice != null) 'shopkeeperPrice': shopkeeperPrice,
+    });
   }
 
   /// Party Dashboard "Edit Rates": cost + retail + wholesale, sab PRIMARY unit par + sync_queue,
@@ -221,6 +227,24 @@ class ProductRepository {
             ? {'bulkPrice': r.newBulkPrice, 'bulkMinQty': r.newMinQty}
             : {'wholesaleBulkPrice': r.newBulkPrice, 'wholesaleBulkMinQty': r.newMinQty};
         await txn.update('products', {...changes, 'dirty': 1, 'updatedAt': now},
+            where: 'barcode=?', whereArgs: [r.product.barcode]);
+        await SyncQueueHelper.enqueueProduct(txn, r.product.barcode);
+      }
+    });
+    await _notify();
+    return rows.length;
+  }
+
+  /// Bulk Rate Tool "Shopkeeper rate": bohat si products ka shopkeeperPrice (primary unit) ek hi transaction mein
+  /// (har product sync_queue mein). Koi ek fail ho to sab rollback. Wapas badli hui products ki ginti.
+  Future<int> applyShopkeeperRates(List<ShopkeeperRateRow> rows) async {
+    _requireProductAdmin();
+    if (rows.isEmpty) return 0;
+    final db = await AppDatabase.instance.database;
+    await db.transaction((txn) async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final r in rows) {
+        await txn.update('products', {'shopkeeperPrice': r.newRate, 'dirty': 1, 'updatedAt': now},
             where: 'barcode=?', whereArgs: [r.product.barcode]);
         await SyncQueueHelper.enqueueProduct(txn, r.product.barcode);
       }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../db/items_repository.dart' show filterProducts;
 import '../db/product_repository.dart';
 import '../models/product.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
+import '../widgets/rate_margin_dialog.dart';
 import '../theme/theme_manager.dart';
 
 /// Mirrors BulkMissingRatesActivity.kt — un products ki queue jin ka Retail ya
@@ -11,6 +13,8 @@ import '../theme/theme_manager.dart';
 /// jo kam hai woh bhar kar Save & Next. Har rate ke oopar unit chips: us unit mein rate
 /// likhein, save par PRIMARY unit mein convert (toPrimaryUnitRate) hota hai.
 /// Kotlin ki tarah dono fields save hoti hain (set wali mein typo bhi theek ho sakta hai).
+/// "All products" par toggle karein to sab products (search ke saath) mein se kisi ka bhi Retail/Wholesale/
+/// Shopkeeper rate set kar sakte hain. Rate cost se kam ho to save se pehle "Save anyway?" poochta hai.
 class BulkMissingRatesScreen extends StatefulWidget {
   const BulkMissingRatesScreen({super.key});
 
@@ -21,12 +25,18 @@ class BulkMissingRatesScreen extends StatefulWidget {
 class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
   final _retail = TextEditingController();
   final _wholesale = TextEditingController();
-  List<Product> _queue = [];
+  final _shopkeeper = TextEditingController();
+  final _searchCtrl = TextEditingController();
+  List<Product> _source = []; // DB se load (missing-only ya sab)
+  List<Product> _queue = []; // _source (all mode mein search se filtered)
+  bool _showAll = false;
+  String _query = '';
   int _total = 0;
   bool _loading = true;
   bool _saving = false;
   String _retailUnit = '';
   String _wholesaleUnit = '';
+  String _shopkeeperUnit = '';
 
   @override
   void initState() {
@@ -38,24 +48,52 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
   void dispose() {
     _retail.dispose();
     _wholesale.dispose();
+    _shopkeeper.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     try {
-      final list = await ProductRepository.instance.withMissingRates();
+      final list = _showAll
+          ? await ProductRepository.instance.listAll()
+          : await ProductRepository.instance.withMissingRates();
       if (!mounted) return;
-      setState(() {
-        _queue = list;
-        _total = list.length;
-        _loading = false;
-      });
-      _fillCurrent();
+      _source = list;
+      _applyFilter();
+      setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
       _toast(Loc.t('Could not load products: $e', 'پروڈکٹس لوڈ نہیں ہو سکیں: $e'));
     }
+  }
+
+  /// All mode mein search lagao (naam/tag/barcode); missing mode mein poori queue.
+  void _applyFilter() {
+    final list = _showAll ? filterProducts(_source, _query) : _source;
+    setState(() {
+      _queue = list;
+      _total = list.length;
+    });
+    _fillCurrent();
+  }
+
+  void _setMode(bool all) {
+    if (all == _showAll) return;
+    setState(() {
+      _showAll = all;
+      _loading = true;
+      _query = '';
+      _searchCtrl.clear();
+    });
+    _load();
+  }
+
+  void _skip() {
+    if (_queue.isEmpty) return;
+    setState(() => _queue = _queue.sublist(1));
+    _fillCurrent();
   }
 
   void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -83,8 +121,10 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
     setState(() {
       _retailUnit = p.unit;
       _wholesaleUnit = p.unit;
+      _shopkeeperUnit = p.unit;
       _retail.text = trimNum(p.salePrice);
       _wholesale.text = trimNum(p.wholesalePrice);
+      _shopkeeper.text = trimNum(p.shopkeeperPrice);
     });
   }
 
@@ -152,12 +192,22 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
     if (r == null) return;
     final w = parseMoneyOrWarn(context, _wholesale.text, 'Wholesale Price', 'ہول سیل قیمت');
     if (w == null) return;
+    final sk = parseMoneyOrWarn(context, _shopkeeper.text, 'Shopkeeper Price', 'دکاندار قیمت');
+    if (sk == null) return;
+    final retail = r > 0 ? current.toPrimaryUnitRate(r, _retailUnit) : 0.0;
+    final wholesale = w > 0 ? current.toPrimaryUnitRate(w, _wholesaleUnit) : 0.0;
+    // Shopkeeper rate optional hai: khali/0 = set nahi => bill par wholesale rate lagta hai.
+    final shopkeeper = sk > 0 ? current.toPrimaryUnitRate(sk, _shopkeeperUnit) : 0.0;
+    if (!await confirmBelowCost(context, product: current, retail: retail, wholesale: wholesale, shopkeeper: shopkeeper)) return;
+    if (!mounted) return;
     setState(() => _saving = true);
     try {
-      final retail = r > 0 ? current.toPrimaryUnitRate(r, _retailUnit) : 0.0;
-      final wholesale = w > 0 ? current.toPrimaryUnitRate(w, _wholesaleUnit) : 0.0;
-      await ProductRepository.instance.setRates(current.barcode, salePrice: retail, wholesalePrice: wholesale);
+      await ProductRepository.instance
+          .setRates(current.barcode, salePrice: retail, wholesalePrice: wholesale, shopkeeperPrice: shopkeeper);
       if (!mounted) return;
+      // Search badalne par ye product purani value se na aaye: _source mein bhi update.
+      final updated = current.copyWith(salePrice: retail, wholesalePrice: wholesale, shopkeeperPrice: shopkeeper);
+      _source = [for (final x in _source) x.barcode == current.barcode ? updated : x];
       setState(() => _queue = _queue.sublist(1));
       _fillCurrent();
     } catch (e) {
@@ -191,7 +241,8 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
     );
   }
 
-  Widget _rateField(String label, bool missing, Product p, TextEditingController c, String unit, void Function(String) set) =>
+  Widget _rateField(String label, bool missing, Product p, TextEditingController c, String unit, void Function(String) set,
+          {String? hint}) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ThemeManager.palette.textMuted))),
@@ -202,6 +253,11 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
               child: Text(Loc.t('MISSING', 'غائب'), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
         ]),
+        if (hint != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(hint, style: TextStyle(fontSize: 10.5, color: ThemeManager.palette.textMuted)),
+          ),
         _unitChips(p, c, unit, set),
         Container(
           margin: const EdgeInsets.only(top: 2),
@@ -251,10 +307,10 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
           padding: const EdgeInsets.only(top: 10),
           child: Text(
             unitOptionsFor(p).length > 1
-                ? Loc.t('Tap a unit chip above Retail/Wholesale to enter that rate in whichever unit is easiest — it converts automatically.',
-                    'خوردہ/ہول سیل کے اوپر یونٹ چپ دبائیں اور جس یونٹ میں آسان ہو ریٹ لکھیں — خود بخود تبدیل ہو جاتا ہے۔')
-                : Loc.t('Enter Retail/Wholesale below per ${p.unit} (the primary unit).',
-                    'خوردہ/ہول سیل نیچے فی ${p.unit} (بنیادی یونٹ) لکھیں۔'),
+                ? Loc.t('Tap a unit chip above Retail/Wholesale/Shopkeeper to enter that rate in whichever unit is easiest — it converts automatically.',
+                    'خوردہ/ہول سیل/دکاندار کے اوپر یونٹ چپ دبائیں اور جس یونٹ میں آسان ہو ریٹ لکھیں — خود بخود تبدیل ہو جاتا ہے۔')
+                : Loc.t('Enter Retail/Wholesale/Shopkeeper below per ${p.unit} (the primary unit).',
+                    'خوردہ/ہول سیل/دکاندار نیچے فی ${p.unit} (بنیادی یونٹ) لکھیں۔'),
             style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
           ),
         ),
@@ -317,6 +373,11 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
           const SizedBox(height: 16),
           _rateField(Loc.t('WHOLESALE RATE', 'ہول سیل ریٹ'), p.wholesalePrice <= 0, p, _wholesale, _wholesaleUnit,
               (u) => _wholesaleUnit = u),
+          const SizedBox(height: 16),
+          _rateField(Loc.t('SHOPKEEPER RATE (OPTIONAL)', 'دکاندار ریٹ (اختیاری)'), false, p, _shopkeeper, _shopkeeperUnit,
+              (u) => _shopkeeperUnit = u,
+              hint: Loc.t('Lowest-margin rate. Leave empty = Wholesale rate is used.',
+                  'سب سے کم مارجن ریٹ۔ خالی چھوڑیں = ہول سیل ریٹ لگے گا۔')),
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
@@ -331,6 +392,17 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
               label: Text(Loc.t('SAVE & NEXT', 'محفوظ کریں اور اگلا'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
             ),
           ),
+          if (_showAll)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: _saving ? null : _skip,
+                  child: Text(Loc.t('SKIP (no change)', 'چھوڑیں (بغیر تبدیلی)')),
+                ),
+              ),
+            ),
         ]),
       ),
     ]);
@@ -343,7 +415,38 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(14), children: [
           _header(),
-          if (!_loading)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Wrap(spacing: 8, children: [
+              ChoiceChip(
+                  label: Text(Loc.t('Missing only', 'صرف غائب')),
+                  selected: !_showAll,
+                  onSelected: (_) => _setMode(false)),
+              ChoiceChip(
+                  label: Text(Loc.t('All products', 'تمام پروڈکٹس')),
+                  selected: _showAll,
+                  onSelected: (_) => _setMode(true)),
+            ]),
+          ),
+          if (_showAll)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) {
+                  _query = v;
+                  _applyFilter();
+                },
+                decoration: InputDecoration(
+                  hintText: Loc.t('Search product…', 'پروڈکٹ تلاش کریں…'),
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: ThemeManager.palette.fieldFill,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+          if (!_loading && !_showAll)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: OutlinedButton.icon(
@@ -361,7 +464,10 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(Loc.t('Every product has both rates set', 'ہر پروڈکٹ کے دونوں ریٹ سیٹ ہیں'),
+                Text(
+                    _showAll
+                        ? Loc.t('No more products', 'مزید پروڈکٹس نہیں')
+                        : Loc.t('Every product has both rates set', 'ہر پروڈکٹ کے دونوں ریٹ سیٹ ہیں'),
                     style: TextStyle(fontSize: 14, color: ThemeManager.palette.textMuted)),
                 const SizedBox(width: 6),
                 Icon(Icons.check, size: 16, color: ThemeManager.palette.teal),

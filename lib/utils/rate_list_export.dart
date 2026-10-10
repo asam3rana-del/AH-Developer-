@@ -12,12 +12,13 @@ import '../models/product.dart';
 /// Public Downloads ke andar folder (Kotlin: "IBTISAAM Rate Lists").
 const String rateListFolder = 'IBTISAAM Rate Lists';
 
-/// Pehla column Code (barcode) hai — import (`parseRateListCsv`) isi se product pehchanta hai.
+/// Pehla column Code (barcode) hai. Shopkeeper Rate sab se aakhir mein (purane column positions na badlein).
 const List<String> rateListHeader = [
   "Code (don't edit)", 'Name', 'Category', 'Unit',
   'Wholesale Rate', 'Retail Rate',
   '2nd Unit', '1 Unit = Qty (2nd Unit)',
   '3rd Unit', '1 (2nd Unit) = Qty (3rd Unit)',
+  'Shopkeeper Rate',
 ];
 
 String _esc(String s) => '"${s.replaceAll('"', '""')}"';
@@ -28,7 +29,7 @@ String _num(double v) {
 }
 
 /// Pure: CSV text (UTF-8 BOM ke saath, taa-ke Excel Urdu/English naam sahi dikhaye).
-/// Naam ke hisaab se sorted. Isi file ko wapas Items > Import se parha ja sakta hai.
+/// Naam ke hisaab se sorted. 
 String buildRateListCsv(List<Product> products) {
   final sorted = [...products]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   final b = StringBuffer('\uFEFF')..writeln(rateListHeader.join(','));
@@ -44,6 +45,7 @@ String buildRateListCsv(List<Product> products) {
       pr.secondaryUnit.trim().isNotEmpty ? _num(pr.secondaryUnitQty) : '',
       _esc(pr.tertiaryUnit),
       pr.tertiaryUnit.trim().isNotEmpty ? _num(pr.tertiaryUnitQty) : '',
+      pr.shopkeeperPrice > 0 ? _num(pr.shopkeeperPrice) : '',
     ].join(','));
   }
   return b.toString();

@@ -1,4 +1,5 @@
 import '../models/product.dart';
+import 'rate_margin.dart';
 
 /// Kis rate ka bulk lagana hai: retail ya wholesale (dono ke fields alag hain).
 enum BulkRateTarget { retail, wholesale }
@@ -115,4 +116,82 @@ BulkRatePlan planClearBulkRates({
         newMinQty: 0));
   }
   return BulkRatePlan(rows);
+}
+
+/// Shopkeeper rate ka ek product ka preview (sab rate PRIMARY unit par).
+class ShopkeeperRateRow {
+  final Product product;
+
+  /// Wholesale rate (jis se kaat kar shopkeeper rate nikla).
+  final double baseRate;
+  final double oldRate;
+  final double newRate;
+
+  /// Naya rate cost se kam hai (sirf warning, rukta nahi).
+  final bool belowCost;
+  const ShopkeeperRateRow({
+    required this.product,
+    required this.baseRate,
+    required this.oldRate,
+    required this.newRate,
+    required this.belowCost,
+  });
+}
+
+class ShopkeeperRatePlan {
+  final List<ShopkeeperRateRow> rows;
+
+  /// Wholesale rate 0 hai — us se shopkeeper rate nikal nahi sakta.
+  final int skippedNoBase;
+
+  /// Naya rate 0 ya wholesale se zyada/barabar nikla.
+  final int skippedInvalid;
+
+  /// "Sirf wo jin ka shopkeeper rate set nahi" on tha aur pehle se set hai.
+  final int skippedAlreadySet;
+  const ShopkeeperRatePlan(this.rows, {this.skippedNoBase = 0, this.skippedInvalid = 0, this.skippedAlreadySet = 0});
+
+  int get belowCostCount => rows.where((r) => r.belowCost).length;
+}
+
+/// Sab (ya ek category ki) products ka Shopkeeper rate = Wholesale rate - (value% ya value Rs).
+/// Kuch badalta nahi — sirf preview banata hai.
+ShopkeeperRatePlan planShopkeeperRates({
+  required List<Product> products,
+  required BulkRateRule rule,
+  required double value,
+  String? category,
+  bool onlyUnset = true,
+  bool roundToRupee = true,
+}) {
+  if (value <= 0 || (rule == BulkRateRule.percentOff && value >= 100)) {
+    return const ShopkeeperRatePlan([]);
+  }
+  final rows = <ShopkeeperRateRow>[];
+  var noBase = 0, invalid = 0, already = 0;
+  for (final p in products) {
+    if (!_inScope(p, category)) continue;
+    final base = p.wholesalePrice;
+    if (base <= 0) {
+      noBase++;
+      continue;
+    }
+    if (onlyUnset && p.shopkeeperPrice > 0) {
+      already++;
+      continue;
+    }
+    final nr = computeBulkRate(base, rule, value, roundToRupee: roundToRupee);
+    if (nr <= 0 || nr >= base) {
+      invalid++;
+      continue;
+    }
+    rows.add(ShopkeeperRateRow(
+      product: p,
+      baseRate: base,
+      oldRate: p.shopkeeperPrice,
+      newRate: nr,
+      belowCost: isBelowCost(nr, p.cost),
+    ));
+  }
+  return ShopkeeperRatePlan(rows, skippedNoBase: noBase, skippedInvalid: invalid, skippedAlreadySet: already);
 }
