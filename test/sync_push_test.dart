@@ -196,7 +196,7 @@ void main() {
       await db.execute('''CREATE TABLE products (barcode TEXT PRIMARY KEY, name TEXT, category TEXT, cost REAL,
         salePrice REAL, stock REAL, reorderLevel REAL, expiry TEXT, unit TEXT, unitSize INTEGER, unitNote TEXT,
         secondaryUnit TEXT, secondaryUnitQty REAL, wholesalePrice REAL, tertiaryUnit TEXT, tertiaryUnitQty REAL,
-        defaultUnitIndex INTEGER, quickSaleDefaultUnitIndex INTEGER, searchTag TEXT)''');
+        defaultUnitIndex INTEGER, quickSaleDefaultUnitIndex INTEGER, searchTag TEXT, shopkeeperPrice REAL)''');
     });
     tearDown(() => db.close());
 
