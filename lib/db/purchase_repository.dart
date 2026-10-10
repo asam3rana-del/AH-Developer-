@@ -522,13 +522,11 @@ class PurchaseRepository {
           touched = true;
         }
 
-        // Retail / wholesale: 0 = "na badlo". Rule: JO SAB SE BAAD MEIN BADLE wohi rate rahe — yani jab bhi
-        // purchase save / edit ho aur is line par rate likha ho, product ka rate usi waqt badal jata hai
-        // (bill ki date se farq nahi). Manual rate edit (Rate Search ka pencil) bhi isi tarah baad mein aaye
-        // to wohi jeet-ta hai. Edit mein sirf badli hui / nayi lines apna rate lagati hain (rate bhi diff
-        // ka hissa hai), taake ek line theek karne se baqi lines purane rate wapas na laga dein.
-        if ((diff == null || diff.changedLineIndices.contains(i)) &&
-            (line.retailRate > 0.0 || line.wholesaleRate > 0.0)) {
+        // Retail / wholesale: 0 = "na badlo". Rule: JO SAB SE BAAD MEIN BADLE wohi rate rahe. Purchase save /
+        // update dabane par bill ki HAR line ka likha hua retail/wholesale rate product par lag jata hai
+        // (chahe line badli ho ya nahi, aur bill ki date kuch bhi ho) — kyun ke user ne abhi wahi rate
+        // save kiya hai. Manual rate edit (Rate Search ka pencil) baad mein ho to wohi jeet-ta hai.
+        if (line.retailRate > 0.0 || line.wholesaleRate > 0.0) {
           final newSale = line.retailRate > 0.0 ? line.retailRate : before.salePrice;
           final newWholesale = line.wholesaleRate > 0.0 ? line.wholesaleRate : before.wholesalePrice;
           if (newSale != before.salePrice || newWholesale != before.wholesalePrice) {
