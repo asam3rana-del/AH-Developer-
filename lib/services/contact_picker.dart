@@ -1,5 +1,7 @@
 import 'package:flutter_contacts/flutter_contacts.dart';
 
+import 'app_lock.dart';
+
 /// Result of picking a phone contact (Kotlin `PartyActivity.fetchPhoneFromContact`).
 class PickedContact {
   final String name;
@@ -26,6 +28,10 @@ class ContactPicker {
   /// The system picker itself needs no permission; READ_CONTACTS / iOS Contacts
   /// access is asked only if the picked contact comes back without its numbers.
   static Future<ContactPickResult> pick() async {
+    // System contact picker khulte hi app 'paused' hoti hai; AppLock isay background samajh kar
+    // wapas aane par login par bhej deta tha (saari screens hat jati thin = "app band").
+    // Biometric prompt jaisa hi: picker ke dauran lock arm/consume na ho.
+    AppLock.instance.suspendLock = true;
     try {
       Contact? c = await FlutterContacts.openExternalPick();
       if (c == null) return const ContactPickResult(ContactPickStatus.cancelled);
@@ -44,6 +50,8 @@ class ContactPicker {
       );
     } catch (_) {
       return const ContactPickResult(ContactPickStatus.failed);
+    } finally {
+      AppLock.instance.suspendLock = false;
     }
   }
 }

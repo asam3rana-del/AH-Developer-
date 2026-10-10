@@ -522,21 +522,15 @@ class PurchaseRepository {
           touched = true;
         }
 
-        // Retail / wholesale: 0 = "na badlo". Purchase line par jo rate set ho wo product par khud lag jaye,
-        // lekin SIRF tab jab yeh bill is item ki sab se nayi date wali purchase ho. Purani date ki entry
-        // (back-date) product ka mojooda naya rate nahi badalti.
-        if (line.retailRate > 0.0 || line.wholesaleRate > 0.0) {
-          final newer = await txn.rawQuery(
-            'SELECT 1 FROM purchase_items pi JOIN purchases p ON p.billNo = pi.billNo '
-            'WHERE pi.barcode = ? AND p.billNo != ? AND p.createdAt > ? LIMIT 1',
-            [barcode, billNo, purchaseDateMillis],
-          );
-          // Agar product ka rate abhi 0 (missing) hai to back-date / purani bill se bhi bhar do — warna "Missing
-          // Rates" mein wohi product baar baar aata rehta tha jab ke bill par rate likha hota tha.
-          final allowSale = newer.isEmpty || before.salePrice <= 0.0;
-          final allowWholesale = newer.isEmpty || before.wholesalePrice <= 0.0;
-          final newSale = (line.retailRate > 0.0 && allowSale) ? line.retailRate : before.salePrice;
-          final newWholesale = (line.wholesaleRate > 0.0 && allowWholesale) ? line.wholesaleRate : before.wholesalePrice;
+        // Retail / wholesale: 0 = "na badlo". Rule: JO SAB SE BAAD MEIN BADLE wohi rate rahe — yani jab bhi
+        // purchase save / edit ho aur is line par rate likha ho, product ka rate usi waqt badal jata hai
+        // (bill ki date se farq nahi). Manual rate edit (Rate Search ka pencil) bhi isi tarah baad mein aaye
+        // to wohi jeet-ta hai. Edit mein sirf badli hui / nayi lines apna rate lagati hain (rate bhi diff
+        // ka hissa hai), taake ek line theek karne se baqi lines purane rate wapas na laga dein.
+        if ((diff == null || diff.changedLineIndices.contains(i)) &&
+            (line.retailRate > 0.0 || line.wholesaleRate > 0.0)) {
+          final newSale = line.retailRate > 0.0 ? line.retailRate : before.salePrice;
+          final newWholesale = line.wholesaleRate > 0.0 ? line.wholesaleRate : before.wholesalePrice;
           if (newSale != before.salePrice || newWholesale != before.wholesalePrice) {
             await txn.rawUpdate(
               'UPDATE products SET salePrice = ?, wholesalePrice = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
