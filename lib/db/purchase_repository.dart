@@ -522,13 +522,21 @@ class PurchaseRepository {
           touched = true;
         }
 
-        // Retail / wholesale: 0 = "na badlo". Rule: JO SAB SE BAAD MEIN BADLE wohi rate rahe. Purchase save /
-        // update dabane par bill ki HAR line ka likha hua retail/wholesale rate product par lag jata hai
-        // (chahe line badli ho ya nahi, aur bill ki date kuch bhi ho) — kyun ke user ne abhi wahi rate
-        // save kiya hai. Manual rate edit (Rate Search ka pencil) baad mein ho to wohi jeet-ta hai.
+        // Retail / wholesale: 0 = "na badlo". Rule (DATE WISE): product par us item ki sab se nayi BILL-DATE
+        // wali purchase ka rate rehta hai. Bill add ho ya edit — agar is item ki is bill se NAYI date wali
+        // koi aur active purchase maujood hai to yeh (back-dated / purani) bill rate ko bilkul nahi chhedti.
+        // Nayi ya barabar date wali bill ho to uska rate lag jata hai. Product ka rate 0 (missing) ho to
+        // purani bill se bhi bhar diya jata hai.
         if (line.retailRate > 0.0 || line.wholesaleRate > 0.0) {
-          final newSale = line.retailRate > 0.0 ? line.retailRate : before.salePrice;
-          final newWholesale = line.wholesaleRate > 0.0 ? line.wholesaleRate : before.wholesalePrice;
+          final newer = await txn.rawQuery(
+            'SELECT 1 FROM purchase_items pi JOIN purchases p ON p.billNo = pi.billNo '
+            "WHERE pi.barcode = ? AND p.billNo != ? AND p.status = 'active' AND p.createdAt > ? LIMIT 1",
+            [barcode, billNo, purchaseDateMillis],
+          );
+          final allowSale = newer.isEmpty || before.salePrice <= 0.0;
+          final allowWholesale = newer.isEmpty || before.wholesalePrice <= 0.0;
+          final newSale = (line.retailRate > 0.0 && allowSale) ? line.retailRate : before.salePrice;
+          final newWholesale = (line.wholesaleRate > 0.0 && allowWholesale) ? line.wholesaleRate : before.wholesalePrice;
           if (newSale != before.salePrice || newWholesale != before.wholesalePrice) {
             await txn.rawUpdate(
               'UPDATE products SET salePrice = ?, wholesalePrice = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
