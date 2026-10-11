@@ -533,14 +533,19 @@ class PurchaseRepository {
             "WHERE pi.barcode = ? AND p.billNo != ? AND p.status = 'active' AND p.createdAt > ? LIMIT 1",
             [barcode, billNo, purchaseDateMillis],
           );
-          final allowSale = newer.isEmpty || before.salePrice <= 0.0;
-          final allowWholesale = newer.isEmpty || before.wholesalePrice <= 0.0;
+          // Manual set/edit ki date bhi ginti hai: agar rate is bill ki date ke BAAD (din ke hisaab se)
+          // set/edit hua hai to purani date ki bill rate nahi badlegi. Same din ho to lag jata hai.
+          final ra = DateTime.fromMillisecondsSinceEpoch(before.ratesAt);
+          final rateDayStart = before.ratesAt > 0 ? DateTime(ra.year, ra.month, ra.day).millisecondsSinceEpoch : 0;
+          final editedAfter = before.ratesAt > 0 && purchaseDateMillis < rateDayStart;
+          final allowSale = (newer.isEmpty && !editedAfter) || before.salePrice <= 0.0;
+          final allowWholesale = (newer.isEmpty && !editedAfter) || before.wholesalePrice <= 0.0;
           final newSale = (line.retailRate > 0.0 && allowSale) ? line.retailRate : before.salePrice;
           final newWholesale = (line.wholesaleRate > 0.0 && allowWholesale) ? line.wholesaleRate : before.wholesalePrice;
           if (newSale != before.salePrice || newWholesale != before.wholesalePrice) {
             await txn.rawUpdate(
-              'UPDATE products SET salePrice = ?, wholesalePrice = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
-              [newSale, newWholesale, now, barcode],
+              'UPDATE products SET salePrice = ?, wholesalePrice = ?, ratesAt = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+              [newSale, newWholesale, purchaseDateMillis, now, barcode],
             );
             touched = true;
           }

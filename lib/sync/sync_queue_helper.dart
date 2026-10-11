@@ -162,6 +162,7 @@ class SyncQueueHelper {
         'salePrice': p['salePrice'],
         'wholesalePrice': p['wholesalePrice'],
         'shopkeeperPrice': p['shopkeeperPrice'] ?? 0,
+        'ratesAt': p['ratesAt'] ?? 0,
         'bulkPrice': p['bulkPrice'] ?? 0,
         'bulkMinQty': p['bulkMinQty'] ?? 0,
         'wholesaleBulkPrice': p['wholesaleBulkPrice'] ?? 0,

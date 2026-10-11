@@ -19,6 +19,10 @@ class Product {
   final double wholesalePrice;
   /// Shopkeeper (bilkul kam margin) rate, primary unit par. 0 = set nahi => wholesale rate istemal hota hai.
   final double shopkeeperPrice;
+
+  /// Retail/wholesale rate ki "effective date" (ms). Rate manual set/edit ho to uska waqt, purchase se
+  /// aaya ho to us bill ki date. Purani date wali purchase is se purane rate par rate nahi lagati. 0 = pata nahi.
+  final int ratesAt;
   /// Retail grahak ke liye bulk rate (0 = nahi) aur kam az kam miqdar (primary unit mein; 0 = nahi).
   final double bulkPrice;
   final double bulkMinQty;
@@ -58,6 +62,7 @@ class Product {
     this.secondaryUnitQty = 0.0,
     this.wholesalePrice = 0.0,
     this.shopkeeperPrice = 0.0,
+    this.ratesAt = 0,
     this.bulkPrice = 0.0,
     this.bulkMinQty = 0.0,
     this.wholesaleBulkPrice = 0.0,
@@ -91,6 +96,7 @@ class Product {
     double? secondaryUnitQty,
     double? wholesalePrice,
     double? shopkeeperPrice,
+    int? ratesAt,
     double? bulkPrice,
     double? bulkMinQty,
     double? wholesaleBulkPrice,
@@ -117,6 +123,7 @@ class Product {
       secondaryUnitQty: secondaryUnitQty ?? this.secondaryUnitQty,
       wholesalePrice: wholesalePrice ?? this.wholesalePrice,
       shopkeeperPrice: shopkeeperPrice ?? this.shopkeeperPrice,
+      ratesAt: ratesAt ?? this.ratesAt,
       bulkPrice: bulkPrice ?? this.bulkPrice,
       bulkMinQty: bulkMinQty ?? this.bulkMinQty,
       wholesaleBulkPrice: wholesaleBulkPrice ?? this.wholesaleBulkPrice,
@@ -148,6 +155,7 @@ class Product {
         'secondaryUnitQty': secondaryUnitQty,
         'wholesalePrice': wholesalePrice,
         'shopkeeperPrice': shopkeeperPrice,
+        'ratesAt': ratesAt,
         'bulkPrice': bulkPrice,
         'bulkMinQty': bulkMinQty,
         'wholesaleBulkPrice': wholesaleBulkPrice,
@@ -178,6 +186,7 @@ class Product {
         secondaryUnitQty: (m['secondaryUnitQty'] as num?)?.toDouble() ?? 0.0,
         wholesalePrice: (m['wholesalePrice'] as num?)?.toDouble() ?? 0.0,
         shopkeeperPrice: (m['shopkeeperPrice'] as num?)?.toDouble() ?? 0.0,
+        ratesAt: (m['ratesAt'] as num?)?.toInt() ?? 0,
         bulkPrice: (m['bulkPrice'] as num?)?.toDouble() ?? 0.0,
         bulkMinQty: (m['bulkMinQty'] as num?)?.toDouble() ?? 0.0,
         wholesaleBulkPrice: (m['wholesaleBulkPrice'] as num?)?.toDouble() ?? 0.0,

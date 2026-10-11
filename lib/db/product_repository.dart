@@ -78,13 +78,23 @@ class ProductRepository {
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       var row = product.toMap();
+      if (isNew && (product.salePrice > 0 || product.wholesalePrice > 0) && product.ratesAt == 0) {
+        row['ratesAt'] = DateTime.now().millisecondsSinceEpoch;
+      }
       var stockDelta = 0.0;
       if (!isNew) {
         final cur = await txn.query('products', where: 'barcode=?', whereArgs: [product.barcode], limit: 1);
         if (cur.isNotEmpty) {
           final current = Product.fromMap(cur.first);
           final r = rescaleStockForLadderChange(current, product);
-          row = {...row, 'stock': r.stock, 'openingStock': r.openingStock};
+          // Retail/wholesale manual edit => rate ki date aaj (purani date ki purchase isay nahi badlegi).
+          final rateEdited = product.salePrice != current.salePrice || product.wholesalePrice != current.wholesalePrice;
+          row = {
+            ...row,
+            'stock': r.stock,
+            'openingStock': r.openingStock,
+            'ratesAt': rateEdited ? DateTime.now().millisecondsSinceEpoch : current.ratesAt,
+          };
           stockDelta = r.stock - current.stock;
         }
       }
@@ -318,7 +328,8 @@ class ProductRepository {
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
-      await txn.update('products', {...changes, 'dirty': 1, 'updatedAt': now},
+      final rateChange = changes.containsKey('salePrice') || changes.containsKey('wholesalePrice');
+      await txn.update('products', {...changes, if (rateChange) 'ratesAt': now, 'dirty': 1, 'updatedAt': now},
           where: 'barcode=?', whereArgs: [barcode]);
       await SyncQueueHelper.enqueueProduct(txn, barcode);
     });

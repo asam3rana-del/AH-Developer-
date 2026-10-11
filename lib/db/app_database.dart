@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 18;
+  static const _dbVersion = 19;
 
   Database? _db;
 
@@ -90,6 +90,7 @@ class AppDatabase {
         secondaryUnitQty REAL NOT NULL DEFAULT 0,
         wholesalePrice REAL NOT NULL DEFAULT 0,
         shopkeeperPrice REAL NOT NULL DEFAULT 0,
+        ratesAt INTEGER NOT NULL DEFAULT 0,
         bulkPrice REAL NOT NULL DEFAULT 0,
         bulkMinQty REAL NOT NULL DEFAULT 0,
         wholesaleBulkPrice REAL NOT NULL DEFAULT 0,
@@ -437,6 +438,10 @@ class AppDatabase {
       // v18: Shopkeeper rate (item ka teesra rate) + customer ka rate-type tag.
       await _addColumnIfMissing(db, 'products', 'shopkeeperPrice', 'REAL NOT NULL DEFAULT 0');
       await _addColumnIfMissing(db, 'customers', 'rateType', "TEXT NOT NULL DEFAULT ''");
+    }
+    if (oldVersion < 19) {
+      // v19: retail/wholesale rate ki effective date (purani date ki purchase naya rate na bigade).
+      await _addColumnIfMissing(db, 'products', 'ratesAt', 'INTEGER NOT NULL DEFAULT 0');
     }
   }
 
