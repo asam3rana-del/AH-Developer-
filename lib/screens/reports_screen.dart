@@ -9,6 +9,7 @@ import 'due_reminders_screen.dart';
 import 'history_screen.dart';
 import 'inventory_insights_screen.dart';
 import 'monthly_screen.dart';
+import 'daily_bills_screen.dart';
 import 'party_reports_screen.dart';
 import 'payments_screen.dart';
 import 'rate_comparison_screen.dart';
@@ -121,6 +122,9 @@ class _ReportsBodyState extends State<_ReportsBody> {
             _row(p, Loc.t('Party Reports', 'پارٹی رپورٹس'),
                 Loc.t('Customer & supplier balances', 'کسٹمر اور سپلائر کا بیلنس'), p.flatBlueFg,
                 () => _open(const PartyReportsScreen())),
+            _row(p, Loc.t('Daily Bills', 'روزانہ بلز'),
+                Loc.t('Har customer ka din ka ek bill + balance', 'ہر کسٹمر کا دن کا ایک بل اور بیلنس'), p.flatTealFg,
+                () => _open(const DailyBillsScreen())),
             _row(p, Loc.t('Payments Report', 'ادائیگیوں کی رپورٹ'),
                 Loc.t('Payments received vs made, by period', 'ادائیگیاں وصول اور ادا، مدت کے مطابق'), p.flatTealFg,
                 () => _open(const PaymentsScreen())),
