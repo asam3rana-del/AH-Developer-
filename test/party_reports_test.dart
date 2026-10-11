@@ -108,4 +108,23 @@ void main() {
       expect(s.due, 600);
     });
   });
+
+  group('party reports agree (Amir Gourmet case)', () {
+    test('general payment counted in payment history + purchase summary', () {
+      final bills = [bill('P1', 1000, 400, 1), bill('P2', 500, 0, 2)];
+      final pays = [
+        const ReportPayment(reference: 'manual-1', amount: 300, createdAt: 3),
+        const ReportPayment(reference: 'P1', amount: 400, createdAt: 1), // bill ke andar, dobara nahi
+      ];
+      final sep = separatePayments(bills, pays);
+      expect(sep.length, 1);
+      final e = paymentEntries(bills, isCustomer: false, separate: sep);
+      expect(e.fold<double>(0, (a, x) => a + x.amount), 700);
+      expect(e.first.general, isTrue);
+      final s = supplierSummary(bills, separatePaid: 300);
+      expect(s.paid, 700);
+      expect(s.due, 800); // == Statement closing (1500 - 700)
+      expect(supplierSummary(bills, separatePaid: 300, opening: 50).due, 850);
+    });
+  });
 }

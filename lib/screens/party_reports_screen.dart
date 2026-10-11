@@ -261,8 +261,9 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
 
   Future<void> _showPaymentHistory(ReportPartyRow r) async {
     final bills = await PartyReportsRepository.instance.bills(isCustomer: r.isCustomer, id: r.id);
+    final pays = await PartyReportsRepository.instance.payments(isCustomer: r.isCustomer, id: r.id);
     if (!mounted) return;
-    final entries = paymentEntries(bills, isCustomer: r.isCustomer);
+    final entries = paymentEntries(bills, isCustomer: r.isCustomer, separate: separatePayments(bills, pays));
     final total = entries.fold<double>(0, (a, e) => a + e.amount);
     await _reportDialog(
       icon: Icons.account_balance_wallet_outlined,
@@ -275,7 +276,11 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
               for (final e in entries)
                 _paymentRow(
                   _dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(e.date)),
-                  e.isSale ? Loc.t('Against Sale', 'سیل کے مقابلے میں') : Loc.t('Against Purchase', 'خریداری کے مقابلے میں'),
+                  e.general
+                      ? (e.isSale ? Loc.t('Payment received', 'ادائیگی وصول ہوئی') : Loc.t('Payment made', 'ادائیگی کی گئی'))
+                      : e.isSale
+                          ? Loc.t('Against Sale', 'سیل کے مقابلے میں')
+                          : Loc.t('Against Purchase', 'خریداری کے مقابلے میں'),
                   e.amount,
                 ),
               _divider(),
@@ -378,8 +383,10 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
       return;
     }
     final bills = await PartyReportsRepository.instance.bills(isCustomer: false, id: r.id);
+    final pays = await PartyReportsRepository.instance.payments(isCustomer: false, id: r.id);
     if (!mounted) return;
-    final s = supplierSummary(bills);
+    final extra = separatePayments(bills, pays).fold<double>(0, (a, p) => a + p.amount);
+    final s = supplierSummary(bills, separatePaid: extra, opening: r.opening);
     await _reportDialog(
       icon: Icons.bar_chart_outlined,
       accent: _teal,
@@ -389,6 +396,7 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
           ? [_empty(Loc.t('No purchases yet', 'کوئی خریداری نہیں ہوئی'))]
           : [
               _rowText(Loc.t('Total Bills', 'کل بلز'), '${s.bills}'),
+              if (s.opening != 0.0) _rowText(Loc.t('Opening Balance', 'ابتدائی بیلنس'), _rs(s.opening)),
               _rowText(Loc.t('Total Purchased', 'کل خریداری'), _rs(s.purchased)),
               _rowText(Loc.t('Total Paid', 'کل ادائیگی'), _rs(s.paid)),
               _divider(),

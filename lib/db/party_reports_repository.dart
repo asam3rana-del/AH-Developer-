@@ -141,14 +141,34 @@ class PaymentEntry {
   final int date;
   final double amount;
   final bool isSale; // true => "Against Sale", false => "Against Purchase"
-  const PaymentEntry(this.date, this.amount, this.isSale);
+
+  /// true => bill se alag general payment ("Payment received/made"), Statement jaisi.
+  final bool general;
+  const PaymentEntry(this.date, this.amount, this.isSale, {this.general = false});
+}
+
+/// Wo payments jo kisi bill ke `paid` mein pehle se shamil NAHI (Statement/Ledger/trueBalance wala rule).
+List<ReportPayment> separatePayments(List<ReportBill> bills, List<ReportPayment> payments) {
+  final ids = {for (final b in bills) b.id}; // returned samet
+  return [
+    for (final p in payments)
+      if (!ids.contains(p.reference) && !(p.billReference.isNotEmpty && ids.contains(p.billReference))) p,
+  ];
 }
 
 /// Kotlin showPaymentHistory(): har non-returned bill ka `paid > 0` ek entry; nayi pehle.
-List<PaymentEntry> paymentEntries(List<ReportBill> bills, {required bool isCustomer}) {
+/// [separate] = bill se alag general payments (Statement mein dikhte hain) — ab yahan bhi, taake
+/// Payment History / Statement / Purchase Summary ka total ek jaisa rahe.
+List<PaymentEntry> paymentEntries(
+  List<ReportBill> bills, {
+  required bool isCustomer,
+  List<ReportPayment> separate = const [],
+}) {
   final list = [
     for (final b in bills)
       if (!b.isReturned && b.paid > 0) PaymentEntry(b.createdAt, b.paid, isCustomer),
+    for (final p in separate)
+      if (p.amount > 0) PaymentEntry(p.createdAt, p.amount, isCustomer, general: true),
   ];
   list.sort((a, b) => b.date.compareTo(a.date));
   return list;
@@ -177,17 +197,25 @@ CustomerPL customerPL({required int bills, required Iterable<({double amount, do
 class SupplierSummary {
   final int bills;
   final double purchased;
+
+  /// Bill ke andar ada + bill se alag general payments (dono).
   final double paid;
-  const SupplierSummary(this.bills, this.purchased, this.paid);
-  double get due => purchased - paid;
+
+  /// Supplier ka opening balance (0 ho to screen par row nahi dikhti).
+  final double opening;
+  const SupplierSummary(this.bills, this.purchased, this.paid, {this.opening = 0.0});
+
+  /// Party list / Statement ke closing ke barabar: opening + purchased - paid.
+  double get due => opening + purchased - paid;
 }
 
-SupplierSummary supplierSummary(List<ReportBill> bills) {
+SupplierSummary supplierSummary(List<ReportBill> bills, {double separatePaid = 0.0, double opening = 0.0}) {
   final live = bills.where((b) => !b.isReturned).toList();
   return SupplierSummary(
     live.length,
     live.fold<double>(0, (a, b) => a + b.total),
-    live.fold<double>(0, (a, b) => a + b.paid),
+    live.fold<double>(0, (a, b) => a + b.paid) + separatePaid,
+    opening: opening,
   );
 }
 
