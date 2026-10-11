@@ -7,8 +7,8 @@ import '../services/session.dart';
 /// saath mein us din ka pichla balance aur din ke baad ka balance.
 ///
 /// Maths PURE functions mein hai ([buildDailyParty], [dailyBillText]) taake bina DB ke test ho sake.
-/// Balance ka rule Party Reports / Statement jaisa hi hai: opening + stuck + bills (total - paid)
-/// - bill se alag payments. Returned bills shamil nahi.
+/// Balance ka rule: opening + bills (total - paid) - bill se alag payments. Returned bills shamil nahi.
+/// Stuck balance Daily Bill mein NAHI dikhta / count hota (Party Reports / Statement mein wahi rehta hai).
 
 class DayBillItem {
   final String product;
@@ -52,7 +52,7 @@ class DailyParty {
   final int id;
   final String name;
 
-  /// Din shuru hone se pehle ka balance (opening + stuck + pichli sales - pichli payments).
+  /// Din shuru hone se pehle ka balance (opening + pichli sales - pichli payments). Stuck shamil nahi.
   final double previousBalance;
   final List<DayBill> bills;
 
@@ -85,7 +85,7 @@ class DailyParty {
 DailyParty? buildDailyParty({
   required int id,
   required String name,
-  required double openingPlusStuck,
+  required double opening,
   required List<ReportBill> bills,
   required List<ReportPayment> payments,
   required int dayStart,
@@ -93,8 +93,8 @@ DailyParty? buildDailyParty({
   Map<String, List<DayBillItem>> itemsByInvoice = const {},
 }) {
   final lines = buildLedgerLines(bills: bills, payments: payments);
-  var previous = openingPlusStuck;
-  var closing = openingPlusStuck;
+  var previous = opening;
+  var closing = opening;
   final dayPayments = <DayPayment>[];
   for (final l in lines) {
     if (l.time < dayStart) {
@@ -210,7 +210,7 @@ class DailyBillsRepository {
       final p = buildDailyParty(
         id: c.id!,
         name: c.name,
-        openingPlusStuck: c.openingBalance + c.stuckBalance,
+        opening: c.openingBalance, // stuckBalance jaan kar shamil nahi
         bills: bills,
         payments: pays,
         dayStart: s,

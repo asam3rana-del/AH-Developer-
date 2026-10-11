@@ -14,7 +14,7 @@ void main() {
     final p = buildDailyParty(
       id: 1,
       name: 'Asad',
-      openingPlusStuck: 100000,
+      opening: 100000,
       bills: [
         bill('old', 5000, 0, 500), // pichla din: balance +5000
         bill('S1', 1000, 0, 1100),
@@ -33,12 +33,12 @@ void main() {
 
   test('us din kuch nahi to null; returned bill shamil nahi', () {
     expect(
-        buildDailyParty(id: 1, name: 'A', openingPlusStuck: 0, bills: [bill('x', 10, 0, 50)], payments: const [], dayStart: day, dayEnd: end),
+        buildDailyParty(id: 1, name: 'A', opening: 0, bills: [bill('x', 10, 0, 50)], payments: const [], dayStart: day, dayEnd: end),
         isNull);
     final p = buildDailyParty(
       id: 1,
       name: 'A',
-      openingPlusStuck: 0,
+      opening: 0,
       bills: [
         const ReportBill(id: 'r', total: 999, paid: 0, createdAt: 1100, status: 'returned'),
         bill('ok', 100, 0, 1200),
@@ -55,7 +55,7 @@ void main() {
     final p = buildDailyParty(
       id: 1,
       name: 'Asad',
-      openingPlusStuck: 50,
+      opening: 50,
       bills: [bill('S1', 100, 0, 1100)],
       payments: const [],
       dayStart: day,
