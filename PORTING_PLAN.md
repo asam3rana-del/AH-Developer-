@@ -70,3 +70,7 @@ Sale edit/delete sirf admin; History mein profit sirf admin; naye sale mein due 
    `google_mlkit_text_recognition` (bill scan), `workmanager` (background sync/backup).
 5. Android + Web dono mein badlav ho to changelog mein "Web" alag likhein (web ka apna code alag hai).
 6. Har phase par ek chhota Dart test likhein jo Kotlin test ke barabar ho — Android aur Flutter ke numbers mel khayenge.
+7. **Daily Rent (2026-10-12):** customer se roz ka fixed rent (jaise Rs 150) Daily Bill + balance mein khud judta hai.
+   Har din ka rent ek aam sale bill hai (`RENT-yyyyMMdd-<customerId>`, items nahi) — `lib/db/rent_repository.dart`;
+   setting `customer_rent` table (DB v20, sirf local). Chhutti = us din ka rent bill 'returned' (Daily Bills screen menu).
+   Rent sirf EK device par set karein (bills dusre device par sync ho jate hain). Test: `test/rent_test.dart`.

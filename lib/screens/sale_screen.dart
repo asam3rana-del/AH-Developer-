@@ -655,6 +655,31 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     _focus(_itemFocus);
   }
 
+  /// Add to Bill ki Enter wali raah: line add karo; na ho paye to wahin focus rakho.
+  void _submitItemEntry() {
+    _addLine();
+    if (_itemCtrl.text.trim().isNotEmpty) {
+      _focus(_qtyCtrl.text.trim().isEmpty ? _qtyFocus : _priceFocus);
+    }
+  }
+
+  /// Quantity ke baad OK: rate pehle se auto-bhara ho (ya customer ka rate) to seedha bill mein add —
+  /// rate par ruke baghair (time bachta hai). Rate khali ho to rate par jao. Rate badalna ho to rate box par tap karen.
+  void _onQtySubmitted() {
+    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
+    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+    if (_pickedProduct == null && _itemCtrl.text.trim().isEmpty) {
+      // Line abhi add ho chuki (tez doosra OK): item box par rahen, price par na jayen.
+      _focus(_itemFocus);
+      return;
+    }
+    if (_pickedProduct != null && qty > 0 && price > 0) {
+      _submitItemEntry();
+    } else {
+      _focus(_priceFocus);
+    }
+  }
+
   void _clearItemEntry() {
     _itemCtrl.clear();
     _qtyCtrl.clear();
@@ -1494,24 +1519,28 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               VerticalDivider(width: 1, thickness: 1, color: ThemeManager.palette.border),
               Expanded(
                 flex: 10,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(16, 20, 4, 8),
-                        child: _buildLinesList(inline: true),
+                child: LayoutBuilder(
+                  builder: (context, box) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(16, 20, 4, 8),
+                          child: _buildLinesList(inline: true),
+                        ),
                       ),
-                    ),
-                    Flexible(
-                      flex: 0,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 4, 0),
-                        child: _buildTotalsCard(),
+                      // Billing card ki ooncha'i hadd mein (keyboard khula ho to bhi): warna wo poori jagah
+                      // le kar billed items chupa deta tha. Hadd se zyada ho to card apne andar scroll hota hai.
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: box.maxHeight * 0.38),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 4, 0),
+                          child: _buildTotalsCard(),
+                        ),
                       ),
-                    ),
-                    _buildSaveBar(),
-                  ],
+                      _buildSaveBar(),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1944,7 +1973,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   controller: _qtyCtrl,
                   hint: _qtyIsAmountMode ? Loc.t('Amount in Rs', 'روپے میں رقم') : '0',
                   focusNode: _qtyFocus,
-                  onSubmitted: () => _focus(_priceFocus),
+                  keepFocusOnSubmit: true,
+                  onSubmitted: _onQtySubmitted,
                   onChanged: (_) => setState(_applyBulkRate),
                 ),
               ),
@@ -2001,14 +2031,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             accent: ThemeManager.palette.teal,
             controller: _priceCtrl,
             focusNode: _priceFocus,
+            keepFocusOnSubmit: true,
             onChanged: _onPriceChanged,
             // Enter = Add to Bill. Na ho paya to wahin focus rahe.
-            onSubmitted: () {
-              _addLine();
-              if (_itemCtrl.text.trim().isNotEmpty) {
-                _focus(_qtyCtrl.text.trim().isEmpty ? _qtyFocus : _priceFocus);
-              }
-            },
+            onSubmitted: _submitItemEntry,
           ),
           if (_customerRateName != null)
             Padding(

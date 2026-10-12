@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../db/customer_repository.dart';
 import '../db/daily_bills_repository.dart';
+import '../db/rent_repository.dart';
+import '../models/party.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart' show formatQty;
@@ -88,7 +91,25 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
     final totalReceived = _rows.fold<double>(0, (a, r) => a + r.receivedTotal);
     return Scaffold(
       backgroundColor: _p.bg,
-      appBar: AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(
+        backgroundColor: _p.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: Loc.t('Daily Rent', 'روزانہ کرایہ'),
+            icon: const Icon(Icons.event_repeat),
+            onPressed: _openRentSheet,
+          ),
+          PopupMenuButton<String>(
+            onSelected: (v) => _dayOff(v == 'off'),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'off', child: Text(Loc.t('Is din ka rent hatao (chhutti)', 'اس دن کا کرایہ ہٹائیں (چھٹی)'))),
+              PopupMenuItem(value: 'on', child: Text(Loc.t('Is din ka rent wapas lagao', 'اس دن کا کرایہ واپس لگائیں'))),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 30),
@@ -206,6 +227,45 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
         ),
       );
 
+  // ---- Daily Rent ------------------------------------------------------------------------
+
+  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  Future<void> _billOff(String invoice) async {
+    try {
+      await RentRepository.instance.setRentBillOff(invoice, off: true);
+      _toast(Loc.t('Rent hata diya gaya', 'کرایہ ہٹا دیا گیا'));
+    } catch (e) {
+      _toast('$e');
+    }
+    await _load();
+  }
+
+  Future<void> _dayOff(bool off) async {
+    try {
+      final n = await RentRepository.instance.setDayOff(_day, off: off);
+      _toast(n == 0
+          ? Loc.t('Is din koi rent bill nahi mila', 'اس دن کوئی کرایہ بل نہیں ملا')
+          : (off
+              ? Loc.t('$n customers ka rent hata diya (chhutti)', '$n کسٹمرز کا کرایہ ہٹا دیا (چھٹی)')
+              : Loc.t('$n customers ka rent wapas laga diya', '$n کسٹمرز کا کرایہ واپس لگا دیا')));
+    } catch (e) {
+      _toast('$e');
+    }
+    await _load();
+  }
+
+  Future<void> _openRentSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _p.cardWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => _RentSheet(palette: _p),
+    );
+    await _load();
+  }
+
   // ---- detail: ek customer ka poora din ka bill -------------------------------------------
 
   Future<void> _showDetail(DailyParty r) async {
@@ -265,6 +325,19 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
             Divider(color: _p.border),
             _kv(Loc.t('Aaj ka balance', 'آج کا بیلنس'), _rs(r.closingBalance), color: _balColor(r.closingBalance), bold: true),
             const SizedBox(height: 14),
+            for (final b in r.bills)
+              if (isRentInvoice(b.invoice))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _billOff(b.invoice);
+                    },
+                    icon: const Icon(Icons.beach_access),
+                    label: Text(Loc.t('Is customer ka aaj ka rent hatao (chhutti)', 'اس کسٹمر کا آج کا کرایہ ہٹائیں (چھٹی)')),
+                  ),
+                ),
             Row(children: [
               Expanded(
                 child: FilledButton.icon(
@@ -278,6 +351,174 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// Daily Rent setting: kin customers se roz rent aata hai, kitna, kis din se.
+class _RentSheet extends StatefulWidget {
+  final AppPalette palette;
+  const _RentSheet({required this.palette});
+
+  @override
+  State<_RentSheet> createState() => _RentSheetState();
+}
+
+class _RentSheetState extends State<_RentSheet> {
+  List<RentConfig> _configs = const [];
+  bool _loading = true;
+  final _dateFmt = DateFormat('dd MMM yyyy');
+
+  AppPalette get _p => widget.palette;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    final c = await RentRepository.instance.listConfigs();
+    if (!mounted) return;
+    setState(() {
+      _configs = c;
+      _loading = false;
+    });
+  }
+
+  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  Future<void> _edit({RentConfig? existing}) async {
+    final customers = await CustomerRepository.instance.listAll();
+    if (!mounted) return;
+    int? customerId = existing?.customerId;
+    final amountCtl = TextEditingController(
+        text: existing == null ? '' : existing.dailyRent.toStringAsFixed(existing.dailyRent == existing.dailyRent.roundToDouble() ? 0 : 2));
+    var start = existing == null ? DateTime.now() : DateTime.fromMillisecondsSinceEpoch(existing.startDay);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text(Loc.t('Daily Rent', 'روزانہ کرایہ')),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<int>(
+              value: customerId,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: Loc.t('Customer', 'کسٹمر')),
+              items: [
+                for (final Customer c in customers)
+                  if (c.id != null) DropdownMenuItem<int>(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis)),
+              ],
+              onChanged: existing != null ? null : (v) => setD(() => customerId = v),
+            ),
+            TextField(
+              controller: amountCtl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: Loc.t('Roz ka rent (Rs)', 'روز کا کرایہ (روپے)')),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.calendar_today, size: 18),
+              label: Text('${Loc.t('Kis din se', 'کس دن سے')}: ${_dateFmt.format(start)}'),
+              onPressed: () async {
+                final d = await showDatePicker(
+                  context: ctx,
+                  initialDate: start,
+                  firstDate: DateTime.now().subtract(const Duration(days: 366)),
+                  lastDate: DateTime.now(),
+                );
+                if (d != null) setD(() => start = d);
+              },
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Save', 'محفوظ'))),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final rent = double.tryParse(amountCtl.text.trim());
+    if (customerId == null || rent == null || rent <= 0) {
+      _toast(Loc.t('Customer aur rent (0 se zyada) zaroori hai', 'کسٹمر اور کرایہ (0 سے زیادہ) ضروری ہے'));
+      return;
+    }
+    try {
+      await RentRepository.instance.setConfig(customerId: customerId!, dailyRent: rent, startDay: start);
+      // Aaj tak ke bills foran bana do.
+      await RentRepository.instance.ensureRentUpTo(DateTime.now());
+    } catch (e) {
+      _toast('$e');
+    }
+    await _reload();
+  }
+
+  Future<void> _stop(RentConfig c) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Rent band karen?', 'کرایہ بند کریں؟')),
+        content: Text(Loc.t('${c.name} ka rent aage se nahi lagega. Purane bills aur balance jaise hain waise rahenge.',
+            '${c.name} کا کرایہ آگے سے نہیں لگے گا۔ پرانے بل اور بیلنس جیسے ہیں ویسے رہیں گے۔')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Nahi', 'نہیں'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Band karo', 'بند کریں'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await RentRepository.instance.removeConfig(c.customerId);
+    } catch (e) {
+      _toast('$e');
+    }
+    await _reload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 20 + MediaQuery.of(context).viewInsets.bottom),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(Loc.t('Daily Rent', 'روزانہ کرایہ'),
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: _p.textDark)),
+        const SizedBox(height: 4),
+        Text(
+          Loc.t('Roz ka rent har din customer ke Daily Bill aur balance mein khud judta hai. Chhutti wale din ka rent Daily Bills ke menu se hata den. Rent sirf ek device par set karen.',
+              'روز کا کرایہ ہر دن کسٹمر کے ڈیلی بل اور بیلنس میں خود جڑتا ہے۔ چھٹی والے دن کا کرایہ ڈیلی بلز کے مینو سے ہٹا دیں۔ کرایہ صرف ایک ڈیوائس پر سیٹ کریں۔'),
+          style: TextStyle(fontSize: 12.5, color: _p.textMuted),
+        ),
+        const SizedBox(height: 10),
+        if (_loading)
+          const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()))
+        else if (_configs.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(child: Text(Loc.t('Abhi koi rent customer nahi', 'ابھی کوئی کرایہ کسٹمر نہیں'), style: TextStyle(color: _p.textMuted))),
+          )
+        else
+          Flexible(
+            child: ListView(shrinkWrap: true, children: [
+              for (final c in _configs)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(c.name, style: TextStyle(fontWeight: FontWeight.bold, color: _p.textDark)),
+                  subtitle: Text(
+                      'Rs ${c.dailyRent.toStringAsFixed(c.dailyRent == c.dailyRent.roundToDouble() ? 0 : 2)} / ${Loc.t('din', 'دن')} • ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(c.startDay))}'),
+                  onTap: () => _edit(existing: c),
+                  trailing: IconButton(icon: const Icon(Icons.stop_circle_outlined), onPressed: () => _stop(c)),
+                ),
+            ]),
+          ),
+        const SizedBox(height: 10),
+        FilledButton.icon(
+          onPressed: () => _edit(),
+          icon: const Icon(Icons.add),
+          label: Text(Loc.t('Naya rent customer', 'نیا کرایہ کسٹمر')),
+        ),
+      ]),
     );
   }
 }

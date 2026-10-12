@@ -136,6 +136,11 @@ class PremiumLabeledField extends StatelessWidget {
   /// true: badge icon chhupa kar kam jagah mein (ek row mein kai fields ke liye).
   final bool compact;
 
+  /// true: Enter/OK dabane par Flutter ka default "agle field par jao / keyboard band karo" na chale
+  /// (sirf `onSubmitted` chale). Tez OK dabane par focus beech mein dusre widget par jaa kar keyboard
+  /// ki qism badalta aur rate kaat deta tha.
+  final bool keepFocusOnSubmit;
+
   const PremiumLabeledField({
     super.key,
     required this.emoji,
@@ -150,6 +155,7 @@ class PremiumLabeledField extends StatelessWidget {
     this.onSubmitted,
     this.enabled = true,
     this.compact = false,
+    this.keepFocusOnSubmit = false,
   });
 
   @override
@@ -190,6 +196,7 @@ class PremiumLabeledField extends StatelessWidget {
                   keyboardType: keyboardType,
                   textInputAction: textInputAction,
                   onChanged: onChanged,
+                  onEditingComplete: keepFocusOnSubmit ? () {} : null,
                   onSubmitted: (_) => onSubmitted?.call(),
                   style: TextStyle(
                     fontSize: 16,

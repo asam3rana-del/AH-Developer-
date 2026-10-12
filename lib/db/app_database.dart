@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 19;
+  static const _dbVersion = 20;
 
   Database? _db;
 
@@ -328,7 +328,7 @@ class AppDatabase {
       )
     ''');
 
-    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql]) {
+    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql]) {
       batch.execute(sql);
     }
 
@@ -443,7 +443,25 @@ class AppDatabase {
       // v19: retail/wholesale rate ki effective date (purani date ki purchase naya rate na bigade).
       await _addColumnIfMissing(db, 'products', 'ratesAt', 'INTEGER NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 20) {
+      // v20: Daily Rent — customer ka roz ka fixed rent (sirf is device ka setting; bills sync hote hain).
+      for (final sql in _rentTablesSql) {
+        await db.execute(sql);
+      }
+    }
   }
+
+  /// Daily Rent setting: customer ka roz ka rent aur kis din se. Customers table se alag rakha
+  /// taake customer sync / pull is ko na mitaye.
+  static const _rentTablesSql = <String>[
+    '''
+      CREATE TABLE IF NOT EXISTS customer_rent (
+        customerId INTEGER PRIMARY KEY NOT NULL,
+        dailyRent REAL NOT NULL,
+        startDay INTEGER NOT NULL
+      )
+    ''',
+  ];
 
   static const _stockMovementsSql = <String>[
     '''

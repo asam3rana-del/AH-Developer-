@@ -1,6 +1,7 @@
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'party_reports_repository.dart';
+import 'rent_repository.dart';
 import '../services/session.dart';
 
 /// "Aaj ke Bills" (Daily Bill): ek din ki saari alag alag sales ek customer ke ek bill ki tarah,
@@ -108,7 +109,17 @@ DailyParty? buildDailyParty({
   final dayBills = <DayBill>[
     for (final b in bills)
       if (!b.isReturned && b.createdAt >= dayStart && b.createdAt < dayEnd)
-        DayBill(invoice: b.id, time: b.createdAt, total: b.total, paid: b.paid, items: itemsByInvoice[b.id] ?? const []),
+        DayBill(
+          invoice: b.id,
+          time: b.createdAt,
+          total: b.total,
+          paid: b.paid,
+          items: (itemsByInvoice[b.id] ?? const []).isNotEmpty
+              ? itemsByInvoice[b.id]!
+              : (isRentInvoice(b.id)
+                  ? [DayBillItem(product: 'Daily Rent', qty: 1, unit: '', unitPrice: b.total, amount: b.total)]
+                  : const []),
+        ),
   ]..sort((a, b) => a.time.compareTo(b.time));
   if (dayBills.isEmpty && dayPayments.isEmpty) return null;
   return DailyParty(
@@ -162,6 +173,8 @@ class DailyBillsRepository {
   /// Us din (local) jin customers ki sale ya payment hui, un ka hisaab. Zyada sale wale pehle.
   Future<List<DailyParty>> loadDay(DateTime day) async {
     if (!Session.isAdminOrManager) throw StateError('Only Admin/Manager can view daily bills');
+    // Daily Rent: aaj tak ke jo rent bills nahi bane wo ab ban jate hain (sirf rent wale customers ke liye).
+    await RentRepository.instance.ensureRentUpTo(DateTime.now());
     final start = DateTime(day.year, day.month, day.day);
     final end = DateTime(day.year, day.month, day.day + 1);
     final s = start.millisecondsSinceEpoch;
