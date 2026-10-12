@@ -124,6 +124,11 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     _selectAllOnFocus(_priceFocus, _priceCtrl);
     _selectAllOnFocus(_discountFocus, _discountCtrl);
     _selectAllOnFocus(_paidFocus, _paidCtrl);
+    for (final f in [_itemFocus, _qtyFocus, _priceFocus]) {
+      f.addListener(() {
+        if (f.hasFocus) _revealItemEntry();
+      });
+    }
     _customerFocus.addListener(() {
       // Customer picked/typed AFTER the item: re-check their usual rate.
       if (!_customerFocus.hasFocus) _suggestCustomerRate();
@@ -147,6 +152,32 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   }
 
   final GlobalKey _saleTypeKey = GlobalKey();
+  final GlobalKey _itemEntryKey = GlobalKey();
+
+  /// Item / Qty / Rate par focus aate hi Add Item card khud scroll ho kar poora dikhe (rate bhi nazar aaye
+  /// aur edit ho sake), keyboard ke upar. Keyboard aur card ka size badalne mein waqt lagta hai, is liye
+  /// do dafa (jaldi, aur keyboard ke baad) koshish hoti hai. Card screen se bada ho (phone) to uska upar wala hissa dikhta hai.
+  void _revealItemEntry() {
+    for (final ms in const [80, 380]) {
+      Future.delayed(Duration(milliseconds: ms), () {
+        if (!mounted) return;
+        if (!(_itemFocus.hasFocus || _qtyFocus.hasFocus || _priceFocus.hasFocus)) return;
+        final ctx = _itemEntryKey.currentContext;
+        if (ctx == null) return;
+        final box = ctx.findRenderObject();
+        final scrollable = Scrollable.maybeOf(ctx);
+        if (box is! RenderBox || !box.hasSize || scrollable == null) return;
+        final fits = box.size.height <= scrollable.position.viewportDimension;
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          alignment: 0.0,
+          alignmentPolicy: fits ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd : ScrollPositionAlignmentPolicy.explicit,
+        );
+      });
+    }
+  }
 
   /// Kotlin goToSaleTypeFromCustomer(): Customer ke baad Sale Type ka dropdown khud khul jaye,
   /// phir chunne par seedha Item Name par cursor + keyboard.
@@ -1890,7 +1921,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     return Loc.isUrdu ? TextDirection.rtl : TextDirection.ltr;
   }
 
-  Widget _buildItemEntryCard() {
+  /// Add Item card ko GlobalKey deta hai taake keyboard khulne par use poora (rate + Add to Bill samet) dikhaya ja sake.
+  Widget _buildItemEntryCard() => KeyedSubtree(key: _itemEntryKey, child: _buildItemEntryCardBody());
+
+  Widget _buildItemEntryCardBody() {
     final picked = _pickedProduct;
     final unitOptions = picked != null ? saleUnitChoices(picked) : <String>['pcs'];
     final unitValue = unitOptions.contains(_selectedUnit) ? _selectedUnit : unitOptions.first;
