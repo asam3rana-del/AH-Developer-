@@ -16,6 +16,9 @@ import hashlib, json, os, sys, collections
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KT = os.path.join(ROOT, "kotlin_reference", "main")
+if not os.path.isdir(KT):
+    print("kotlin_reference/main hata diya gaya hai (porting 100% complete) - port_status ki zaroorat nahi.")
+    raise SystemExit(0)
 MAP = os.path.join(ROOT, "tools", "port_map.json")
 HASHES = os.path.join(ROOT, "tools", "ported_hashes.json")
 OUT = os.path.join(ROOT, "PORT_STATUS.md")

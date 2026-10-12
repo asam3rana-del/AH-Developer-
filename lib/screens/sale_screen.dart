@@ -134,11 +134,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       if (!_customerFocus.hasFocus) _suggestCustomerRate();
     });
     _load();
-    // Tablet / desktop (keyboard wali screen): bill kholte hi item search pe
-    // cursor, taake seedha likhna shuru ho. Phone pe keyboard na khule.
+    // Sale shuru hote hi cursor Customer Name par (khali = walk-in; Enter se aage).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isEdit) return;
-      if (MediaQuery.of(context).size.width >= 700) _itemFocus.requestFocus();
+      if (!mounted || _isEdit || widget.openQuickSale) return;
+      _customerFocus.requestFocus();
     });
   }
 
@@ -165,15 +164,15 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         final ctx = _itemEntryKey.currentContext;
         if (ctx == null) return;
         final box = ctx.findRenderObject();
-        final scrollable = Scrollable.maybeOf(ctx);
-        if (box is! RenderBox || !box.hasSize || scrollable == null) return;
-        final fits = box.size.height <= scrollable.position.viewportDimension;
+        if (box is! RenderBox || !box.hasSize || Scrollable.maybeOf(ctx) == null) return;
+        // Hamesha card ka upar wala hissa screen ke top par: unit / qty / rate / Add to Bill nazar aate rahen
+        // (bill ki lines neeche jati hain, entry card upar rehta hai).
         Scrollable.ensureVisible(
           ctx,
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
           alignment: 0.0,
-          alignmentPolicy: fits ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd : ScrollPositionAlignmentPolicy.explicit,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
         );
       });
     }
@@ -459,6 +458,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     // A regular customer's own usual rate replaces the standard one.
     _suggestCustomerRate();
     _focus(_qtyFocus);
+    _revealItemEntry(); // item chunte hi unit / qty / rate wala card upar nazar aaye
   }
 
   void _refillAutoPrice() {
@@ -684,6 +684,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _clearItemEntry();
     });
     _focus(_itemFocus);
+    _revealItemEntry(); // line add hone ke baad bhi screen upar, entry card nazar aaye
   }
 
   /// Add to Bill ki Enter wali raah: line add karo; na ho paye to wahin focus rakho.
