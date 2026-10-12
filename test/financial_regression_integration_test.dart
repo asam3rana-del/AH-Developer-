@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart' show Database;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -17,6 +18,7 @@ import 'package:ah_developer_kiryana_store/utils/split_payment.dart';
 /// Real AppDatabase schema in an isolated temp directory using sqflite_common_ffi.
 /// Existing unit tests are intentionally left untouched.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
 
@@ -25,6 +27,8 @@ void main() {
   final now = DateTime(2026, 10, 12).millisecondsSinceEpoch;
 
   setUp(() async {
+    // PurchaseRepository.nextBillNo() DeviceTag.init() ke zariye SharedPreferences use karta hai.
+    SharedPreferences.setMockInitialValues({});
     tempDir = await Directory.systemTemp.createTemp('ah_financial_regression_');
     await AppDatabase.instance.close();
     await databaseFactory.setDatabasesPath(tempDir.path);
