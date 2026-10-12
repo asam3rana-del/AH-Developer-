@@ -398,16 +398,26 @@ class SaleRepository {
     if (lines.isEmpty) {
       throw ArgumentError('Add at least one item');
     }
+    if (!discountInput.isFinite || discountInput < 0) {
+      throw ArgumentError('Discount finite aur zero ya us se zyada hona chahiye');
+    }
+    if (!paidInput.isFinite || paidInput < 0) {
+      throw ArgumentError('Paid amount finite aur zero ya us se zyada hona chahiye');
+    }
     for (final line in lines) {
-      if (line.qty <= 0.0) {
-        throw ArgumentError('"${line.itemName}" ki qty 0 se zyada honi chahiye');
+      if (!line.qty.isFinite || line.qty <= 0.0) {
+        throw ArgumentError('"${line.itemName}" ki qty finite aur 0 se zyada honi chahiye');
       }
-      if (line.unitPrice < 0.0) {
-        throw ArgumentError('"${line.itemName}" ka rate negative nahi ho sakta');
+      if (!line.unitPrice.isFinite || line.unitPrice < 0.0) {
+        throw ArgumentError('"${line.itemName}" ka rate finite aur negative nahi ho sakta');
+      }
+      if (!line.amount.isFinite || line.amount < 0.0 || !line.cost.isFinite || line.cost < 0.0) {
+        throw ArgumentError('"${line.itemName}" ka amount/cost valid hona chahiye');
       }
     }
 
     final subtotal = lines.fold<double>(0, (sum, l) => sum + l.amount);
+    if (!subtotal.isFinite) throw ArgumentError('Sale total finite hona chahiye');
     // Mirrors DiscountCalculator.compute() inline (kept in sync with
     // lib/utils/discount_calculator.dart).
     final safeSubtotal = subtotal < 0 ? 0.0 : subtotal;
@@ -448,6 +458,21 @@ class SaleRepository {
     final customers = await CustomerRepository.instance.listAll();
     final customer =
         customers.where((c) => c.name.toLowerCase() == customerName.trim().toLowerCase()).firstOrNull;
+
+    // A bill-linked payment belongs to the original party ledger. Reassigning
+    // the bill alone would leave that payment attached to the old customer while
+    // its amount is carried into the new customer's paid total. Refuse the edit
+    // until the payment is explicitly unlinked/reassigned in the payment flow.
+    if (original != null && original.customerId != customer?.id) {
+      final linked = await db.rawQuery(
+        'SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE billReference = ? AND reference != ?',
+        [original.invoice, original.invoice],
+      );
+      final linkedAmount = (linked.first['total'] as num?)?.toDouble() ?? 0.0;
+      if (linkedAmount > 0.009) {
+        throw ArgumentError('Linked payment maujood hai. Pehle payment ko unlink/reassign karen, phir customer badlein.');
+      }
+    }
 
     // Credit limit (0 = no limit set). Only a KNOWN customer can exceed it.
     if (customer != null && customer.creditLimit > 0.0 && !overrideCreditLimit) {

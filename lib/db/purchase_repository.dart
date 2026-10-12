@@ -112,8 +112,12 @@ const int kDuplicateWindowDays = 7;
 String? validatePurchaseLines(List<PurchaseLine> lines) {
   if (lines.isEmpty) return 'Kam az kam ek item add karen';
   for (final l in lines) {
-    if (l.qty <= 0.0) return '"${l.itemName}" ki qty 0 se zyada honi chahiye';
-    if (l.rate < 0.0) return '"${l.itemName}" ka rate negative nahi ho sakta';
+    if (!l.qty.isFinite || l.qty <= 0.0) return '"${l.itemName}" ki qty finite aur 0 se zyada honi chahiye';
+    if (!l.rate.isFinite || l.rate < 0.0) return '"${l.itemName}" ka rate finite aur negative nahi ho sakta';
+    if (!l.amount.isFinite || l.amount < 0.0) return '"${l.itemName}" ka amount valid hona chahiye';
+    if (!l.retailRate.isFinite || l.retailRate < 0.0 || !l.wholesaleRate.isFinite || l.wholesaleRate < 0.0) {
+      return '"${l.itemName}" ke sale rates valid hone chahiye';
+    }
   }
   return null;
 }
@@ -339,6 +343,9 @@ class PurchaseRepository {
     final isEdit = editBillNo != null;
     if (isEdit) _requireAdmin();
     if (supplierName.trim().isEmpty) throw const PurchaseSaveException('Supplier name is required');
+    if (!amountPaid.isFinite || amountPaid < 0) {
+      throw const PurchaseSaveException('Paid amount finite aur zero ya us se zyada hona chahiye');
+    }
     final lineError = validatePurchaseLines(lines);
     if (lineError != null) throw PurchaseSaveException(lineError);
 
@@ -367,6 +374,21 @@ class PurchaseRepository {
         if (original.status == 'returned') throw const PurchaseSaveException('Returned purchase edit nahi ho sakti');
         final ir = await txn.query('purchase_items', where: 'billNo = ?', whereArgs: [billNo], orderBy: 'id ASC');
         originalItems = ir.map(PurchaseItem.fromMap).toList();
+      }
+
+      // A bill-linked payment remains associated with its original supplier.
+      // Do not carry its amount to another supplier by merely editing the bill.
+      if (original != null && original.supplierId != supplierId) {
+        final linked = await txn.rawQuery(
+          'SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE billReference = ? AND reference != ?',
+          [billNo, billNo],
+        );
+        final linkedAmount = (linked.first['total'] as num?)?.toDouble() ?? 0.0;
+        if (linkedAmount > 0.009) {
+          throw const PurchaseSaveException(
+            'Linked payment maujood hai. Pehle payment ko unlink/reassign karen, phir supplier badlein.',
+          );
+        }
       }
 
       // ---- naya supplier
