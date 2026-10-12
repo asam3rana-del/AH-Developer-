@@ -174,7 +174,13 @@ class DailyBillsRepository {
   Future<List<DailyParty>> loadDay(DateTime day) async {
     if (!Session.isAdminOrManager) throw StateError('Only Admin/Manager can view daily bills');
     // Daily Rent: aaj tak ke jo rent bills nahi bane wo ab ban jate hain (sirf rent wale customers ke liye).
-    await RentRepository.instance.ensureRentUpTo(DateTime.now());
+    // Rent mein koi masla aaye to baaki Daily Bills phir bhi dikhen; masla screen par bataya jata hai.
+    try {
+      await RentRepository.instance.ensureRentUpTo(DateTime.now());
+      RentRepository.lastError = null;
+    } catch (e) {
+      RentRepository.lastError = '$e';
+    }
     final start = DateTime(day.year, day.month, day.day);
     final end = DateTime(day.year, day.month, day.day + 1);
     final s = start.millisecondsSinceEpoch;

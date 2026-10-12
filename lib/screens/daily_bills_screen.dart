@@ -57,6 +57,8 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
       rows = const [];
     }
     if (!mounted) return;
+    final rentErr = RentRepository.lastError;
+    if (rentErr != null) _toast('Rent bills nahi ban sake: $rentErr');
     setState(() {
       _rows = rows;
       _loading = false;
@@ -448,7 +450,8 @@ class _RentSheetState extends State<_RentSheet> {
     try {
       await RentRepository.instance.setConfig(customerId: customerId!, dailyRent: rent, startDay: start);
       // Aaj tak ke bills foran bana do.
-      await RentRepository.instance.ensureRentUpTo(DateTime.now());
+      final n = await RentRepository.instance.ensureRentUpTo(DateTime.now());
+      _toast(Loc.t('Rent set. $n din ke rent bill ban gaye', 'کرایہ سیٹ ہو گیا۔ $n دن کے کرایہ بل بن گئے'));
     } catch (e) {
       _toast('$e');
     }

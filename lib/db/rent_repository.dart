@@ -55,6 +55,9 @@ class RentRepository {
   RentRepository._();
   static final RentRepository instance = RentRepository._();
 
+  /// Aakhri baar rent bills banate waqt jo galti aayi (null = theek). Daily Bills screen dikhata hai.
+  static String? lastError;
+
   void _requireStaff() {
     if (!Session.isAdminOrManager) throw StateError('Only Admin/Manager can manage daily rent');
   }
