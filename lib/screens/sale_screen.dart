@@ -2280,7 +2280,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(Loc.t('Total', 'ٹوٹل'), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
-              Text(totals.total.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: ThemeManager.palette.navyInk)),
+              Text(totals.total.toStringAsFixed(0), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: ThemeManager.palette.navyInk)),
             ],
           ),
           const SizedBox(height: 12),

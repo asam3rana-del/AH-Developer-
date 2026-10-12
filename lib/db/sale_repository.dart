@@ -422,7 +422,9 @@ class SaleRepository {
     // lib/utils/discount_calculator.dart).
     final safeSubtotal = subtotal < 0 ? 0.0 : subtotal;
     final discount = discountInput.clamp(0.0, safeSubtotal);
-    final total = (safeSubtotal - discount) < 0 ? 0.0 : (safeSubtotal - discount);
+    // Bill total poore rupee par (nearest Rs), same as DiscountCalculator.
+    final rawTotal = safeSubtotal - discount;
+    final total = rawTotal < 0 ? 0.0 : rawTotal.roundToDouble();
     // Split Payment: when rows exist their sum IS the paid amount.
     final cleanRows = cleanPayments(payments);
     final paid = effectivePaidInput(cleanRows, paidInput).clamp(0.0, total);

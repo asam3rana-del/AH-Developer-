@@ -23,7 +23,9 @@ class DiscountCalculator {
   static BillTotals compute(double subtotal, double discountInput, double paidInput) {
     final safeSubtotal = subtotal < 0 ? 0.0 : subtotal;
     final discount = discountInput.clamp(0.0, safeSubtotal);
-    final total = (safeSubtotal - discount) < 0 ? 0.0 : (safeSubtotal - discount);
+    // Bill total poore rupee par (nearest Rs): 106.50+ => upar, 106.49 => neeche.
+    final rawTotal = safeSubtotal - discount;
+    final total = rawTotal < 0 ? 0.0 : rawTotal.roundToDouble();
     final paid = paidInput.clamp(0.0, total);
     final due = (total - paid) < 0 ? 0.0 : (total - paid);
     return BillTotals(subtotal: safeSubtotal, discount: discount, total: total, paid: paid, due: due);

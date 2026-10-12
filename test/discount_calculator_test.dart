@@ -80,5 +80,12 @@ void main() {
       expect(t.total, 0);
       expect(t.due, 0);
     });
+
+    test('total rounds to nearest rupee (.50 up, .49 down)', () {
+      expect(DiscountCalculator.compute(106.50, 0, 0).total, 107);
+      expect(DiscountCalculator.compute(106.49, 0, 0).total, 106);
+      expect(DiscountCalculator.compute(120.40, 10, 0).total, 110);
+      expect(DiscountCalculator.compute(120.40, 10, 0).due, 110);
+    });
   });
 }
