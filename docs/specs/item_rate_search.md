@@ -1,7 +1,7 @@
 # Spec: Item Rate Search  (Android: ItemSearchActivity.kt · Web: rateComparison.js)
 
 Flutter target: `lib/screens/item_search_screen.dart`  (Phase 5)
-Android ref: `kotlin_reference/main/ItemSearchActivity.kt` (latest, 2026-09-28)
+Android ref: ItemSearchActivity.kt (latest, 2026-09-28) — ab repo mein nahi, Android project mein hai
 
 ## Maqsad
 Customer ko rate jaldi batana. Rate dekhne ke liye item kholna na pade.

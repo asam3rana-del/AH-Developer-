@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// Baseline rules for the shared multi-branch Firestore project.
+//
+// What this enforces:
+//   - Nobody unauthenticated can read or write anything (blocks the public-internet
+//     default-deny gap that an empty/missing rules file would otherwise leave open).
+//   - Every write to a synced collection must carry a non-empty "branchId" field that
+//     matches the document's existing branchId (so a client can't silently switch a
+//     record from one branch to another, and can't write a document with no branchId
+//     at all going forward).
+//   - A signed-in user may only read/create/update/delete documents whose branchId
+//     matches THEIR OWN branch, per the server-side branch_members/{uid} mapping —
+//     not whatever branchId their client's BuildConfig happens to send. This closes
+//     the gap where a modified/rogue client could claim any branchId.
+//   - branch_members/{uid} itself is never writable by clients (admin/console only),
+//     so a user cannot grant themselves access to another branch.
+//
+// Setup required before deploying:
+//   Create one document per staff member at branch_members/{uid} with the shape
+//   { branchId: "dusri-branch" }, where {uid} is that user's Firebase Auth UID
+//   (via Firebase console or a small admin script — NOT from the app itself).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // The branch this signed-in user is provisioned for, per server-side mapping.
+    function myBranchId() {
+      return get(/databases/$(database)/documents/branch_members/$(request.auth.uid)).data.branchId;
+    }
+
+    function isMyBranch(branchId) {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/branch_members/$(request.auth.uid))
+          && branchId == myBranchId();
+    }
+
+    function hasBranchId() {
+      return request.resource.data.branchId is string
+          && request.resource.data.branchId.size() > 0;
+    }
+
+    function branchIdUnchanged() {
+      return !resource.data.keys().hasAny(['branchId'])
+          || request.resource.data.branchId == resource.data.branchId;
+    }
+
+    // FIX (missing collections — Zakat/Units/Categories/Returns/Stock/App Settings
+    // couldn't actually sync): SyncApi.kt has synced these collections for a while
+    // (see its class doc comment at the top of that file), but this allowlist was
+    // never updated to match — so every push/pull for units, categories, zakat
+    // years/payments, returns, stock_movements, and app_settings was being silently
+    // rejected by these rules with PERMISSION_DENIED, even though the app-side sync
+    // code for them was working correctly. Added here so they actually reach
+    // Firestore like every other synced entity.
+    function isSyncedCollection(collection) {
+      return collection in ['customers', 'suppliers', 'products', 'users',
+                             'sales', 'purchases', 'payments', 'expenses',
+                             'cash_transactions', 'cash_register',
+                             'units', 'categories', 'zakat_years', 'zakat_payments',
+                             'returns', 'stock_movements', 'app_settings',
+                             'shell_customers', 'shell_transactions', 'shop_empty_shell_log'];
+    }
+
+    // Server-side record of which branch each staff UID belongs to.
+    // Clients can read only their own membership doc; never write.
+    match /branch_members/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{collection}/{docId} {
+      allow read: if isSignedIn() && isSyncedCollection(collection)
+                   && isMyBranch(resource.data.branchId);
+      allow create: if isSignedIn() && isSyncedCollection(collection)
+                     && hasBranchId() && isMyBranch(request.resource.data.branchId);
+      allow update: if isSignedIn() && isSyncedCollection(collection)
+                     && hasBranchId() && branchIdUnchanged()
+                     && isMyBranch(resource.data.branchId);
+      allow delete: if isSignedIn() && isSyncedCollection(collection)
+                     && isMyBranch(resource.data.branchId);
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
