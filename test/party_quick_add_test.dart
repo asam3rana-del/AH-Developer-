@@ -26,4 +26,14 @@ void main() {
     expect(pickerCandidates(all, forCustomer: true, query: '   ').length, 3);
     expect(pickerCandidates(all, forCustomer: false, query: '0333'), isEmpty);
   });
+
+  test('onlyDue: sirf baqaya (closing > 0) wali parties', () {
+    const rows = [
+      PartyRow(id: 1, name: 'Ali', phone: '', closing: 500, isCustomer: true),
+      PartyRow(id: 2, name: 'Bilal', phone: '', closing: 0, isCustomer: true),
+      PartyRow(id: 3, name: 'Zaid', phone: '', closing: -40, isCustomer: true),
+    ];
+    expect([for (final r in pickerCandidates(rows, forCustomer: true, onlyDue: true)) r.name], ['Ali']);
+    expect(pickerCandidates(rows, forCustomer: true).length, 3);
+  });
 }

@@ -76,12 +76,18 @@ String _rs(num v) => 'Rs ${v.toStringAsFixed(2)}';
 // ---------------------------------------------------------------------------
 
 /// Returns true if a payment was saved/updated.
+/// Pichli dafa chuna hua ذریعہ (cash/bank) — naya payment usi par shuru hota hai (app chalte tak yaad).
+String _lastPaymentMethod = 'cash';
+
+/// [due]: party ka abhi ka baqaya (customer se lena / supplier ko dena). > 0 ho to amount ke neeche
+/// "Full due" ka button aata hai jo poora baqaya ek tap mein bhar deta hai.
 Future<bool> showPaymentDialog(
   BuildContext context, {
   required bool isCustomer,
   required int partyId,
   required String partyName,
   Payment? existing,
+  double due = 0,
 }) async {
   final bills = await PaymentRepository.instance.billOptions(
       isCustomer: isCustomer, partyId: partyId, alsoInclude: existing?.billReference ?? '');
@@ -96,7 +102,7 @@ Future<bool> showPaymentDialog(
   );
   final noteCtrl = TextEditingController(text: existing?.note ?? '');
   var date = existing != null ? DateTime.fromMillisecondsSinceEpoch(existing.createdAt) : DateTime.now();
-  var method = (existing?.method.toLowerCase() == 'bank') ? 'bank' : 'cash';
+  var method = existing != null ? ((existing.method.toLowerCase() == 'bank') ? 'bank' : 'cash') : _lastPaymentMethod;
   String billRef = existing != null && bills.any((b) => b.ref == existing.billReference) ? existing.billReference : '';
   String? error;
   var saving = false; // double-tap par do payments / do cash rows na banen
@@ -109,6 +115,54 @@ Future<bool> showPaymentDialog(
           : isCustomer
               ? Loc.t('Receive Payment', 'ادائیگی وصول کریں')
               : Loc.t('Make Payment', 'ادائیگی کریں');
+      Future<void> submit() async {
+              final amt = double.tryParse(amountCtrl.text.trim());
+              if (amt == null || !amt.isFinite || amt <= 0) {
+                setS(() => error = Loc.t('Enter a valid amount', 'صحیح رقم لکھیں'));
+                return;
+              }
+              // Keep the picked day, but use the current time-of-day so several
+              // payments on one day keep their order.
+              final now = DateTime.now();
+              final when = DateTime(date.year, date.month, date.day, now.hour, now.minute, now.second)
+                  .millisecondsSinceEpoch;
+              final note = noteCtrl.text.trim();
+              setS(() { saving = true; error = null; });
+              try {
+                if (existing != null) {
+                  await PaymentRepository.instance.update(
+                    original: existing,
+                    isCustomer: isCustomer,
+                    partyName: partyName,
+                    newAmount: amt,
+                    newMethod: method,
+                    newNote: note,
+                    newDateMillis: when,
+                    newBillRef: billRef,
+                  );
+                } else {
+                  await PaymentRepository.instance.save(
+                    isCustomer: isCustomer,
+                    partyId: partyId,
+                    partyName: partyName,
+                    amount: amt,
+                    method: method,
+                    note: note,
+                    dateMillis: when,
+                    billRef: billRef,
+                  );
+                }
+                if (existing == null) _lastPaymentMethod = method;
+                if (ctx.mounted) Navigator.pop(ctx, true);
+              } catch (e) {
+                if (ctx.mounted) {
+                  setS(() {
+                    saving = false;
+                    error = e is StateError || e is ArgumentError ? e.toString() : Loc.t('Could not save: $e', 'محفوظ نہیں ہو سکا: $e');
+                  });
+                }
+              }
+                  }
       return AlertDialog(
         title: Text(title),
         content: SingleChildScrollView(
@@ -119,8 +173,28 @@ Future<bool> showPaymentDialog(
               controller: amountCtrl,
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) {
+                if (!saving) submit(); // Enter = save
+              },
               decoration: InputDecoration(labelText: Loc.t('Amount', 'رقم'), errorText: error),
             ),
+            if (existing == null && due > 0.009)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: ActionChip(
+                    avatar: const Icon(Icons.done_all, size: 16),
+                    label: Text('${Loc.t('Full due', 'پورا بقایا')}  Rs ${due == due.roundToDouble() ? due.toStringAsFixed(0) : due.toStringAsFixed(2)}'),
+                    onPressed: () => setS(() {
+                      amountCtrl.text = due == due.roundToDouble() ? due.toStringAsFixed(0) : due.toStringAsFixed(2);
+                      amountCtrl.selection = TextSelection.collapsed(offset: amountCtrl.text.length);
+                      error = null;
+                    }),
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
             InkWell(
               onTap: () async {
@@ -166,53 +240,7 @@ Future<bool> showPaymentDialog(
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.teal),
-            onPressed: saving ? null : () async {
-              final amt = double.tryParse(amountCtrl.text.trim());
-              if (amt == null || !amt.isFinite || amt <= 0) {
-                setS(() => error = Loc.t('Enter a valid amount', 'صحیح رقم لکھیں'));
-                return;
-              }
-              // Keep the picked day, but use the current time-of-day so several
-              // payments on one day keep their order.
-              final now = DateTime.now();
-              final when = DateTime(date.year, date.month, date.day, now.hour, now.minute, now.second)
-                  .millisecondsSinceEpoch;
-              final note = noteCtrl.text.trim();
-              setS(() { saving = true; error = null; });
-              try {
-                if (existing != null) {
-                  await PaymentRepository.instance.update(
-                    original: existing,
-                    isCustomer: isCustomer,
-                    partyName: partyName,
-                    newAmount: amt,
-                    newMethod: method,
-                    newNote: note,
-                    newDateMillis: when,
-                    newBillRef: billRef,
-                  );
-                } else {
-                  await PaymentRepository.instance.save(
-                    isCustomer: isCustomer,
-                    partyId: partyId,
-                    partyName: partyName,
-                    amount: amt,
-                    method: method,
-                    note: note,
-                    dateMillis: when,
-                    billRef: billRef,
-                  );
-                }
-                if (ctx.mounted) Navigator.pop(ctx, true);
-              } catch (e) {
-                if (ctx.mounted) {
-                  setS(() {
-                    saving = false;
-                    error = e is StateError || e is ArgumentError ? e.toString() : Loc.t('Could not save: $e', 'محفوظ نہیں ہو سکا: $e');
-                  });
-                }
-              }
-            },
+            onPressed: saving ? null : submit,
             child: Text(Loc.t('Save', 'محفوظ کریں')),
           ),
         ],
@@ -367,7 +395,8 @@ class _RecordTabState extends State<_RecordTab> {
         return InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: () async {
-            final ok = await showPaymentDialog(context, isCustomer: _isCustomer, partyId: p.id, partyName: p.name);
+            final ok = await showPaymentDialog(context,
+                isCustomer: _isCustomer, partyId: p.id, partyName: p.name, due: p.balance > 0 ? p.balance : 0);
             if (ok) widget.onChanged();
           },
           child: Ink(

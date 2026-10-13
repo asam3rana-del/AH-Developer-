@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
 
 import '../db/dashboard_repository.dart';
+import '../db/party_dashboard_repository.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../services/biometric.dart';
@@ -11,14 +12,16 @@ import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/menu_row.dart' show IconBadge;
+import '../widgets/party_quick_add_menu.dart' show showPartyPickerForPayment;
 import '../widgets/role_guard.dart';
 import 'backup_export_screen.dart';
-import 'cash_screen.dart';
+import 'daily_bills_screen.dart';
 import 'day_book_screen.dart';
 import 'item_search_screen.dart';
 import 'items_screen.dart';
 import 'login_screen.dart';
 import 'party_dashboard_screen.dart';
+import 'party_transaction_screen.dart';
 import 'purchase_screen.dart';
 import 'sale_screen.dart';
 import 'settings_screen.dart';
@@ -208,6 +211,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
   }
 
+  /// Payment Received / Made: parties load karke seedha picker kholta hai; chunne par us party ka
+  /// payment dialog (baqaya "Full due" ke saath) khulta hai.
+  Future<void> _quickPayment({required bool forCustomer}) async {
+    try {
+      final parties = await PartyDashboardRepository.instance.loadParties();
+      if (!mounted) return;
+      await showPartyPickerForPayment(
+        context,
+        parties: parties,
+        forCustomer: forCustomer,
+        onPicked: (r) => _push(PartyTransactionScreen(
+          partyId: r.id,
+          partyName: r.name,
+          isCustomer: r.isCustomer,
+          openPayment: true,
+          dueHint: r.closing > 0 ? r.closing : 0,
+        )),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
   void _run(_Action a) {
     if (a.onTap != null) {
       a.onTap!();
@@ -363,11 +390,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (role == 'admin')
         _Action('Purchase', 'خریداری', 'Record a purchase', 'خریداری درج کریں', Icons.inventory_2_outlined, p.flatCoralBg, p.flatCoralFg,
             open: () => const RoleGuard(allowed: _admin, child: PurchaseScreen())),
-      _Action('Cash', 'کیش', 'Cash in / cash out', 'کیش اِن / آؤٹ', Icons.account_balance_wallet_outlined, p.flatAmberBg, p.flatAmberFg,
-          open: () => const CashScreen()),
-      _Action('Payments', 'ادائیگیاں', 'Receive or make a payment', 'رقم وصول یا ادا کریں', Icons.account_balance, p.flatTealBg,
+      // Daily Bills (admin/manager) ab seedha dashboard par; Cash in/out dashboard se hata diya
+      // (Settings -> Cash & Bank aur Customers & Suppliers se ab bhi khulta hai).
+      if (_am.contains(role))
+        _Action('Daily Bills', 'روزانہ بلز', 'One bill per customer per day', 'ہر کسٹمر کا دن کا ایک بل', Icons.receipt_long_outlined,
+            p.flatAmberBg, p.flatAmberFg,
+            open: () => const DailyBillsScreen()),
+      // Payments ke do alag tiles: ek tap => seedha party picker (beech ki Customers screen / chooser khatam).
+      _Action('Payment\nReceived', 'ادائیگی\nوصول', 'Money received from a customer', 'کسٹمر سے رقم وصول', Icons.south_west, p.flatTealBg,
           p.flatTealFg,
-          open: () => const PartyDashboardScreen(quickPayment: true)),
+          onTap: () => _quickPayment(forCustomer: true)),
+      // Supplier screen cashier ke liye band (PartyTransactionScreen ki tarah).
+      if (_am.contains(role))
+        _Action('Payment\nMade', 'ادائیگی\nادا', 'Money paid to a supplier', 'سپلائر کو رقم ادا', Icons.north_east, p.flatCoralBg,
+            p.flatCoralFg,
+            onTap: () => _quickPayment(forCustomer: false)),
       _Action('Customers &\nSuppliers', 'گاہک اور\nسپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people_outline, p.flatPinkBg,
           p.flatPinkFg,
           open: () => const PartyDashboardScreen()),

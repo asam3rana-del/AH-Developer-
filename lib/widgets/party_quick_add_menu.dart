@@ -26,10 +26,12 @@ class PartyMenuItem {
 
 /// Picker ki list: sirf `forCustomer` wali parties, naam (lowercase) ke hisaab se sorted; query khali
 /// ho to sab, warna naam (case-insensitive) ya phone (substring) match. PURE — test ke liye.
-List<PartyRow> pickerCandidates(List<PartyRow> all, {required bool forCustomer, String query = ''}) {
+List<PartyRow> pickerCandidates(List<PartyRow> all,
+    {required bool forCustomer, String query = '', bool onlyDue = false}) {
   final q = query.trim();
   final qLower = q.toLowerCase();
-  final list = all.where((r) => r.isCustomer == forCustomer).toList()
+  // onlyDue: customer se lena / supplier ko dena baqi ho (closing > 0, dono ke liye).
+  final list = all.where((r) => r.isCustomer == forCustomer && (!onlyDue || r.closing > 0.009)).toList()
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   if (q.isEmpty) return list;
   return list.where((r) => r.name.toLowerCase().contains(qLower) || r.phone.contains(q)).toList();
@@ -131,6 +133,7 @@ class _PartyPickerDialog extends StatefulWidget {
 
 class _PartyPickerDialogState extends State<_PartyPickerDialog> {
   final _ctrl = TextEditingController();
+  bool _onlyDue = true; // default: sirf baqaya wale; "Sab" par tap se advance/settled bhi
 
   @override
   void dispose() {
@@ -142,7 +145,7 @@ class _PartyPickerDialogState extends State<_PartyPickerDialog> {
   Widget build(BuildContext context) {
     final p = ThemeManager.palette;
     final forC = widget.forCustomer;
-    final filtered = pickerCandidates(widget.parties, forCustomer: forC, query: _ctrl.text);
+    final filtered = pickerCandidates(widget.parties, forCustomer: forC, query: _ctrl.text, onlyDue: _onlyDue);
     return AlertDialog(
       title: Text(forC ? Loc.t('Payment Received', 'ادائیگی وصول ہوئی') : Loc.t('Payment Made', 'ادائیگی ہوئی')),
       contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -151,8 +154,12 @@ class _PartyPickerDialogState extends State<_PartyPickerDialog> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: _ctrl,
-            autofocus: false,
+            autofocus: true,
+            textInputAction: TextInputAction.search,
             onChanged: (_) => setState(() {}),
+            onSubmitted: (_) {
+              if (filtered.isNotEmpty) widget.onPicked(filtered.first); // Enter = pehli party
+            },
             decoration: InputDecoration(
               hintText: forC ? Loc.t('Search customer', 'کسٹمر تلاش کریں') : Loc.t('Search supplier', 'سپلائر تلاش کریں'),
               prefixIcon: const Icon(Icons.search),
@@ -162,7 +169,18 @@ class _PartyPickerDialogState extends State<_PartyPickerDialog> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
-          const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: FilterChip(
+                label: Text(forC ? Loc.t('Only with dues (to receive)', 'صرف بقایا والے (وصول کرنا)') : Loc.t('Only with dues (to pay)', 'صرف بقایا والے (ادا کرنا)')),
+                selected: _onlyDue,
+                onSelected: (v) => setState(() => _onlyDue = v),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
           SizedBox(
             height: 320,
             child: filtered.isEmpty
@@ -180,10 +198,24 @@ class _PartyPickerDialogState extends State<_PartyPickerDialog> {
                         onTap: () => widget.onPicked(r),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
-                          child: Text(
-                            r.name + (r.phone.trim().isNotEmpty ? '  \u00B7  ${r.phone}' : ''),
-                            style: TextStyle(fontSize: 14.5, color: p.textDark),
-                          ),
+                          child: Row(children: [
+                            Expanded(
+                              child: Text(
+                                r.name + (r.phone.trim().isNotEmpty ? '  \u00B7  ${r.phone}' : ''),
+                                style: TextStyle(fontSize: 14.5, color: p.textDark),
+                              ),
+                            ),
+                            if (r.closing.abs() > 0.009)
+                              Text(
+                                r.closing > 0
+                                    ? 'Rs ${r.closing.toStringAsFixed(0)}'
+                                    : '${Loc.t('Adv', 'ایڈوانس')} ${(-r.closing).toStringAsFixed(0)}',
+                                style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: r.closing > 0 ? p.flatCoralFg : p.textMuted),
+                              ),
+                          ]),
                         ),
                       );
                     },

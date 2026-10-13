@@ -385,6 +385,7 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
         partyName: r.name,
         isCustomer: r.isCustomer,
         openPayment: true,
+        dueHint: r.closing > 0 ? r.closing : 0,
       )),
     );
   }

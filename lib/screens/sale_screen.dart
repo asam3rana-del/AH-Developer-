@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../db/customer_repository.dart';
+import '../db/party_dashboard_repository.dart';
 import '../db/product_repository.dart';
 import '../db/sale_repository.dart';
 import '../db/user_repository.dart';
 import 'sale_history_screen.dart';
+import 'payments_screen.dart' show showPaymentDialog;
 import '../models/party.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
@@ -50,6 +52,7 @@ class SaleScreen extends StatefulWidget {
 
 class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   final _customerCtrl = TextEditingController();
+  List<PartyRow> _partyRows = const []; // customers ka live baqaya ("Payment lein" button ke liye)
   final _customerFocus = FocusNode();
   final _itemCtrl = TextEditingController();
   final _itemFocus = FocusNode();
@@ -221,9 +224,35 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     if (n.isNotEmpty && mounted) setState(() => _firmName = n);
   }
 
+  Future<void> _loadPartyRows() async {
+    try {
+      final rows = await PartyDashboardRepository.instance.loadParties();
+      if (mounted) setState(() => _partyRows = rows);
+    } catch (_) {
+      // baqaya sirf suvidha hai — load na ho to button bas nahi dikhta.
+    }
+  }
+
+  /// Bill par likha customer agar saved customer ho to uski live row (baqaya shamil).
+  PartyRow? _currentCustomerRow() {
+    final name = _customerCtrl.text.trim().toLowerCase();
+    if (name.isEmpty) return null;
+    for (final r in _partyRows) {
+      if (r.isCustomer && r.name.trim().toLowerCase() == name) return r;
+    }
+    return null;
+  }
+
+  Future<void> _receivePaymentFromCustomer(PartyRow r) async {
+    final ok = await showPaymentDialog(context,
+        isCustomer: true, partyId: r.id, partyName: r.name, due: r.closing > 0 ? r.closing : 0);
+    if (ok) await _loadPartyRows();
+  }
+
   Future<void> _load() async {
     if (_isEdit && !Session.isAdmin) return; // build() shows the lock screen
     _loadFirmName();
+    _loadPartyRows();
     final products = await ProductRepository.instance.listAll();
     final customers = await CustomerRepository.instance.listAll();
     if (!mounted) return;
@@ -789,6 +818,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   }
 
   void _clearAll() {
+    _loadPartyRows(); // bill ke baad customers ka baqaya taza
     setState(() {
       _lines.clear();
       _customerCtrl.clear();
@@ -1839,8 +1869,32 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
+          _buildCustomerDue(),
         ],
       ),
+    );
+  }
+
+  /// Customer ka baqaya + "Payment lein" button (sirf jab uska baqaya baqi ho).
+  Widget _buildCustomerDue() {
+    final r = _currentCustomerRow();
+    if (r == null || r.closing <= 0.009) return const SizedBox.shrink();
+    final pal = ThemeManager.palette;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(children: [
+        Expanded(
+          child: Text(
+            '${Loc.t('Baqaya', 'بقایا')}: Rs ${formatQty(r.closing)}',
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: pal.flatCoralFg),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: () => _receivePaymentFromCustomer(r),
+          icon: const Icon(Icons.south_west, size: 16),
+          label: Text(Loc.t('Payment lein', 'ادائیگی لیں')),
+        ),
+      ]),
     );
   }
 

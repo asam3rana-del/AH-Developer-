@@ -39,12 +39,16 @@ class PartyTransactionScreen extends StatefulWidget {
   /// Dashboard "+" menu ke Payment Received/Made ke liye: screen khulte hi payment dialog.
   final bool openPayment;
 
+  /// Picker se aaye to party ka baqaya pehle se maloom hai (stats load hone se pehle dialog khulta hai).
+  final double dueHint;
+
   const PartyTransactionScreen({
     super.key,
     required this.partyId,
     required this.partyName,
     required this.isCustomer,
     this.openPayment = false,
+    this.dueHint = 0,
   });
 
   @override
@@ -217,7 +221,11 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
   Future<void> _payment({Payment? existing}) async {
     if (existing != null && !_requireAdmin()) return;
     final saved = await showPaymentDialog(context,
-        isCustomer: widget.isCustomer, partyId: widget.partyId, partyName: _name, existing: existing);
+        isCustomer: widget.isCustomer,
+        partyId: widget.partyId,
+        partyName: _name,
+        existing: existing,
+        due: _stats != null ? (_stats!.closing > 0 ? _stats!.closing : 0) : widget.dueHint);
     if (saved) {
       _toast(existing != null
           ? Loc.t('Payment updated', 'ادائیگی اپ ڈیٹ ہو گئی')
