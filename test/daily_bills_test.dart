@@ -65,8 +65,8 @@ void main() {
       },
     )!;
     final t = dailyBillText(p, DateTime(2026, 10, 11));
-    expect(t.contains('Pichla balance: Rs 50'), isTrue);
+    expect(t.contains('Previous balance: Rs 50'), isTrue);
     expect(t.contains('Rice'), isTrue);
-    expect(t.contains('Aaj ka balance: Rs 150'), isTrue);
+    expect(t.contains('Today\'s balance: Rs 150'), isTrue);
   });
 }

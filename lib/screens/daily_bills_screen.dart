@@ -98,16 +98,11 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            tooltip: Loc.t('Daily Rent', 'روزانہ کرایہ'),
-            icon: const Icon(Icons.event_repeat),
-            onPressed: _openRentSheet,
-          ),
           PopupMenuButton<String>(
             onSelected: (v) => _dayOff(v == 'off'),
             itemBuilder: (_) => [
-              PopupMenuItem(value: 'off', child: Text(Loc.t('Is din ka rent hatao (chhutti)', 'اس دن کا کرایہ ہٹائیں (چھٹی)'))),
-              PopupMenuItem(value: 'on', child: Text(Loc.t('Is din ka rent wapas lagao', 'اس دن کا کرایہ واپس لگائیں'))),
+              PopupMenuItem(value: 'off', child: Text(Loc.t('Remove rent for this day (holiday)', 'اس دن کا کرایہ ہٹائیں (چھٹی)'))),
+              PopupMenuItem(value: 'on', child: Text(Loc.t('Restore rent for this day', 'اس دن کا کرایہ واپس لگائیں'))),
             ],
           ),
         ],
@@ -118,7 +113,10 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
           children: [
             PremiumHeader(
               title: Loc.t('Daily Bills', 'روزانہ بلز'),
-              subtitle: Loc.t('Har customer ka din ka ek bill + balance', 'ہر کسٹمر کا دن کا ایک بل اور بیلنس'),
+              subtitle: Loc.t('One bill per customer per day + balance', 'ہر کسٹمر کا دن کا ایک بل اور بیلنس'),
+              actionLabel: Loc.t('Daily Rent', 'روزانہ کرایہ'),
+              actionEmoji: '🔁',
+              onActionTap: _openRentSheet,
             ),
             _dateBar(),
             if (!_loading && _rows.isNotEmpty) _summary(totalSales, totalReceived),
@@ -128,7 +126,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
               Padding(
                 padding: const EdgeInsets.all(30),
                 child: Center(
-                  child: Text(Loc.t('Is din koi sale nahi', 'اس دن کوئی سیل نہیں'),
+                  child: Text(Loc.t('No sales on this day', 'اس دن کوئی سیل نہیں'),
                       style: TextStyle(color: _p.textMuted, fontWeight: FontWeight.bold)),
                 ),
               )
@@ -155,7 +153,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
-                  '${_isToday ? '${Loc.t('Aaj', 'آج')} • ' : ''}${_dateFmt.format(_day)}',
+                  '${_isToday ? '${Loc.t('Today', 'آج')} • ' : ''}${_dateFmt.format(_day)}',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _p.textDark),
                 ),
@@ -176,8 +174,8 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
         ),
         child: Row(children: [
           _stat(Loc.t('Customers', 'کسٹمرز'), '${_rows.length}', _p.textDark),
-          _stat(Loc.t('Kul sale', 'کل سیل'), _rs(sales), _p.flatBlueFg),
-          _stat(Loc.t('Kul mila', 'کل وصول'), _rs(received), _p.flatTealFg),
+          _stat(Loc.t('Total sales', 'کل سیل'), _rs(sales), _p.flatBlueFg),
+          _stat(Loc.t('Total received', 'کل وصول'), _rs(received), _p.flatTealFg),
         ]),
       );
 
@@ -218,12 +216,12 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
                 Text('${r.billCount} ${Loc.t('bills', 'بلز')}', style: TextStyle(fontSize: 12, color: _p.textMuted)),
               ]),
               const SizedBox(height: 8),
-              _kv(Loc.t('Pichla balance', 'پچھلا بیلنس'), _rs(r.previousBalance), color: _balColor(r.previousBalance)),
-              _kv(Loc.t('Aaj ki sale', 'آج کی سیل'), '+ ${_rs(r.salesTotal)}', color: _p.flatBlueFg),
+              _kv(Loc.t('Previous balance', 'پچھلا بیلنس'), _rs(r.previousBalance), color: _balColor(r.previousBalance)),
+              _kv(Loc.t('Today\'s sale', 'آج کی سیل'), '+ ${_rs(r.salesTotal)}', color: _p.flatBlueFg),
               if (r.receivedTotal > 0)
-                _kv(Loc.t('Aaj mila', 'آج وصول'), '- ${_rs(r.receivedTotal)}', color: _p.flatTealFg),
+                _kv(Loc.t('Received today', 'آج وصول'), '- ${_rs(r.receivedTotal)}', color: _p.flatTealFg),
               Divider(height: 14, color: _p.border),
-              _kv(Loc.t('Aaj ka balance', 'آج کا بیلنس'), _rs(r.closingBalance), color: _balColor(r.closingBalance), bold: true),
+              _kv(Loc.t('Today\'s balance', 'آج کا بیلنس'), _rs(r.closingBalance), color: _balColor(r.closingBalance), bold: true),
             ]),
           ),
         ),
@@ -236,7 +234,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
   Future<void> _billOff(String invoice) async {
     try {
       await RentRepository.instance.setRentBillOff(invoice, off: true);
-      _toast(Loc.t('Rent hata diya gaya', 'کرایہ ہٹا دیا گیا'));
+      _toast(Loc.t('Rent removed', 'کرایہ ہٹا دیا گیا'));
     } catch (e) {
       _toast('$e');
     }
@@ -247,10 +245,10 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
     try {
       final n = await RentRepository.instance.setDayOff(_day, off: off);
       _toast(n == 0
-          ? Loc.t('Is din koi rent bill nahi mila', 'اس دن کوئی کرایہ بل نہیں ملا')
+          ? Loc.t('No rent bill found for this day', 'اس دن کوئی کرایہ بل نہیں ملا')
           : (off
-              ? Loc.t('$n customers ka rent hata diya (chhutti)', '$n کسٹمرز کا کرایہ ہٹا دیا (چھٹی)')
-              : Loc.t('$n customers ka rent wapas laga diya', '$n کسٹمرز کا کرایہ واپس لگا دیا')));
+              ? Loc.t('Rent removed for $n customers (holiday)', '$n کسٹمرز کا کرایہ ہٹا دیا (چھٹی)')
+              : Loc.t('Rent restored for $n customers', '$n کسٹمرز کا کرایہ واپس لگا دیا')));
     } catch (e) {
       _toast('$e');
     }
@@ -287,7 +285,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
             Text(r.name, style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: _p.textDark)),
             Text(_dateFmt.format(_day), style: TextStyle(color: _p.textMuted)),
             const SizedBox(height: 10),
-            _kv(Loc.t('Pichla balance', 'پچھلا بیلنس'), _rs(r.previousBalance), color: _balColor(r.previousBalance), bold: true),
+            _kv(Loc.t('Previous balance', 'پچھلا بیلنس'), _rs(r.previousBalance), color: _balColor(r.previousBalance), bold: true),
             Divider(color: _p.border),
             for (final b in r.bills) ...[
               Row(children: [
@@ -320,12 +318,12 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
               Divider(color: _p.border),
             ],
             for (final pm in r.payments)
-              _kv('${Loc.t('Payment mili', 'ادائیگی ملی')} • ${_timeFmt.format(DateTime.fromMillisecondsSinceEpoch(pm.time))}',
+              _kv('${Loc.t('Payment received', 'ادائیگی ملی')} • ${_timeFmt.format(DateTime.fromMillisecondsSinceEpoch(pm.time))}',
                   '- ${_rs(pm.amount)}', color: _p.flatTealFg),
-            _kv(Loc.t('Aaj ki sale', 'آج کی سیل'), '+ ${_rs(r.salesTotal)}', color: _p.flatBlueFg),
-            if (r.receivedTotal > 0) _kv(Loc.t('Aaj mila', 'آج وصول'), '- ${_rs(r.receivedTotal)}', color: _p.flatTealFg),
+            _kv(Loc.t('Today\'s sale', 'آج کی سیل'), '+ ${_rs(r.salesTotal)}', color: _p.flatBlueFg),
+            if (r.receivedTotal > 0) _kv(Loc.t('Received today', 'آج وصول'), '- ${_rs(r.receivedTotal)}', color: _p.flatTealFg),
             Divider(color: _p.border),
-            _kv(Loc.t('Aaj ka balance', 'آج کا بیلنس'), _rs(r.closingBalance), color: _balColor(r.closingBalance), bold: true),
+            _kv(Loc.t('Today\'s balance', 'آج کا بیلنس'), _rs(r.closingBalance), color: _balColor(r.closingBalance), bold: true),
             const SizedBox(height: 14),
             for (final b in r.bills)
               if (isRentInvoice(b.invoice))
@@ -337,7 +335,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
                       await _billOff(b.invoice);
                     },
                     icon: const Icon(Icons.beach_access),
-                    label: Text(Loc.t('Is customer ka aaj ka rent hatao (chhutti)', 'اس کسٹمر کا آج کا کرایہ ہٹائیں (چھٹی)')),
+                    label: Text(Loc.t('Remove today\'s rent for this customer (holiday)', 'اس کسٹمر کا آج کا کرایہ ہٹائیں (چھٹی)')),
                   ),
                 ),
             Row(children: [
@@ -417,12 +415,12 @@ class _RentSheetState extends State<_RentSheet> {
             TextField(
               controller: amountCtl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: Loc.t('Roz ka rent (Rs)', 'روز کا کرایہ (روپے)')),
+              decoration: InputDecoration(labelText: Loc.t('Daily rent (Rs)', 'روز کا کرایہ (روپے)')),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
               icon: const Icon(Icons.calendar_today, size: 18),
-              label: Text('${Loc.t('Kis din se', 'کس دن سے')}: ${_dateFmt.format(start)}'),
+              label: Text('${Loc.t('Starting from', 'کس دن سے')}: ${_dateFmt.format(start)}'),
               onPressed: () async {
                 final d = await showDatePicker(
                   context: ctx,
@@ -444,14 +442,14 @@ class _RentSheetState extends State<_RentSheet> {
     if (ok != true) return;
     final rent = double.tryParse(amountCtl.text.trim());
     if (customerId == null || rent == null || rent <= 0) {
-      _toast(Loc.t('Customer aur rent (0 se zyada) zaroori hai', 'کسٹمر اور کرایہ (0 سے زیادہ) ضروری ہے'));
+      _toast(Loc.t('Customer and rent (more than 0) are required', 'کسٹمر اور کرایہ (0 سے زیادہ) ضروری ہے'));
       return;
     }
     try {
       await RentRepository.instance.setConfig(customerId: customerId!, dailyRent: rent, startDay: start);
       // Aaj tak ke bills foran bana do.
       final n = await RentRepository.instance.ensureRentUpTo(DateTime.now());
-      _toast(Loc.t('Rent set. $n din ke rent bill ban gaye', 'کرایہ سیٹ ہو گیا۔ $n دن کے کرایہ بل بن گئے'));
+      _toast(Loc.t('Rent set. $n days of rent bills created', 'کرایہ سیٹ ہو گیا۔ $n دن کے کرایہ بل بن گئے'));
     } catch (e) {
       _toast('$e');
     }
@@ -462,12 +460,12 @@ class _RentSheetState extends State<_RentSheet> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Rent band karen?', 'کرایہ بند کریں؟')),
-        content: Text(Loc.t('${c.name} ka rent aage se nahi lagega. Purane bills aur balance jaise hain waise rahenge.',
+        title: Text(Loc.t('Stop rent?', 'کرایہ بند کریں؟')),
+        content: Text(Loc.t('Rent for ${c.name} will not be charged from now on. Old bills and balance stay as they are.',
             '${c.name} کا کرایہ آگے سے نہیں لگے گا۔ پرانے بل اور بیلنس جیسے ہیں ویسے رہیں گے۔')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Nahi', 'نہیں'))),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Band karo', 'بند کریں'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('No', 'نہیں'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Stop', 'بند کریں'))),
         ],
       ),
     );
@@ -489,7 +487,7 @@ class _RentSheetState extends State<_RentSheet> {
             style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: _p.textDark)),
         const SizedBox(height: 4),
         Text(
-          Loc.t('Roz ka rent har din customer ke Daily Bill aur balance mein khud judta hai. Chhutti wale din ka rent Daily Bills ke menu se hata den. Rent sirf ek device par set karen.',
+          Loc.t('Daily rent is added automatically to the customer\'s Daily Bill and balance every day. For a holiday, remove that day\'s rent from the Daily Bills menu. Set rent on one device only.',
               'روز کا کرایہ ہر دن کسٹمر کے ڈیلی بل اور بیلنس میں خود جڑتا ہے۔ چھٹی والے دن کا کرایہ ڈیلی بلز کے مینو سے ہٹا دیں۔ کرایہ صرف ایک ڈیوائس پر سیٹ کریں۔'),
           style: TextStyle(fontSize: 12.5, color: _p.textMuted),
         ),
@@ -499,7 +497,7 @@ class _RentSheetState extends State<_RentSheet> {
         else if (_configs.isEmpty)
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Center(child: Text(Loc.t('Abhi koi rent customer nahi', 'ابھی کوئی کرایہ کسٹمر نہیں'), style: TextStyle(color: _p.textMuted))),
+            child: Center(child: Text(Loc.t('No rent customers yet', 'ابھی کوئی کرایہ کسٹمر نہیں'), style: TextStyle(color: _p.textMuted))),
           )
         else
           Flexible(
@@ -509,7 +507,7 @@ class _RentSheetState extends State<_RentSheet> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(c.name, style: TextStyle(fontWeight: FontWeight.bold, color: _p.textDark)),
                   subtitle: Text(
-                      'Rs ${c.dailyRent.toStringAsFixed(c.dailyRent == c.dailyRent.roundToDouble() ? 0 : 2)} / ${Loc.t('din', 'دن')} • ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(c.startDay))}'),
+                      'Rs ${c.dailyRent.toStringAsFixed(c.dailyRent == c.dailyRent.roundToDouble() ? 0 : 2)} / ${Loc.t('day', 'دن')} • ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(c.startDay))}'),
                   onTap: () => _edit(existing: c),
                   trailing: IconButton(icon: const Icon(Icons.stop_circle_outlined), onPressed: () => _stop(c)),
                 ),
@@ -519,7 +517,7 @@ class _RentSheetState extends State<_RentSheet> {
         FilledButton.icon(
           onPressed: () => _edit(),
           icon: const Icon(Icons.add),
-          label: Text(Loc.t('Naya rent customer', 'نیا کرایہ کسٹمر')),
+          label: Text(Loc.t('New rent customer', 'نیا کرایہ کسٹمر')),
         ),
       ]),
     );

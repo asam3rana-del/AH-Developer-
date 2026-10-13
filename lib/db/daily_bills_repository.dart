@@ -150,7 +150,7 @@ String dailyBillText(DailyParty p, DateTime day, {String shopName = ''}) {
   sb.writeln('Daily Bill - ${p.name}');
   sb.writeln('Date: ${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}');
   sb.writeln('--------------------------');
-  sb.writeln('Pichla balance: Rs ${_n(p.previousBalance)}');
+  sb.writeln('Previous balance: Rs ${_n(p.previousBalance)}');
   sb.writeln('--------------------------');
   for (final b in p.bills) {
     sb.writeln('${b.invoice}  (${_hm(b.time)})');
@@ -160,9 +160,9 @@ String dailyBillText(DailyParty p, DateTime day, {String shopName = ''}) {
     sb.writeln('  Bill total: ${_n(b.total)}${b.paid > 0 ? '   Paid: ${_n(b.paid)}' : ''}');
   }
   sb.writeln('--------------------------');
-  sb.writeln('Aaj ki sale: Rs ${_n(p.salesTotal)}');
-  if (p.receivedTotal > 0) sb.writeln('Aaj mila: Rs ${_n(p.receivedTotal)}');
-  sb.writeln('Aaj ka balance: Rs ${_n(p.closingBalance)}');
+  sb.writeln('Today\'s sale: Rs ${_n(p.salesTotal)}');
+  if (p.receivedTotal > 0) sb.writeln('Received today: Rs ${_n(p.receivedTotal)}');
+  sb.writeln('Today\'s balance: Rs ${_n(p.closingBalance)}');
   return sb.toString();
 }
 
