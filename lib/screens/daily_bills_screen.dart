@@ -39,7 +39,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
   final _timeFmt = DateFormat('hh:mm a');
 
   AppPalette get _p => ThemeManager.palette;
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(v == v.roundToDouble() ? 0 : 2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
   Color _balColor(double v) => v < 0 ? _p.red : _p.flatTealFg;
 
   @override
@@ -304,7 +304,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
                         style: TextStyle(fontSize: 12.5, color: _p.textMuted),
                       ),
                     ),
-                    Text(i.amount.toStringAsFixed(i.amount == i.amount.roundToDouble() ? 0 : 2),
+                    Text(i.amount.round().toString(),
                         style: TextStyle(fontSize: 12.5, color: _p.textDark)),
                   ]),
                 ),
@@ -506,7 +506,7 @@ class _RentSheetState extends State<_RentSheet> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(c.name, style: TextStyle(fontWeight: FontWeight.bold, color: _p.textDark)),
                   subtitle: Text(
-                      'Rs ${c.dailyRent.toStringAsFixed(c.dailyRent == c.dailyRent.roundToDouble() ? 0 : 2)} / ${Loc.t('day', 'دن')} • ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(c.startDay))}'),
+                      'Rs ${c.dailyRent.round()} / ${Loc.t('day', 'دن')} • ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(c.startDay))}'),
                   onTap: () => _edit(existing: c),
                   trailing: IconButton(icon: const Icon(Icons.stop_circle_outlined), onPressed: () => _stop(c)),
                 ),

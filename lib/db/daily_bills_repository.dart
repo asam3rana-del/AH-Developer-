@@ -132,6 +132,9 @@ DailyParty? buildDailyParty({
   );
 }
 
+/// Raqam (balance/total/paid) round figure; rate ke liye _n (zaroorat par 2 decimal).
+String _r(double v) => v.round().toString();
+
 String _n(double v) => v.toStringAsFixed(v == v.roundToDouble() ? 0 : 2);
 
 String _qty(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
@@ -150,19 +153,19 @@ String dailyBillText(DailyParty p, DateTime day, {String shopName = ''}) {
   sb.writeln('Daily Bill - ${p.name}');
   sb.writeln('Date: ${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}');
   sb.writeln('--------------------------');
-  sb.writeln('Previous balance: Rs ${_n(p.previousBalance)}');
+  sb.writeln('Previous balance: Rs ${_r(p.previousBalance)}');
   sb.writeln('--------------------------');
   for (final b in p.bills) {
     sb.writeln('${b.invoice}  (${_hm(b.time)})');
     for (final i in b.items) {
-      sb.writeln('  ${i.product}  ${_qty(i.qty)}${i.unit.isEmpty ? '' : ' ${i.unit}'} x ${_n(i.unitPrice)} = ${_n(i.amount)}');
+      sb.writeln('  ${i.product}  ${_qty(i.qty)}${i.unit.isEmpty ? '' : ' ${i.unit}'} x ${_n(i.unitPrice)} = ${_r(i.amount)}');
     }
-    sb.writeln('  Bill total: ${_n(b.total)}${b.paid > 0 ? '   Paid: ${_n(b.paid)}' : ''}');
+    sb.writeln('  Bill total: ${_r(b.total)}${b.paid > 0 ? '   Paid: ${_r(b.paid)}' : ''}');
   }
   sb.writeln('--------------------------');
-  sb.writeln('Today\'s sale: Rs ${_n(p.salesTotal)}');
-  if (p.receivedTotal > 0) sb.writeln('Received today: Rs ${_n(p.receivedTotal)}');
-  sb.writeln('Today\'s balance: Rs ${_n(p.closingBalance)}');
+  sb.writeln('Today\'s sale: Rs ${_r(p.salesTotal)}');
+  if (p.receivedTotal > 0) sb.writeln('Received today: Rs ${_r(p.receivedTotal)}');
+  sb.writeln('Today\'s balance: Rs ${_r(p.closingBalance)}');
   return sb.toString();
 }
 
