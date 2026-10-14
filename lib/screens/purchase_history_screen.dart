@@ -52,7 +52,7 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
 
   AppPalette get _p => ThemeManager.palette;
   Color get _green => const Color(0xFF1E9E6B);
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
   String _qty(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
 
   @override

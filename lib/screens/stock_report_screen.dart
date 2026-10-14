@@ -36,7 +36,7 @@ class _StockReportScreenState extends State<StockReportScreen> {
 
   AppPalette get _p => ThemeManager.palette;
   bool get _showCost => Session.isAdminOrManager;
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   @override
   void initState() {

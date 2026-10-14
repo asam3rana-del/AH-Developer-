@@ -50,6 +50,8 @@ String _q(double v) {
   return v.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
 }
 String _m(double v) => v.toStringAsFixed(2);
+/// Raqam (amount/total) round figure; rate ke liye _m (2 decimal) rehta hai.
+String _r(double v) => v.round().toString();
 
 /// Header (shop + bill info) — har slip par dohraya jata hai.
 List<ReceiptLine> receiptHeader(BillDoc d) {
@@ -70,7 +72,7 @@ List<ReceiptLine> receiptHeader(BillDoc d) {
 /// Item table header + rows. Pehla element hamesha table header (paging isi par tikti hai).
 List<ReceiptLine> receiptItems(BillDoc d) => [
       const RlItemRow('ITEM', 'QTY', 'RATE', 'AMOUNT', header: true),
-      for (final i in d.items) RlItemRow(i.name, '${_q(i.qty)} ${i.unit}', _m(i.rate), _m(i.amount)),
+      for (final i in d.items) RlItemRow(i.name, '${_q(i.qty)} ${i.unit}', _m(i.rate), _r(i.amount)),
     ];
 
 /// Totals + footer — sirf aakhri slip par.
@@ -78,14 +80,14 @@ List<ReceiptLine> receiptFooter(BillDoc d, {double? netBalance}) {
   final due = d.total - d.paid;
   return [
     const RlDivider(),
-    RlTwoCol('Subtotal', _m(d.subtotal)),
-    if (d.discount > 0.009) RlTwoCol('Discount', '-${_m(d.discount)}'),
-    RlTwoCol('TOTAL', _m(d.total), bold: true),
-    RlTwoCol('Paid (${d.paymentMethod})', _m(d.paid)),
-    if (due > 0.009) RlTwoCol('DUE', _m(due), bold: true),
+    RlTwoCol('Subtotal', _r(d.subtotal)),
+    if (d.discount > 0.009) RlTwoCol('Discount', '-${_r(d.discount)}'),
+    RlTwoCol('TOTAL', _r(d.total), bold: true),
+    RlTwoCol('Paid (${d.paymentMethod})', _r(d.paid)),
+    if (due > 0.009) RlTwoCol('DUE', _r(due), bold: true),
     if (netBalance != null && d.partyId != null) ...[
-      RlTwoCol('Prev Balance', _m(netBalance - due)),
-      RlTwoCol('Net Balance', _m(netBalance), bold: true),
+      RlTwoCol('Prev Balance', _r(netBalance - due)),
+      RlTwoCol('Net Balance', _r(netBalance), bold: true),
     ],
     const RlDivider(),
     RlCenter(d.receiptFooter.trim().isEmpty ? 'Shukriya! Dobara tashreef layen.' : d.receiptFooter.trim()),

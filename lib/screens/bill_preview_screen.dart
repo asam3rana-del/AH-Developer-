@@ -160,7 +160,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     }
   }
 
-  String _m(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _m(double v) => 'Rs ${v.round()}';
   String _q(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
 
   Widget _kv(String k, String v, {bool bold = false, Color? color}) => Padding(
@@ -297,7 +297,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                     Expanded(flex: 4, child: Text(i.name, style: TextStyle(fontSize: 17, color: ThemeManager.palette.textDark))),
                     Expanded(
                         flex: 3,
-                        child: Text(i.amount.toStringAsFixed(2),
+                        child: Text(i.amount.round().toString(),
                             textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark))),
                     Expanded(
@@ -387,7 +387,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(flex: 3, child: Text(i.amount.toStringAsFixed(2), textAlign: TextAlign.left, style: const TextStyle(fontSize: 13))),
+                  Expanded(flex: 3, child: Text(i.amount.round().toString(), textAlign: TextAlign.left, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 2, child: Text(i.rate.toStringAsFixed(2), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 2, child: Text('${_q(i.qty)} ${i.unit}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 4, child: Text(i.name, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),

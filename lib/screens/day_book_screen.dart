@@ -291,7 +291,7 @@ class _DayBookScreenState extends State<DayBookScreen> {
       decoration: _cardDeco(p, 18),
       child: Row(children: [
         Expanded(child: Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: p.textMuted))),
-        Text('Rs ${net.toStringAsFixed(2)}',
+        Text('Rs ${net.round()}',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: net >= 0 ? p.flatTealFg : p.red)),
       ]),
     );

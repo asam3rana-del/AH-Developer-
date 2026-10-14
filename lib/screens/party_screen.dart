@@ -105,7 +105,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       ..showSnackBar(SnackBar(content: Text(msg), duration: Duration(seconds: seconds)));
   }
 
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   Color get _customerAccent => ThemeManager.palette.flatPinkFg;
   Color get _supplierAccent => ThemeManager.palette.flatCoralFg;
@@ -413,7 +413,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       final direction = closing > 0
           ? Loc.t("you'll get from them", 'آپ نے ان سے لینے ہیں')
           : Loc.t("you'll give to them", 'آپ نے انہیں دینے ہیں');
-      final amt = closing.abs().toStringAsFixed(2);
+      final amt = closing.abs().round().toString();
       message = Loc.t(
         '${c.name} still has an outstanding balance of Rs $amt ($direction). Deleting this customer will permanently lose track of this due. Delete anyway?',
         '${c.name} کا Rs $amt ($direction) کا واجب الادا بیلنس ہے۔ اس کسٹمر کو حذف کرنے سے یہ ریکارڈ ہمیشہ کے لیے ختم ہو جائے گا۔ پھر بھی حذف کریں؟',
@@ -439,7 +439,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       final direction = closing > 0
           ? Loc.t("you'll give to them", 'آپ نے انہیں دینے ہیں')
           : Loc.t("you'll get from them", 'آپ نے ان سے لینے ہیں');
-      final amt = closing.abs().toStringAsFixed(2);
+      final amt = closing.abs().round().toString();
       message = Loc.t(
         '${s.name} still has an outstanding balance of Rs $amt ($direction). Deleting this supplier will permanently lose track of this due. Delete anyway?',
         '${s.name} کا Rs $amt ($direction) کا واجب الادا بیلنس ہے۔ اس سپلائر کو حذف کرنے سے یہ ریکارڈ ہمیشہ کے لیے ختم ہو جائے گا۔ پھر بھی حذف کریں؟',

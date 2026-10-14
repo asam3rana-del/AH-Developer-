@@ -108,7 +108,7 @@ class _InsightsBodyState extends State<_InsightsBody> {
     _load();
   }
 
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   BoxDecoration _box(AppPalette p, double r) => BoxDecoration(
         color: p.cardWhite,

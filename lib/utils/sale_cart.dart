@@ -161,6 +161,18 @@ double availableInUnit(Product p, String unit) {
 }
 
 /// "12" instead of "12.0" (Kotlin `formatQty`).
+/// Rupay ki raqam: poori ho to bina decimal (120), warna 2 digit tak (34875.30).
+String formatAmount(double v) {
+  final t = v.toStringAsFixed(2);
+  return t.endsWith('.00') ? t.substring(0, t.length - 3) : t;
+}
+
+/// Dikhane ke liye round figure (nearest Rs, decimal nahi): 34875.30 => 34875, 235819.83952 => 235820.
+String formatRound(double v) {
+  final r = v.round();
+  return r.toString();
+}
+
 String formatQty(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
 
 // ---------------------------------------------------------------- Rs mode

@@ -47,7 +47,7 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
   Color get _teal => _p.flatTealFg;
   Color get _red => _p.red;
 
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   @override
   void initState() {

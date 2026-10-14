@@ -966,7 +966,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  Loc.t('Bill Total: Rs ${billTotal.toStringAsFixed(2)}', 'بل کل: Rs ${billTotal.toStringAsFixed(2)}'),
+                  Loc.t('Bill Total: Rs ${billTotal.round()}', 'بل کل: Rs ${billTotal.round()}'),
                   style: const TextStyle(fontSize: 13, color: Colors.black54),
                 ),
                 const SizedBox(height: 8),
@@ -1732,7 +1732,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               _kLabel(Loc.t('Party Balance', 'پارٹی بیلنس'), size: 9.5),
-              Text('Rs ${(bal ?? 0.0).toStringAsFixed(2)}',
+              Text('Rs ${(bal ?? 0.0).round()}',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: balColor)),
             ],
           ),
@@ -2224,7 +2224,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                         ],
                       ),
                     ),
-                    Text(line.amount.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
+                    Text(line.amount.round().toString(), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
                     IconButton(
                       icon: Icon(Icons.close, size: 18, color: ThemeManager.palette.red),
                       onPressed: () => _removeLine(i),

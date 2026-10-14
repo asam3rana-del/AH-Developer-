@@ -435,8 +435,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         _customerCtrl.text = edit.customerName;
         _isWholesale = edit.sale.saleType == 'wholesale';
         _isShopkeeper = edit.sale.saleType == 'shopkeeper';
-        _discountCtrl.text = edit.sale.discount > 0 ? edit.sale.discount.toStringAsFixed(2) : '';
-        _paidCtrl.text = edit.sale.paid.toStringAsFixed(2);
+        _discountCtrl.text = edit.sale.discount > 0 ? formatAmount(edit.sale.discount) : '';
+        _paidCtrl.text = formatAmount(edit.sale.paid);
         _paymentMethod = edit.sale.paymentMethod.toLowerCase() == 'bank' ? 'Bank' : 'Cash';
         // A bill saved with 2+ methods re-opens in split mode.
         _splitPayments = List<PayEntry>.of(edit.payments);
@@ -497,7 +497,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     final unit = _selectedUnit.isEmpty ? p.unit : _selectedUnit;
     final base = _lastMainPrice > 0 ? _lastMainPrice : basePrice;
     final price = p.fromPrimaryUnitRate(base, unit);
-    _priceCtrl.text = price > 0 ? price.toStringAsFixed(2) : '';
+    _priceCtrl.text = price > 0 ? formatAmount(price) : '';
   }
 
   /// Retail sale mein jab miqdar item ki bulkMinQty tak pohnche to rate khud bulkPrice par aa jaye
@@ -519,7 +519,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     final mainQty = factor > 0 ? p.toSmallestUnits(qty, unit) / factor : qty;
     final base = mainQty >= bulkMin ? bulkPrice : normalPrice;
     final price = p.fromPrimaryUnitRate(base, unit);
-    final text = price > 0 ? price.toStringAsFixed(2) : '';
+    final text = price > 0 ? formatAmount(price) : '';
     if (_priceCtrl.text != text) _priceCtrl.text = text;
   }
 
@@ -570,7 +570,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     if (suggestion == null) return;
     setState(() {
       _lastMainPrice = suggestion.primaryRate;
-      _priceCtrl.text = suggestion.priceInChosenUnit.toStringAsFixed(2);
+      _priceCtrl.text = formatAmount(suggestion.priceInChosenUnit);
       _customerRateName = customerDisplayName;
     });
   }
@@ -1301,7 +1301,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  Loc.t('Bill Total: Rs ${billTotal.toStringAsFixed(2)}', 'بل کل: Rs ${billTotal.toStringAsFixed(2)}'),
+                  Loc.t('Bill Total: Rs ${formatRound(billTotal)}', 'بل کل: Rs ${formatRound(billTotal)}'),
                   style: const TextStyle(fontSize: 13, color: Colors.black54),
                 ),
                 const SizedBox(height: 8),
@@ -1324,7 +1324,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                             controller: rows[i].amount,
                             textAlign: TextAlign.end,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(hintText: '0.00', isDense: true),
+                            decoration: const InputDecoration(hintText: '0', isDense: true),
                           ),
                         ),
                         IconButton(
@@ -1885,14 +1885,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       child: Row(children: [
         Expanded(
           child: Text(
-            '${Loc.t('Baqaya', 'بقایا')}: Rs ${formatQty(r.closing)}',
+            '${Loc.t('Balance', 'بقایا')}: Rs ${formatRound(r.closing)}',
             style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: pal.flatCoralFg),
           ),
         ),
         TextButton.icon(
           onPressed: () => _receivePaymentFromCustomer(r),
           icon: const Icon(Icons.south_west, size: 16),
-          label: Text(Loc.t('Payment lein', 'ادائیگی لیں')),
+          label: Text(Loc.t('Receive Payment', 'ادائیگی لیں')),
         ),
       ]),
     );
@@ -2299,13 +2299,13 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(line.itemName, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
-                  Text('${formatQty(line.qty)} ${line.unit}  ×  ${line.unitPrice.toStringAsFixed(2)}',
+                  Text('${formatQty(line.qty)} ${line.unit}  ×  ${formatAmount(line.unitPrice)}',
                       style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
                 ],
               ),
             ),
           ),
-          Text(line.amount.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
+          Text(formatRound(line.amount), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.teal)),
           IconButton(icon: Icon(Icons.edit, size: 18, color: ThemeManager.palette.blue), tooltip: 'Edit', onPressed: onEdit),
           IconButton(icon: Icon(Icons.close, size: 18, color: ThemeManager.palette.red), onPressed: onDelete),
         ],
@@ -2325,7 +2325,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(Loc.t('Subtotal', 'سب ٹوٹل'), style: TextStyle(color: ThemeManager.palette.textMuted)),
-              Text(totals.subtotal.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+              Text(formatRound(totals.subtotal), style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
             ],
           ),
           const SizedBox(height: 12),
@@ -2397,7 +2397,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           if ((double.tryParse(_paidCtrl.text.trim()) ?? 0.0) <= 0.009 && _splitPayments.isEmpty && totals.total > 0)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text('⚠ Paid khali hai - Rs ${totals.due.toStringAsFixed(2)} Udhaar jayega',
+              child: Text('⚠ Paid khali hai - Rs ${formatRound(totals.due)} Udhaar jayega',
                   style: TextStyle(color: ThemeManager.palette.red, fontSize: 11, fontWeight: FontWeight.bold)),
             ),
           const SizedBox(height: 12),
@@ -2414,7 +2414,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 child: Text(Loc.t('Due Amount', 'باقی رقم').toUpperCase(),
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: ThemeManager.palette.textMuted)),
               ),
-              Text('Rs ${totals.due.toStringAsFixed(2)}',
+              Text('Rs ${formatRound(totals.due)}',
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

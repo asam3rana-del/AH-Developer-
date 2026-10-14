@@ -100,7 +100,7 @@ void main() {
 
     test('share text has balance', () {
       final t = buildPurchaseShareText(supplier: 'Ali', billNo: 'B1', total: 500, balance: 120, date: DateTime(2026, 9, 29));
-      expect(t, contains('Balance: Rs 120.00'));
+      expect(t, contains('Balance: Rs 120'));
       expect(t, contains('29 Sep 2026'));
     });
   });

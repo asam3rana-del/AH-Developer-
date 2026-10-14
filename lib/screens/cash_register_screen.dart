@@ -47,7 +47,7 @@ class _CashRegisterScreenState extends State<CashRegisterScreen> {
     super.dispose();
   }
 
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   Future<void> _refresh() async {
     final today = await CashRegisterRepository.instance.loadToday();
@@ -428,7 +428,7 @@ class _CashRegisterScreenState extends State<CashRegisterScreen> {
       final d = fig.totalDiff;
       diffText = registerIsMatch(d)
           ? Loc.t('Matched', 'درست')
-          : (d > 0 ? '+Rs ${d.toStringAsFixed(2)}' : '-Rs ${(-d).toStringAsFixed(2)}');
+          : (d > 0 ? '+Rs ${d.round()}' : '-Rs ${(-d).round()}');
       diffColor = _diffColor(p, d);
     }
     return Container(
@@ -442,8 +442,8 @@ class _CashRegisterScreenState extends State<CashRegisterScreen> {
         ]),
         const SizedBox(height: 4),
         Text(
-          '${Loc.t('Open', 'کھلا')}: Rs ${r.openingCash.toStringAsFixed(2)} / ${r.openingBank.toStringAsFixed(2)}   '
-          '${Loc.t('Close', 'بند')}: Rs ${r.closingCash.toStringAsFixed(2)} / ${r.closingBank.toStringAsFixed(2)}',
+          '${Loc.t('Open', 'کھلا')}: Rs ${r.openingCash.round()} / ${r.openingBank.round()}   '
+          '${Loc.t('Close', 'بند')}: Rs ${r.closingCash.round()} / ${r.closingBank.round()}',
           style: TextStyle(fontSize: 11.5, color: p.textMuted),
         ),
       ]),

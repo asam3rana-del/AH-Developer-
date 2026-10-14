@@ -163,7 +163,7 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
 
   // ------------------------------------------------------------------ helpers
 
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   void _toast(String msg) {
     if (!mounted) return;
@@ -216,8 +216,8 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
   Future<void> _copySummary() async {
     final t = partyTotals(_parties);
     final text = Loc.t(
-      "You'll Get: Rs ${t.toGet.toStringAsFixed(2)}\nYou'll Give: Rs ${t.toGive.toStringAsFixed(2)}",
-      'آپ کو ملیں گے: روپے ${t.toGet.toStringAsFixed(2)}\nآپ کو دینے ہیں: روپے ${t.toGive.toStringAsFixed(2)}',
+      "You'll Get: Rs ${t.toGet.round()}\nYou'll Give: Rs ${t.toGive.round()}",
+      'آپ کو ملیں گے: روپے ${t.toGet.round()}\nآپ کو دینے ہیں: روپے ${t.toGive.round()}',
     );
     try {
       await Share.share(text);

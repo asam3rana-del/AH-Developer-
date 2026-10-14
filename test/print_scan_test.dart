@@ -157,7 +157,7 @@ void main() {
       );
       final f = receiptFooter(d, netBalance: 260);
       final prev = f.whereType<RlTwoCol>().firstWhere((l) => l.left == 'Prev Balance');
-      expect(prev.right, '200.00'); // 260 - due(60)
+      expect(prev.right, '200'); // 260 - due(60)
       expect(receiptFooter(d).whereType<RlTwoCol>().any((l) => l.left == 'Net Balance'), isFalse);
     });
   });

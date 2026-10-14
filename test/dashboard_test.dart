@@ -23,8 +23,8 @@ void main() {
 
   group('dashboardAmount', () {
     test('Rs %.2f', () {
-      expect(dashboardAmount(0), 'Rs 0.00');
-      expect(dashboardAmount(1234.5), 'Rs 1234.50');
+      expect(dashboardAmount(0), 'Rs 0');
+      expect(dashboardAmount(1234.5), 'Rs 1235');
     });
     test('tap-to-hide', () {
       expect(dashboardAmount(1234.5, hidden: true), 'Rs ••••••');

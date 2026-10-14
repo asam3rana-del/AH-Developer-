@@ -148,7 +148,7 @@ class PremiumLabeledField extends StatelessWidget {
     required this.accent,
     required this.controller,
     this.keyboardType = const TextInputType.numberWithOptions(decimal: true),
-    this.hint = '0.00',
+    this.hint = '0',
     this.textInputAction = TextInputAction.next,
     this.onChanged,
     this.focusNode,

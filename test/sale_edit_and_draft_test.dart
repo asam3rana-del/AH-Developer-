@@ -223,7 +223,7 @@ void main() {
       expect(text, contains('Invoice: 0926123'));
       expect(text, contains('Customer: Walk-in'));
       expect(text, contains('2 kg x 150.50'));
-      expect(text, contains('301.00'));
+      expect(text, contains('301'));
       expect(text, contains('Discount'));
       expect(text, contains('TOTAL'));
       expect(text, contains('DUE'));

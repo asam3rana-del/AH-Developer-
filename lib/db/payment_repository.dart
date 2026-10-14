@@ -95,13 +95,13 @@ class PaymentRepository {
     final key = isCustomer ? 'invoice' : 'billNo';
     final out = rows.map((r) {
       final ref = (r[key] as String);
-      return BillOption('$ref \u2022 Rs ${(r['total'] as num).toStringAsFixed(2)}', ref);
+      return BillOption('$ref \u2022 Rs ${(r['total'] as num).round()}', ref);
     }).toList();
     if (alsoInclude.isNotEmpty && !out.any((b) => b.ref == alsoInclude)) {
       final extra = await db.query(isCustomer ? 'sales' : 'purchases',
           where: '$key = ?', whereArgs: [alsoInclude], limit: 1);
       if (extra.isNotEmpty) {
-        out.add(BillOption('$alsoInclude \u2022 Rs ${(extra.first['total'] as num).toStringAsFixed(2)}', alsoInclude));
+        out.add(BillOption('$alsoInclude \u2022 Rs ${(extra.first['total'] as num).round()}', alsoInclude));
       }
     }
     return out;

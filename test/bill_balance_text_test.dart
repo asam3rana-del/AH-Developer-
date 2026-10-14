@@ -19,7 +19,7 @@ void main() {
     // Prev = net - due: bill ke waqt 0 tha, due 3900 => Net 3900.
     final t = build(net: 3900);
     expect(t, contains('Prev Balance'));
-    expect(RegExp(r'Prev Balance\s+0\.00').hasMatch(t), isTrue);
-    expect(RegExp(r'Net Balance\s+3900\.00').hasMatch(t), isTrue);
+    expect(RegExp(r'Prev Balance\s+0').hasMatch(t), isTrue);
+    expect(RegExp(r'Net Balance\s+3900').hasMatch(t), isTrue);
   });
 }

@@ -47,18 +47,18 @@ String buildSaleBillText({
   b.writeln(rule);
   for (final l in lines) {
     b.writeln(l.itemName);
-    b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitPrice.toStringAsFixed(2)}', l.amount.toStringAsFixed(2)));
+    b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitPrice.toStringAsFixed(2)}', l.amount.round().toString()));
   }
   b.writeln(rule);
-  b.writeln(row('Subtotal', subtotal.toStringAsFixed(2)));
-  if (discount > 0.009) b.writeln(row('Discount', '-${discount.toStringAsFixed(2)}'));
-  b.writeln(row('TOTAL', total.toStringAsFixed(2)));
-  b.writeln(row('Paid ($paymentMethod)', paid.toStringAsFixed(2)));
+  b.writeln(row('Subtotal', subtotal.round().toString()));
+  if (discount > 0.009) b.writeln(row('Discount', '-${discount.round()}'));
+  b.writeln(row('TOTAL', total.round().toString()));
+  b.writeln(row('Paid ($paymentMethod)', paid.round().toString()));
   final due = total - paid;
-  if (due > 0.009) b.writeln(row('DUE', due.toStringAsFixed(2)));
+  if (due > 0.009) b.writeln(row('DUE', due.round().toString()));
   if (netBalance != null) {
-    b.writeln(row('Prev Balance', (netBalance - due).toStringAsFixed(2)));
-    b.writeln(row('Net Balance', netBalance.toStringAsFixed(2)));
+    b.writeln(row('Prev Balance', (netBalance - due).round().toString()));
+    b.writeln(row('Net Balance', netBalance.round().toString()));
   }
   b.writeln(rule);
   b.writeln(center('Shukriya! Dobara tashreef layen'));
@@ -106,18 +106,18 @@ String buildPurchaseBillText({
   b.writeln(rule);
   for (final l in lines) {
     b.writeln(l.name);
-    b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitCost.toStringAsFixed(2)}', l.amount.toStringAsFixed(2)));
+    b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitCost.toStringAsFixed(2)}', l.amount.round().toString()));
   }
   b.writeln(rule);
-  b.writeln(row('Subtotal', subtotal.toStringAsFixed(2)));
-  if (discount > 0.009) b.writeln(row('Discount', '-${discount.toStringAsFixed(2)}'));
-  b.writeln(row('TOTAL', total.toStringAsFixed(2)));
-  b.writeln(row('Paid ($paymentMethod)', paid.toStringAsFixed(2)));
+  b.writeln(row('Subtotal', subtotal.round().toString()));
+  if (discount > 0.009) b.writeln(row('Discount', '-${discount.round()}'));
+  b.writeln(row('TOTAL', total.round().toString()));
+  b.writeln(row('Paid ($paymentMethod)', paid.round().toString()));
   final due = total - paid;
-  if (due > 0.009) b.writeln(row('DUE', due.toStringAsFixed(2)));
+  if (due > 0.009) b.writeln(row('DUE', due.round().toString()));
   if (netBalance != null) {
-    b.writeln(row('Prev Balance', (netBalance - due).toStringAsFixed(2)));
-    b.writeln(row('Net Balance', netBalance.toStringAsFixed(2)));
+    b.writeln(row('Prev Balance', (netBalance - due).round().toString()));
+    b.writeln(row('Net Balance', netBalance.round().toString()));
   }
   return b.toString();
 }
@@ -134,7 +134,7 @@ String buildPurchaseShareText({
       'Purchase Bill',
       'Supplier: $supplier',
       'Bill No: $billNo',
-      'Amount: Rs ${total.toStringAsFixed(2)}',
-      'Balance: Rs ${balance.toStringAsFixed(2)}',
+      'Amount: Rs ${total.round()}',
+      'Balance: Rs ${balance.round()}',
       'Date: ${DateFormat('dd MMM yyyy').format(date)}',
     ].join('\n');

@@ -51,7 +51,7 @@ class _MonthlyBodyState extends State<_MonthlyBody> {
   int _seq = 0;
 
   AppPalette get _p => ThemeManager.palette;
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   @override
   void initState() {

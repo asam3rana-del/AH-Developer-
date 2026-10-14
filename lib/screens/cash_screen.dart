@@ -186,7 +186,7 @@ class _CashScreenState extends State<CashScreen> {
             ),
           ]),
           const SizedBox(height: 10),
-          Text('Rs ${value.toStringAsFixed(2)}', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: accent)),
+          Text('Rs ${value.round()}', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: accent)),
         ]),
       ),
     );
@@ -334,7 +334,7 @@ class _CashScreenState extends State<CashScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          Text('${isIn ? '+' : '-'} Rs ${t.amount.toStringAsFixed(2)}',
+          Text('${isIn ? '+' : '-'} Rs ${t.amount.round()}',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
         ]),
         const SizedBox(height: 6),

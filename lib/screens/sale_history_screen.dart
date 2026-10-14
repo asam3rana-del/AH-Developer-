@@ -45,7 +45,7 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
 
   AppPalette get _p => ThemeManager.palette;
   bool get _admin => Session.isAdmin;
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
   String _qty(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
 
   @override

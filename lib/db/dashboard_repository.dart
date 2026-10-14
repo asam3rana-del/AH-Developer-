@@ -17,7 +17,7 @@ import 'user_repository.dart';
 int dashboardColumns(double widthDp) => widthDp >= 900 ? 4 : (widthDp >= 600 ? 3 : 2);
 
 /// Kotlin "Rs %.2f" ya tap-to-hide par "Rs ••••••".
-String dashboardAmount(double v, {bool hidden = false}) => hidden ? 'Rs ••••••' : 'Rs ${v.toStringAsFixed(2)}';
+String dashboardAmount(double v, {bool hidden = false}) => hidden ? 'Rs ••••••' : 'Rs ${v.round()}';
 
 /// Live search: matchesQuery (name + searchTag), pehle [limit] (Kotlin take(6)). Khali query = kuch nahi.
 List<Product> dashboardSearch(List<Product> all, String query, {int limit = 6}) {

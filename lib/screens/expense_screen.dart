@@ -208,7 +208,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             ),
           ]),
           const SizedBox(height: 10),
-          Text('Rs ${value.toStringAsFixed(2)}', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: p.red)),
+          Text('Rs ${value.round()}', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: p.red)),
         ]),
       ),
     );
@@ -348,7 +348,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          Text('- Rs ${e.amount.toStringAsFixed(2)}',
+          Text('- Rs ${e.amount.round()}',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.red)),
         ]),
         const SizedBox(height: 6),

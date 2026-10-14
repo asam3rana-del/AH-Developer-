@@ -232,4 +232,15 @@ void main() {
       expect(d.customerName, 'c');
     });
   });
+
+  test('formatAmount: poori raqam bina decimal, warna 2 digit', () {
+    expect(formatAmount(120), '120');
+    expect(formatAmount(120.0004), '120');
+    expect(formatAmount(34875.3), '34875.30');
+    expect(formatAmount(235819.83952), '235819.84');
+    expect(formatAmount(0), '0');
+    expect(formatRound(34875.3), '34875');
+    expect(formatRound(235819.83952), '235820');
+    expect(formatRound(10.5), '11');
+  });
 }

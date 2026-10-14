@@ -69,7 +69,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   }
 }
 
-String _rs(num v) => 'Rs ${v.toStringAsFixed(2)}';
+String _rs(num v) => 'Rs ${v.round()}';
 
 // ---------------------------------------------------------------------------
 // Payment dialog (Receive / Make / Edit)

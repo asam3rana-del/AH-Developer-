@@ -334,7 +334,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
   Widget _priceCol(String label, double v) => Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted)),
-          Text('Rs ${v.toStringAsFixed(2)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+          Text('Rs ${v.round()}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
         ]),
       );
 

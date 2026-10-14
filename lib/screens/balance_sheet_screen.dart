@@ -198,7 +198,7 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
               )),
         ),
         const SizedBox(width: 8),
-        Text('Rs ${amount.toStringAsFixed(2)}',
+        Text('Rs ${amount.round()}',
             style: TextStyle(fontSize: bold ? 16 : 13.5, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: color)),
       ]),
     );

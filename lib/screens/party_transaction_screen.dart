@@ -90,7 +90,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
 
   // ---------------------------------------------------------------- helpers
 
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   void _toast(String msg) {
     if (!mounted) return;
@@ -686,7 +686,7 @@ class _BilledItemsDialogState extends State<_BilledItemsDialog> {
   Map<String, String> _names = const {};
 
   AppPalette get _p => ThemeManager.palette;
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   @override
   void initState() {

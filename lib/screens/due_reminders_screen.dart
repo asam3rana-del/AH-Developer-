@@ -47,7 +47,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   Color get _red => _p.red;
   Color get _teal => _p.flatTealFg;
 
-  String _rs(double v) => 'Rs ${v.toStringAsFixed(2)}';
+  String _rs(double v) => 'Rs ${v.round()}';
 
   @override
   void initState() {
