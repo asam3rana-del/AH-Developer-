@@ -19,3 +19,9 @@ Ye app sirf Flutter mein chalti hai; Android Kotlin app se mukabla ya porting ab
 - **Sync:** Firestore schema wahi rehta hai jo pehle se chal raha hai (`firebase/` mein rules aur indexes). Deletes tombstone se, stock/balance atomic increment.
 - **Naming:** screen → `screens/xyz_screen.dart`, data → `db/xyz_repository.dart`.
 - **Tests:** Dart tests `test/` mein (unit conversion, discount, sale/purchase); naya logic aaye to test saath likhein.
+
+## Sync: der se push hone wali entries (pushedAt)
+- Har push par document par `pushedAt` (cloud par pahunchne ka waqt) lagta hai; `updatedAt` banne ke waqt ka rehta hai (last-write-wins ke liye).
+- Pull dono se hota hai: `updatedAt > checkpoint` aur `pushedAt > checkpoint`. Is se offline ke baad der se aane wali transactions dusre devices par kabhi miss nahi hotin.
+- `pushedAt` wali query ke liye `firebase/firestore.indexes.json` ke naye indexes deploy karna zaroori hai: `firebase deploy --only firestore:indexes`. Deploy se pehle pull purane tareeqe par chalta hai (kuch toota nahi).
+- Jo documents is fix se pehle push hue unmein `pushedAt` nahi hota; unke liye Settings > Sync > "Resync from a date/time (pull)".

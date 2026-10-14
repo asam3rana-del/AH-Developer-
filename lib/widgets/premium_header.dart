@@ -13,6 +13,10 @@ class PremiumHeader extends StatelessWidget {
   /// Action pill se pehle ke chhote gol icon buttons (Kotlin buildHeader: Export Rate List icon).
   final List<PremiumHeaderIcon> iconActions;
 
+  /// Optional: title se pehle (jaise back arrow) aur sab se aakhir mein (jaise 3-dot menu) ka widget.
+  final Widget? leading;
+  final Widget? trailing;
+
   const PremiumHeader({
     super.key,
     required this.title,
@@ -21,6 +25,8 @@ class PremiumHeader extends StatelessWidget {
     this.actionEmoji,
     this.onActionTap,
     this.iconActions = const [],
+    this.leading,
+    this.trailing,
   });
 
   @override
@@ -41,6 +47,7 @@ class PremiumHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 6)],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,6 +107,7 @@ class PremiumHeader extends StatelessWidget {
                 ),
               ),
             ),
+          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
         ],
       ),
     );

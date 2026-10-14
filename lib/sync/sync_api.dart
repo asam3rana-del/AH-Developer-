@@ -104,17 +104,18 @@ class SyncApi implements SyncBackend {
             final snap = await tx.get(docRef);
             final serverUpdatedAt = asMillis(snap.data()?['updatedAt']);
             if (shouldApplyDelete(deleteAt, serverUpdatedAt)) {
-              tx.set(docRef, tombstone(entry.entityId, deleteAt, branch), SetOptions(merge: true));
+              tx.set(docRef, {...tombstone(entry.entityId, deleteAt, branch), 'pushedAt': deleteAt}, SetOptions(merge: true));
             }
           });
           break;
 
         case 'create_if_absent':
           final st = stampPayload(decodePayload(entry.payloadJson), branch, nowMs());
+          final createPushedAt = nowMs();
           await fs.runTransaction((tx) async {
             final snap = await tx.get(docRef);
             if (canCreateIfAbsent(exists: snap.exists, data: snap.data())) {
-              tx.set(docRef, st.map, SetOptions(merge: true));
+              tx.set(docRef, {...st.map, 'pushedAt': createPushedAt}, SetOptions(merge: true));
             }
           });
           break;
@@ -149,6 +150,7 @@ class SyncApi implements SyncBackend {
             final write = <String, Object?>{
               plan.incrementField: FieldValue.increment(plan.delta),
               ...plan.otherFields,
+              'pushedAt': ts,
             };
             tx.set(docRef, write, SetOptions(mergeFields: plan.mergeFields));
           });
@@ -170,6 +172,7 @@ class SyncApi implements SyncBackend {
               <String, Object?>{
                 'stock': setStock,
                 'updatedAt': setTs,
+                'pushedAt': setTs,
                 'branchId': branch,
                 if (isNew) ...{'serverId': entry.entityId, '_deleted': false, ...setSeed},
               },
@@ -181,6 +184,9 @@ class SyncApi implements SyncBackend {
         default:
           // upsert & baaki: last-write-wins; der se aane wali entry naye cloud edit ko nahi todti.
           final st = stampPayload(decodePayload(entry.payloadJson), branch, nowMs());
+          // pushedAt = cloud par pahunchne ka waqt. updatedAt (last-write-wins ke liye) banne ke waqt ka
+          // rehta hai; der se (offline ke baad) aane wali entry ko doosre devices pushedAt se pull karte hain.
+          final upsertPushedAt = nowMs();
           var skippedStale = false;
           int? skippedServerAt;
           await fs.runTransaction((tx) async {
@@ -188,7 +194,7 @@ class SyncApi implements SyncBackend {
             final snap = await tx.get(docRef);
             final serverUpdatedAt = asMillis(snap.data()?['updatedAt']);
             if (shouldApplyUpsert(st.incomingUpdatedAt, serverUpdatedAt)) {
-              tx.set(docRef, st.map, SetOptions(merge: true));
+              tx.set(docRef, {...st.map, 'pushedAt': upsertPushedAt}, SetOptions(merge: true));
             } else {
               skippedStale = true;
               skippedServerAt = serverUpdatedAt;
@@ -255,12 +261,30 @@ class SyncApi implements SyncBackend {
 
     Future<MapEntry<String, List<SyncDoc>>> load(String collection) async {
       final overlap = stockPullCollections.contains(collection) ? stockPullOverlapMs : pullOverlapMs;
+      final threshold = since > overlap ? since - overlap : 0;
       final snap = await fs
           .collection(collection)
           .where('branchId', isEqualTo: branch)
-          .where('updatedAt', isGreaterThan: since > overlap ? since - overlap : 0)
+          .where('updatedAt', isGreaterThan: threshold)
           .get(const GetOptions(source: Source.server));
-      return MapEntry(collection, [for (final d in snap.docs) Map<String, Object?>.from(d.data())]);
+      final byId = <String, SyncDoc>{for (final d in snap.docs) d.id: Map<String, Object?>.from(d.data())};
+
+      // Der se push hui entries (device offline tha): unka updatedAt purana hota hai, isliye upar wali
+      // query unhein miss karti hai. pushedAt (cloud par aane ka waqt) se unhein bhi uthao.
+      // Index (branchId+pushedAt) deploy na ho to ye query fail hogi — tab purana behavior (sirf updatedAt).
+      try {
+        final late = await fs
+            .collection(collection)
+            .where('branchId', isEqualTo: branch)
+            .where('pushedAt', isGreaterThan: threshold)
+            .get(const GetOptions(source: Source.server));
+        for (final d in late.docs) {
+          byId.putIfAbsent(d.id, () => Map<String, Object?>.from(d.data()));
+        }
+      } catch (_) {
+        // pushedAt index abhi deploy nahi hua (firebase/firestore.indexes.json) — updatedAt wali pull chalti rahe.
+      }
+      return MapEntry(collection, byId.values.toList());
     }
 
     final loaded = await Future.wait(pullCollections.map(load));

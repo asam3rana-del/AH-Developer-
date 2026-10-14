@@ -93,20 +93,6 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
     final totalReceived = _rows.fold<double>(0, (a, r) => a + r.receivedTotal);
     return Scaffold(
       backgroundColor: _p.bg,
-      appBar: AppBar(
-        backgroundColor: _p.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (v) => _dayOff(v == 'off'),
-            itemBuilder: (_) => [
-              PopupMenuItem(value: 'off', child: Text(Loc.t('Remove rent for this day (holiday)', 'اس دن کا کرایہ ہٹائیں (چھٹی)'))),
-              PopupMenuItem(value: 'on', child: Text(Loc.t('Restore rent for this day', 'اس دن کا کرایہ واپس لگائیں'))),
-            ],
-          ),
-        ],
-      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 30),
@@ -117,6 +103,19 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
               actionLabel: Loc.t('Daily Rent', 'روزانہ کرایہ'),
               actionEmoji: '🔁',
               onActionTap: _openRentSheet,
+              // Back arrow aur 3-dot menu bhi isi line mein (app bar hata diya).
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.maybePop(context),
+              ),
+              trailing: PopupMenuButton<String>(
+                iconColor: Colors.white,
+                onSelected: (v) => _dayOff(v == 'off'),
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'off', child: Text(Loc.t('Remove rent for this day (holiday)', 'اس دن کا کرایہ ہٹائیں (چھٹی)'))),
+                  PopupMenuItem(value: 'on', child: Text(Loc.t('Restore rent for this day', 'اس دن کا کرایہ واپس لگائیں'))),
+                ],
+              ),
             ),
             _dateBar(),
             if (!_loading && _rows.isNotEmpty) _summary(totalSales, totalReceived),
