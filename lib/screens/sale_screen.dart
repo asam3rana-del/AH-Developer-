@@ -576,16 +576,29 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   }
 
   /// Customer ka rate-type tag ('' = kuch nahi) ho to bill ka rate khud usi par aa jaye (quantity se bila-wasta).
-  void _applyCustomerRateType() {
+  /// true = customer ka type set tha aur laga diya gaya (to Sale Type poochne ki zaroorat nahi).
+  bool _applyCustomerRateType() {
     final name = _customerCtrl.text.trim().toLowerCase();
-    if (name.isEmpty) return;
+    if (name.isEmpty) return false;
     for (final c in _customers) {
       if (c.name.toLowerCase() == name) {
-        if (c.rateType.isEmpty) return;
+        if (c.rateType.isEmpty) return false;
         final mode = rateModeFromString(c.rateType);
         _onSaleTypeChanged(mode == RateMode.shopkeeper ? 2 : (mode == RateMode.wholesale ? 1 : 0));
-        return;
+        return true;
       }
+    }
+    return false;
+  }
+
+  /// Customer chunne ke baad: type set hai to Sale Type dropdown nahi khulta, seedha Item Name par;
+  /// set nahi (ya walk-in) to purani tarah dropdown khulta hai.
+  void _afterCustomerChosen() {
+    if (_applyCustomerRateType()) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      _focus(_itemFocus);
+    } else {
+      _goToSaleTypeFromCustomer();
     }
   }
 
@@ -1832,9 +1845,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                     textEditingController: _customerCtrl,
                     focusNode: _customerFocus,
                     onSelected: (_) {
-                      _applyCustomerRateType();
                       _suggestCustomerRate();
-                      _goToSaleTypeFromCustomer();
+                      _afterCustomerChosen();
                     },
                     optionsBuilder: (text) {
                       final q = text.text.trim().toLowerCase();
@@ -1850,8 +1862,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       onSubmitted: (_) {
                         // Khali = walk-in (pehla customer na chunein); warna highlighted chunein.
                         if (_customerCtrl.text.trim().isNotEmpty) onSubmit();
-                        _applyCustomerRateType();
-                        _goToSaleTypeFromCustomer();
+                        _afterCustomerChosen();
                       },
                       decoration: InputDecoration(hintText: Loc.t('Customer Name (Walk-in)', 'کسٹمر کا نام (واک ان)'), border: InputBorder.none, isDense: true),
                     ),

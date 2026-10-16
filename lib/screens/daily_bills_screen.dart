@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../db/customer_repository.dart';
 import '../db/daily_bills_repository.dart';
+import '../db/due_reminders_repository.dart' show whatsAppDigits;
 import '../db/rent_repository.dart';
 import '../models/party.dart';
 import '../theme/theme_manager.dart';
@@ -39,6 +42,61 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
   final _timeFmt = DateFormat('hh:mm a');
 
   AppPalette get _p => ThemeManager.palette;
+  /// Sale bill ki tarah: customer ka saved number khud lag jata hai (khali ho to hi poochta hai).
+  Future<void> _whatsApp(DailyParty r) async {
+    final text = dailyBillText(r, _day);
+    var phone = '';
+    try {
+      final all = await CustomerRepository.instance.listAll();
+      for (final c in all) {
+        if (c.id == r.id) {
+          phone = c.phone.trim();
+          break;
+        }
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    if (phone.isEmpty) {
+      final ctrl = TextEditingController();
+      final entered = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(Loc.t('WhatsApp number', 'واٹس ایپ نمبر')),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(hintText: '03001234567'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text(Loc.t('Send', 'بھیجیں'))),
+          ],
+        ),
+      );
+      ctrl.dispose();
+      if (entered == null || entered.isEmpty) return;
+      phone = entered;
+    }
+    final digits = whatsAppDigits(phone);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (digits.isEmpty) {
+      messenger.showSnackBar(SnackBar(content: Text(Loc.t('Invalid number', 'نمبر درست نہیں'))));
+      return;
+    }
+    final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(text)}');
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        await Clipboard.setData(ClipboardData(text: text));
+        messenger.showSnackBar(SnackBar(content: Text(Loc.t('WhatsApp not found — bill copied', 'واٹس ایپ نہیں ملا — بل کاپی ہو گیا'))));
+      }
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: text));
+      messenger.showSnackBar(SnackBar(content: Text(Loc.t('Bill copied', 'بل کاپی ہو گیا'))));
+    }
+  }
+
   String _rs(double v) => 'Rs ${v.round()}';
   Color _balColor(double v) => v < 0 ? _p.red : _p.flatTealFg;
 
@@ -338,6 +396,15 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
                   ),
                 ),
             Row(children: [
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366), padding: const EdgeInsets.symmetric(vertical: 13)),
+                  onPressed: () => _whatsApp(r),
+                  icon: const Icon(Icons.send),
+                  label: Text(Loc.t('WhatsApp', 'واٹس ایپ')),
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(backgroundColor: _p.flatTealFg, padding: const EdgeInsets.symmetric(vertical: 13)),
