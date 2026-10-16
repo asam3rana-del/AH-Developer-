@@ -52,6 +52,21 @@ void main() {
       expect(shouldApplyDelete(0, null), isTrue);
     });
 
+    test('upsertClock: increment ka updatedAt bump upsert ko stale nahi karta (shopkeeper rate bug)', () {
+      // Purchase ka stock increment cloud doc ka updatedAt 200 kar chuka; rates ka upsert 100 ka hai.
+      final doc = <String, Object?>{'updatedAt': 200, 'upsertAt': 50};
+      expect(upsertClock(doc), 50);
+      expect(shouldApplyUpsert(100, upsertClock(doc)), isTrue);
+      // Purana doc (upsertAt nahi) => purani updatedAt par hi chalta hai.
+      expect(upsertClock({'updatedAt': 200}), 200);
+      expect(shouldApplyUpsert(100, upsertClock({'updatedAt': 200})), isFalse);
+      // Naya doc.
+      expect(upsertClock(null), isNull);
+      expect(shouldApplyUpsert(1, upsertClock(null)), isTrue);
+      // Asli purana upsert (upsertAt naya) phir bhi nahi lagta.
+      expect(shouldApplyUpsert(40, upsertClock({'updatedAt': 200, 'upsertAt': 50})), isFalse);
+    });
+
     test('tombstone shakl', () {
       expect(tombstone('customer:AB12-3', 777, 'MAIN'),
           {'serverId': 'customer:AB12-3', '_deleted': true, 'updatedAt': 777, 'branchId': 'MAIN'});

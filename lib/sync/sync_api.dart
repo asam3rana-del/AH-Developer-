@@ -192,9 +192,13 @@ class SyncApi implements SyncBackend {
           await fs.runTransaction((tx) async {
             skippedStale = false;
             final snap = await tx.get(docRef);
-            final serverUpdatedAt = asMillis(snap.data()?['updatedAt']);
+            // Stale-check sirf upsert ki apni clock (upsertAt) se — increment_stock ka updatedAt bump isay na roke.
+            final serverUpdatedAt = upsertClock(snap.data());
             if (shouldApplyUpsert(st.incomingUpdatedAt, serverUpdatedAt)) {
-              tx.set(docRef, {...st.map, 'pushedAt': upsertPushedAt}, SetOptions(merge: true));
+              tx.set(
+                  docRef,
+                  {...st.map, 'upsertAt': st.incomingUpdatedAt, 'pushedAt': upsertPushedAt},
+                  SetOptions(merge: true));
             } else {
               skippedStale = true;
               skippedServerAt = serverUpdatedAt;

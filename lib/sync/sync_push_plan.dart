@@ -70,6 +70,16 @@ StampedPayload stampPayload(Map<String, Object?> raw, String branchId, int nowMs
 bool shouldApplyUpsert(int incomingUpdatedAt, int? serverUpdatedAt) =>
     incomingUpdatedAt >= (serverUpdatedAt ?? kLongMin);
 
+/// FIX (rates/shopkeeper rate cloud par 0 reh jate the): increment_stock / increment_balance cloud doc ka
+/// `updatedAt` PUSH ke waqt par bumps karte hain (taake doosre devices pull karen). Purani logic mein usi
+/// `updatedAt` se upsert (naam/rates) ka stale-check hota tha, is liye purchase ke stock increment ke baad
+/// aane wala rates ka upsert (jiska updatedAt bill banne ke waqt ka tha) "stale" ginke skip ho jata tha aur
+/// cloud par rate 0.0 reh kar agle pull mein local rate bhi mita deta tha.
+/// Ab upsert ka apna alag waqt `upsertAt` hai jo sirf upsert likhta hai; stale-check usi se hota hai.
+/// Purane doc (jis mein `upsertAt` nahi) par purani `updatedAt` hi chalti hai.
+int? upsertClock(Map<String, Object?>? data) =>
+    asMillis(data?['upsertAt']) ?? asMillis(data?['updatedAt']);
+
 /// Delete bhi wohi: purana delete naye cloud record ko nahi mitata.
 bool shouldApplyDelete(int deleteAt, int? serverUpdatedAt) =>
     deleteAt >= (serverUpdatedAt ?? kLongMin);
