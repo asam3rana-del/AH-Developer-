@@ -26,7 +26,7 @@ const _juice = Product(
 );
 
 PurchaseLine _line(String barcode, double qty, String unit, double rate,
-        {double retail = 0, double wholesale = 0}) =>
+        {double retail = 0, double wholesale = 0, double shopkeeper = 0}) =>
     PurchaseLine(
       itemName: barcode,
       barcode: barcode,
@@ -36,10 +36,11 @@ PurchaseLine _line(String barcode, double qty, String unit, double rate,
       amount: qty * rate,
       retailRate: retail,
       wholesaleRate: wholesale,
+      shopkeeperRate: shopkeeper,
     );
 
 PurchaseItem _item(String barcode, double qty, String unit, double rate,
-        {double factor = 0, double retail = 0, double wholesale = 0, int? id}) =>
+        {double factor = 0, double retail = 0, double wholesale = 0, double shopkeeper = 0, int? id}) =>
     PurchaseItem(
       id: id,
       billNo: 'PUR-1',
@@ -51,6 +52,7 @@ PurchaseItem _item(String barcode, double qty, String unit, double rate,
       conversionFactor: factor,
       retailRate: retail,
       wholesaleRate: wholesale,
+      shopkeeperRate: shopkeeper,
     );
 
 void main() {
@@ -186,7 +188,7 @@ void main() {
         paidText: '500',
         dateMillis: 1780000000000,
         lines: [
-          _line('b3', 2, 'Carton', 600, retail: 700, wholesale: 650),
+          _line('b3', 2, 'Carton', 600, retail: 700, wholesale: 650, shopkeeper: 620),
           const PurchaseLine(itemName: 'Free text', barcode: null, qty: 1.5, unit: 'kg', rate: 40, amount: 60),
         ],
       );
@@ -200,6 +202,8 @@ void main() {
       expect(back.lines[0].qty, 2);
       expect(back.lines[0].retailRate, 700);
       expect(back.lines[0].wholesaleRate, 650);
+      expect(back.lines[0].shopkeeperRate, 620);
+      expect(back.lines[1].shopkeeperRate, 0);
       expect(back.lines[1].barcode, isNull);
       expect(back.lines[1].itemName, 'Free text');
       expect(back.lines[1].amount, 60);

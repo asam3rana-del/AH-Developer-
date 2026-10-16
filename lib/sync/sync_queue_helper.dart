@@ -319,6 +319,7 @@ class SyncQueueHelper {
           'itemName': it['itemName'],
           'retailRate': it['retailRate'],
           'wholesaleRate': it['wholesaleRate'],
+          'shopkeeperRate': it['shopkeeperRate'] ?? 0,
         }
     ];
     return _stamp({

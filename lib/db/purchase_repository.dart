@@ -22,7 +22,7 @@ import 'supplier_repository.dart';
 /// One line the user has added to the purchase before saving — mirrors
 /// `data class PurchaseLine` in PurchaseRepository.kt.
 ///
-/// [retailRate] / [wholesaleRate]: 0.0 = "product ka rate na badlo"; nonzero = purchase ke waqt product ka
+/// [retailRate] / [wholesaleRate] / [shopkeeperRate]: 0.0 = "product ka rate na badlo"; nonzero = purchase ke waqt product ka
 /// salePrice / wholesalePrice update (primary-unit basis, jaise Product ke apne rates).
 class PurchaseLine {
   final String itemName;
@@ -33,6 +33,7 @@ class PurchaseLine {
   final double amount;
   final double retailRate;
   final double wholesaleRate;
+  final double shopkeeperRate;
 
   const PurchaseLine({
     required this.itemName,
@@ -43,6 +44,7 @@ class PurchaseLine {
     required this.amount,
     this.retailRate = 0.0,
     this.wholesaleRate = 0.0,
+    this.shopkeeperRate = 0.0,
   });
 }
 
@@ -115,7 +117,8 @@ String? validatePurchaseLines(List<PurchaseLine> lines) {
     if (!l.qty.isFinite || l.qty <= 0.0) return '"${l.itemName}" ki qty finite aur 0 se zyada honi chahiye';
     if (!l.rate.isFinite || l.rate < 0.0) return '"${l.itemName}" ka rate finite aur negative nahi ho sakta';
     if (!l.amount.isFinite || l.amount < 0.0) return '"${l.itemName}" ka amount valid hona chahiye';
-    if (!l.retailRate.isFinite || l.retailRate < 0.0 || !l.wholesaleRate.isFinite || l.wholesaleRate < 0.0) {
+    if (!l.retailRate.isFinite || l.retailRate < 0.0 || !l.wholesaleRate.isFinite || l.wholesaleRate < 0.0 ||
+        !l.shopkeeperRate.isFinite || l.shopkeeperRate < 0.0) {
       return '"${l.itemName}" ke sale rates valid hone chahiye';
     }
   }
@@ -223,6 +226,7 @@ class PurchaseRepository {
         amount: pi.amount,
         retailRate: pi.retailRate,
         wholesaleRate: pi.wholesaleRate,
+        shopkeeperRate: pi.shopkeeperRate,
       ));
     }
 
@@ -479,6 +483,7 @@ class PurchaseRepository {
             itemName: line.itemName,
             retailRate: line.retailRate,
             wholesaleRate: line.wholesaleRate,
+            shopkeeperRate: line.shopkeeperRate,
           ).toMap(),
         );
       }
@@ -549,7 +554,7 @@ class PurchaseRepository {
         // koi aur active purchase maujood hai to yeh (back-dated / purani) bill rate ko bilkul nahi chhedti.
         // Nayi ya barabar date wali bill ho to uska rate lag jata hai. Product ka rate 0 (missing) ho to
         // purani bill se bhi bhar diya jata hai.
-        if (line.retailRate > 0.0 || line.wholesaleRate > 0.0) {
+        if (line.retailRate > 0.0 || line.wholesaleRate > 0.0 || line.shopkeeperRate > 0.0) {
           final newer = await txn.rawQuery(
             'SELECT 1 FROM purchase_items pi JOIN purchases p ON p.billNo = pi.billNo '
             "WHERE pi.barcode = ? AND p.billNo != ? AND p.status = 'active' AND p.createdAt > ? LIMIT 1",
@@ -562,12 +567,14 @@ class PurchaseRepository {
           final editedAfter = before.ratesAt > 0 && purchaseDateMillis < rateDayStart;
           final allowSale = (newer.isEmpty && !editedAfter) || before.salePrice <= 0.0;
           final allowWholesale = (newer.isEmpty && !editedAfter) || before.wholesalePrice <= 0.0;
+          final allowShop = (newer.isEmpty && !editedAfter) || before.shopkeeperPrice <= 0.0;
           final newSale = (line.retailRate > 0.0 && allowSale) ? line.retailRate : before.salePrice;
           final newWholesale = (line.wholesaleRate > 0.0 && allowWholesale) ? line.wholesaleRate : before.wholesalePrice;
-          if (newSale != before.salePrice || newWholesale != before.wholesalePrice) {
+          final newShop = (line.shopkeeperRate > 0.0 && allowShop) ? line.shopkeeperRate : before.shopkeeperPrice;
+          if (newSale != before.salePrice || newWholesale != before.wholesalePrice || newShop != before.shopkeeperPrice) {
             await txn.rawUpdate(
-              'UPDATE products SET salePrice = ?, wholesalePrice = ?, ratesAt = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
-              [newSale, newWholesale, purchaseDateMillis, now, barcode],
+              'UPDATE products SET salePrice = ?, wholesalePrice = ?, shopkeeperPrice = ?, ratesAt = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+              [newSale, newWholesale, newShop, purchaseDateMillis, now, barcode],
             );
             touched = true;
           }

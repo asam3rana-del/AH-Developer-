@@ -77,9 +77,9 @@ class PurchaseEditDiff {
   const PurchaseEditDiff(this.itemsToReverse, this.changedLineIndices, this.unchangedOriginalByIndex);
 }
 
-String _pKey(String barcode, double qty, String unit, double rate, double amount, double retail, double wholesale) =>
+String _pKey(String barcode, double qty, String unit, double rate, double amount, double retail, double wholesale, double shopkeeper) =>
     '$barcode|${qty.toStringAsFixed(6)}|$unit|${rate.toStringAsFixed(6)}|${amount.toStringAsFixed(2)}|'
-    '${retail.toStringAsFixed(6)}|${wholesale.toStringAsFixed(6)}';
+    '${retail.toStringAsFixed(6)}|${wholesale.toStringAsFixed(6)}|${shopkeeper.toStringAsFixed(6)}';
 
 PurchaseEditDiff purchaseEditDiff(List<PurchaseLine> lines, List<PurchaseItem> originalItems) {
   final remaining = List<PurchaseItem>.of(originalItems);
@@ -87,9 +87,9 @@ PurchaseEditDiff purchaseEditDiff(List<PurchaseLine> lines, List<PurchaseItem> o
   final unchanged = <int, PurchaseItem>{};
   for (var i = 0; i < lines.length; i++) {
     final l = lines[i];
-    final k = _pKey(l.barcode ?? '', l.qty, l.unit, l.rate, l.amount, l.retailRate, l.wholesaleRate);
+    final k = _pKey(l.barcode ?? '', l.qty, l.unit, l.rate, l.amount, l.retailRate, l.wholesaleRate, l.shopkeeperRate);
     final at = remaining.indexWhere(
-        (o) => _pKey(o.barcode, o.qty, o.unit, o.unitCost, o.amount, o.retailRate, o.wholesaleRate) == k);
+        (o) => _pKey(o.barcode, o.qty, o.unit, o.unitCost, o.amount, o.retailRate, o.wholesaleRate, o.shopkeeperRate) == k);
     if (at >= 0) {
       unchanged[i] = remaining.removeAt(at);
     } else {

@@ -75,9 +75,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   bool _suppressLotSync = false;
   final _retailFocus = FocusNode();
   final _wholesaleFocus = FocusNode();
+  final _shopkeeperFocus = FocusNode();
   final _paidFocus = FocusNode();
   final _retailCtrl = TextEditingController();
   final _wholesaleCtrl = TextEditingController();
+  final _shopkeeperCtrl = TextEditingController();
   final _paidCtrl = TextEditingController();
 
   DateTime _purchaseDate = DateTime.now();
@@ -88,6 +90,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   double _mainRate = 0.0;
   double _mainRetail = 0.0;
   double _mainWholesale = 0.0;
+  double _mainShopkeeper = 0.0;
   double _lastPurchaseMainRate = 0.0;
 
   final List<PurchaseLine> _lines = [];
@@ -127,6 +130,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _selectAllOnFocus(_lotFocus, _lotCtrl);
     _selectAllOnFocus(_retailFocus, _retailCtrl);
     _selectAllOnFocus(_wholesaleFocus, _wholesaleCtrl);
+    _selectAllOnFocus(_shopkeeperFocus, _shopkeeperCtrl);
     _selectAllOnFocus(_paidFocus, _paidCtrl);
     ProductRepository.instance.listAll().then((v) {
       if (mounted) setState(() => _products = v);
@@ -175,6 +179,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _lotCtrl.dispose();
     _retailFocus.dispose();
     _wholesaleFocus.dispose();
+    _shopkeeperFocus.dispose();
     _paidFocus.dispose();
     _itemCtrl.dispose();
     _itemFocus.dispose();
@@ -183,6 +188,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _rateCtrl.dispose();
     _retailCtrl.dispose();
     _wholesaleCtrl.dispose();
+    _shopkeeperCtrl.dispose();
     _paidCtrl.dispose();
     super.dispose();
   }
@@ -259,6 +265,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       'rate': _rateCtrl.text,
       'retail': _retailCtrl.text,
       'wholesale': _wholesaleCtrl.text,
+      'shopkeeper': _shopkeeperCtrl.text,
       'unit': _selectedUnit,
     });
     final empty = _itemCtrl.text.trim().isEmpty && _qtyCtrl.text.trim().isEmpty && _rateCtrl.text.trim().isEmpty;
@@ -290,9 +297,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         _rateCtrl.text = (m['rate'] as String?) ?? '';
         _retailCtrl.text = (m['retail'] as String?) ?? '';
         _wholesaleCtrl.text = (m['wholesale'] as String?) ?? '';
+        _shopkeeperCtrl.text = (m['shopkeeper'] as String?) ?? '';
         _mainRate = _toMain(double.tryParse(_rateCtrl.text.trim()) ?? 0.0);
         _mainRetail = _toMain(double.tryParse(_retailCtrl.text.trim()) ?? 0.0);
         _mainWholesale = _toMain(double.tryParse(_wholesaleCtrl.text.trim()) ?? 0.0);
+        _mainShopkeeper = _toMain(double.tryParse(_shopkeeperCtrl.text.trim()) ?? 0.0);
       });
     } catch (_) {}
   }
@@ -371,6 +380,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _rateCtrl.text = '';
       _mainRetail = p.salePrice;
       _mainWholesale = p.wholesalePrice;
+      _mainShopkeeper = p.shopkeeperPrice;
     });
     _fillRetailWholesaleText();
     _qtyFocus.requestFocus();
@@ -403,6 +413,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     final wholesale = (p != null && _mainWholesale > 0) ? p.fromPrimaryUnitRate(_mainWholesale, unit) : _mainWholesale;
     _retailCtrl.text = rateText(retail);
     _wholesaleCtrl.text = rateText(wholesale);
+    final shopkeeper = (p != null && _mainShopkeeper > 0) ? p.fromPrimaryUnitRate(_mainShopkeeper, unit) : _mainShopkeeper;
+    _shopkeeperCtrl.text = rateText(shopkeeper);
   }
 
   double _toMain(double entered) {
@@ -413,6 +425,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   void _onRateChanged(String v) => setState(() => _mainRate = _toMain(double.tryParse(v.trim()) ?? 0.0));
   void _onRetailChanged(String v) => setState(() => _mainRetail = _toMain(double.tryParse(v.trim()) ?? 0.0));
   void _onWholesaleChanged(String v) => setState(() => _mainWholesale = _toMain(double.tryParse(v.trim()) ?? 0.0));
+  void _onShopkeeperChanged(String v) => setState(() => _mainShopkeeper = _toMain(double.tryParse(v.trim()) ?? 0.0));
 
   void _onUnitChanged(String u) {
     setState(() => _selectedUnit = u);
@@ -426,11 +439,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     _rateCtrl.clear();
     _retailCtrl.clear();
     _wholesaleCtrl.clear();
+    _shopkeeperCtrl.clear();
     _pickedProduct = null;
     _selectedUnit = '';
     _mainRate = 0.0;
     _mainRetail = 0.0;
     _mainWholesale = 0.0;
+    _mainShopkeeper = 0.0;
     _lastPurchaseMainRate = 0.0;
     _editingIndex = null;
     _saveEntrySoon();
@@ -502,7 +517,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   }
 
   /// Enter/Next dabane par agli KHALI field par jao; jo field pehle se bhari ho (auto-fill rate,
-  /// lot, retail, wholesale) usay skip karo. Sab bhari hon to seedha line add ho jaye.
+  /// lot, retail, wholesale, shopkeeper) usay skip karo. Sab bhari hon to seedha line add ho jaye.
   void _advanceFrom(FocusNode current) {
     final order = <MapEntry<TextEditingController, FocusNode>>[
       MapEntry(_qtyCtrl, _qtyFocus),
@@ -510,6 +525,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       MapEntry(_lotCtrl, _lotFocus),
       MapEntry(_retailCtrl, _retailFocus),
       MapEntry(_wholesaleCtrl, _wholesaleFocus),
+      MapEntry(_shopkeeperCtrl, _shopkeeperFocus),
     ];
     final i = order.indexWhere((e) => identical(e.value, current));
     for (var j = i + 1; j < order.length; j++) {
@@ -603,6 +619,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       amount: qty * rate,
       retailRate: _retailCtrl.text.trim().isEmpty ? 0.0 : _mainRetail,
       wholesaleRate: _wholesaleCtrl.text.trim().isEmpty ? 0.0 : _mainWholesale,
+      shopkeeperRate: _shopkeeperCtrl.text.trim().isEmpty ? 0.0 : _mainShopkeeper,
     );
 
     setState(() {
@@ -630,6 +647,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _mainRate = p != null ? p.toPrimaryUnitRate(l.rate, l.unit) : l.rate;
       _mainRetail = l.retailRate;
       _mainWholesale = l.wholesaleRate;
+      _mainShopkeeper = l.shopkeeperRate;
       _lastPurchaseMainRate = 0.0;
     });
     _fillRetailWholesaleText();
@@ -674,6 +692,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     final categoryCtrl = TextEditingController(text: 'General');
     final retailCtrl = TextEditingController(text: _retailCtrl.text);
     final wholesaleCtrl = TextEditingController(text: _wholesaleCtrl.text);
+    final shopkeeperCtrl = TextEditingController(text: _shopkeeperCtrl.text);
     final unitNames = <String>{};
     try {
       final units = await UnitRepository.instance.listAll();
@@ -828,6 +847,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(labelText: Loc.t('Wholesale rate (optional)', 'ہول سیل ریٹ (اختیاری)')),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: shopkeeperCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(labelText: Loc.t('Shopkeeper rate (optional)', 'دکاندار ریٹ (اختیاری)')),
+                ),
               ],
             ),
           ),
@@ -854,10 +879,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     categoryCtrl.dispose();
     final retail = double.tryParse(retailCtrl.text.trim()) ?? 0.0;
     final wholesale = double.tryParse(wholesaleCtrl.text.trim()) ?? 0.0;
+    final shopkeeper = double.tryParse(shopkeeperCtrl.text.trim()) ?? 0.0;
     nameCtrl.dispose();
     tagCtrl.dispose();
     retailCtrl.dispose();
     wholesaleCtrl.dispose();
+    shopkeeperCtrl.dispose();
     if (ok != true || !mounted) return;
 
     final existing = _productByName(name);
@@ -899,6 +926,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       tertiaryUnitQty: hasTertiary ? tertiaryQty : 0.0,
       salePrice: retail,
       wholesalePrice: wholesale,
+      shopkeeperPrice: shopkeeper,
       searchTag: tag,
       defaultUnitIndex: saleDefaultIdx,
       quickSaleDefaultUnitIndex: quickSaleDefaultIdx,
@@ -917,6 +945,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _mainRate = typedRate;
       _mainRetail = retail;
       _mainWholesale = wholesale;
+      _mainShopkeeper = shopkeeper;
     });
     _fillRateText();
     _fillRetailWholesaleText();
@@ -1900,6 +1929,39 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     );
   }
 
+  /// Teesra rate box: tablet par Retail/Wholesale ke saath ek hi line mein, phone par neeche.
+  Widget _shopkeeperField() => _kInner(
+        label: Loc.t('Shopkeeper Rate', 'دکاندار ریٹ'),
+        child: _kField(
+          controller: _shopkeeperCtrl,
+          focus: _shopkeeperFocus,
+          hint: Loc.t('Optional', 'اختیاری'),
+          action: TextInputAction.done,
+          onChanged: (v) {
+            _onShopkeeperChanged(v);
+            _saveEntrySoon();
+          },
+          onSubmitted: _addLine,
+        ),
+      );
+
+  /// Shopkeeper rate sab se kam margin wala rate hota hai: Wholesale / Retail se zyada likha jaye to halki warning.
+  Widget _shopkeeperWarning() {
+    final shop = _mainShopkeeper;
+    if (_shopkeeperCtrl.text.trim().isEmpty || shop <= 0) return const SizedBox.shrink();
+    final higher = (_mainWholesale > 0 && shop > _mainWholesale) || (_mainRetail > 0 && shop > _mainRetail);
+    final belowCost = _mainRate > 0 && shop <= _mainRate;
+    if (!higher && !belowCost) return const SizedBox.shrink();
+    final text = belowCost
+        ? Loc.t('⚠ Shopkeeper rate ≤ purchase rate (loss)', '⚠ دکاندار ریٹ خریداری ریٹ کے برابر یا کم ہے (نقصان)')
+        : Loc.t('⚠ Shopkeeper rate is higher than Wholesale/Retail', '⚠ دکاندار ریٹ ہول سیل/ریٹیل سے زیادہ ہے');
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 4),
+      child: Text(text,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeManager.palette.orange)),
+    );
+  }
+
   Widget _marginLabel(PurchaseMargin m) {
     if (m.level == MarginLevel.none) return const SizedBox.shrink();
     Color color;
@@ -2139,17 +2201,23 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                     controller: _wholesaleCtrl,
                     focus: _wholesaleFocus,
                     hint: Loc.t('Wholesale Price', 'ہول سیل قیمت'),
-                    action: TextInputAction.done,
                     onChanged: (v) {
                       _onWholesaleChanged(v);
                       _saveEntrySoon();
                     },
-                    onSubmitted: _addLine,
+                    onSubmitted: () => _advanceFrom(_wholesaleFocus),
                   ),
                 ),
               ),
+              if (MediaQuery.of(context).size.width >= 600) ...[
+                const SizedBox(width: 12),
+                Expanded(child: _shopkeeperField()),
+              ],
             ],
           ),
+          if (MediaQuery.of(context).size.width < 600)
+            Padding(padding: const EdgeInsets.only(top: 12), child: _shopkeeperField()),
+          _shopkeeperWarning(),
           Padding(
             padding: const EdgeInsets.fromLTRB(6, 14, 0, 10),
             child: Text(

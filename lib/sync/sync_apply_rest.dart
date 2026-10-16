@@ -264,6 +264,8 @@ Future<void> applyPurchases(DatabaseExecutor db, List<SyncDoc> rows, {required i
           'itemName': _s(im['itemName']) ?? '',
           'retailRate': _d(im['retailRate']) ?? 0.0,
           'wholesaleRate': _d(im['wholesaleRate']) ?? 0.0,
+          // Purane device ki entry mein field nahi => 0 (kuch nahi tootta).
+          'shopkeeperRate': _d(im['shopkeeperRate']) ?? 0.0,
         });
       }
       if (items.isNotEmpty) {

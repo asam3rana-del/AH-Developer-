@@ -84,6 +84,9 @@ class PurchaseItem {
   final double retailRate;
   final double wholesaleRate;
 
+  /// Purchase ke waqt set kiya gaya Shopkeeper rate (0 = product ka shopkeeper rate nahi badla).
+  final double shopkeeperRate;
+
   const PurchaseItem({
     this.id,
     required this.billNo,
@@ -96,6 +99,7 @@ class PurchaseItem {
     this.itemName = '',
     this.retailRate = 0.0,
     this.wholesaleRate = 0.0,
+    this.shopkeeperRate = 0.0,
   });
 
   Map<String, Object?> toMap() => {
@@ -110,6 +114,7 @@ class PurchaseItem {
         'itemName': itemName,
         'retailRate': retailRate,
         'wholesaleRate': wholesaleRate,
+        'shopkeeperRate': shopkeeperRate,
       };
 
   factory PurchaseItem.fromMap(Map<String, Object?> m) => PurchaseItem(
@@ -124,5 +129,6 @@ class PurchaseItem {
         itemName: (m['itemName'] as String?) ?? '',
         retailRate: (m['retailRate'] as num?)?.toDouble() ?? 0.0,
         wholesaleRate: (m['wholesaleRate'] as num?)?.toDouble() ?? 0.0,
+        shopkeeperRate: (m['shopkeeperRate'] as num?)?.toDouble() ?? 0.0,
       );
 }

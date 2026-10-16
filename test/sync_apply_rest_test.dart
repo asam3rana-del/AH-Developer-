@@ -54,7 +54,8 @@ Future<Database> _memDb() async {
   await x('''CREATE TABLE purchase_items (id INTEGER PRIMARY KEY AUTOINCREMENT, billNo TEXT NOT NULL,
     barcode TEXT NOT NULL, qty REAL NOT NULL, unitCost REAL NOT NULL, amount REAL NOT NULL,
     unit TEXT NOT NULL DEFAULT '', conversionFactor REAL NOT NULL DEFAULT 0, itemName TEXT NOT NULL DEFAULT '',
-    retailRate REAL NOT NULL DEFAULT 0, wholesaleRate REAL NOT NULL DEFAULT 0)''');
+    retailRate REAL NOT NULL DEFAULT 0, wholesaleRate REAL NOT NULL DEFAULT 0,
+    shopkeeperRate REAL NOT NULL DEFAULT 0)''');
   await x('''CREATE TABLE payments (id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT NOT NULL,
     partyType TEXT NOT NULL, partyId INTEGER, amount REAL NOT NULL, method TEXT NOT NULL,
     note TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL, serverId TEXT, $_sync,
@@ -224,7 +225,7 @@ void main() {
           'createdAt': 55, 'updatedAt': 66,
           'items': [
             {'barcode': 'b1', 'qty': 4, 'unitCost': 50, 'amount': 200, 'unit': 'ctn', 'conversionFactor': 12,
-             'itemName': 'Soap', 'retailRate': 70, 'wholesaleRate': 60},
+             'itemName': 'Soap', 'retailRate': 70, 'wholesaleRate': 60, 'shopkeeperRate': 55},
           ],
         },
       ]));
@@ -235,6 +236,7 @@ void main() {
       final it = (await db.query('purchase_items')).single;
       expect(it['itemName'], 'Soap');
       expect(it['retailRate'], 70.0);
+      expect(it['shopkeeperRate'], 55.0);
       expect(it['conversionFactor'], 12.0);
     });
 

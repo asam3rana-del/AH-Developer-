@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 20;
+  static const _dbVersion = 21;
 
   Database? _db;
 
@@ -218,7 +218,8 @@ class AppDatabase {
         conversionFactor REAL NOT NULL DEFAULT 0,
         itemName TEXT NOT NULL DEFAULT '',
         retailRate REAL NOT NULL DEFAULT 0,
-        wholesaleRate REAL NOT NULL DEFAULT 0
+        wholesaleRate REAL NOT NULL DEFAULT 0,
+        shopkeeperRate REAL NOT NULL DEFAULT 0
       )
     ''');
 
@@ -448,6 +449,10 @@ class AppDatabase {
       for (final sql in _rentTablesSql) {
         await db.execute(sql);
       }
+    }
+    if (oldVersion < 21) {
+      // v21: purchase line par Shopkeeper rate (0 = product ka shopkeeper rate nahi badla). Purani rows 0.
+      await _addColumnIfMissing(db, 'purchase_items', 'shopkeeperRate', 'REAL NOT NULL DEFAULT 0');
     }
   }
 

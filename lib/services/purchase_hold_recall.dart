@@ -11,7 +11,7 @@ import '../db/purchase_repository.dart' show PurchaseLine;
 ///   header \u0004 items
 ///   header = supplier \u0001 supplierInvoiceNo \u0001 paidText \u0001 dateMillis
 ///   items  = row \u0002 row ...
-///   row    = barcode \u0003 name \u0003 qty \u0003 unit \u0003 rate \u0003 amount \u0003 retailRate \u0003 wholesaleRate
+///   row    = barcode \u0003 name \u0003 qty \u0003 unit \u0003 rate \u0003 amount \u0003 retailRate \u0003 wholesaleRate \u0003 shopkeeperRate
 ///
 /// Purchase holds ka `holdId` `PHOLD...` se shuru hota hai (Sale holds `HOLD...`).
 const _sepHeaderField = '\u0001';
@@ -55,6 +55,7 @@ String encodePurchaseHold(PurchaseDraft d) {
             l.amount,
             l.retailRate,
             l.wholesaleRate,
+            l.shopkeeperRate,
           ].join(_sepItemField))
       .join(_sepRow);
   return header + _sepHeaderItems + items;
@@ -93,6 +94,7 @@ PurchaseDraft decodePurchaseHold(String payload) {
         amount: double.tryParse(f[5]) ?? 0.0,
         retailRate: f.length > 6 ? (double.tryParse(f[6]) ?? 0.0) : 0.0,
         wholesaleRate: f.length > 7 ? (double.tryParse(f[7]) ?? 0.0) : 0.0,
+        shopkeeperRate: f.length > 8 ? (double.tryParse(f[8]) ?? 0.0) : 0.0,
       ));
     }
   }
