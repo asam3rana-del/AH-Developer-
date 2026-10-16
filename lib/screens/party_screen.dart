@@ -199,7 +199,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
 
   /// Kotlin `openContactPicker()`: fills Phone, and Name too when it is still blank.
   Future<void> _pickContact() async {
-    final r = await ContactPicker.pick();
+    final r = await ContactPicker.pickInApp(context);
     if (!mounted) return;
     switch (r.status) {
       case ContactPickStatus.picked:
