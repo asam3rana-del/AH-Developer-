@@ -398,6 +398,25 @@ StockRescale rescaleStockForLadderChange(Product existing, Product newDraft) {
   );
 }
 
+/// FIX (Profit Margin -4631%): `cost` PRIMARY unit ke hisaab se saved hota hai. Unit ladder badalne par (jaise
+/// ctn/outer/dabbi se sirf outer/dabbi) stock rescale hota tha magar cost purani primary unit (ctn) ki hi rehti
+/// thi, is liye cost ~50x ho jati thi. Ab cost bhi naye primary unit par aati hai.
+/// Sirf tab jab sab se chhoti unit wahi rahe (warna conversion ka koi pakka hisab nahi) aur cost form mein
+/// haath se na badli ho ([newDraft.cost] == [existing.cost]).
+double rescaleCostForLadderChange(Product existing, Product newDraft) {
+  if (existing.cost <= 0.0) return newDraft.cost;
+  if (newDraft.cost != existing.cost) return newDraft.cost; // user ne cost khud likhi
+  final r = rescaleStockForLadderChange(existing, newDraft);
+  if (!r.changed) return newDraft.cost;
+  if (existing.smallestUnitName().trim().toLowerCase() != newDraft.smallestUnitName().trim().toLowerCase()) {
+    return newDraft.cost;
+  }
+  final oldF = existing.smallestUnitFactor();
+  final newF = newDraft.smallestUnitFactor();
+  if (oldF <= 0.0 || newF <= 0.0) return newDraft.cost;
+  return existing.cost / oldF * newF;
+}
+
 extension ProductSearch on Product {
   /// Mirrors Product.matchesQuery() in Database.kt: har typed lafz
   /// `name + searchTag` mein kahin hona chahiye (koi bhi tarteeb).

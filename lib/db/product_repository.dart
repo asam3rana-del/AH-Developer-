@@ -91,6 +91,7 @@ class ProductRepository {
           final rateEdited = product.salePrice != current.salePrice || product.wholesalePrice != current.wholesalePrice;
           row = {
             ...row,
+            'cost': rescaleCostForLadderChange(current, product),
             'stock': r.stock,
             'openingStock': r.openingStock,
             'ratesAt': rateEdited ? DateTime.now().millisecondsSinceEpoch : current.ratesAt,
