@@ -77,10 +77,16 @@ class SyncRepository {
     final pending = await queue.pending(limit: pushBatchLimit);
     for (final entry in pending) {
       var ok = false;
+      var offline = false;
       try {
         ok = await api.push(entry);
-      } catch (_) {
+      } catch (e) {
+        offline = isNetworkError(e);
         ok = false; // ek entry ka crash poori sync na roke
+      }
+      if (offline) {
+        // Internet nahi: retryCount na barhao, baqi entries bhi abhi na bhejo (agli sync par chalengi).
+        break;
       }
       if (ok) {
         await queue.markSynced(entry.id!);

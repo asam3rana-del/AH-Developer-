@@ -81,3 +81,35 @@ abstract class SyncBackend {
   /// PERMISSION_DENIED ka insaani paighaam (Loc English/Urdu).
   String permissionDeniedMessage();
 }
+
+
+/// Internet/connection nahi — push ruk jata hai magar entry ka `retryCount` NAHI barhta
+/// (warna offline rehne par bill 10 baar "fail" ginke hamesha ke liye ruk jata tha).
+class SyncOfflineException implements Exception {
+  final String message;
+  const SyncOfflineException(this.message);
+  @override
+  String toString() => message;
+}
+
+/// Network/connection ki ghalti hai (internet nahi, server ka rasta nahi, timeout)?
+bool isNetworkError(Object e) {
+  if (e is SyncOfflineException) return true;
+  final t = e.runtimeType.toString();
+  if (t == 'SocketException' || t == 'TimeoutException' || t == 'HandshakeException' || t == 'ClientException') {
+    return true;
+  }
+  try {
+    final code = (e as dynamic).code;
+    if (code is String && (code == 'unavailable' || code == 'deadline-exceeded' || code == 'network-request-failed')) {
+      return true;
+    }
+  } catch (_) {}
+  final s = e.toString().toLowerCase();
+  return s.contains('failed host lookup') ||
+      s.contains('network is unreachable') ||
+      s.contains('no address associated') ||
+      s.contains('connection refused') ||
+      s.contains('connection reset') ||
+      s.contains('unable to resolve host');
+}

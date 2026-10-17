@@ -218,6 +218,8 @@ class SyncApi implements SyncBackend {
       }
       return true;
     } catch (e) {
+      // Internet nahi => failure ginti mein nahi; entry pending rahe gi (SyncRepository push rok deta hai).
+      if (isNetworkError(e)) throw SyncOfflineException(_messageOf(e));
       await logMaintenanceAudit(
         localDb,
         username: 'sync',
