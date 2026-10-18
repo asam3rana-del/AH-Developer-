@@ -354,16 +354,26 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
               ]),
               for (final i in b.items)
                 Padding(
-                  padding: const EdgeInsets.only(left: 8, top: 2),
-                  child: Row(children: [
+                  padding: const EdgeInsets.only(left: 8, top: 5),
+                  // FIX: Urdu naam + English unit/rate ek line mein milkar bidi (RTL/LTR) mein ulat-palat ho jate the.
+                  // Ab naam apni line mein (apni direction), neeche "qty unit × rate" hamesha left-to-right, amount right par.
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
-                      child: Text(
-                        '${i.product}  ${formatQty(i.qty)}${i.unit.isEmpty ? '' : ' ${i.unit}'} × ${i.unitPrice.toStringAsFixed(i.unitPrice == i.unitPrice.roundToDouble() ? 0 : 2)}',
-                        style: TextStyle(fontSize: 12.5, color: _p.textMuted),
-                      ),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(i.product,
+                            textAlign: TextAlign.left,
+                            textDirection: _hasRtl(i.product) ? TextDirection.rtl : TextDirection.ltr,
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _p.textDark)),
+                        Text(
+                          '${formatQty(i.qty)}${i.unit.isEmpty ? '' : ' ${i.unit}'} × ${i.unitPrice.toStringAsFixed(i.unitPrice == i.unitPrice.roundToDouble() ? 0 : 2)}',
+                          textDirection: _hasRtl(i.unit) ? TextDirection.rtl : TextDirection.ltr,
+                          style: TextStyle(fontSize: 12.5, color: _p.textMuted),
+                        ),
+                      ]),
                     ),
+                    const SizedBox(width: 8),
                     Text(i.amount.round().toString(),
-                        style: TextStyle(fontSize: 12.5, color: _p.textDark)),
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _p.textDark)),
                   ]),
                 ),
               if (b.paid > 0)
@@ -589,3 +599,6 @@ class _RentSheetState extends State<_RentSheet> {
     );
   }
 }
+
+/// Text mein Urdu/Arabic harf hain? (naam ki direction chunne ke liye)
+bool _hasRtl(String t) => RegExp(r'[\u0600-\u06FF\u0750-\u077F]').hasMatch(t);

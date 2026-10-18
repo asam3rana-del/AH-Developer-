@@ -158,7 +158,9 @@ String dailyBillText(DailyParty p, DateTime day, {String shopName = ''}) {
   for (final b in p.bills) {
     sb.writeln('${b.invoice}  (${_hm(b.time)})');
     for (final i in b.items) {
-      sb.writeln('  ${i.product}  ${_qty(i.qty)}${i.unit.isEmpty ? '' : ' ${i.unit}'} x ${_n(i.unitPrice)} = ${_r(i.amount)}');
+      // Naam apni line mein, qty/rate neeche — Urdu naam ke saath English hissa ulat-palat na ho (WhatsApp mein bhi).
+      sb.writeln('  ${i.product}');
+      sb.writeln('     ${_qty(i.qty)}${i.unit.isEmpty ? '' : ' ${i.unit}'} x ${_n(i.unitPrice)} = ${_r(i.amount)}');
     }
     sb.writeln('  Bill total: ${_r(b.total)}${b.paid > 0 ? '   Paid: ${_r(b.paid)}' : ''}');
   }
