@@ -16,6 +16,9 @@ class Customer {
 
   /// Is customer ka rate-type: '' (bill ke sale type ke mutabiq) | 'retail' | 'wholesale' | 'shopkeeper'.
   final String rateType;
+
+  /// Default payment muddat (din). 0 = set nahi. Sale mein udhaar bill par due date = bill date + dueDays.
+  final int dueDays;
   final String? serverId;
   final int updatedAt;
   final bool dirty;
@@ -29,6 +32,7 @@ class Customer {
     this.balance = 0.0,
     this.stuckBalance = 0.0,
     this.rateType = '',
+    this.dueDays = 0,
     this.serverId,
     this.updatedAt = 0,
     this.dirty = true,
@@ -47,6 +51,7 @@ class Customer {
     double? balance,
     double? stuckBalance,
     String? rateType,
+    int? dueDays,
     int? updatedAt,
     bool? dirty,
   }) =>
@@ -59,6 +64,7 @@ class Customer {
         balance: balance ?? this.balance,
         stuckBalance: stuckBalance ?? this.stuckBalance,
         rateType: rateType ?? this.rateType,
+        dueDays: dueDays ?? this.dueDays,
         serverId: serverId,
         updatedAt: updatedAt ?? this.updatedAt,
         dirty: dirty ?? this.dirty,
@@ -73,6 +79,7 @@ class Customer {
         'balance': balance,
         'stuckBalance': stuckBalance,
         'rateType': rateType,
+        'dueDays': dueDays,
         'serverId': serverId,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
@@ -87,6 +94,7 @@ class Customer {
         balance: (m['balance'] as num?)?.toDouble() ?? 0.0,
         stuckBalance: (m['stuckBalance'] as num?)?.toDouble() ?? 0.0,
         rateType: (m['rateType'] as String?) ?? '',
+        dueDays: (m['dueDays'] as num?)?.toInt() ?? 0,
         serverId: m['serverId'] as String?,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,

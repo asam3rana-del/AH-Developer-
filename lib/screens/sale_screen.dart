@@ -64,6 +64,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   final _priceCtrl = TextEditingController();
   final _discountCtrl = TextEditingController();
   final _paidCtrl = TextEditingController();
+  /// Udhaar bill par payment ki date (din ki shuruaat, millis). 0 = set nahi.
+  int _dueDateMillis = 0;
 
   DateTime _saleDate = DateTime.now();
   bool _isWholesale = false;
@@ -437,6 +439,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         _isShopkeeper = edit.sale.saleType == 'shopkeeper';
         _discountCtrl.text = edit.sale.discount > 0 ? formatAmount(edit.sale.discount) : '';
         _paidCtrl.text = formatAmount(edit.sale.paid);
+        _dueDateMillis = edit.sale.dueDate;
         _paymentMethod = edit.sale.paymentMethod.toLowerCase() == 'bank' ? 'Bank' : 'Cash';
         // A bill saved with 2+ methods re-opens in split mode.
         _splitPayments = List<PayEntry>.of(edit.payments);
@@ -837,6 +840,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _customerCtrl.clear();
       _discountCtrl.clear();
       _paidCtrl.clear();
+      _dueDateMillis = 0;
       _splitPayments = [];
       _paymentMethod = 'Cash';
       _saleDate = DateTime.now();
@@ -906,6 +910,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         overrideCreditLimit: overrideCreditLimit,
         editInvoice: widget.editInvoice,
         stockWarnings: stockWarnings,
+        // Sirf udhaar bill par date lagti hai; poora paid ho to 0.
+        dueDateMillis: totals.due > 0.009 ? _effectiveDueMillis() : 0,
       );
       if (!mounted) return;
       // Kotlin SaleSaveSuccess: har stock warning alag toast (save phir bhi ho chuka hai).
@@ -1235,6 +1241,69 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   // ------------------------------------------------- Split payment / extras
 
   /// Label shown on the bill ("Cash", "Cash + Bank", "Credit").
+  // ---- Due date (udhaar bill par payment ki date) ----
+  /// Chune hue customer ki default muddat (din), 0 = nahi.
+  int _customerDueDays() {
+    final name = _customerCtrl.text.trim().toLowerCase();
+    if (name.isEmpty) return 0;
+    for (final c in _customers) {
+      if (c.name.toLowerCase() == name) return c.dueDays;
+    }
+    return 0;
+  }
+
+  /// Haath se chuni date; na ho aur naya bill ho to customer ki default muddat (bill date + din).
+  int _effectiveDueMillis() {
+    if (_dueDateMillis > 0) return _dueDateMillis;
+    final days = _isEdit ? 0 : _customerDueDays();
+    if (days <= 0) return 0;
+    final base = DateTime(_saleDate.year, _saleDate.month, _saleDate.day);
+    return base.add(Duration(days: days)).millisecondsSinceEpoch;
+  }
+
+  void _setDueInDays(int days) {
+    final base = DateTime(_saleDate.year, _saleDate.month, _saleDate.day);
+    setState(() => _dueDateMillis = base.add(Duration(days: days)).millisecondsSinceEpoch);
+  }
+
+  Future<void> _pickDueDate() async {
+    final base = DateTime(_saleDate.year, _saleDate.month, _saleDate.day);
+    final initial = _dueDateMillis > 0 ? DateTime.fromMillisecondsSinceEpoch(_dueDateMillis) : base.add(const Duration(days: 7));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(base) ? base : initial,
+      firstDate: base,
+      lastDate: base.add(const Duration(days: 3650)),
+      helpText: 'Payment ki date',
+    );
+    if (picked != null && mounted) {
+      setState(() => _dueDateMillis = DateTime(picked.year, picked.month, picked.day).millisecondsSinceEpoch);
+    }
+  }
+
+  Widget _buildDueDateRow() {
+    final p = ThemeManager.palette;
+    final shownMillis = _effectiveDueMillis();
+    final has = shownMillis > 0;
+    final auto = _dueDateMillis == 0 && has;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        Text('📅 ${Loc.t('Due date', 'ادائیگی کی تاریخ')}:',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: p.textMuted)),
+        ActionChip(
+          label: Text(has
+              ? '${DateFormat('dd MMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(shownMillis))}${auto ? ' (auto)' : ''}'
+              : Loc.t('Set date', 'تاریخ چنیں')),
+          onPressed: _pickDueDate,
+        ),
+        for (final d in const [7, 15, 30])
+          ActionChip(label: Text('$d din'), onPressed: () => _setDueInDays(d)),
+        if (_dueDateMillis > 0) ActionChip(label: const Text('✕'), onPressed: () => setState(() => _dueDateMillis = 0)),
+      ]),
+    );
+  }
+
   String _paymentLabel(double paid) {
     final l = paymentMethodLabel(paid: paid, payments: _splitPayments, singleMethod: _paymentMethod);
     return l == 'credit' ? 'Credit' : l;
@@ -2411,6 +2480,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               child: Text('⚠ Paid khali hai - Rs ${formatRound(totals.due)} Udhaar jayega',
                   style: TextStyle(color: ThemeManager.palette.red, fontSize: 11, fontWeight: FontWeight.bold)),
             ),
+          if (totals.due > 0.009) _buildDueDateRow(),
           const SizedBox(height: 12),
           // Kotlin "DUE AMOUNT" card: hamesha dikhta hai; baqi ho to laal, warna hara.
           Container(

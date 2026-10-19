@@ -248,6 +248,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     final stuck = _canEditStuck ? TextEditingController(text: c.stuckBalance == 0.0 ? '' : c.stuckBalance.toString()) : null;
     const money = TextInputType.numberWithOptions(decimal: true);
     var rateType = c.rateType;
+    final dueDays = TextEditingController(text: c.dueDays > 0 ? c.dueDays.toString() : '');
 
     var nameError = false;
     final ok = await showDialog<bool>(
@@ -290,6 +291,12 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
                   ],
                   onChanged: (v) => setLocal(() => rateType = v ?? ''),
                 ),
+                const SizedBox(height: 10),
+                // Default muddat: udhaar bill par due date = bill date + itne din (sale mein badal sakte hain).
+                TextField(
+                    controller: dueDays,
+                    keyboardType: TextInputType.number,
+                    decoration: _dlgDeco(Loc.t('Payment due in (days) — optional', 'ادائیگی کی مدت (دن) — اختیاری'))),
               ],
             ]),
           ),
@@ -327,6 +334,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           openingBalance: double.tryParse(opening.text.trim()) ?? c.openingBalance,
           stuckBalance: stuckValue, // null (cashier) => purana stuck barqarar
           rateType: _canEditStuck ? rateType : null, // cashier rate-type nahi badal sakta
+          dueDays: _canEditStuck ? (int.tryParse(dueDays.text.trim()) ?? 0).clamp(0, 365) : null,
         );
         if (mounted) _toast(Loc.t('Updated', 'اپ ڈیٹ ہو گیا'));
         await _reload();
@@ -337,6 +345,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       limit.dispose();
       opening.dispose();
       stuck?.dispose();
+      dueDays.dispose();
     }
   }
 

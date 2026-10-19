@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 21;
+  static const _dbVersion = 22;
 
   Database? _db;
 
@@ -116,6 +116,7 @@ class AppDatabase {
         balance REAL NOT NULL DEFAULT 0,
         stuckBalance REAL NOT NULL DEFAULT 0,
         rateType TEXT NOT NULL DEFAULT '',
+        dueDays INTEGER NOT NULL DEFAULT 0,
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1
@@ -453,6 +454,10 @@ class AppDatabase {
     if (oldVersion < 21) {
       // v21: purchase line par Shopkeeper rate (0 = product ka shopkeeper rate nahi badla). Purani rows 0.
       await _addColumnIfMissing(db, 'purchase_items', 'shopkeeperRate', 'REAL NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 22) {
+      // v22: customer ki default payment muddat (din). 0 = koi nahi. Udhaar bill par due date khud lagti hai.
+      await _addColumnIfMissing(db, 'customers', 'dueDays', 'INTEGER NOT NULL DEFAULT 0');
     }
   }
 

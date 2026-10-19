@@ -110,6 +110,8 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
     final stuckRemote = _d(row['stuckBalance']);
     // Rate-type: purane doc mein na ho to local tag na todo.
     final rateRemote = row.containsKey('rateType') ? (_s(row['rateType']) ?? '') : null;
+    // Due-days: purane doc mein na ho to local muddat na todo.
+    final dueDaysRemote = row.containsKey('dueDays') ? (_i(row['dueDays']) ?? 0) : null;
     final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
     final localPending = await pendingDelta(q, 'customer', serverId, 'increment_balance');
     // 2-device FIX: is device ka apna naam/phone edit abhi push nahi hua => server ki purani copy se
@@ -147,6 +149,7 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
           'openingBalance': openingBalance,
           'stuckBalance': stuckRemote ?? _dbl(existing['stuckBalance']),
           if (rateRemote != null) 'rateType': rateRemote,
+          if (dueDaysRemote != null) 'dueDays': dueDaysRemote,
           'updatedAt': serverUpdatedAt,
           'dirty': localPending != 0.0 ? 1 : 0,
         },
@@ -162,6 +165,7 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
         'openingBalance': openingBalance,
         'stuckBalance': stuckRemote ?? 0.0,
         if (rateRemote != null) 'rateType': rateRemote,
+        if (dueDaysRemote != null) 'dueDays': dueDaysRemote,
         'serverId': serverId,
         'updatedAt': serverUpdatedAt,
         'dirty': localPending != 0.0 ? 1 : 0,

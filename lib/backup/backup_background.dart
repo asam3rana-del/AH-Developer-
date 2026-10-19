@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
+import '../services/due_alert_service.dart';
 import 'backup_scheduler.dart';
 
 /// Kotlin `BackupCheckpointWorker` (WorkManager, har 15 min) ka Flutter jor.
@@ -48,6 +49,8 @@ void backupCallbackDispatcher() {
       // Naye isolate mein DB / prefs / secure storage foreground jaise hi khulte hain
       // (sqflite path file-based hai, isliye wahi live DB milti hai).
       await BackupScheduler.instance.checkCheckpoints();
+      // Roz ki due-reminder notification (10 AM ke baad, din mein ek baar).
+      await DueAlertService.checkAndNotify();
       return true;
     } catch (_) {
       return false; // Kotlin Result.retry()

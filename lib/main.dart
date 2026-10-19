@@ -11,6 +11,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/app_lock.dart';
 import 'services/crash_handler.dart';
+import 'services/due_alert_service.dart';
 import 'services/session.dart';
 import 'sync/branch_config_store.dart';
 import 'sync/device_tag.dart';
@@ -52,7 +53,13 @@ void main() async {
   SyncWorker.instance.schedulePeriodic();
   // Android: minimize / back ke baad bhi sync na ruke (foreground service). Fail ho to app chalti rahe.
   unawaited(SyncKeepAlive.start());
+  // Roz ki due-reminder notification: app khulte hi check; tap par Due Reminders screen.
+  try {
+    await DueAlertService.init(withTap: true);
+    unawaited(DueAlertService.checkAndNotify());
+  } catch (_) {}
   runApp(const AhDeveloperApp());
+  unawaited(DueAlertService.handleLaunch());
 }
 
 class AhDeveloperApp extends StatelessWidget {

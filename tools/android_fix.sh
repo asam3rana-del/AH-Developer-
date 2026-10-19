@@ -410,3 +410,20 @@ KT
     ;;
   *) echo "WARNING: MainActivity Kotlin nahi hai — Downloads copy channel skip (Share se backup chalta rahega)";;
 esac
+
+
+# --- flutter_local_notifications (DueAlertService): core library desugaring zaroori hai. ---
+if ! grep -q "coreLibraryDesugaring" "$GRADLE"; then
+  case "$GRADLE" in
+    *.kts)
+      sed -i -E 's/^([[:space:]]*)compileOptions[[:space:]]*\{/&\n\1    isCoreLibraryDesugaringEnabled = true/' "$GRADLE"
+      printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")\n}\n' >> "$GRADLE"
+      ;;
+    *)
+      sed -i -E 's/^([[:space:]]*)compileOptions[[:space:]]*\{/&\n\1    coreLibraryDesugaringEnabled true/' "$GRADLE"
+      printf '\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.4"\n}\n' >> "$GRADLE"
+      ;;
+  esac
+fi
+grep -n "esugar" "$GRADLE"
+grep -q "esugar" "$GRADLE" || { echo "ERROR: core library desugaring not applied"; exit 1; }

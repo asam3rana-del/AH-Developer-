@@ -250,6 +250,7 @@ class PartyRepository {
     required double openingBalance,
     double? stuckBalance,
     String? rateType,
+    int? dueDays,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
@@ -260,6 +261,7 @@ class PartyRepository {
       openingBalance: openingBalance,
       stuckBalance: stuckBalance ?? existing.stuckBalance,
       rateType: rateType ?? existing.rateType,
+      dueDays: dueDays ?? existing.dueDays,
     ));
     return SavePartyResult.success;
   }

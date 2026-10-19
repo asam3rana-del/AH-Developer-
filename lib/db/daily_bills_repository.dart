@@ -162,10 +162,7 @@ String dailyBillText(DailyParty p, DateTime day, {String shopName = ''}) {
       sb.writeln('  ${i.product}');
       sb.writeln('     ${_qty(i.qty)}${i.unit.isEmpty ? '' : ' ${i.unit}'} x ${_n(i.unitPrice)} = ${_r(i.amount)}');
     }
-    // Sirf ek bill ho to neeche Today's sale / Received wahi raqam dikhate hain; dobara na likho.
-    if (p.bills.length > 1) {
-      sb.writeln('  Bill total: ${_r(b.total)}${b.paid > 0 ? '   Paid: ${_r(b.paid)}' : ''}');
-    }
+    sb.writeln('  Bill total: ${_r(b.total)}${b.paid > 0 ? '   Paid: ${_r(b.paid)}' : ''}');
   }
   sb.writeln('--------------------------');
   sb.writeln('Today\'s sale: Rs ${_r(p.salesTotal)}');

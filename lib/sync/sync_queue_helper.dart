@@ -145,6 +145,7 @@ class SyncQueueHelper {
         // Stuck Balance: plain snapshot (sales/payments se nahi hilta).
         'stuckBalance': c['stuckBalance'],
         'rateType': c['rateType'] ?? '',
+        'dueDays': c['dueDays'] ?? 0,
       });
 
   static Map<String, Object?> supplierPayload(Map<String, Object?> s) => _stamp({

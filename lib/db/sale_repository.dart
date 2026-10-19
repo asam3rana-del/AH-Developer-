@@ -391,6 +391,8 @@ class SaleRepository {
     // Kotlin SaleSaveResult.stockWarnings: agar kisi line ka stock update na ho saka
     // (product nahi mila / 0 rows) to yahan warning aati hai; caller dikhata hai.
     List<String>? stockWarnings,
+    // Udhaar bill ki payment date (din ki shuruaat, millis). null = pehle wali (edit) ya 0 (naya) rakho.
+    int? dueDateMillis,
   }) async {
     final isEdit = editInvoice != null;
     if (isEdit) _requireAdmin();
@@ -587,7 +589,7 @@ class SaleRepository {
         status: original?.status ?? 'active',
         updatedAt: now,
         // Edit par dueDate reset na ho (Kotlin: "reset-to-0 dueDate on every edit" FIX).
-        dueDate: original?.dueDate ?? 0,
+        dueDate: dueDateMillis ?? original?.dueDate ?? 0,
       );
       if (original != null) {
         // True in-place UPDATE keyed by invoice (never delete + re-insert).
