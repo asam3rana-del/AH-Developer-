@@ -91,6 +91,18 @@ Future<Database> _memDb() async {
     serverId TEXT, $_sync)''');
   await x('''CREATE TABLE shop_empty_shell_log (id INTEGER PRIMARY KEY AUTOINCREMENT, delta INTEGER NOT NULL,
     reason TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL, serverId TEXT, $_sync)''');
+  await x('''CREATE TABLE shop_rents (id INTEGER PRIMARY KEY AUTOINCREMENT, shopName TEXT NOT NULL,
+    landlord TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', dueDay INTEGER NOT NULL DEFAULT 1,
+    startYm TEXT NOT NULL, autoApply INTEGER NOT NULL DEFAULT 1, active INTEGER NOT NULL DEFAULT 1,
+    note TEXT NOT NULL DEFAULT '', createdAt INTEGER NOT NULL DEFAULT 0, serverId TEXT,
+    updatedAt INTEGER NOT NULL DEFAULT 0)''');
+  await x('''CREATE TABLE shop_rent_terms (shopId INTEGER NOT NULL, fromYm TEXT NOT NULL,
+    monthlyRent REAL NOT NULL, PRIMARY KEY (shopId, fromYm))''');
+  await x('''CREATE TABLE shop_rent_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, shopId INTEGER NOT NULL,
+    kind TEXT NOT NULL, ym TEXT NOT NULL DEFAULT '', amount REAL NOT NULL, method TEXT NOT NULL DEFAULT 'cash',
+    note TEXT NOT NULL DEFAULT '', expenseId INTEGER, cashId INTEGER, createdAt INTEGER NOT NULL DEFAULT 0,
+    serverId TEXT, expenseServerId TEXT, cashServerId TEXT, updatedAt INTEGER NOT NULL DEFAULT 0)''');
+  await x("CREATE UNIQUE INDEX index_shop_rent_charge ON shop_rent_ledger (shopId, ym) WHERE kind = 'charge'");
   await x('CREATE TABLE app_settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)');
   await x('''CREATE TABLE cash_register (date TEXT PRIMARY KEY NOT NULL, openingCash REAL NOT NULL DEFAULT 0,
     closingCash REAL NOT NULL DEFAULT 0, openingBank REAL NOT NULL DEFAULT 0,
