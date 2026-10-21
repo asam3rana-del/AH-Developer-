@@ -103,6 +103,19 @@ Future<Database> _memDb() async {
     note TEXT NOT NULL DEFAULT '', expenseId INTEGER, cashId INTEGER, createdAt INTEGER NOT NULL DEFAULT 0,
     serverId TEXT, expenseServerId TEXT, cashServerId TEXT, updatedAt INTEGER NOT NULL DEFAULT 0)''');
   await x("CREATE UNIQUE INDEX index_shop_rent_charge ON shop_rent_ledger (shopId, ym) WHERE kind = 'charge'");
+  await x('''CREATE TABLE workers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '', payType TEXT NOT NULL DEFAULT 'monthly', rate REAL NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1, createdAt INTEGER NOT NULL DEFAULT 0, serverId TEXT,
+    updatedAt INTEGER NOT NULL DEFAULT 0)''');
+  await x('''CREATE TABLE worker_attendance (workerId INTEGER NOT NULL, day TEXT NOT NULL, status TEXT NOT NULL,
+    updatedAt INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (workerId, day))''');
+  await x('''CREATE TABLE worker_advances (id INTEGER PRIMARY KEY AUTOINCREMENT, workerId INTEGER NOT NULL,
+    amount REAL NOT NULL, method TEXT NOT NULL DEFAULT 'cash', note TEXT NOT NULL DEFAULT '',
+    createdAt INTEGER NOT NULL, serverId TEXT, updatedAt INTEGER NOT NULL DEFAULT 0)''');
+  await x('''CREATE TABLE worker_salary_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, workerId INTEGER NOT NULL,
+    month TEXT NOT NULL, earned REAL NOT NULL, advanceCut REAL NOT NULL, net REAL NOT NULL,
+    method TEXT NOT NULL DEFAULT 'cash', expenseId INTEGER, expenseServerId TEXT, createdAt INTEGER NOT NULL,
+    serverId TEXT, updatedAt INTEGER NOT NULL DEFAULT 0, UNIQUE (workerId, month))''');
   await x('CREATE TABLE app_settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)');
   await x('''CREATE TABLE cash_register (date TEXT PRIMARY KEY NOT NULL, openingCash REAL NOT NULL DEFAULT 0,
     closingCash REAL NOT NULL DEFAULT 0, openingBank REAL NOT NULL DEFAULT 0,
