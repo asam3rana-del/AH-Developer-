@@ -95,6 +95,7 @@ Future<Database> _memDb() async {
   await x('''CREATE TABLE cash_register (date TEXT PRIMARY KEY NOT NULL, openingCash REAL NOT NULL DEFAULT 0,
     closingCash REAL NOT NULL DEFAULT 0, openingBank REAL NOT NULL DEFAULT 0,
     closingBank REAL NOT NULL DEFAULT 0, closed INTEGER NOT NULL DEFAULT 0)''');
+  // Full-apply (applyServerChangesToDb) workers / shop-rent tables bhi chhoota hai (khali list par bhi).
   await x('''CREATE TABLE workers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
     phone TEXT NOT NULL DEFAULT '', payType TEXT NOT NULL DEFAULT 'monthly', rate REAL NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1, createdAt INTEGER NOT NULL DEFAULT 0, serverId TEXT,
@@ -119,6 +120,7 @@ Future<Database> _memDb() async {
     kind TEXT NOT NULL, ym TEXT NOT NULL DEFAULT '', amount REAL NOT NULL, method TEXT NOT NULL DEFAULT 'cash',
     note TEXT NOT NULL DEFAULT '', expenseId INTEGER, cashId INTEGER, createdAt INTEGER NOT NULL DEFAULT 0,
     serverId TEXT, expenseServerId TEXT, cashServerId TEXT, updatedAt INTEGER NOT NULL DEFAULT 0)''');
+  await x("CREATE UNIQUE INDEX index_shop_rent_charge ON shop_rent_ledger (shopId, ym) WHERE kind = 'charge'");
   return db;
 }
 
