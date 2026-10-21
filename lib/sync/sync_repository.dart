@@ -147,6 +147,10 @@ class SyncRepository {
       returnsReceived: changes.returns.length,
       appSettingsReceived: changes.appSettings.length,
       cashRegistersReceived: changes.cashRegisters.length,
+      workersReceived: changes.workers.length +
+          changes.workerAttendance.length +
+          changes.workerAdvances.length +
+          changes.workerSalaryPayments.length,
     );
   }
 
@@ -174,6 +178,7 @@ class SyncResult {
   final int returnsReceived;
   final int appSettingsReceived;
   final int cashRegistersReceived;
+  final int workersReceived;
   final String? error;
 
   const SyncResult({
@@ -193,6 +198,7 @@ class SyncResult {
     this.returnsReceived = 0,
     this.appSettingsReceived = 0,
     this.cashRegistersReceived = 0,
+    this.workersReceived = 0,
     this.error,
   });
 
@@ -209,7 +215,8 @@ class SyncResult {
       zakatReceived +
       returnsReceived +
       appSettingsReceived +
-      cashRegistersReceived;
+      cashRegistersReceived +
+      workersReceived;
 
   /// Settings "Sync Now" ke liye ek line — Kotlin `summary()` jaisi (English).
   String summary() {

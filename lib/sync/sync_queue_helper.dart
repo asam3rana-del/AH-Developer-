@@ -72,6 +72,12 @@ class SyncQueueHelper {
   static String shellCustomerEntityId(Map<String, Object?> r) => _own('shell_customer:', r);
   static String shellTransactionEntityId(Map<String, Object?> r) => _own('shell_transaction:', r);
   static String shopEmptyShellLogEntityId(Map<String, Object?> r) => _own('shop_empty_shell_log:', r);
+  static String workerEntityId(Map<String, Object?> r) => _own('worker:', r);
+  static String workerAdvanceEntityId(Map<String, Object?> r) => _own('worker_advance:', r);
+  static String workerSalaryPaymentEntityId(Map<String, Object?> r) => _own('worker_salary_payment:', r);
+
+  /// Hazri ki chabi (worker + din) khud hi pehchan hai, is liye har device par ek jaisi id banti hai.
+  static String workerAttendanceEntityId(String workerSid, String day) => 'worker_attendance:$workerSid|$day';
 
   // -------------------------------------------------------------- plumbing
 
@@ -244,6 +250,50 @@ class SyncQueueHelper {
         'reason': l['reason'],
         'note': l['note'],
         'createdAt': l['createdAt'],
+      });
+
+  static Map<String, Object?> workerPayload(Map<String, Object?> w) => _stamp({
+        'serverId': workerEntityId(w),
+        'name': w['name'],
+        'phone': w['phone'],
+        'payType': w['payType'],
+        'rate': w['rate'],
+        'active': w['active'],
+        'createdAt': w['createdAt'],
+        '_deleted': false,
+      });
+
+  /// Hazri: `_deleted:false` zaroori — nishan hata kar dobara lagane par purana tombstone doc zinda ho jaye.
+  static Map<String, Object?> workerAttendancePayload(String entityId, String workerServerId, String day, String status) =>
+      _stamp({
+        'serverId': entityId,
+        'workerServerId': workerServerId,
+        'day': day,
+        'status': status,
+        '_deleted': false,
+      });
+
+  static Map<String, Object?> workerAdvancePayload(Map<String, Object?> a, String? workerServerId) => _stamp({
+        'serverId': workerAdvanceEntityId(a),
+        'workerServerId': workerServerId,
+        'amount': a['amount'],
+        'method': a['method'],
+        'note': a['note'],
+        'createdAt': a['createdAt'],
+        '_deleted': false,
+      });
+
+  static Map<String, Object?> workerSalaryPaymentPayload(Map<String, Object?> p, String? workerServerId) => _stamp({
+        'serverId': workerSalaryPaymentEntityId(p),
+        'workerServerId': workerServerId,
+        'month': p['month'],
+        'earned': p['earned'],
+        'advanceCut': p['advanceCut'],
+        'net': p['net'],
+        'method': p['method'],
+        'expenseServerId': p['expenseServerId'],
+        'createdAt': p['createdAt'],
+        '_deleted': false,
       });
 
   static Map<String, Object?> stockMovementPayload(Map<String, Object?> m) => _stamp({
@@ -605,6 +655,53 @@ class SyncQueueHelper {
     await enqueue(ex, 'shop_empty_shell_log', eid, 'upsert', shopEmptyShellLogPayload(l));
   }
 
+  static Future<void> enqueueWorker(DatabaseExecutor ex, int id) async {
+    final w = await _row(ex, 'workers', 'id', id);
+    if (w == null) return;
+    final eid = workerEntityId(w);
+    await _stampServerId(ex, 'workers', w, eid);
+    await enqueue(ex, 'worker', eid, 'upsert', workerPayload(w));
+  }
+
+  /// Ek din ki hazri. Row na ho (nishan hata diya) to kuch nahi — delete ke liye [enqueueWorkerAttendanceDelete].
+  static Future<void> enqueueWorkerAttendance(DatabaseExecutor ex, int workerId, String day) async {
+    final w = await _row(ex, 'workers', 'id', workerId);
+    if (w == null) return;
+    final r = await ex.query('worker_attendance', where: 'workerId = ? AND day = ?', whereArgs: [workerId, day], limit: 1);
+    if (r.isEmpty) return;
+    final wsid = workerEntityId(w);
+    final eid = workerAttendanceEntityId(wsid, day);
+    await enqueue(ex, 'worker_attendance', eid, 'upsert', workerAttendancePayload(eid, wsid, day, _s(r.first['status'])));
+  }
+
+  static Future<void> enqueueWorkerAttendanceDelete(DatabaseExecutor ex, int workerId, String day) async {
+    final w = await _row(ex, 'workers', 'id', workerId);
+    if (w == null) return;
+    await enqueueDelete(ex, 'worker_attendance', workerAttendanceEntityId(workerEntityId(w), day));
+  }
+
+  static Future<void> enqueueWorkerAdvance(DatabaseExecutor ex, int id) async {
+    final a = await _row(ex, 'worker_advances', 'id', id);
+    if (a == null) return;
+    final eid = workerAdvanceEntityId(a);
+    await _stampServerId(ex, 'worker_advances', a, eid);
+    String? wsid;
+    final w = await _row(ex, 'workers', 'id', a['workerId'] as Object);
+    if (w != null) wsid = workerEntityId(w);
+    await enqueue(ex, 'worker_advance', eid, 'upsert', workerAdvancePayload(a, wsid));
+  }
+
+  static Future<void> enqueueWorkerSalaryPayment(DatabaseExecutor ex, int id) async {
+    final p = await _row(ex, 'worker_salary_payments', 'id', id);
+    if (p == null) return;
+    final eid = workerSalaryPaymentEntityId(p);
+    await _stampServerId(ex, 'worker_salary_payments', p, eid);
+    String? wsid;
+    final w = await _row(ex, 'workers', 'id', p['workerId'] as Object);
+    if (w != null) wsid = workerEntityId(w);
+    await enqueue(ex, 'worker_salary_payment', eid, 'upsert', workerSalaryPaymentPayload(p, wsid));
+  }
+
   /// Kisi bhi entity ka delete (tombstone). Row delete hone se PEHLE uski entity id nikal len
   /// ([entityIdFor]) warna doosre device se aayi row ki asal serverId kho jati hai.
   static Future<void> enqueueDelete(DatabaseExecutor ex, String entityType, String entityId) =>
@@ -809,6 +906,20 @@ class SyncQueueHelper {
       for (final r in await txn.query('shop_empty_shell_log')) {
         await enqueueShopEmptyShellLog(txn, r['id'] as int);
       }
+      // Workers: worker pehle, phir uski hazri / advance / salary.
+      for (final w in await txn.query('workers')) {
+        final wid = w['id'] as int;
+        await enqueueWorker(txn, wid);
+        for (final a in await txn.query('worker_attendance', where: 'workerId = ?', whereArgs: [wid])) {
+          await enqueueWorkerAttendance(txn, wid, a['day'] as String);
+        }
+        for (final a in await txn.query('worker_advances', where: 'workerId = ?', whereArgs: [wid])) {
+          await enqueueWorkerAdvance(txn, a['id'] as int);
+        }
+        for (final p in await txn.query('worker_salary_payments', where: 'workerId = ?', whereArgs: [wid])) {
+          await enqueueWorkerSalaryPayment(txn, p['id'] as int);
+        }
+      }
     });
   }
 
@@ -898,6 +1009,15 @@ class SyncQueueHelper {
       case 'shop_empty_shell_log':
         final n = await _localId(ex, 'shop_empty_shell_log', id, 'shop_empty_shell_log');
         if (n != null) await enqueueShopEmptyShellLog(ex, n);
+      case 'worker':
+        final n = await _localId(ex, 'workers', id, 'worker');
+        if (n != null) await enqueueWorker(ex, n);
+      case 'worker_advance':
+        final n = await _localId(ex, 'worker_advances', id, 'worker_advance');
+        if (n != null) await enqueueWorkerAdvance(ex, n);
+      case 'worker_salary_payment':
+        final n = await _localId(ex, 'worker_salary_payments', id, 'worker_salary_payment');
+        if (n != null) await enqueueWorkerSalaryPayment(ex, n);
       case 'app_setting':
         final v = await _row(ex, 'app_settings', 'key', id);
         if (v != null) await enqueueAppSetting(ex, id, _s(v['value']));
@@ -960,5 +1080,8 @@ class SyncQueueHelper {
     'shell_customer': 'shell_customers',
     'shell_transaction': 'shell_transactions',
     'shop_empty_shell_log': 'shop_empty_shell_log',
+    'worker': 'workers',
+    'worker_advance': 'worker_advances',
+    'worker_salary_payment': 'worker_salary_payments',
   };
 }

@@ -580,8 +580,9 @@ void main() {
     });
   });
 
-  test('branchScopedCollections: 16, users/shell nahi', () {
-    expect(branchScopedCollections.length, 16);
+  test('branchScopedCollections: 20 (16 + Workers), users/shell nahi', () {
+    expect(branchScopedCollections.length, 20);
+    expect(branchScopedCollections.contains('workers'), isTrue);
     expect(branchScopedCollections.contains('users'), isFalse);
     expect(branchScopedCollections.contains('shell_customers'), isFalse);
     expect(branchCleanupBatchSize, lessThan(500));

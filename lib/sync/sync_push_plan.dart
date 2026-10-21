@@ -29,6 +29,10 @@ const Map<String, String> pushCollections = {
   'shell_customer': 'shell_customers',
   'shell_transaction': 'shell_transactions',
   'shop_empty_shell_log': 'shop_empty_shell_log',
+  'worker': 'workers',
+  'worker_attendance': 'worker_attendance',
+  'worker_advance': 'worker_advances',
+  'worker_salary_payment': 'worker_salary_payments',
 };
 
 String? collectionFor(String entityType) => pushCollections[entityType];

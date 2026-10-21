@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 22;
+  static const _dbVersion = 24;
 
   Database? _db;
 
@@ -330,7 +330,7 @@ class AppDatabase {
       )
     ''');
 
-    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql]) {
+    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql]) {
       batch.execute(sql);
     }
 
@@ -459,7 +459,80 @@ class AppDatabase {
       // v22: customer ki default payment muddat (din). 0 = koi nahi. Udhaar bill par due date khud lagti hai.
       await _addColumnIfMissing(db, 'customers', 'dueDays', 'INTEGER NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 23) {
+      // v23: Workers — hazri/chhutti, advance aur salary ka record (is device ka; expense + cash sync hote hain).
+      for (final sql in _workerTablesSql) {
+        await db.execute(sql);
+      }
+    }
+    if (oldVersion < 24) {
+      // v24: Workers sync — serverId/updatedAt (v23 mein bane tables ke liye; naye tables mein pehle se hain).
+      await _addColumnIfMissing(db, 'workers', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'workers', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'worker_attendance', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'worker_advances', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'worker_advances', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'worker_salary_payments', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'worker_salary_payments', 'expenseServerId', 'TEXT');
+      await _addColumnIfMissing(db, 'worker_salary_payments', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
+    }
   }
+
+  /// Workers: profile, roz ki hazri, advance, aur mahine ki salary ka record. Sab sync hote hain
+  /// (`serverId` + `updatedAt`); hazri ki chabi (workerId, day) khud hi unique hai.
+  static const _workerTablesSql = <String>[
+    '''
+      CREATE TABLE IF NOT EXISTS workers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL DEFAULT '',
+        payType TEXT NOT NULL DEFAULT 'monthly',
+        rate REAL NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        createdAt INTEGER NOT NULL DEFAULT 0,
+        serverId TEXT,
+        updatedAt INTEGER NOT NULL DEFAULT 0
+      )
+    ''',
+    '''
+      CREATE TABLE IF NOT EXISTS worker_attendance (
+        workerId INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        status TEXT NOT NULL,
+        updatedAt INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (workerId, day)
+      )
+    ''',
+    '''
+      CREATE TABLE IF NOT EXISTS worker_advances (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workerId INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        method TEXT NOT NULL DEFAULT 'cash',
+        note TEXT NOT NULL DEFAULT '',
+        createdAt INTEGER NOT NULL,
+        serverId TEXT,
+        updatedAt INTEGER NOT NULL DEFAULT 0
+      )
+    ''',
+    '''
+      CREATE TABLE IF NOT EXISTS worker_salary_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workerId INTEGER NOT NULL,
+        month TEXT NOT NULL,
+        earned REAL NOT NULL,
+        advanceCut REAL NOT NULL,
+        net REAL NOT NULL,
+        method TEXT NOT NULL DEFAULT 'cash',
+        expenseId INTEGER,
+        expenseServerId TEXT,
+        createdAt INTEGER NOT NULL,
+        serverId TEXT,
+        updatedAt INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (workerId, month)
+      )
+    ''',
+  ];
 
   /// Daily Rent setting: customer ka roz ka rent aur kis din se. Customers table se alag rakha
   /// taake customer sync / pull is ko na mitaye.

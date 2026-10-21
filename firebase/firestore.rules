@@ -62,7 +62,9 @@ service cloud.firestore {
                              'cash_transactions', 'cash_register',
                              'units', 'categories', 'zakat_years', 'zakat_payments',
                              'returns', 'stock_movements', 'app_settings',
-                             'shell_customers', 'shell_transactions', 'shop_empty_shell_log'];
+                             'shell_customers', 'shell_transactions', 'shop_empty_shell_log',
+                             'workers', 'worker_attendance', 'worker_advances',
+                             'worker_salary_payments'];
     }
 
     // Server-side record of which branch each staff UID belongs to.

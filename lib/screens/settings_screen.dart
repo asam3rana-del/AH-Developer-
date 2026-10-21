@@ -27,6 +27,7 @@ import 'reports_screen.dart';
 import 'sale_screen.dart';
 import 'shell_ledger_screen.dart';
 import 'user_management_screen.dart';
+import 'workers_screen.dart';
 
 /// Receipt footer / address / currency / tax fields Kotlin mein user ke kehne par hata di gayi thin — yahan bhi nahi
 /// (stored receipt_footer value print par ab bhi parha jata hai, jaisa Kotlin mein).
@@ -324,6 +325,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         row(Icons.shopping_cart_outlined, 'Purchase', 'خریداری',
             const RoleGuard(allowed: {'admin'}, child: PurchaseScreen())),
       row(Icons.business_center_outlined, 'Expense', 'اخراجات', const ExpenseScreen(), color: p.navyInk),
+      if (Session.isAdminOrManager)
+        row(Icons.badge_outlined, 'Workers', 'ورکرز',
+            const RoleGuard(allowed: {'admin', 'manager'}, child: WorkersScreen()), color: p.navyInk),
       row(Icons.account_balance_outlined, 'Cash & Bank', 'کیش اور بینک', const CashScreen(), color: p.navyInk),
       row(Icons.inventory_2_outlined, 'Shell Ledger', 'شیل لیجر', const ShellLedgerScreen(), color: p.navyInk),
     ];

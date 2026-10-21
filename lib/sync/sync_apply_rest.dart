@@ -63,6 +63,11 @@ Future<void> applyRestOfServerChanges(
   await applyShopEmptyShellLogs(db, c.shopEmptyShellLogs, nowMs: nowMs);
   await applyAppSettings(db, c.appSettings);
   await applyCashRegisters(db, c.cashRegisters);
+  // Workers: worker pehle (baqi uski serverId se judte hain); expenses upar apply ho chuke.
+  await applyWorkers(db, c.workers, nowMs: nowMs);
+  await applyWorkerAttendance(db, c.workerAttendance, nowMs: nowMs);
+  await applyWorkerAdvances(db, c.workerAdvances, nowMs: nowMs);
+  await applyWorkerSalaryPayments(db, c.workerSalaryPayments, nowMs: nowMs);
 }
 
 // -------------------------------------------------------------------- sales
@@ -677,5 +682,148 @@ Future<void> applyCashRegisters(DatabaseExecutor db, List<SyncDoc> rows) async {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+}
+
+// ------------------------------------------------------------------ workers
+
+const _workerDayStatuses = {'P', 'A', 'H', 'L'};
+final _workerDayPattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+Future<void> applyWorkers(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    final serverId = _s(row['serverId']);
+    final name = _s(row['name']);
+    if (serverId == null || name == null) continue;
+    // App mein worker delete nahi hota (sirf "left" mark hota hai) — tombstone ko chhod do.
+    if (row['_deleted'] == true) continue;
+    // Is device ki anpushed edit ko purani server copy se overwrite na karo.
+    if (await q.pendingCountForEntity('worker', serverId) > 0) continue;
+    final createdAt = _i(row['createdAt']) ?? nowMs();
+    final values = <String, Object?>{
+      'name': name,
+      'phone': _s(row['phone']) ?? '',
+      'payType': _s(row['payType']) == 'daily' ? 'daily' : 'monthly',
+      'rate': _d(row['rate']) ?? 0.0,
+      'active': (_i(row['active']) ?? 1) == 0 ? 0 : 1,
+      'updatedAt': _i(row['updatedAt']) ?? createdAt,
+    };
+    final existing = await _findBy(db, 'workers', 'serverId', serverId);
+    if (existing != null) {
+      await db.update('workers', values, where: 'id = ?', whereArgs: [existing['id']]);
+    } else {
+      await db.insert('workers', {...values, 'createdAt': createdAt, 'serverId': serverId});
+    }
+  }
+}
+
+/// Hazri: last-write-wins (`updatedAt`); is device ki anpushed tabdeeli (nishan lagana ya hatana) na toro.
+Future<void> applyWorkerAttendance(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    final serverId = _s(row['serverId']);
+    final workerServerId = _s(row['workerServerId']);
+    final day = _s(row['day']);
+    if (serverId == null || workerServerId == null || day == null) continue;
+    if (!_workerDayPattern.hasMatch(day)) continue;
+    final worker = await _findBy(db, 'workers', 'serverId', workerServerId);
+    if (worker == null) continue;
+    final workerId = (worker['id'] as num).toInt();
+    if (await q.pendingCountForEntity('worker_attendance', serverId) > 0) continue;
+
+    final incomingAt = _i(row['updatedAt']) ?? 0;
+    final localRows = await db.query('worker_attendance',
+        where: 'workerId = ? AND day = ?', whereArgs: [workerId, day], limit: 1);
+    final localAt = localRows.isEmpty ? null : _i(localRows.first['updatedAt']);
+
+    if (row['_deleted'] == true) {
+      // Local copy naya ho (is nishan ko tombstone ke baad dobara lagaya gaya) to na hatao.
+      if (localRows.isNotEmpty && (localAt ?? 0) <= incomingAt) {
+        await db.delete('worker_attendance', where: 'workerId = ? AND day = ?', whereArgs: [workerId, day]);
+      }
+      continue;
+    }
+    final status = _s(row['status']);
+    if (status == null || !_workerDayStatuses.contains(status)) continue;
+    if (localRows.isNotEmpty && (localAt ?? 0) > incomingAt) continue;
+    await db.rawInsert(
+      'INSERT OR REPLACE INTO worker_attendance (workerId, day, status, updatedAt) VALUES (?, ?, ?, ?)',
+      [workerId, day, status, incomingAt],
+    );
+  }
+}
+
+Future<void> applyWorkerAdvances(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  for (final row in rows) {
+    final serverId = _s(row['serverId']);
+    if (serverId == null) continue;
+    if (row['_deleted'] == true) {
+      await db.delete('worker_advances', where: 'serverId = ?', whereArgs: [serverId]);
+      continue;
+    }
+    // Advance badalta nahi (sirf banta ya hat'ta hai) — pehle se ho to chhod do.
+    if (await _findBy(db, 'worker_advances', 'serverId', serverId) != null) continue;
+    final workerServerId = _s(row['workerServerId']);
+    final amount = _d(row['amount']);
+    if (workerServerId == null || amount == null) continue;
+    final worker = await _findBy(db, 'workers', 'serverId', workerServerId);
+    if (worker == null) continue;
+    final createdAt = _i(row['createdAt']) ?? nowMs();
+    await db.insert('worker_advances', {
+      'workerId': worker['id'],
+      'amount': amount,
+      'method': _s(row['method']) ?? 'cash',
+      'note': _s(row['note']) ?? '',
+      'createdAt': createdAt,
+      'serverId': serverId,
+      'updatedAt': _i(row['updatedAt']) ?? createdAt,
+    });
+  }
+}
+
+Future<void> applyWorkerSalaryPayments(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  for (final row in rows) {
+    final serverId = _s(row['serverId']);
+    if (serverId == null) continue;
+    if (row['_deleted'] == true) {
+      await db.delete('worker_salary_payments', where: 'serverId = ?', whereArgs: [serverId]);
+      continue;
+    }
+    if (await _findBy(db, 'worker_salary_payments', 'serverId', serverId) != null) continue;
+    final workerServerId = _s(row['workerServerId']);
+    final month = _s(row['month']);
+    final earned = _d(row['earned']);
+    if (workerServerId == null || month == null || earned == null) continue;
+    final worker = await _findBy(db, 'workers', 'serverId', workerServerId);
+    if (worker == null) continue;
+    // Ek worker ki ek mahine ki salary ek hi: do device ne ek saath di ho to doosri chhod do (audit mein likho).
+    final clash = await db.query('worker_salary_payments',
+        where: 'workerId = ? AND month = ?', whereArgs: [worker['id'], month], limit: 1);
+    if (clash.isNotEmpty) {
+      await _conflict(
+        db,
+        'worker_salary:$serverId',
+        'Salary for ${_s(worker['name']) ?? 'worker'} ($month) was already recorded on this device; '
+        'a second payment arrived from another device and was NOT applied. Check Expenses/Cash for a double payment.',
+      );
+      continue;
+    }
+    final expenseServerId = _s(row['expenseServerId']);
+    final expense = expenseServerId == null ? null : await _findBy(db, 'expenses', 'serverId', expenseServerId);
+    final createdAt = _i(row['createdAt']) ?? nowMs();
+    await db.insert('worker_salary_payments', {
+      'workerId': worker['id'],
+      'month': month,
+      'earned': earned,
+      'advanceCut': _d(row['advanceCut']) ?? 0.0,
+      'net': _d(row['net']) ?? earned,
+      'method': _s(row['method']) ?? 'cash',
+      'expenseId': expense?['id'],
+      'expenseServerId': expenseServerId,
+      'createdAt': createdAt,
+      'serverId': serverId,
+      'updatedAt': _i(row['updatedAt']) ?? createdAt,
+    });
   }
 }
