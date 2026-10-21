@@ -1,0 +1,11 @@
+# Root par galti se paste hui module folders (db/, screens/, sync/) analyze
+# se bahar rakhte hain. Asli code lib/ mein hai.
+analyzer:
+  exclude:
+    - db/**
+    - screens/**
+    - sync/**
+    - services/**
+    - models/**
+    - widgets/**
+    - kotlin_reference/**
