@@ -3,9 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../db/expense_repository.dart';
+import '../db/shop_rent_repository.dart';
 import '../models/misc_entities.dart';
+import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
+import '../widgets/role_guard.dart';
+import 'shop_rent_screen.dart';
 
 /// Mirrors ExpenseActivity.kt — record an expense (paid from cash or bank),
 /// see today's / this month's totals and the latest 50 expenses. All roles
@@ -32,6 +36,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   ExpenseTotals _totals = const ExpenseTotals(0, 0);
   List<Expense> _recent = const [];
+  List<ShopRentSummary> _rents = const []; // Shop Rents banner (sirf Admin/Manager)
 
   bool get _isMisc => _category == ExpenseCategories.miscellaneous;
 
@@ -52,11 +57,66 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   Future<void> _reload() async {
     final totals = await ExpenseRepository.instance.totals();
     final recent = await ExpenseRepository.instance.recent();
+    var rents = const <ShopRentSummary>[];
+    if (Session.isAdminOrManager) {
+      try {
+        await ShopRentRepository.instance.ensureCharges();
+        rents = await ShopRentRepository.instance.summaries(includeInactive: false);
+      } catch (_) {} // rent ki ghalti expense screen ko na roke
+    }
     if (!mounted) return;
     setState(() {
       _totals = totals;
       _recent = recent;
+      _rents = rents;
     });
+  }
+
+  Future<void> _openShopRents() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => const RoleGuard(allowed: {'admin', 'manager'}, child: ShopRentScreen()),
+    ));
+    await _reload(); // wahan se rent diya ho to totals / list badal chuki hogi
+  }
+
+  /// Shop Rents ka chhota card: kitni dukaneen, kitna baqi, kitni der (overdue) — tap par poori screen.
+  Widget _rentBanner(AppPalette p) {
+    final due = _rents.fold<double>(0, (a, s) => a + s.outstanding);
+    final overdue = _rents.where((s) => s.overdue).length;
+    final adv = _rents.fold<double>(0, (a, s) => a + s.advanceBalance);
+    final color = overdue > 0 ? p.red : (due > 0 ? p.amber : p.teal);
+    final line = _rents.isEmpty
+        ? Loc.t('Add your rented shops, pay monthly rent and track advance', 'کرائے کی دکانیں شامل کریں، ماہانہ کرایہ اور ایڈوانس سنبھالیں')
+        : '${_rents.length} ${Loc.t('shops', 'دکانیں')}  \u2022  ${Loc.t('Due', 'باقی')} Rs ${due.round()}'
+            '${overdue > 0 ? '  \u2022  $overdue ${Loc.t('overdue', 'تاخیر')}' : ''}'
+            '${adv > 0 ? '  \u2022  ${Loc.t('Advance', 'ایڈوانس')} Rs ${adv.round()}' : ''}';
+    return InkWell(
+      onTap: _openShopRents,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: _cardDeco(p, 18),
+        child: Row(children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: color.withOpacity(0.14), shape: BoxShape.circle),
+            child: Icon(Icons.storefront_outlined, size: 20, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(Loc.t('Shop Rents', 'دکانوں کا کرایہ'),
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: p.textDark)),
+              const SizedBox(height: 2),
+              Text(line, style: TextStyle(fontSize: 12, color: p.textMuted)),
+            ]),
+          ),
+          Icon(Icons.chevron_right, color: p.textMuted),
+        ]),
+      ),
+    );
   }
 
   void _toast(String msg) => ScaffoldMessenger.of(context)
@@ -130,6 +190,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
               children: [
+                if (Session.isAdminOrManager) _rentBanner(p),
                 Row(children: [
                   _totalCard(p, Icons.trending_down, Loc.t("Today's Expense", 'آج کا خرچہ'), _totals.today),
                   const SizedBox(width: 12),

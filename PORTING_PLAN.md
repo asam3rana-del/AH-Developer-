@@ -74,3 +74,6 @@ Sale edit/delete sirf admin; History mein profit sirf admin; naye sale mein due 
    Har din ka rent ek aam sale bill hai (`RENT-yyyyMMdd-<customerId>`, items nahi) — `lib/db/rent_repository.dart`;
    setting `customer_rent` table (DB v20, sirf local). Chhutti = us din ka rent bill 'returned' (Daily Bills screen menu).
    Rent sirf EK device par set karein (bills dusre device par sync ho jate hain). Test: `test/rent_test.dart`.
+8. **Shop Rents (2026-10-21):** kiraye ki dukaneen (alag malik, mahana rent, advance, advance se katna, saal baad rent badalna) —
+   `lib/db/shop_rent_repository.dart`, `lib/screens/shop_rent_screen.dart`, DB v25 (sirf local tables; payments Expense/Cash se sync).
+   Expense screen ke upar card se khulta hai. Test: `test/shop_rent_test.dart`. Kotlin `.kt` files ab repo mein nahi (sirf `kotlin_reference/config/`).

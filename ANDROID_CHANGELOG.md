@@ -1,5 +1,21 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-10-21) — Shop Rents (kiraye ki dukaneen) + Kotlin files hata di gayin
+- [x] Repo cleanup: saari `.kt` files (kotlin_reference/main, test, androidTest aur root `androidTest/`) hata di gayin; `kotlin_reference/config/` rakhi gayi.
+- [x] **Shop Rents** (Expense screen ke upar card se khulti hai, Admin/Manager): `lib/screens/shop_rent_screen.dart`, `lib/db/shop_rent_repository.dart`, DB v25 (`shop_rents`, `shop_rent_terms`, `shop_rent_ledger`).
+  - Har dukaan: naam, malik, phone, mahana rent, kis tareekh ko dena hai, kis mahine se shuru, pehle se diya hua advance.
+  - Har mahine ka rent khud "due" ban jata hai (`ensureCharges`, screen kholne par). Ek dukaan + ek mahina = ek charge.
+  - **Pay Rent**: sab se purane baqi mahine se bharta hai; cash/bank; Expense (category Rent) + Cash OUT ek transaction mein (yani sync/Day Book/Reports/Balance Sheet mein khud). Zyada diya to baqi advance ban jata hai.
+  - **Give Advance**: Cash OUT hai, Expense NAHI (profit nahi ghatta). Rent mein kat-ne par hi Expense banta hai.
+  - **Advance se katna**: naya rent khud katta hai (har dukaan par on/off) ya "Deduct from Advance" button; cash mein barabar IN + OUT likhi jati hai taake Cash/Bank balance na badle.
+  - **Saal baad rent badalna**: "Change Rent" (% izafa ya seedha naya rent, is mahine / agle mahine se); purane mahine nahi badalte. 12 mahine baad card par yaad dahani.
+  - History (galat entry hatao — Expense + Cash bhi hat-ti hain), Rent maaf (ek mahina), Dukaan band/dobara shuru/hatao, malik ko call, mahine ki report (rent / ada / baqi).
+  - Test: `test/shop_rent_test.dart` (maths + asal DB).
+- Note: dukaan / terms / ledger sirf is device par hain (Daily Rent jaisa); rent ki Expense/Cash rows dusre device par sync ho jati hain. Rent ek hi device par set karein.
+- [ ] Ye sab bina `flutter analyze` / `flutter test` ke likha gaya (is environment mein Flutter SDK nahi) — PC / CI par `flutter pub get && flutter analyze && flutter test` chalayein.
+
+- Note (merge): Workers feature (DB v23/v24) jaisa tha waisa rakha; Shop Rents uske upar DB v25 ke taur par lagi. Root par `db/`, `screens/`, `sync/`, `firestore.*` ki copies lib/ jaisi hi hain (analysis se bahar) — chahein to hata dein.
+
 ## Flutter side (2026-10-02) — Sale screen Kotlin jaisi + print adhura hona
 - [x] Sale: header mein Quick Sale / History white pills + gol ⋮ menu (Print, Share, Return, Delete); Hold / Recall full-width do card; date chip (dd/MM/yyyy ›); Firm card; Customer card (CUSTOMER label, hara +); Sale Type dropdown card (Retail/Wholesale) — screenshot jaisa.
 - [x] Print adhura: aakhri feed/cut ke foran baad Bluetooth socket band ho jata tha (bill ka neeche ka hissa kat jata). Ab connect ke baad 500ms settle, band karne se pehle 1500ms drain (BT/USB/Network), write fail par ruk jana, connect ek baar retry.

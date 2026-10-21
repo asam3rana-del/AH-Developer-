@@ -122,20 +122,25 @@ class ExpenseRepository {
     final id = e.id;
     if (id == null) return;
     final db = await AppDatabase.instance.database;
-    await db.transaction((txn) async {
-      // Entity id (serverId-preferred) row delete se PEHLE — doosre device se aayi row ki asal id na khoye.
-      final eid = await SyncQueueHelper.entityIdFor(txn, 'expense', '$id');
-      await txn.delete('expenses', where: 'id = ?', whereArgs: [id]);
-      await SyncQueueHelper.enqueueDelete(txn, 'expense', eid);
+    await db.transaction((txn) => deleteInTxn(txn, e));
+  }
 
-      await SyncQueueHelper.deleteCashTransactionsByReference(txn, expenseCashReference(id, serverId: e.serverId));
-      // Purani rows (is fix se pehle) `expense:<localId>` use karti thin — yeh format sirf usi expense ke liye
-      // mehfooz hai jo isi device par bana (Kotlin `madeHere`).
-      final madeHere = e.serverId == null || e.serverId!.startsWith('expense:${DeviceTag.current}-');
-      if (madeHere) {
-        await SyncQueueHelper.deleteCashTransactionsByReference(txn, legacyExpenseCashReference(id));
-      }
-    });
+  /// [delete] ka kaam kisi aur transaction ke andar (jaise Shop Rent ki entry hatana).
+  static Future<void> deleteInTxn(Transaction txn, Expense e) async {
+    final id = e.id;
+    if (id == null) return;
+    // Entity id (serverId-preferred) row delete se PEHLE — doosre device se aayi row ki asal id na khoye.
+    final eid = await SyncQueueHelper.entityIdFor(txn, 'expense', '$id');
+    await txn.delete('expenses', where: 'id = ?', whereArgs: [id]);
+    await SyncQueueHelper.enqueueDelete(txn, 'expense', eid);
+
+    await SyncQueueHelper.deleteCashTransactionsByReference(txn, expenseCashReference(id, serverId: e.serverId));
+    // Purani rows (is fix se pehle) `expense:<localId>` use karti thin — yeh format sirf usi expense ke liye
+    // mehfooz hai jo isi device par bana (Kotlin `madeHere`).
+    final madeHere = e.serverId == null || e.serverId!.startsWith('expense:${DeviceTag.current}-');
+    if (madeHere) {
+      await SyncQueueHelper.deleteCashTransactionsByReference(txn, legacyExpenseCashReference(id));
+    }
   }
 
   /// Today's and this month's expense totals (Kotlin loadTotals). Upper bound is

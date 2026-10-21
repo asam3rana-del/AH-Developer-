@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 24;
+  static const _dbVersion = 25;
 
   Database? _db;
 
@@ -330,7 +330,7 @@ class AppDatabase {
       )
     ''');
 
-    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql]) {
+    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql, ..._shopRentTablesSql]) {
       batch.execute(sql);
     }
 
@@ -476,6 +476,12 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'worker_salary_payments', 'expenseServerId', 'TEXT');
       await _addColumnIfMissing(db, 'worker_salary_payments', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 25) {
+      // v25: Shop Rents — kiraye ki dukaneen, mahana rent, advance (sirf local; payments Expense/Cash se sync).
+      for (final sql in _shopRentTablesSql) {
+        await db.execute(sql);
+      }
+    }
   }
 
   /// Workers: profile, roz ki hazri, advance, aur mahine ki salary ka record. Sab sync hote hain
@@ -532,6 +538,50 @@ class AppDatabase {
         UNIQUE (workerId, month)
       )
     ''',
+  ];
+
+  /// Shop Rents (v25): jo dukaneen hum kiraye par lete hain — har dukaan, uska mahana rent (saal baad
+  /// badalne ke liye terms), aur ledger (charge / payment / advance / applied). Sirf is device ka setting;
+  /// asal paisa Expense + Cash rows se jata hai jo pehle hi sync hoti hain.
+  static const _shopRentTablesSql = <String>[
+    '''
+      CREATE TABLE IF NOT EXISTS shop_rents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shopName TEXT NOT NULL,
+        landlord TEXT NOT NULL DEFAULT '',
+        phone TEXT NOT NULL DEFAULT '',
+        dueDay INTEGER NOT NULL DEFAULT 1,
+        startYm TEXT NOT NULL,
+        autoApply INTEGER NOT NULL DEFAULT 1,
+        active INTEGER NOT NULL DEFAULT 1,
+        note TEXT NOT NULL DEFAULT '',
+        createdAt INTEGER NOT NULL
+      )
+    ''',
+    '''
+      CREATE TABLE IF NOT EXISTS shop_rent_terms (
+        shopId INTEGER NOT NULL,
+        fromYm TEXT NOT NULL,
+        monthlyRent REAL NOT NULL,
+        PRIMARY KEY (shopId, fromYm)
+      )
+    ''',
+    '''
+      CREATE TABLE IF NOT EXISTS shop_rent_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shopId INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        ym TEXT NOT NULL DEFAULT '',
+        amount REAL NOT NULL,
+        method TEXT NOT NULL DEFAULT 'cash',
+        note TEXT NOT NULL DEFAULT '',
+        expenseId INTEGER,
+        cashId INTEGER,
+        createdAt INTEGER NOT NULL
+      )
+    ''',
+    'CREATE INDEX IF NOT EXISTS index_shop_rent_ledger_shop ON shop_rent_ledger (shopId, kind, ym)',
+    "CREATE UNIQUE INDEX IF NOT EXISTS index_shop_rent_charge ON shop_rent_ledger (shopId, ym) WHERE kind = 'charge'",
   ];
 
   /// Daily Rent setting: customer ka roz ka rent aur kis din se. Customers table se alag rakha
