@@ -38,6 +38,8 @@ class PullResult {
   final List<SyncDoc> workerAttendance;
   final List<SyncDoc> workerAdvances;
   final List<SyncDoc> workerSalaryPayments;
+  final List<SyncDoc> shopRents;
+  final List<SyncDoc> shopRentEntries;
 
   /// Agli pull ka checkpoint (ms).
   final int serverTime;
@@ -67,6 +69,8 @@ class PullResult {
     this.workerAttendance = const [],
     this.workerAdvances = const [],
     this.workerSalaryPayments = const [],
+    this.shopRents = const [],
+    this.shopRentEntries = const [],
     int? serverTime,
   }) : serverTime = serverTime ?? DateTime.now().millisecondsSinceEpoch;
 }

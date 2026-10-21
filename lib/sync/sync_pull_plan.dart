@@ -17,7 +17,7 @@ const int stockPullOverlapMs = 60 * 60 * 1000;
 /// Un collections ke naam jin par [stockPullOverlapMs] lagta hai.
 const Set<String> stockPullCollections = {'products', 'customers', 'suppliers'};
 
-/// Kotlin `pull()` ki tarteeb mein 20 collections + Flutter ki 4 Workers collections (Firestore naam).
+/// Kotlin `pull()` ki tarteeb mein 20 collections + Flutter ki 4 Workers + 2 Shop Rents collections (Firestore naam).
 const List<String> pullCollections = [
   'customers',
   'suppliers',
@@ -43,6 +43,8 @@ const List<String> pullCollections = [
   'worker_attendance',
   'worker_advances',
   'worker_salary_payments',
+  'shop_rents',
+  'shop_rent_ledger',
 ];
 
 /// Har collection ke documents (`byCollection[collectionName]`) se `PullResult` banao.
@@ -85,6 +87,8 @@ PullResult assemblePullResult(Map<String, List<SyncDoc>> byCollection, int since
     workerAttendance: of('worker_attendance'),
     workerAdvances: of('worker_advances'),
     workerSalaryPayments: of('worker_salary_payments'),
+    shopRents: of('shop_rents'),
+    shopRentEntries: of('shop_rent_ledger'),
     serverTime: maxUpdatedAt,
   );
 }
@@ -113,6 +117,8 @@ const List<String> branchScopedCollections = [
   'worker_attendance',
   'worker_advances',
   'worker_salary_payments',
+  'shop_rents',
+  'shop_rent_ledger',
 ];
 
 /// Firestore batch delete ka hissa (limit 500 se neeche) — Kotlin `.limit(400)`.

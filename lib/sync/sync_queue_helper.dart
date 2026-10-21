@@ -79,6 +79,15 @@ class SyncQueueHelper {
   /// Hazri ki chabi (worker + din) khud hi pehchan hai, is liye har device par ek jaisi id banti hai.
   static String workerAttendanceEntityId(String workerSid, String day) => 'worker_attendance:$workerSid|$day';
 
+  static String shopRentEntityId(Map<String, Object?> r) => _own('shop_rent:', r);
+
+  /// Mahine ka rent charge (dukaan + mahina) khud hi pehchan hai: do device ek hi mahine ka charge banayen to
+  /// cloud par ek hi doc bane (do charge nahi). Baqi ledger entries (payment/advance/applied) `_own` id lete hain.
+  static String shopRentChargeEntityId(String shopSid, String ym) => 'shop_rent_charge:$shopSid|$ym';
+
+  static String shopRentEntryEntityId(Map<String, Object?> r, String shopSid) =>
+      _s(r['kind']) == 'charge' ? shopRentChargeEntityId(shopSid, _s(r['ym'])) : _own('shop_rent_entry:', r);
+
   // -------------------------------------------------------------- plumbing
 
   /// Test/main() inject karte hain; `now` aur `branch` payload stamp ke liye.
@@ -293,6 +302,39 @@ class SyncQueueHelper {
         'method': p['method'],
         'expenseServerId': p['expenseServerId'],
         'createdAt': p['createdAt'],
+        '_deleted': false,
+      });
+
+  /// Dukaan + uske rent terms (`{fromYm: monthlyRent}`) ek hi doc mein — terms ki apni id/alag collection nahi.
+  static Map<String, Object?> shopRentPayload(Map<String, Object?> s, Map<String, double> terms) => _stamp({
+        'serverId': shopRentEntityId(s),
+        'shopName': s['shopName'],
+        'landlord': s['landlord'],
+        'phone': s['phone'],
+        'dueDay': s['dueDay'],
+        'startYm': s['startYm'],
+        'autoApply': s['autoApply'],
+        'active': s['active'],
+        'note': s['note'],
+        'createdAt': s['createdAt'],
+        'terms': terms,
+        '_deleted': false,
+      });
+
+  /// Ledger entry: dukaan, expense aur cash local ids ki jagah serverId se judte hain (doosre device ke liye).
+  static Map<String, Object?> shopRentEntryPayload(
+          Map<String, Object?> l, String shopServerId, String? expenseServerId, String? cashServerId) =>
+      _stamp({
+        'serverId': shopRentEntryEntityId(l, shopServerId),
+        'shopServerId': shopServerId,
+        'kind': l['kind'],
+        'ym': l['ym'],
+        'amount': l['amount'],
+        'method': l['method'],
+        'note': l['note'],
+        'expenseServerId': expenseServerId,
+        'cashServerId': cashServerId,
+        'createdAt': l['createdAt'],
         '_deleted': false,
       });
 
@@ -702,6 +744,65 @@ class SyncQueueHelper {
     await enqueue(ex, 'worker_salary_payment', eid, 'upsert', workerSalaryPaymentPayload(p, wsid));
   }
 
+  static Future<Map<String, double>> _shopRentTerms(DatabaseExecutor ex, Object shopId) async {
+    final rows = await ex.query('shop_rent_terms', where: 'shopId = ?', whereArgs: [shopId]);
+    return {for (final r in rows) r['fromYm'] as String: (r['monthlyRent'] as num).toDouble()};
+  }
+
+  /// Dukaan + uske terms. Terms badlen (rent badla) to bhi yahi dobara chalayen.
+  static Future<void> enqueueShopRent(DatabaseExecutor ex, int id) async {
+    final s = await _row(ex, 'shop_rents', 'id', id);
+    if (s == null) return;
+    final eid = shopRentEntityId(s);
+    await _stampServerId(ex, 'shop_rents', s, eid);
+    await enqueue(ex, 'shop_rent', eid, 'upsert', shopRentPayload(s, await _shopRentTerms(ex, id)));
+  }
+
+  /// Ledger ki ek entry (charge / payment / advance / applied). Dukaan na mile to kuch nahi.
+  static Future<void> enqueueShopRentEntry(DatabaseExecutor ex, int id) async {
+    final l = await _row(ex, 'shop_rent_ledger', 'id', id);
+    if (l == null) return;
+    final shop = await _row(ex, 'shop_rents', 'id', l['shopId'] as Object);
+    if (shop == null) return;
+    final shopSid = shopRentEntityId(shop);
+    final eid = shopRentEntryEntityId(l, shopSid);
+    await _stampServerId(ex, 'shop_rent_ledger', l, eid);
+    String? expenseSid = l['expenseServerId'] is String ? l['expenseServerId'] as String : null;
+    final expenseId = l['expenseId'];
+    if (expenseId is int) {
+      final e = await _row(ex, 'expenses', 'id', expenseId);
+      if (e != null) expenseSid = expenseEntityId(e);
+    }
+    String? cashSid = l['cashServerId'] is String ? l['cashServerId'] as String : null;
+    final cashId = l['cashId'];
+    if (cashId is int) {
+      final c = await _row(ex, 'cash_transactions', 'id', cashId);
+      if (c != null) cashSid = cashTransactionEntityId(c);
+    }
+    await enqueue(ex, 'shop_rent_entry', eid, 'upsert', shopRentEntryPayload(l, shopSid, expenseSid, cashSid));
+  }
+
+  /// Ledger entry ki sahi entity id (charge ki mahine wali id samet) — row delete hone se PEHLE nikalen.
+  /// Dukaan/entry na mile to null.
+  static Future<String?> shopRentEntryEntityIdFor(DatabaseExecutor ex, int ledgerId) async {
+    final l = await _row(ex, 'shop_rent_ledger', 'id', ledgerId);
+    if (l == null) return null;
+    final shop = await _row(ex, 'shop_rents', 'id', l['shopId'] as Object);
+    if (shop == null) return null;
+    return shopRentEntryEntityId(l, shopRentEntityId(shop));
+  }
+
+  /// Saari dukaneen + ledger queue mein (Resync / pehli baar). [onlyUnsynced] = sirf jin par abhi serverId nahi
+  /// (yani is device ki wo rows jo kabhi push nahi hui) — doosre device se aayi rows dobara push nahi hoti.
+  static Future<void> enqueueAllShopRents(DatabaseExecutor ex, {bool onlyUnsynced = false}) async {
+    for (final s in await ex.query('shop_rents', where: onlyUnsynced ? "serverId IS NULL OR serverId = ''" : null)) {
+      await enqueueShopRent(ex, s['id'] as int);
+    }
+    for (final l in await ex.query('shop_rent_ledger', where: onlyUnsynced ? "serverId IS NULL OR serverId = ''" : null)) {
+      await enqueueShopRentEntry(ex, l['id'] as int);
+    }
+  }
+
   /// Kisi bhi entity ka delete (tombstone). Row delete hone se PEHLE uski entity id nikal len
   /// ([entityIdFor]) warna doosre device se aayi row ki asal serverId kho jati hai.
   static Future<void> enqueueDelete(DatabaseExecutor ex, String entityType, String entityId) =>
@@ -920,6 +1021,8 @@ class SyncQueueHelper {
           await enqueueWorkerSalaryPayment(txn, p['id'] as int);
         }
       }
+      // Shop Rents: dukaan (terms samet) pehle, phir uski ledger.
+      await enqueueAllShopRents(txn);
     });
   }
 
@@ -1018,6 +1121,12 @@ class SyncQueueHelper {
       case 'worker_salary_payment':
         final n = await _localId(ex, 'worker_salary_payments', id, 'worker_salary_payment');
         if (n != null) await enqueueWorkerSalaryPayment(ex, n);
+      case 'shop_rent':
+        final n = await _localId(ex, 'shop_rents', id, 'shop_rent');
+        if (n != null) await enqueueShopRent(ex, n);
+      case 'shop_rent_entry':
+        final n = await _localId(ex, 'shop_rent_ledger', id, 'shop_rent_entry');
+        if (n != null) await enqueueShopRentEntry(ex, n);
       case 'app_setting':
         final v = await _row(ex, 'app_settings', 'key', id);
         if (v != null) await enqueueAppSetting(ex, id, _s(v['value']));
@@ -1083,5 +1192,7 @@ class SyncQueueHelper {
     'worker': 'workers',
     'worker_advance': 'worker_advances',
     'worker_salary_payment': 'worker_salary_payments',
+    'shop_rent': 'shop_rents',
+    'shop_rent_entry': 'shop_rent_ledger',
   };
 }

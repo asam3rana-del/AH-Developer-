@@ -73,7 +73,14 @@ Sale edit/delete sirf admin; History mein profit sirf admin; naye sale mein due 
 7. **Daily Rent (2026-10-12):** customer se roz ka fixed rent (jaise Rs 150) Daily Bill + balance mein khud judta hai.
    Har din ka rent ek aam sale bill hai (`RENT-yyyyMMdd-<customerId>`, items nahi) — `lib/db/rent_repository.dart`;
    setting `customer_rent` table (DB v20, sirf local). Chhutti = us din ka rent bill 'returned' (Daily Bills screen menu).
-   Rent sirf EK device par set karein (bills dusre device par sync ho jate hain). Test: `test/rent_test.dart`.
+   Rent bills dusre devices par sync ho jate hain, magar rent ki SETTING (`customer_rent`) abhi sirf local hai — isliye rent
+   sirf EK device par set karein (har device par bill banne se balance double ho jata). Test: `test/rent_test.dart`.
 8. **Shop Rents (2026-10-21):** kiraye ki dukaneen (alag malik, mahana rent, advance, advance se katna, saal baad rent badalna) —
-   `lib/db/shop_rent_repository.dart`, `lib/screens/shop_rent_screen.dart`, DB v25 (sirf local tables; payments Expense/Cash se sync).
-   Expense screen ke upar card se khulta hai. Test: `test/shop_rent_test.dart`. Kotlin `.kt` files ab repo mein nahi (sirf `kotlin_reference/config/`).
+   `lib/db/shop_rent_repository.dart`, `lib/screens/shop_rent_screen.dart`, DB v25. Expense screen ke upar card se khulta hai.
+   Test: `test/shop_rent_test.dart`.
+   **Sync (2026-10-21, DB v26):** dukaan (terms samet) aur ledger sab devices par sync — collections `shop_rents` (`shop_rent`) aur
+   `shop_rent_ledger` (`shop_rent_entry`); ledger Expense/Cash se `expenseServerId`/`cashServerId` se judti hai.
+   Mahine ka charge har device par ek jaisi id (`shop_rent_charge:<dukaan>|<mahina>`) leta hai. Purani (sync se pehle ki) dukaneen
+   pehli `ensureCharges` par ek baar khud push hoti hain. Firestore rules + indexes (root aur `firebase/`) dobara deploy karein.
+   Agar do device ek hi mahine ka "advance se katna" alag alag chala dein to doosra apply nahi hota (Sync History mein conflict;
+   Rent Expense double ho sakta hai — check karein). Test: `test/shop_rent_sync_test.dart`. Kotlin `.kt` files ab repo mein nahi (sirf `kotlin_reference/config/`).

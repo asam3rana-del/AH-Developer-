@@ -150,7 +150,9 @@ class SyncRepository {
       workersReceived: changes.workers.length +
           changes.workerAttendance.length +
           changes.workerAdvances.length +
-          changes.workerSalaryPayments.length,
+          changes.workerSalaryPayments.length +
+          changes.shopRents.length +
+          changes.shopRentEntries.length,
     );
   }
 

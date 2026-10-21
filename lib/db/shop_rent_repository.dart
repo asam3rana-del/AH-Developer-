@@ -16,8 +16,10 @@ import 'expense_repository.dart';
 ///  * Advance ([giveAdvance]): landlord ke paas hamara jama paisa — Cash OUT hai, Expense NAHI (profit nahi ghatta).
 ///  * Advance se rent katna ([applyAdvance]): us mahine ka Expense (Rent) ban jata hai; cash mein ek barabar IN aur
 ///    OUT likha jata hai taake Cash/Bank ka balance na badle (paisa pehle hi advance ke waqt nikal chuka tha).
-///  * Rent ka asal Expense / Cash rows pehle se sync hoti hain; ye screen ka apna hisaab (shops, terms, ledger)
-///    sirf is device par hai — isliye rent ek hi device par set karein.
+///  * Sync: dukaan (terms samet) aur ledger sab devices par sync hote hain (`shop_rent` / `shop_rent_entry`);
+///    Expense / Cash rows pehle se sync hoti hain aur ledger unse `expenseServerId` / `cashServerId` se judti hai.
+///    Mahine ka charge har device par ek jaisi id (`shop_rent_charge:<dukaan>|<mahina>`) leta hai, is liye do device
+///    ek hi mahine ka charge banayen to ek hi rehta hai.
 ///
 /// Maths PURE functions mein hai (bina DB ke test: test/shop_rent_test.dart).
 
@@ -434,10 +436,12 @@ class ShopRentRepository {
         'active': 1,
         'note': note.trim(),
         'createdAt': n.millisecondsSinceEpoch,
+        'updatedAt': n.millisecondsSinceEpoch,
       });
       await txn.insert('shop_rent_terms', {'shopId': id, 'fromYm': startYm, 'monthlyRent': monthlyRent});
+      await SyncQueueHelper.enqueueShopRent(txn, id);
       if (openingAdvance > _eps) {
-        await txn.insert('shop_rent_ledger', {
+        final advId = await txn.insert('shop_rent_ledger', {
           'shopId': id,
           'kind': 'advance',
           'ym': '',
@@ -445,7 +449,9 @@ class ShopRentRepository {
           'method': 'cash',
           'note': 'Opening advance',
           'createdAt': n.millisecondsSinceEpoch,
+          'updatedAt': n.millisecondsSinceEpoch,
         });
+        await SyncQueueHelper.enqueueShopRentEntry(txn, advId);
       }
     });
     await ensureCharges(now: n);
@@ -465,26 +471,34 @@ class ShopRentRepository {
     if (shopName.trim().isEmpty) throw ArgumentError('Dukaan ka naam likhein');
     if (dueDay < 1 || dueDay > 31) throw ArgumentError('Tareekh 1 se 31 ke beech ho');
     final db = await AppDatabase.instance.database;
-    await db.update(
-      'shop_rents',
-      {
-        'shopName': shopName.trim(),
-        'landlord': landlord.trim(),
-        'phone': phone.trim(),
-        'dueDay': dueDay,
-        'autoApply': autoApply ? 1 : 0,
-        'note': note.trim(),
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.transaction((txn) async {
+      await txn.update(
+        'shop_rents',
+        {
+          'shopName': shopName.trim(),
+          'landlord': landlord.trim(),
+          'phone': phone.trim(),
+          'dueDay': dueDay,
+          'autoApply': autoApply ? 1 : 0,
+          'note': note.trim(),
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      await SyncQueueHelper.enqueueShopRent(txn, id);
+    });
   }
 
   /// Dukaan chhor di / dobara shuru: band dukaan ka naya rent nahi banta; purana hisaab rehta hai.
   Future<void> setActive(int id, bool active) async {
     _requireStaff();
     final db = await AppDatabase.instance.database;
-    await db.update('shop_rents', {'active': active ? 1 : 0}, where: 'id = ?', whereArgs: [id]);
+    await db.transaction((txn) async {
+      await txn.update('shop_rents', {'active': active ? 1 : 0, 'updatedAt': DateTime.now().millisecondsSinceEpoch},
+          where: 'id = ?', whereArgs: [id]);
+      await SyncQueueHelper.enqueueShopRent(txn, id);
+    });
   }
 
   /// Dukaan hamesha ke liye hatao — sirf tab jab koi payment / advance nahi (sirf rent charges hon).
@@ -497,9 +511,21 @@ class ShopRentRepository {
       if (((used.first['n'] as num?) ?? 0) > 0) {
         throw StateError('Is dukaan ka hisaab (payment/advance) maujood hai — hatane ke bajaye "Band karein" istemal karein');
       }
+      // Entity ids row delete se PEHLE (doosre device ki asal serverId na khoye).
+      final shopRow = await txn.query('shop_rents', where: 'id = ?', whereArgs: [id], limit: 1);
+      final shopEid = shopRow.isEmpty ? null : SyncQueueHelper.shopRentEntityId(shopRow.first);
+      final entryEids = <String>[];
+      for (final l in await txn.query('shop_rent_ledger', columns: ['id'], where: 'shopId = ?', whereArgs: [id])) {
+        final eid = await SyncQueueHelper.shopRentEntryEntityIdFor(txn, (l['id'] as num).toInt());
+        if (eid != null) entryEids.add(eid);
+      }
       await txn.delete('shop_rent_ledger', where: 'shopId = ?', whereArgs: [id]);
       await txn.delete('shop_rent_terms', where: 'shopId = ?', whereArgs: [id]);
       await txn.delete('shop_rents', where: 'id = ?', whereArgs: [id]);
+      for (final eid in entryEids) {
+        await SyncQueueHelper.enqueueDelete(txn, 'shop_rent_entry', eid);
+      }
+      if (shopEid != null) await SyncQueueHelper.enqueueDelete(txn, 'shop_rent', shopEid);
     });
   }
 
@@ -521,8 +547,13 @@ class ShopRentRepository {
             "SELECT COUNT(*) AS n FROM shop_rent_ledger WHERE shopId = ? AND ym = ? AND kind IN ('payment','applied')",
             [shopId, ym]);
         if (((used.first['n'] as num?) ?? 0) > 0) continue;
-        await txn.update('shop_rent_ledger', {'amount': rentForMonth(terms, ym)}, where: 'id = ?', whereArgs: [c['id']]);
+        await txn.update(
+            'shop_rent_ledger', {'amount': rentForMonth(terms, ym), 'updatedAt': DateTime.now().millisecondsSinceEpoch},
+            where: 'id = ?', whereArgs: [c['id']]);
+        await SyncQueueHelper.enqueueShopRentEntry(txn, (c['id'] as num).toInt());
       }
+      await txn.update('shop_rents', {'updatedAt': DateTime.now().millisecondsSinceEpoch}, where: 'id = ?', whereArgs: [shopId]);
+      await SyncQueueHelper.enqueueShopRent(txn, shopId);
     });
   }
 
@@ -537,8 +568,12 @@ class ShopRentRepository {
       if (((used.first['n'] as num?) ?? 0) > 0) {
         throw StateError('Is mahine mein payment ho chuki hai — pehle wo entry hatayen');
       }
-      await txn.update('shop_rent_ledger', {'amount': 0.0},
+      await txn.update('shop_rent_ledger', {'amount': 0.0, 'updatedAt': DateTime.now().millisecondsSinceEpoch},
           where: "shopId = ? AND kind = 'charge' AND ym = ?", whereArgs: [shopId, ym]);
+      for (final c in await txn.query('shop_rent_ledger',
+          columns: ['id'], where: "shopId = ? AND kind = 'charge' AND ym = ?", whereArgs: [shopId, ym])) {
+        await SyncQueueHelper.enqueueShopRentEntry(txn, (c['id'] as num).toInt());
+      }
     });
   }
 
@@ -554,6 +589,7 @@ class ShopRentRepository {
     final shops = await db.query('shop_rents', where: 'active = 1');
     var created = 0;
     await db.transaction((txn) async {
+      await _backfillSync(txn);
       await _cleanOrphans(txn);
       for (final row in shops) {
         final shop = ShopRent.fromMap(row);
@@ -569,7 +605,7 @@ class ShopRentRepository {
           if (have.contains(ym)) continue;
           final rent = rentForMonth(terms, ym);
           if (rent <= 0) continue;
-          await txn.insert('shop_rent_ledger', {
+          final chargeId = await txn.insert('shop_rent_ledger', {
             'shopId': shop.id,
             'kind': 'charge',
             'ym': ym,
@@ -577,7 +613,10 @@ class ShopRentRepository {
             'method': 'cash',
             'note': '',
             'createdAt': dueDateFor(ym, 1).millisecondsSinceEpoch,
+            'serverId': SyncQueueHelper.shopRentChargeEntityId(SyncQueueHelper.shopRentEntityId(row), ym),
+            'updatedAt': n.millisecondsSinceEpoch,
           });
+          await SyncQueueHelper.enqueueShopRentEntry(txn, chargeId);
           made++;
         }
         created += made;
@@ -591,19 +630,36 @@ class ShopRentRepository {
 
   /// Jin ledger entries ka Expense / Cash row kisi aur screen se hat gaya ho unhein (aur advance-adjust ki cash IN row)
   /// saaf karo, taake hisaab aur cash mein farq na rahe.
+  ///
+  /// Doosre device se aayi entry jis ka Expense/Cash abhi pull nahi hua (`expenseId` khali magar `expenseServerId`
+  /// maujood) orphan NAHI hai — wo pull par khud link ho jati hai ([applyShopRentEntries]).
   Future<void> _cleanOrphans(DatabaseExecutor ex) async {
     final rows = await ex.rawQuery(
       'SELECT l.* FROM shop_rent_ledger l '
       'LEFT JOIN expenses e ON e.id = l.expenseId '
       'LEFT JOIN cash_transactions c ON c.id = l.cashId '
-      "WHERE (l.kind IN ('payment','applied') AND e.id IS NULL) "
+      "WHERE (l.kind IN ('payment','applied') AND e.id IS NULL AND (l.expenseId IS NOT NULL OR l.expenseServerId IS NULL)) "
       "   OR (l.kind = 'advance' AND l.cashId IS NOT NULL AND c.id IS NULL)",
     );
     for (final r in rows) {
       final e = RentLedgerEntry.fromMap(r);
       if (e.kind == 'applied' && e.cashId != null) await _deleteCashById(ex, e.cashId!);
+      final eid = await SyncQueueHelper.shopRentEntryEntityIdFor(ex, e.id);
       await ex.delete('shop_rent_ledger', where: 'id = ?', whereArgs: [e.id]);
+      if (eid != null) await SyncQueueHelper.enqueueDelete(ex, 'shop_rent_entry', eid);
     }
+  }
+
+  static const _syncBackfillKey = 'shop_rent_sync_backfilled';
+
+  /// Sync aane se pehle bani dukaneen/ledger (serverId nahi) EK baar queue mein daal do taake doosre devices
+  /// par bhi pahunchen. Flag local-only app setting hai (synced keys mein nahi). Doosre device se aayi rows
+  /// (serverId wali) dobara push nahi hoti.
+  Future<void> _backfillSync(DatabaseExecutor ex) async {
+    final done = await ex.query('app_settings', where: 'key = ?', whereArgs: [_syncBackfillKey], limit: 1);
+    if (done.isNotEmpty) return;
+    await SyncQueueHelper.enqueueAllShopRents(ex, onlyUnsynced: true);
+    await ex.insert('app_settings', {'key': _syncBackfillKey, 'value': '1'}, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   // ------------------------------------------------------------ money
@@ -654,7 +710,7 @@ class ShopRentRepository {
       now: now,
       onId: (id) => cashId = id,
     );
-    await txn.insert('shop_rent_ledger', {
+    final advId = await txn.insert('shop_rent_ledger', {
       'shopId': shop.id,
       'kind': 'advance',
       'ym': '',
@@ -663,7 +719,9 @@ class ShopRentRepository {
       'note': note.trim(),
       'cashId': cashId,
       'createdAt': now,
+      'updatedAt': now,
     });
+    await SyncQueueHelper.enqueueShopRentEntry(txn, advId);
   }
 
   /// Rent do: sab se purane baqi mahine se bharta hai. Baqi rent se zyada diya to extra advance ban jata hai.
@@ -693,7 +751,7 @@ class ShopRentRepository {
           method: method,
           now: t,
         );
-        await txn.insert('shop_rent_ledger', {
+        final payId = await txn.insert('shop_rent_ledger', {
           'shopId': shopId,
           'kind': 'payment',
           'ym': a.ym,
@@ -702,7 +760,9 @@ class ShopRentRepository {
           'note': note.trim(),
           'expenseId': expenseId,
           'createdAt': t,
+          'updatedAt': t,
         });
+        await SyncQueueHelper.enqueueShopRentEntry(txn, payId);
         toRent += a.amount;
       }
       if (plan.extra > _eps) {
@@ -769,7 +829,7 @@ class ShopRentRepository {
         method: method,
         now: t,
       );
-      await txn.insert('shop_rent_ledger', {
+      final appliedId = await txn.insert('shop_rent_ledger', {
         'shopId': shop.id,
         'kind': 'applied',
         'ym': a.ym,
@@ -779,7 +839,9 @@ class ShopRentRepository {
         'expenseId': expenseId,
         'cashId': inId,
         'createdAt': t,
+        'updatedAt': t,
       });
+      await SyncQueueHelper.enqueueShopRentEntry(txn, appliedId);
       total += a.amount;
     }
     return total;
@@ -793,13 +855,19 @@ class ShopRentRepository {
       final rows = await txn.query('shop_rent_ledger', where: 'id = ?', whereArgs: [ledgerId], limit: 1);
       if (rows.isEmpty) return;
       final e = RentLedgerEntry.fromMap(rows.first);
+      // Entity id row delete se PEHLE.
+      final entryEid = await SyncQueueHelper.shopRentEntryEntityIdFor(txn, ledgerId);
       switch (e.kind) {
         case 'payment':
         case 'applied':
-          if (e.expenseId != null) {
-            final ex = await txn.query('expenses', where: 'id = ?', whereArgs: [e.expenseId], limit: 1);
-            if (ex.isNotEmpty) await ExpenseRepository.deleteInTxn(txn, Expense.fromMap(ex.first));
-          }
+          // Doosre device se aayi entry ka Expense abhi link na hua ho to serverId se dhoondo.
+          final expSid = rows.first['expenseServerId'];
+          final ex = e.expenseId != null
+              ? await txn.query('expenses', where: 'id = ?', whereArgs: [e.expenseId], limit: 1)
+              : (expSid is String && expSid.isNotEmpty
+                  ? await txn.query('expenses', where: 'serverId = ?', whereArgs: [expSid], limit: 1)
+                  : const <Map<String, Object?>>[]);
+          if (ex.isNotEmpty) await ExpenseRepository.deleteInTxn(txn, Expense.fromMap(ex.first));
           if (e.kind == 'applied' && e.cashId != null) await _deleteCashById(txn, e.cashId!);
         case 'advance':
           final shop = await _shop(txn, e.shopId);
@@ -812,6 +880,7 @@ class ShopRentRepository {
           throw StateError('Ye entry hatai nahi ja sakti (rent maaf karne ke liye "Rent maaf" istemal karein)');
       }
       await txn.delete('shop_rent_ledger', where: 'id = ?', whereArgs: [ledgerId]);
+      if (entryEid != null) await SyncQueueHelper.enqueueDelete(txn, 'shop_rent_entry', entryEid);
     });
   }
 

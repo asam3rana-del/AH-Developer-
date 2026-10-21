@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 25;
+  static const _dbVersion = 26;
 
   Database? _db;
 
@@ -477,10 +477,19 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'worker_salary_payments', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
     }
     if (oldVersion < 25) {
-      // v25: Shop Rents — kiraye ki dukaneen, mahana rent, advance (sirf local; payments Expense/Cash se sync).
+      // v25: Shop Rents — kiraye ki dukaneen, mahana rent, advance.
       for (final sql in _shopRentTablesSql) {
         await db.execute(sql);
       }
+    }
+    if (oldVersion < 26) {
+      // v26: Shop Rents sync — serverId/updatedAt (v25 mein bane tables ke liye; naye tables mein pehle se hain).
+      await _addColumnIfMissing(db, 'shop_rents', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'shop_rents', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'shop_rent_ledger', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'shop_rent_ledger', 'expenseServerId', 'TEXT');
+      await _addColumnIfMissing(db, 'shop_rent_ledger', 'cashServerId', 'TEXT');
+      await _addColumnIfMissing(db, 'shop_rent_ledger', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
     }
   }
 
@@ -540,9 +549,10 @@ class AppDatabase {
     ''',
   ];
 
-  /// Shop Rents (v25): jo dukaneen hum kiraye par lete hain — har dukaan, uska mahana rent (saal baad
-  /// badalne ke liye terms), aur ledger (charge / payment / advance / applied). Sirf is device ka setting;
-  /// asal paisa Expense + Cash rows se jata hai jo pehle hi sync hoti hain.
+  /// Shop Rents (v25, sync v26): jo dukaneen hum kiraye par lete hain — har dukaan, uska mahana rent (saal baad
+  /// badalne ke liye terms), aur ledger (charge / payment / advance / applied). Dukaan (terms samet) aur ledger
+  /// sab devices par sync hote hain (`serverId` + `updatedAt`); asal paisa Expense + Cash rows se jata hai
+  /// jo pehle hi sync hoti hain (ledger unse `expenseServerId` / `cashServerId` se judta hai).
   static const _shopRentTablesSql = <String>[
     '''
       CREATE TABLE IF NOT EXISTS shop_rents (
@@ -555,7 +565,9 @@ class AppDatabase {
         autoApply INTEGER NOT NULL DEFAULT 1,
         active INTEGER NOT NULL DEFAULT 1,
         note TEXT NOT NULL DEFAULT '',
-        createdAt INTEGER NOT NULL
+        createdAt INTEGER NOT NULL,
+        serverId TEXT,
+        updatedAt INTEGER NOT NULL DEFAULT 0
       )
     ''',
     '''
@@ -577,7 +589,11 @@ class AppDatabase {
         note TEXT NOT NULL DEFAULT '',
         expenseId INTEGER,
         cashId INTEGER,
-        createdAt INTEGER NOT NULL
+        createdAt INTEGER NOT NULL,
+        serverId TEXT,
+        expenseServerId TEXT,
+        cashServerId TEXT,
+        updatedAt INTEGER NOT NULL DEFAULT 0
       )
     ''',
     'CREATE INDEX IF NOT EXISTS index_shop_rent_ledger_shop ON shop_rent_ledger (shopId, kind, ym)',

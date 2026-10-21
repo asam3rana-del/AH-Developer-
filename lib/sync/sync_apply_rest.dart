@@ -68,6 +68,9 @@ Future<void> applyRestOfServerChanges(
   await applyWorkerAttendance(db, c.workerAttendance, nowMs: nowMs);
   await applyWorkerAdvances(db, c.workerAdvances, nowMs: nowMs);
   await applyWorkerSalaryPayments(db, c.workerSalaryPayments, nowMs: nowMs);
+  // Shop Rents: dukaan pehle (ledger uski serverId se judti hai); expenses/cash upar apply ho chuke.
+  await applyShopRents(db, c.shopRents, nowMs: nowMs);
+  await applyShopRentEntries(db, c.shopRentEntries, nowMs: nowMs);
 }
 
 // -------------------------------------------------------------------- sales
@@ -826,4 +829,145 @@ Future<void> applyWorkerSalaryPayments(DatabaseExecutor db, List<SyncDoc> rows, 
       'updatedAt': _i(row['updatedAt']) ?? createdAt,
     });
   }
+}
+
+// --------------------------------------------------------------- shop rents
+
+final _shopRentYmPattern = RegExp(r'^\d{4}-\d{2}$');
+const _shopRentKinds = {'charge', 'payment', 'advance', 'applied'};
+
+/// Dukaan + terms. Is device ki anpushed tabdeeli purani server copy se overwrite nahi hoti; terms hamesha
+/// poore badal jate hain (server doc ke `terms` map jaise). Tombstone => dukaan, uske terms aur ledger hat jate hain.
+Future<void> applyShopRents(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    final serverId = _s(row['serverId']);
+    if (serverId == null) continue;
+    final local = await _findBy(db, 'shop_rents', 'serverId', serverId);
+    if (row['_deleted'] == true) {
+      if (local != null) {
+        if (await q.pendingCountForEntity('shop_rent', serverId) > 0) continue;
+        await db.delete('shop_rent_ledger', where: 'shopId = ?', whereArgs: [local['id']]);
+        await db.delete('shop_rent_terms', where: 'shopId = ?', whereArgs: [local['id']]);
+        await db.delete('shop_rents', where: 'id = ?', whereArgs: [local['id']]);
+      }
+      continue;
+    }
+    final shopName = _s(row['shopName']);
+    final startYm = _s(row['startYm']);
+    if (shopName == null || startYm == null || !_shopRentYmPattern.hasMatch(startYm)) continue;
+    if (await q.pendingCountForEntity('shop_rent', serverId) > 0) continue;
+    final createdAt = _i(row['createdAt']) ?? nowMs();
+    final due = _i(row['dueDay']) ?? 1;
+    final values = <String, Object?>{
+      'shopName': shopName,
+      'landlord': _s(row['landlord']) ?? '',
+      'phone': _s(row['phone']) ?? '',
+      'dueDay': due < 1 ? 1 : (due > 31 ? 31 : due),
+      'startYm': startYm,
+      'autoApply': (_i(row['autoApply']) ?? 1) == 0 ? 0 : 1,
+      'active': (_i(row['active']) ?? 1) == 0 ? 0 : 1,
+      'note': _s(row['note']) ?? '',
+      'updatedAt': _i(row['updatedAt']) ?? createdAt,
+    };
+    final int shopId;
+    if (local != null) {
+      shopId = (local['id'] as num).toInt();
+      await db.update('shop_rents', values, where: 'id = ?', whereArgs: [shopId]);
+    } else {
+      shopId = await db.insert('shop_rents', {...values, 'createdAt': createdAt, 'serverId': serverId});
+    }
+    final terms = row['terms'];
+    if (terms is Map) {
+      await db.delete('shop_rent_terms', where: 'shopId = ?', whereArgs: [shopId]);
+      for (final e in terms.entries) {
+        final ym = e.key.toString();
+        final rent = e.value;
+        if (rent is! num || !_shopRentYmPattern.hasMatch(ym)) continue;
+        await db.insert('shop_rent_terms', {'shopId': shopId, 'fromYm': ym, 'monthlyRent': rent.toDouble()},
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    }
+  }
+}
+
+/// Ledger entries. Charge ki id (dukaan + mahina) har device par ek jaisi hai; is device par usi mahine ka charge
+/// pehle se ho (alag id se) to wahi adopt hota hai (unique index na toote). Ek hi mahine ka `applied` (advance se
+/// kata) do device ne alag banaya ho to doosra apply NAHI hota — audit mein likha jata hai (Expense double ho sakta hai).
+/// Aakhir mein jin entries ka Expense/Cash row pehle pull nahi hua tha unhein link kar diya jata hai.
+Future<void> applyShopRentEntries(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    final serverId = _s(row['serverId']);
+    if (serverId == null) continue;
+    if (row['_deleted'] == true) {
+      if (await q.pendingCountForEntity('shop_rent_entry', serverId) > 0) continue;
+      await db.delete('shop_rent_ledger', where: 'serverId = ?', whereArgs: [serverId]);
+      continue;
+    }
+    final shopSid = _s(row['shopServerId']);
+    final kind = _s(row['kind']);
+    final amount = _d(row['amount']);
+    if (shopSid == null || kind == null || amount == null || !_shopRentKinds.contains(kind)) continue;
+    final ym = kind == 'advance' ? '' : (_s(row['ym']) ?? '');
+    if (kind != 'advance' && !_shopRentYmPattern.hasMatch(ym)) continue;
+    final shop = await _findBy(db, 'shop_rents', 'serverId', shopSid);
+    if (shop == null) continue;
+    if (await q.pendingCountForEntity('shop_rent_entry', serverId) > 0) continue;
+    final shopId = (shop['id'] as num).toInt();
+
+    var local = await _findBy(db, 'shop_rent_ledger', 'serverId', serverId);
+    if (local == null && kind == 'charge') {
+      final byMonth = await db.query('shop_rent_ledger',
+          where: "shopId = ? AND kind = 'charge' AND ym = ?", whereArgs: [shopId, ym], limit: 1);
+      if (byMonth.isNotEmpty) local = byMonth.first;
+    }
+    if (local == null && kind == 'applied') {
+      final clash = await db.query('shop_rent_ledger',
+          where: "shopId = ? AND kind = 'applied' AND ym = ?", whereArgs: [shopId, ym], limit: 1);
+      if (clash.isNotEmpty) {
+        await _conflict(
+          db,
+          'shop_rent_entry:$serverId',
+          'Rent for ${_s(shop['shopName']) ?? 'shop'} ($ym) was already adjusted from advance on this device; '
+          'a second adjustment arrived from another device and was NOT applied. Check Expenses/Cash for a double Rent expense.',
+        );
+        continue;
+      }
+    }
+
+    final expenseSid = _s(row['expenseServerId']);
+    final cashSid = _s(row['cashServerId']);
+    final expense = expenseSid == null ? null : await _findBy(db, 'expenses', 'serverId', expenseSid);
+    final cash = cashSid == null ? null : await _findBy(db, 'cash_transactions', 'serverId', cashSid);
+    final createdAt = _i(row['createdAt']) ?? nowMs();
+    final values = <String, Object?>{
+      'shopId': shopId,
+      'kind': kind,
+      'ym': ym,
+      'amount': amount,
+      'method': _s(row['method']) ?? 'cash',
+      'note': _s(row['note']) ?? '',
+      'expenseId': expense?['id'],
+      'expenseServerId': expenseSid,
+      'cashId': cash?['id'],
+      'cashServerId': cashSid,
+      'serverId': serverId,
+      'updatedAt': _i(row['updatedAt']) ?? createdAt,
+    };
+    if (local != null) {
+      await db.update('shop_rent_ledger', values, where: 'id = ?', whereArgs: [local['id']]);
+    } else {
+      await db.insert('shop_rent_ledger', {...values, 'createdAt': createdAt});
+    }
+  }
+  // Expense/Cash baad ki pull mein aaye ho to ab link kar do (warna orphan-safai unhein hata deti).
+  await db.rawUpdate(
+    'UPDATE shop_rent_ledger SET expenseId = (SELECT e.id FROM expenses e WHERE e.serverId = shop_rent_ledger.expenseServerId) '
+    'WHERE expenseId IS NULL AND expenseServerId IS NOT NULL',
+  );
+  await db.rawUpdate(
+    'UPDATE shop_rent_ledger SET cashId = (SELECT c.id FROM cash_transactions c WHERE c.serverId = shop_rent_ledger.cashServerId) '
+    'WHERE cashId IS NULL AND cashServerId IS NOT NULL',
+  );
 }
