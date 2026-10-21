@@ -156,9 +156,8 @@ void main() {
         'shell_customers (id INTEGER PRIMARY KEY)',
         'shell_transactions (id INTEGER PRIMARY KEY)',
         'shop_empty_shell_log (id INTEGER PRIMARY KEY)',
-        'shop_rents (id INTEGER PRIMARY KEY AUTOINCREMENT, shopName TEXT NOT NULL DEFAULT \'\', landlord TEXT NOT NULL DEFAULT \'\', phone TEXT NOT NULL DEFAULT \'\', dueDay INTEGER NOT NULL DEFAULT 1, startYm TEXT NOT NULL DEFAULT \'\', autoApply INTEGER NOT NULL DEFAULT 1, active INTEGER NOT NULL DEFAULT 1, note TEXT NOT NULL DEFAULT \'\', createdAt INTEGER NOT NULL DEFAULT 0, serverId TEXT, updatedAt INTEGER NOT NULL DEFAULT 0)',
-        'shop_rent_terms (shopId INTEGER NOT NULL, fromYm TEXT NOT NULL, monthlyRent REAL NOT NULL)',
-        'shop_rent_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, shopId INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT \'\', ym TEXT NOT NULL DEFAULT \'\', amount REAL NOT NULL DEFAULT 0, method TEXT NOT NULL DEFAULT \'cash\', note TEXT NOT NULL DEFAULT \'\', expenseId INTEGER, cashId INTEGER, createdAt INTEGER NOT NULL DEFAULT 0, serverId TEXT, expenseServerId TEXT, cashServerId TEXT, updatedAt INTEGER NOT NULL DEFAULT 0)',
+        'shop_rents (id INTEGER PRIMARY KEY, serverId TEXT)',
+        'shop_rent_ledger (id INTEGER PRIMARY KEY, serverId TEXT)',
       ]) {
         await db.execute('CREATE TABLE $t');
       }
