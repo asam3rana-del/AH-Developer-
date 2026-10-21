@@ -41,8 +41,8 @@ void main() {
   test('daily: sirf likhe hue hazir/paid chhutti/aadhe din ginay jate hain', () {
     final c = attendanceCounts({1: 'P', 2: 'P', 3: 'H', 4: 'L', 5: 'A'}, 2026, 10);
     final r = computeEarned(payType: workerDaily, rate: 800, year: 2026, month: 10, counts: c);
-    expect(r.days, 4.5);
-    expect(r.earned, 3600);
+    expect(r.days, 3.5);
+    expect(r.earned, 2800);
     expect(r.deduction, 0);
   });
 
