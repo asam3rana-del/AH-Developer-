@@ -88,6 +88,28 @@ bool shouldApplyUpsert(int incomingUpdatedAt, int? serverUpdatedAt) =>
 int? upsertClock(Map<String, Object?>? data) =>
     asMillis(data?['upsertAt']) ?? asMillis(data?['updatedAt']);
 
+/// Product ke wo rate fields jinka apna alag waqt `ratesAt` hai (aakhri baar rate kab badla).
+const Set<String> productRateFields = {'salePrice', 'wholesalePrice', 'shopkeeperPrice', 'ratesAt'};
+
+/// FIX (rate wapis purani ho jati thi): product upsert POORA product bhejta hai (naam, unit, rates...).
+/// Doosra device jis ke paas purani rate thi, koi bhi aur change (unit, category, naam...) push karta to
+/// uski purani rate naye `upsertAt` ke sath cloud par chadh jati aur aap ki nayi rate mita deti.
+/// Ab agar cloud ki `ratesAt` ka din is device ki `ratesAt` se naya hai, to is push se sirf rate fields
+/// nikal diye jate hain (baqi fields jaise pehle). Cloud/purane doc mein `ratesAt` na ho ya payload mein
+/// na ho to kuch nahi badalta. Din ke hisab se compare (purchase ki "rate baad mein edit hui" wali rule jaisa).
+Map<String, Object?> withoutStaleRates(Map<String, Object?> payload, Map<String, Object?>? server) {
+  final incoming = asMillis(payload['ratesAt']);
+  final serverAt = asMillis(server?['ratesAt']);
+  if (incoming == null || serverAt == null || serverAt <= 0) return payload;
+  final d = DateTime.fromMillisecondsSinceEpoch(serverAt);
+  final serverDayStart = DateTime(d.year, d.month, d.day).millisecondsSinceEpoch;
+  if (incoming >= serverDayStart) return payload;
+  return {
+    for (final e in payload.entries)
+      if (!productRateFields.contains(e.key)) e.key: e.value,
+  };
+}
+
 /// Delete bhi wohi: purana delete naye cloud record ko nahi mitata.
 bool shouldApplyDelete(int deleteAt, int? serverUpdatedAt) =>
     deleteAt >= (serverUpdatedAt ?? kLongMin);

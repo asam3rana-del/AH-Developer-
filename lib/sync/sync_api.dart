@@ -188,22 +188,36 @@ class SyncApi implements SyncBackend {
           // rehta hai; der se (offline ke baad) aane wali entry ko doosre devices pushedAt se pull karte hain.
           final upsertPushedAt = nowMs();
           var skippedStale = false;
+          var keptCloudRates = false;
           int? skippedServerAt;
           await fs.runTransaction((tx) async {
             skippedStale = false;
+            keptCloudRates = false;
             final snap = await tx.get(docRef);
             // Stale-check sirf upsert ki apni clock (upsertAt) se — increment_stock ka updatedAt bump isay na roke.
             final serverUpdatedAt = upsertClock(snap.data());
             if (shouldApplyUpsert(st.incomingUpdatedAt, serverUpdatedAt)) {
+              // Product: cloud ki nayi rate is device ki purani rate se overwrite na ho.
+              final body = entry.entityType == 'product' ? withoutStaleRates(st.map, snap.data()) : st.map;
+              keptCloudRates = body.length != st.map.length;
               tx.set(
                   docRef,
-                  {...st.map, 'upsertAt': st.incomingUpdatedAt, 'pushedAt': upsertPushedAt},
+                  {...body, 'upsertAt': st.incomingUpdatedAt, 'pushedAt': upsertPushedAt},
                   SetOptions(merge: true));
             } else {
               skippedStale = true;
               skippedServerAt = serverUpdatedAt;
             }
           });
+          if (keptCloudRates) {
+            await logMaintenanceAudit(
+              localDb,
+              username: 'sync',
+              action: 'sync_push_rates_kept',
+              reference: '${entry.entityType}:${entry.entityId}',
+              details: 'Is device ki rate purani thi — cloud ki nayi rate rakhi gayi (baqi changes chale gaye).',
+            );
+          }
           // Cloud par is se naya edit pehle se tha: yeh device ka change nahi gaya. Chup chap nahi —
           // audit log mein likho (agla pull cloud ki nayi value le aayega).
           if (skippedStale) {
