@@ -88,9 +88,7 @@ class ProductRepository {
           final current = Product.fromMap(cur.first);
           final r = rescaleStockForLadderChange(current, product);
           // Retail/wholesale manual edit => rate ki date aaj (purani date ki purchase isay nahi badlegi).
-          final rateEdited = product.salePrice != current.salePrice ||
-              product.wholesalePrice != current.wholesalePrice ||
-              product.shopkeeperPrice != current.shopkeeperPrice;
+          final rateEdited = product.salePrice != current.salePrice || product.wholesalePrice != current.wholesalePrice;
           row = {
             ...row,
             'cost': rescaleCostForLadderChange(current, product),
@@ -257,7 +255,7 @@ class ProductRepository {
     await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
       for (final r in rows) {
-        await txn.update('products', {'shopkeeperPrice': r.newRate, 'ratesAt': now, 'dirty': 1, 'updatedAt': now},
+        await txn.update('products', {'shopkeeperPrice': r.newRate, 'dirty': 1, 'updatedAt': now},
             where: 'barcode=?', whereArgs: [r.product.barcode]);
         await SyncQueueHelper.enqueueProduct(txn, r.product.barcode);
       }
@@ -318,11 +316,8 @@ class ProductRepository {
           if (f.wholesalePrice != null) 'wholesalePrice': f.wholesalePrice,
         };
         if (ch.isEmpty) continue;
-        await txn.update(
-            'products',
-            {...ch, if (f.salePrice != null || f.wholesalePrice != null) 'ratesAt': now, 'dirty': 1, 'updatedAt': now},
-            where: 'barcode=?',
-            whereArgs: [f.product.barcode]);
+        await txn.update('products', {...ch, 'dirty': 1, 'updatedAt': now},
+            where: 'barcode=?', whereArgs: [f.product.barcode]);
         await SyncQueueHelper.enqueueProduct(txn, f.product.barcode);
       }
     });
@@ -334,9 +329,7 @@ class ProductRepository {
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
-      final rateChange = changes.containsKey('salePrice') ||
-          changes.containsKey('wholesalePrice') ||
-          changes.containsKey('shopkeeperPrice');
+      final rateChange = changes.containsKey('salePrice') || changes.containsKey('wholesalePrice');
       await txn.update('products', {...changes, if (rateChange) 'ratesAt': now, 'dirty': 1, 'updatedAt': now},
           where: 'barcode=?', whereArgs: [barcode]);
       await SyncQueueHelper.enqueueProduct(txn, barcode);
