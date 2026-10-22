@@ -158,6 +158,8 @@ void main() {
         'shop_empty_shell_log (id INTEGER PRIMARY KEY)',
         'shop_rents (id INTEGER PRIMARY KEY, serverId TEXT)',
         'shop_rent_ledger (id INTEGER PRIMARY KEY, serverId TEXT)',
+        'utility_bills (id INTEGER PRIMARY KEY, serverId TEXT)',
+        'utility_bill_payments (id INTEGER PRIMARY KEY, serverId TEXT)',
       ]) {
         await db.execute('CREATE TABLE $t');
       }
