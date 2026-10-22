@@ -136,14 +136,6 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
 
     final existing = await _findBy(db, 'customers', 'serverId', serverId);
     if (existing != null) {
-      if (!keepLocalStock) {
-        await _logStockPullDrop(db,
-            barcode: barcode,
-            cloudStock: stock,
-            pending: localPendingStock,
-            newStock: (stock ?? _dbl(existing['stock'])) + localPendingStock,
-            via: 'normal');
-      }
       if (existing['dirty'] == 1 && (existing['name'] != name || existing['phone'] != phone)) {
         await _conflict(db, 'customer:$serverId', '${existing['name']} / ${existing['phone']}', '$name / $phone');
       }
@@ -364,6 +356,14 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
     // Rate effective date: purane device ka doc (field nahi) local date 0 na kare.
     if (row.containsKey('ratesAt')) common['ratesAt'] = _d(row['ratesAt'])?.toInt() ?? 0;
     if (existing != null) {
+      if (!keepLocalStock) {
+        await _logStockPullDrop(db,
+            barcode: barcode,
+            cloudStock: stock,
+            pending: localPendingStock,
+            newStock: (stock ?? _dbl(existing['stock'])) + localPendingStock,
+            via: 'normal');
+      }
       if (existing['dirty'] == 1 && (existing['name'] != name || _dbl(existing['salePrice']) != salePrice)) {
         await _conflict(db, 'product:$barcode', '${existing['name']} / ${_dbl(existing['salePrice'])}',
             '$name / $salePrice');
