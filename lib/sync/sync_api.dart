@@ -134,6 +134,7 @@ class SyncApi implements SyncBackend {
               entityType: entry.entityType, entityId: entry.entityId);
           var diagSkipped = false;
           num? diagBefore;
+          double? diagNew;
           await fs.runTransaction((tx) async {
             final snap = await tx.get(docRef);
             diagBefore = snap.data()?['stock'] as num?;
@@ -151,8 +152,16 @@ class SyncApi implements SyncBackend {
             );
             diagSkipped = plan.skip;
             if (plan.skip) return;
+            // STOCK FIX: pehle yahan FieldValue.increment + SetOptions(mergeFields) tha — cloud par updatedAt/appliedOps
+            // to badalte the magar stock/balance WAHI rehta tha (har stock take ka +250 cloud par zaya ho jata tha,
+            // phir pull local stock ko purani cloud value par wapas kar deta). Ab transaction ke andar padhi hui
+            // maujooda value + delta seedha likhte hain. Transaction conflict par khud dobara chalta hai, isliye
+            // do device ek saath badlein to bhi increment jaisa hi safe hai.
+            final curRaw = snap.data()?[plan.incrementField];
+            final cur = curRaw is num ? curRaw.toDouble() : 0.0;
+            diagNew = cur + plan.delta;
             final write = <String, Object?>{
-              plan.incrementField: FieldValue.increment(plan.delta),
+              plan.incrementField: diagNew,
               ...plan.otherFields,
               'pushedAt': ts,
             };
@@ -164,7 +173,7 @@ class SyncApi implements SyncBackend {
                 username: 'sync',
                 action: 'stock_inc_push',
                 reference: 'product:${entry.entityId}',
-                details: 'queue#${entry.id} delta $delta cloudBefore ${diagBefore ?? 'n/a'} skipped $diagSkipped');
+                details: 'queue#${entry.id} delta $delta cloudBefore ${diagBefore ?? 'n/a'} cloudWritten ${diagNew ?? 'n/a'} skipped $diagSkipped');
           }
           break;
 
