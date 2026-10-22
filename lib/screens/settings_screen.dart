@@ -26,6 +26,7 @@ import 'purchase_screen.dart';
 import 'reports_screen.dart';
 import 'sale_screen.dart';
 import 'shell_ledger_screen.dart';
+import 'shop_rent_screen.dart';
 import 'user_management_screen.dart';
 import 'workers_screen.dart';
 
@@ -325,6 +326,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         row(Icons.shopping_cart_outlined, 'Purchase', 'خریداری',
             const RoleGuard(allowed: {'admin'}, child: PurchaseScreen())),
       row(Icons.business_center_outlined, 'Expense', 'اخراجات', const ExpenseScreen(), color: p.navyInk),
+      if (Session.isAdminOrManager)
+        row(Icons.storefront_outlined, 'Shop Rents', 'دکانوں کا کرایہ',
+            const RoleGuard(allowed: {'admin', 'manager'}, child: ShopRentScreen()), color: p.navyInk),
       if (Session.isAdminOrManager)
         row(Icons.badge_outlined, 'Workers', 'ورکرز',
             const RoleGuard(allowed: {'admin', 'manager'}, child: WorkersScreen()), color: p.navyInk),

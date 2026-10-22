@@ -199,6 +199,26 @@ void main() {
       expect((await db.query('workers')).single['name'], 'Local Edit');
     });
 
+    test('tombstone: worker aur uski hazri hat jati hai', () async {
+      await addWorker('worker:T-1');
+      await db.insert('worker_attendance', {'workerId': 1, 'day': '2026-10-05', 'status': 'P', 'updatedAt': 1});
+      await applyWorkers(db, [
+        {'serverId': 'worker:T-1', '_deleted': true, 'updatedAt': 99}
+      ], nowMs: () => 5000);
+      expect(await db.query('workers'), isEmpty);
+      expect(await db.query('worker_attendance'), isEmpty);
+    });
+
+    test('tombstone: advance/salary ka hisaab ho to worker nahi hatta (conflict audit)', () async {
+      await addWorker('worker:T-1');
+      await db.insert('worker_advances', {'workerId': 1, 'amount': 100, 'createdAt': 1});
+      await applyWorkers(db, [
+        {'serverId': 'worker:T-1', '_deleted': true, 'updatedAt': 99}
+      ], nowMs: () => 5000);
+      expect((await db.query('workers')).length, 1);
+      expect((await db.query('audit')).where((r) => r['action'] == 'sync_conflict').length, 1);
+    });
+
     test('bina naam / tombstone / galat payType', () async {
       await applyWorkers(db, [
         {'serverId': 'a'},

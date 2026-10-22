@@ -31,7 +31,15 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
   Future<void> _load() async {
     try {
       await ShopRentRepository.instance.ensureCharges();
-      final items = await ShopRentRepository.instance.summaries();
+      final items = [...await ShopRentRepository.instance.summaries()];
+      // Zaroori pehle: chalti dukaneen, un mein late wali, phir zyada baqi wali, phir naam se.
+      items.sort((a, b) {
+        if (a.shop.active != b.shop.active) return a.shop.active ? -1 : 1;
+        if (a.overdue != b.overdue) return a.overdue ? -1 : 1;
+        final byDue = b.outstanding.compareTo(a.outstanding);
+        if (byDue != 0) return byDue;
+        return a.shop.shopName.toLowerCase().compareTo(b.shop.shopName.toLowerCase());
+      });
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -474,7 +482,7 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
   }
 
   /// Ek hi dialog Rent dene aur Advance dene ke liye: raqam, cash/bank, note.
-  Future<({double amount, String method, String note})?> _moneyDialog({
+  Future<({double amount, String method, String note, DateTime date})?> _moneyDialog({
     required String title,
     String? info,
     double initial = 0,
@@ -484,6 +492,7 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
     final amount = TextEditingController(text: initial > 0 ? initial.round().toString() : '');
     final note = TextEditingController();
     var method = 'cash';
+    var date = DateTime.now();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -498,6 +507,28 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
               _numField(p, amount, Loc.t('Amount', 'رقم')),
               const SizedBox(height: 12),
               _methodChips(method, (m) => setD(() => method = m)),
+              const SizedBox(height: 12),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () async {
+                  final today = DateTime.now();
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: date,
+                    firstDate: DateTime(today.year - 5, 1, 1),
+                    lastDate: today,
+                    helpText: Loc.t('Payment date', 'ادائیگی کی تاریخ'),
+                  );
+                  if (d != null) setD(() => date = d);
+                },
+                child: InputDecorator(
+                  decoration: _deco(p, Loc.t('Date', 'تاریخ')),
+                  child: Row(children: [
+                    Expanded(child: Text(DateFormat('dd MMM yyyy').format(date))),
+                    Icon(Icons.calendar_today, size: 18, color: p.textMuted),
+                  ]),
+                ),
+              ),
               const SizedBox(height: 12),
               TextField(controller: note, decoration: _deco(p, Loc.t('Note (optional)', 'نوٹ (اختیاری)'))),
             ]),
@@ -515,7 +546,12 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
       _toast(Loc.t('Enter a valid amount', 'صحیح رقم لکھیں'));
       return null;
     }
-    return (amount: a, method: method, note: note.text);
+    // Chuni hui tareekh + abhi ka waqt (aaj ho to bilkul abhi ka) — taake din ke andar tarteeb sahi rahe.
+    final nowT = DateTime.now();
+    final stamp = (date.year == nowT.year && date.month == nowT.month && date.day == nowT.day)
+        ? nowT
+        : DateTime(date.year, date.month, date.day, nowT.hour, nowT.minute, nowT.second);
+    return (amount: a, method: method, note: note.text, date: stamp);
   }
 
   Future<void> _payDialog(ShopRentSummary s) async {
@@ -530,7 +566,7 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
     if (r == null) return;
     PayResult? res;
     await _run(() async {
-      res = await ShopRentRepository.instance.pay(s.shop.id, amount: r.amount, method: r.method, note: r.note);
+      res = await ShopRentRepository.instance.pay(s.shop.id, amount: r.amount, method: r.method, note: r.note, now: r.date);
     });
     final x = res;
     if (x != null && mounted) {
@@ -549,8 +585,8 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
     );
     if (r == null) return;
     await _run(() async {
-      await ShopRentRepository.instance.giveAdvance(s.shop.id, amount: r.amount, method: r.method, note: r.note);
-      if (s.shop.autoApply) await ShopRentRepository.instance.applyAdvance(s.shop.id);
+      await ShopRentRepository.instance.giveAdvance(s.shop.id, amount: r.amount, method: r.method, note: r.note, now: r.date);
+      if (s.shop.autoApply) await ShopRentRepository.instance.applyAdvance(s.shop.id, now: r.date);
     }, ok: Loc.t('Advance saved', 'ایڈوانس محفوظ'));
   }
 

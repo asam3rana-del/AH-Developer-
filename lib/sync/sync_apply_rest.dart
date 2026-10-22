@@ -697,10 +697,34 @@ Future<void> applyWorkers(DatabaseExecutor db, List<SyncDoc> rows, {required int
   final q = SyncQueueDao(db);
   for (final row in rows) {
     final serverId = _s(row['serverId']);
+    if (serverId == null) continue;
+    // Doosre device par worker delete hua: yahan se bhi hatao. Agar is device par uska advance/salary ka
+    // hisaab ho to paisa na gum ho — worker rakho aur conflict audit likho.
+    if (row['_deleted'] == true) {
+      final local = await _findBy(db, 'workers', 'serverId', serverId);
+      if (local == null) continue;
+      final wid = local['id'];
+      final money = (Sqflite.firstIntValue(
+                  await db.rawQuery('SELECT COUNT(*) FROM worker_advances WHERE workerId = ?', [wid])) ??
+              0) +
+          (Sqflite.firstIntValue(
+                  await db.rawQuery('SELECT COUNT(*) FROM worker_salary_payments WHERE workerId = ?', [wid])) ??
+              0);
+      if (money > 0) {
+        await _conflict(
+          db,
+          'worker:$serverId',
+          'Worker "${_s(local['name']) ?? ''}" was deleted on another device, but this device has advance/salary '
+          'records for them — kept the worker here. Mark as Left or remove the records, then delete again.',
+        );
+        continue;
+      }
+      await db.delete('worker_attendance', where: 'workerId = ?', whereArgs: [wid]);
+      await db.delete('workers', where: 'id = ?', whereArgs: [wid]);
+      continue;
+    }
     final name = _s(row['name']);
-    if (serverId == null || name == null) continue;
-    // App mein worker delete nahi hota (sirf "left" mark hota hai) — tombstone ko chhod do.
-    if (row['_deleted'] == true) continue;
+    if (name == null) continue;
     // Is device ki anpushed edit ko purani server copy se overwrite na karo.
     if (await q.pendingCountForEntity('worker', serverId) > 0) continue;
     final createdAt = _i(row['createdAt']) ?? nowMs();

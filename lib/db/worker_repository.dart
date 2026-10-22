@@ -1,3 +1,5 @@
+import 'package:sqflite/sqflite.dart' show Sqflite;
+
 import '../models/misc_entities.dart';
 import '../services/session.dart';
 import '../sync/sync_queue_helper.dart';
@@ -255,6 +257,35 @@ class WorkerRepository {
       }
       await SyncQueueHelper.enqueueWorker(txn, id);
       return id;
+    });
+  }
+
+  /// Worker hamesha ke liye hatao (galti se bana ho to). Hazri saath hat jati hai; lekin agar is ka
+  /// advance ya salary ka hisaab maujood ho to nahi hatega (paisa asal mein diya ja chuka hai) — wahan
+  /// "Left" (active band) use karein. Doosre devices par bhi hat jata hai (tombstone).
+  Future<void> deleteWorker(int workerId) async {
+    _requireStaff();
+    final db = await AppDatabase.instance.database;
+    await db.transaction((txn) async {
+      final rows = await txn.query('workers', where: 'id = ?', whereArgs: [workerId], limit: 1);
+      if (rows.isEmpty) return;
+      final adv = Sqflite.firstIntValue(
+              await txn.rawQuery('SELECT COUNT(*) FROM worker_advances WHERE workerId = ?', [workerId])) ??
+          0;
+      final sal = Sqflite.firstIntValue(
+              await txn.rawQuery('SELECT COUNT(*) FROM worker_salary_payments WHERE workerId = ?', [workerId])) ??
+          0;
+      if (adv > 0 || sal > 0) {
+        throw StateError('This worker has advance/salary records, so it cannot be deleted. Mark as Left instead.');
+      }
+      // Entity id row delete se PEHLE (doosre device se aaye worker ki asal serverId na khoye).
+      final eid = SyncQueueHelper.workerEntityId(Map<String, Object?>.from(rows.first));
+      for (final a in await txn.query('worker_attendance', where: 'workerId = ?', whereArgs: [workerId])) {
+        await SyncQueueHelper.enqueueWorkerAttendanceDelete(txn, workerId, a['day'] as String);
+      }
+      await txn.delete('worker_attendance', where: 'workerId = ?', whereArgs: [workerId]);
+      await txn.delete('workers', where: 'id = ?', whereArgs: [workerId]);
+      await SyncQueueHelper.enqueueDelete(txn, 'worker', eid);
     });
   }
 

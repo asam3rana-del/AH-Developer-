@@ -549,6 +549,25 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> with SingleTick
     return ok == true;
   }
 
+  Future<void> _deleteWorker() async {
+    if (!await _confirm(
+      Loc.t('Delete worker', 'ورکر حذف کریں'),
+      Loc.t('Delete ${_w.name} and their attendance permanently (on all devices)? '
+          'If they have advance or salary records, mark them as Left instead.',
+          '${_w.name} اور ان کی حاضری ہمیشہ کے لیے (تمام ڈیوائسز سے) حذف کر دیں؟ '
+          'اگر ایڈوانس یا تنخواہ کا ریکارڈ ہو تو "فارغ" کر دیں۔'),
+      Loc.t('Delete', 'حذف کریں'),
+    )) {
+      return;
+    }
+    try {
+      await WorkerRepository.instance.deleteWorker(_w.id!);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) _toast(context, _err(e));
+    }
+  }
+
   Future<void> _deleteAdvance(WorkerAdvance a) async {
     if (!await _confirm(Loc.t('Delete advance', 'ایڈوانس حذف کریں'),
         Loc.t('Remove this advance and its cash entry?', 'یہ ایڈوانس اور اس کی کیش انٹری حذف کر دیں؟'), Loc.t('Delete', 'حذف کریں'))) {
@@ -612,7 +631,13 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> with SingleTick
       backgroundColor: p.bg,
       body: Column(children: [
         _header(context, p, _w.name, _typeLabel(_w),
-            actions: [IconButton(icon: const Icon(Icons.edit_outlined, color: Colors.white), onPressed: _edit)]),
+            actions: [
+              IconButton(icon: const Icon(Icons.edit_outlined, color: Colors.white), onPressed: _edit),
+              IconButton(
+                  tooltip: Loc.t('Delete worker', 'ورکر حذف کریں'),
+                  icon: const Icon(Icons.delete_outline, color: Colors.white),
+                  onPressed: _deleteWorker),
+            ]),
         Container(
           color: p.cardWhite,
           child: Row(children: [

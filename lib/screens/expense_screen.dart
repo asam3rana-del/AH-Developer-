@@ -84,10 +84,11 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final due = _rents.fold<double>(0, (a, s) => a + s.outstanding);
     final overdue = _rents.where((s) => s.overdue).length;
     final adv = _rents.fold<double>(0, (a, s) => a + s.advanceBalance);
+    final monthly = _rents.fold<double>(0, (a, s) => a + s.currentRent);
     final color = overdue > 0 ? p.red : (due > 0 ? p.amber : p.teal);
     final line = _rents.isEmpty
         ? Loc.t('Add your rented shops, pay monthly rent and track advance', 'کرائے کی دکانیں شامل کریں، ماہانہ کرایہ اور ایڈوانس سنبھالیں')
-        : '${_rents.length} ${Loc.t('shops', 'دکانیں')}  \u2022  ${Loc.t('Due', 'باقی')} Rs ${due.round()}'
+        : '${Loc.t('Monthly', 'ماہانہ')} Rs ${monthly.round()}  \u2022  ${_rents.length} ${Loc.t('shops', 'دکانیں')}  \u2022  ${Loc.t('Due', 'باقی')} Rs ${due.round()}'
             '${overdue > 0 ? '  \u2022  $overdue ${Loc.t('overdue', 'تاخیر')}' : ''}'
             '${adv > 0 ? '  \u2022  ${Loc.t('Advance', 'ایڈوانس')} Rs ${adv.round()}' : ''}';
     return InkWell(
