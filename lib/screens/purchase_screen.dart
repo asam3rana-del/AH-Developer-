@@ -1672,11 +1672,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           VerticalDivider(width: 1, thickness: 1, color: ThemeManager.palette.border),
           Expanded(
             flex: 10,
-            child: Column(
+            child: LayoutBuilder(builder: (context, rightBox) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
                   child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 20, 4, 8),
                     child: _lines.isEmpty
                         ? Padding(
@@ -1691,8 +1692,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                         : _buildLinesList(),
                   ),
                 ),
-                Flexible(
-                  flex: 0,
+                // Totals ki height cap: keyboard khulne par bhi Bill Items list ko jagah mile
+                // aur wo haath se scroll ho sake (totals apni scroll mein rehte hain).
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: rightBox.maxHeight * 0.4),
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(16, 0, 4, 0),
                     child: _buildTotalsCard(),
@@ -1700,7 +1703,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                 ),
                 _buildSaveBar(),
               ],
-            ),
+            )),
           ),
         ],
       ),
