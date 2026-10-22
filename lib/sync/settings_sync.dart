@@ -2,6 +2,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/app_database.dart';
+import '../db/maintenance_sync.dart';
 import '../db/party_repository.dart';
 import '../utils/loc.dart';
 import 'branch_config_store.dart';
@@ -228,7 +229,14 @@ class SettingsSync {
   /// Cloud par har product ka stock is device ke stock jaisa (absolute). Kitne products queue hue.
   static Future<int> pushStockToCloud() async {
     final db = await openDb();
-    return SyncQueueHelper.enqueueStockSetAll(db);
+    final n = await SyncQueueHelper.enqueueStockSetAll(db);
+    // STOCK DIAGNOSTIC: kis device ne cloud ka stock apne jaisa kiya.
+    await logMaintenanceAudit(db,
+        username: 'settings',
+        action: 'push_stock_to_cloud',
+        reference: 'all-products',
+        details: '$n products ka stock cloud par ABSOLUTE set hua (is device ke stock jaisa)');
+    return n;
   }
 
   /// Kotlin `fixBackdatedCashTransactionDatesClicked` — kitni cash entries theek hui.

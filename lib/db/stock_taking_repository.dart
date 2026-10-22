@@ -179,7 +179,19 @@ class StockTakingRepository {
     });
 
     final total = variances.fold<double>(0, (a, v) => a + v.valueImpact);
-    await _logAudit(sessionId, 'items_with_variance=${variances.length} value_impact=$total note=$cleanNote');
+    var queueInfo = '';
+    try {
+      for (final v in variances.take(3)) {
+        final qr = await db.query('sync_queue',
+            columns: ['id', 'operation', 'syncedAt'],
+            where: 'entityType = ? AND entityId = ?',
+            whereArgs: ['product', v.product.barcode],
+            orderBy: 'id DESC',
+            limit: 1);
+        queueInfo += qr.map((e) => '${v.product.barcode}: queue#${e['id']} ${e['operation']} delta ${v.delta}').join('') + ' | ';
+      }
+    } catch (_) {}
+    await _logAudit(sessionId, 'items_with_variance=${variances.length} value_impact=$total note=$cleanNote queue[$queueInfo]');
     await ProductRepository.instance.refresh();
     return sessionId;
   }

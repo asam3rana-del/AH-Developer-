@@ -132,8 +132,11 @@ class SyncApi implements SyncBackend {
           // Transaction ke bahar (local DB async): naye doc ko is device ke record ki pehchan dene ke liye.
           final seed = await loadSeedFields(localDb,
               entityType: entry.entityType, entityId: entry.entityId);
+          var diagSkipped = false;
+          num? diagBefore;
           await fs.runTransaction((tx) async {
             final snap = await tx.get(docRef);
+            diagBefore = snap.data()?['stock'] as num?;
             final plan = planIncrement(
               exists: snap.exists,
               data: snap.data(),
@@ -146,6 +149,7 @@ class SyncApi implements SyncBackend {
               entityId: entry.entityId,
               seedFields: seed,
             );
+            diagSkipped = plan.skip;
             if (plan.skip) return;
             final write = <String, Object?>{
               plan.incrementField: FieldValue.increment(plan.delta),
@@ -154,6 +158,14 @@ class SyncApi implements SyncBackend {
             };
             tx.set(docRef, write, SetOptions(mergeFields: plan.mergeFields));
           });
+          // STOCK DIAGNOSTIC: har product stock increment ka natija Sync History mein.
+          if (entry.entityType == 'product') {
+            await logMaintenanceAudit(localDb,
+                username: 'sync',
+                action: 'stock_inc_push',
+                reference: 'product:${entry.entityId}',
+                details: 'queue#${entry.id} delta $delta cloudBefore ${diagBefore ?? 'n/a'} skipped $diagSkipped');
+          }
           break;
 
         case 'set_stock':
@@ -162,6 +174,16 @@ class SyncApi implements SyncBackend {
           // devices ka pull ye doc dobara utha le.
           final setStock = (decodePayload(entry.payloadJson)['stock'] as num?)?.toDouble() ?? 0.0;
           final setTs = nowMs();
+          // STOCK DIAGNOSTIC: cloud ka stock absolute set hone se pehle purani cloud value likho.
+          num? prevCloud;
+          try {
+            prevCloud = (await docRef.get()).data()?['stock'] as num?;
+          } catch (_) {}
+          await logMaintenanceAudit(localDb,
+              username: 'sync',
+              action: 'cloud_stock_set',
+              reference: '${entry.entityType}:${entry.entityId}',
+              details: 'cloud stock ${prevCloud ?? 'n/a'} -> $setStock (set_stock push)');
           final setSeed = await loadSeedFields(localDb,
               entityType: entry.entityType, entityId: entry.entityId);
           await fs.runTransaction((tx) async {
