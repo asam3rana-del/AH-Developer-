@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/due_reminders_repository.dart';
 import '../screens/due_reminders_screen.dart';
+import '../screens/utility_bills_screen.dart';
 import 'app_lock.dart';
 
 /// Roz ek notification: "N parties ne payment nahi di" — tap karne par Due Reminders screen khulti hai
@@ -31,6 +32,10 @@ class DueAlertService {
 
   static bool get _supported => !kIsWeb && Platform.isAndroid;
 
+  /// BillReminderService isi plugin se notification dikhati hai (ek hi init / tap handler).
+  static FlutterLocalNotificationsPlugin get plugin => _plugin;
+  static bool get supported => _supported;
+
   /// `onTap` sirf foreground isolate mein dena hai (screen kholne ke liye).
   static Future<void> init({bool withTap = false}) async {
     if (!_supported || _inited) return;
@@ -51,11 +56,16 @@ class DueAlertService {
   }
 
   static void _open(String? payload) {
-    if (payload != _payload) return;
+    if (payload != _payload && payload != billsPayload) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      AppLock.navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const DueRemindersScreen()));
+      AppLock.navigatorKey.currentState?.push(MaterialPageRoute(
+        builder: (_) => payload == billsPayload ? const UtilityBillsScreen() : const DueRemindersScreen(),
+      ));
     });
   }
+
+  /// Utility Bills notification ka payload (tap par Utility Bills screen khulti hai).
+  static const billsPayload = 'utility_bills';
 
   static String _dateKey(DateTime t) =>
       '${t.year.toString().padLeft(4, '0')}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';

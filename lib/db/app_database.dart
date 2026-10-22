@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 26;
+  static const _dbVersion = 28;
 
   Database? _db;
 
@@ -330,7 +330,7 @@ class AppDatabase {
       )
     ''');
 
-    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql, ..._shopRentTablesSql]) {
+    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql, ..._shopRentTablesSql, ..._utilityBillTablesSql]) {
       batch.execute(sql);
     }
 
@@ -491,7 +491,57 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'shop_rent_ledger', 'cashServerId', 'TEXT');
       await _addColumnIfMissing(db, 'shop_rent_ledger', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 27) {
+      // v27: Utility Bills — bijli/gas/pani/internet jaise mahana bills aur unki payment (abhi sirf is device ka).
+      for (final sql in _utilityBillTablesSql) {
+        await db.execute(sql);
+      }
+    }
+    if (oldVersion < 28) {
+      // v28: Utility Bills sync — serverId/updatedAt (v27 mein bane tables ke liye; naye tables mein pehle se hain).
+      await _addColumnIfMissing(db, 'utility_bills', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'utility_bill_payments', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'utility_bill_payments', 'expenseServerId', 'TEXT');
+      await _addColumnIfMissing(db, 'utility_bill_payments', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
+    }
   }
+
+  /// Utility Bills (v27, sync v28): mahana bills (bijli, gas, pani, internet, mobile...) ki list aur har mahine ki
+  /// payment. `dueDay` = mahine ki tarikh (1-31; chhote mahine mein aakhri din). `utility_bill_payments` mein ek bill
+  /// ka ek mahina (`month` = YYYY-MM) sirf ek baar. `expenseId` = payment ke saath bani Expense (undo par wo bhi
+  /// hat'ti hai). Dono tables sync hote hain (`serverId` + `updatedAt`); payment `expenseServerId` se Expense se judti hai.
+  static const _utilityBillTablesSql = <String>[
+    '''
+      CREATE TABLE IF NOT EXISTS utility_bills (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'other',
+        dueDay INTEGER NOT NULL,
+        avgAmount REAL NOT NULL DEFAULT 0,
+        reminder INTEGER NOT NULL DEFAULT 1,
+        active INTEGER NOT NULL DEFAULT 1,
+        createdAt INTEGER NOT NULL DEFAULT 0,
+        updatedAt INTEGER NOT NULL DEFAULT 0,
+        serverId TEXT
+      )
+    ''',
+    '''
+      CREATE TABLE IF NOT EXISTS utility_bill_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        billId INTEGER NOT NULL,
+        month TEXT NOT NULL,
+        amount REAL NOT NULL,
+        method TEXT NOT NULL DEFAULT 'cash',
+        note TEXT NOT NULL DEFAULT '',
+        expenseId INTEGER,
+        expenseServerId TEXT,
+        paidAt INTEGER NOT NULL,
+        serverId TEXT,
+        updatedAt INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (billId, month)
+      )
+    ''',
+  ];
 
   /// Workers: profile, roz ki hazri, advance, aur mahine ki salary ka record. Sab sync hote hain
   /// (`serverId` + `updatedAt`); hazri ki chabi (workerId, day) khud hi unique hai.

@@ -71,6 +71,9 @@ Future<void> applyRestOfServerChanges(
   // Shop Rents: dukaan pehle (ledger uski serverId se judti hai); expenses/cash upar apply ho chuke.
   await applyShopRents(db, c.shopRents, nowMs: nowMs);
   await applyShopRentEntries(db, c.shopRentEntries, nowMs: nowMs);
+  // Utility Bills: bill pehle (payment uski serverId se judti hai); expenses upar apply ho chuke.
+  await applyUtilityBills(db, c.utilityBills, nowMs: nowMs);
+  await applyUtilityBillPayments(db, c.utilityBillPayments, nowMs: nowMs);
 }
 
 // -------------------------------------------------------------------- sales
@@ -994,4 +997,96 @@ Future<void> applyShopRentEntries(DatabaseExecutor db, List<SyncDoc> rows, {requ
     'UPDATE shop_rent_ledger SET cashId = (SELECT c.id FROM cash_transactions c WHERE c.serverId = shop_rent_ledger.cashServerId) '
     'WHERE cashId IS NULL AND cashServerId IS NOT NULL',
   );
+}
+
+// ----------------------------------------------------------- utility bills
+
+const _utilityBillKinds = {'electricity', 'gas', 'water', 'internet', 'phone', 'other'};
+final _utilityBillMonthPattern = RegExp(r'^\d{4}-\d{2}$');
+
+Future<void> applyUtilityBills(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    final serverId = _s(row['serverId']);
+    if (serverId == null) continue;
+    // Doosre device par bill hat gaya: yahan se bhi (uski payment history samet). Expense jaisi hai waisi rehti hai.
+    if (row['_deleted'] == true) {
+      final local = await _findBy(db, 'utility_bills', 'serverId', serverId);
+      if (local == null) continue;
+      await db.delete('utility_bill_payments', where: 'billId = ?', whereArgs: [local['id']]);
+      await db.delete('utility_bills', where: 'id = ?', whereArgs: [local['id']]);
+      continue;
+    }
+    final name = _s(row['name']);
+    final dueDay = _i(row['dueDay']);
+    if (name == null || dueDay == null) continue;
+    // Is device ki anpushed edit ko purani server copy se overwrite na karo.
+    if (await q.pendingCountForEntity('utility_bill', serverId) > 0) continue;
+    final createdAt = _i(row['createdAt']) ?? nowMs();
+    final kind = _s(row['kind']);
+    final values = <String, Object?>{
+      'name': name,
+      'kind': kind != null && _utilityBillKinds.contains(kind) ? kind : 'other',
+      'dueDay': dueDay < 1 ? 1 : (dueDay > 31 ? 31 : dueDay),
+      'avgAmount': _d(row['avgAmount']) ?? 0.0,
+      'reminder': (_i(row['reminder']) ?? 1) == 0 ? 0 : 1,
+      'active': (_i(row['active']) ?? 1) == 0 ? 0 : 1,
+      'updatedAt': _i(row['updatedAt']) ?? createdAt,
+    };
+    final existing = await _findBy(db, 'utility_bills', 'serverId', serverId);
+    if (existing != null) {
+      await db.update('utility_bills', values, where: 'id = ?', whereArgs: [existing['id']]);
+    } else {
+      await db.insert('utility_bills', {...values, 'createdAt': createdAt, 'serverId': serverId});
+    }
+  }
+}
+
+Future<void> applyUtilityBillPayments(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
+  for (final row in rows) {
+    final serverId = _s(row['serverId']);
+    if (serverId == null) continue;
+    // Is device par undo/delete abhi push nahi hua to purani cloud copy se payment wapas na lao.
+    if (await q.pendingCountForEntity('utility_bill_payment', serverId) > 0) continue;
+    if (row['_deleted'] == true) {
+      await db.delete('utility_bill_payments', where: 'serverId = ?', whereArgs: [serverId]);
+      continue;
+    }
+    // Payment badalti nahi (sirf banti ya hat'ti hai) — pehle se ho to chhod do.
+    if (await _findBy(db, 'utility_bill_payments', 'serverId', serverId) != null) continue;
+    final billServerId = _s(row['billServerId']);
+    final month = _s(row['month']);
+    final amount = _d(row['amount']);
+    if (billServerId == null || month == null || amount == null || !_utilityBillMonthPattern.hasMatch(month)) continue;
+    final bill = await _findBy(db, 'utility_bills', 'serverId', billServerId);
+    if (bill == null) continue;
+    // Ek bill ka ek mahina ek hi baar: is device par pehle se ho (alag id se) to doosri chhod do (audit mein likho).
+    final clash = await db.query('utility_bill_payments',
+        where: 'billId = ? AND month = ?', whereArgs: [bill['id'], month], limit: 1);
+    if (clash.isNotEmpty) {
+      await _conflict(
+        db,
+        'utility_bill_payment:$serverId',
+        '${_s(bill['name']) ?? 'Bill'} ($month) was already marked paid on this device; a second payment arrived '
+        'from another device and was NOT applied. Check Expenses/Cash for a double payment.',
+      );
+      continue;
+    }
+    final expenseServerId = _s(row['expenseServerId']);
+    final expense = expenseServerId == null ? null : await _findBy(db, 'expenses', 'serverId', expenseServerId);
+    final paidAt = _i(row['paidAt']) ?? nowMs();
+    await db.insert('utility_bill_payments', {
+      'billId': bill['id'],
+      'month': month,
+      'amount': amount,
+      'method': _s(row['method']) == 'bank' ? 'bank' : 'cash',
+      'note': _s(row['note']) ?? '',
+      'expenseId': expense?['id'],
+      'expenseServerId': expenseServerId,
+      'paidAt': paidAt,
+      'serverId': serverId,
+      'updatedAt': _i(row['updatedAt']) ?? paidAt,
+    });
+  }
 }

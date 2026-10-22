@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
+import '../services/bill_reminder_service.dart';
 import '../services/due_alert_service.dart';
 import 'backup_scheduler.dart';
 
@@ -51,6 +52,8 @@ void backupCallbackDispatcher() {
       await BackupScheduler.instance.checkCheckpoints();
       // Roz ki due-reminder notification (10 AM ke baad, din mein ek baar).
       await DueAlertService.checkAndNotify();
+      // Utility bills: ek din pehle / due din / guzarne ke baad reminder.
+      await BillReminderService.checkAndNotify();
       return true;
     } catch (_) {
       return false; // Kotlin Result.retry()

@@ -28,6 +28,7 @@ import 'sale_screen.dart';
 import 'shell_ledger_screen.dart';
 import 'shop_rent_screen.dart';
 import 'user_management_screen.dart';
+import 'utility_bills_screen.dart';
 import 'workers_screen.dart';
 
 /// Receipt footer / address / currency / tax fields Kotlin mein user ke kehne par hata di gayi thin — yahan bhi nahi
@@ -332,6 +333,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (Session.isAdminOrManager)
         row(Icons.badge_outlined, 'Workers', 'ورکرز',
             const RoleGuard(allowed: {'admin', 'manager'}, child: WorkersScreen()), color: p.navyInk),
+      if (Session.isAdminOrManager)
+        row(Icons.receipt_long_outlined, 'Utility Bills', 'یوٹیلیٹی بلز',
+            const RoleGuard(allowed: {'admin', 'manager'}, child: UtilityBillsScreen()), color: p.navyInk),
       row(Icons.account_balance_outlined, 'Cash & Bank', 'کیش اور بینک', const CashScreen(), color: p.navyInk),
       row(Icons.inventory_2_outlined, 'Shell Ledger', 'شیل لیجر', const ShellLedgerScreen(), color: p.navyInk),
     ];

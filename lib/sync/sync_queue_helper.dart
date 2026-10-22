@@ -85,6 +85,12 @@ class SyncQueueHelper {
   /// cloud par ek hi doc bane (do charge nahi). Baqi ledger entries (payment/advance/applied) `_own` id lete hain.
   static String shopRentChargeEntityId(String shopSid, String ym) => 'shop_rent_charge:$shopSid|$ym';
 
+  static String utilityBillEntityId(Map<String, Object?> r) => _own('utility_bill:', r);
+
+  /// Bill ka ek mahina (bill + `YYYY-MM`) khud hi pehchan hai: do device ek hi mahine ki payment karein to cloud
+  /// par ek hi doc bane (double payment na ho).
+  static String utilityBillPaymentEntityId(String billSid, String month) => 'utility_bill_payment:$billSid|$month';
+
   static String shopRentEntryEntityId(Map<String, Object?> r, String shopSid) =>
       _s(r['kind']) == 'charge' ? shopRentChargeEntityId(shopSid, _s(r['ym'])) : _own('shop_rent_entry:', r);
 
@@ -335,6 +341,33 @@ class SyncQueueHelper {
         'expenseServerId': expenseServerId,
         'cashServerId': cashServerId,
         'createdAt': l['createdAt'],
+        '_deleted': false,
+      });
+
+  static Map<String, Object?> utilityBillPayload(Map<String, Object?> b) => _stamp({
+        'serverId': utilityBillEntityId(b),
+        'name': b['name'],
+        'kind': b['kind'],
+        'dueDay': b['dueDay'],
+        'avgAmount': b['avgAmount'],
+        'reminder': b['reminder'],
+        'active': b['active'],
+        'createdAt': b['createdAt'],
+        '_deleted': false,
+      });
+
+  /// Payment: bill aur expense local ids ki jagah serverId se judte hain (doosre device ke liye).
+  static Map<String, Object?> utilityBillPaymentPayload(
+          Map<String, Object?> p, String billServerId, String? expenseServerId) =>
+      _stamp({
+        'serverId': utilityBillPaymentEntityId(billServerId, _s(p['month'])),
+        'billServerId': billServerId,
+        'month': p['month'],
+        'amount': p['amount'],
+        'method': p['method'],
+        'note': p['note'],
+        'expenseServerId': expenseServerId,
+        'paidAt': p['paidAt'],
         '_deleted': false,
       });
 
@@ -803,6 +836,58 @@ class SyncQueueHelper {
     }
   }
 
+  static Future<void> enqueueUtilityBill(DatabaseExecutor ex, int id) async {
+    final b = await _row(ex, 'utility_bills', 'id', id);
+    if (b == null) return;
+    final eid = utilityBillEntityId(b);
+    await _stampServerId(ex, 'utility_bills', b, eid);
+    await enqueue(ex, 'utility_bill', eid, 'upsert', utilityBillPayload(b));
+  }
+
+  /// Bill ki ek mahine ki payment. Bill par abhi serverId nahi (kabhi push nahi hua) to pehle wo queue hota hai.
+  static Future<void> enqueueUtilityBillPayment(DatabaseExecutor ex, int id) async {
+    final p = await _row(ex, 'utility_bill_payments', 'id', id);
+    if (p == null) return;
+    final bill = await _row(ex, 'utility_bills', 'id', p['billId'] as Object);
+    if (bill == null) return;
+    final billUnsynced = _s(bill['serverId']).trim().isEmpty;
+    final billSid = utilityBillEntityId(bill);
+    if (billUnsynced) await enqueueUtilityBill(ex, bill['id'] as int);
+    final eid = utilityBillPaymentEntityId(billSid, _s(p['month']));
+    await _stampServerId(ex, 'utility_bill_payments', p, eid);
+    String? expenseSid = p['expenseServerId'] is String ? p['expenseServerId'] as String : null;
+    final expenseId = p['expenseId'];
+    if (expenseId is int) {
+      final e = await _row(ex, 'expenses', 'id', expenseId);
+      if (e != null) expenseSid = expenseEntityId(e);
+    }
+    if (expenseSid != null && p['expenseServerId'] != expenseSid) {
+      await ex.update('utility_bill_payments', {'expenseServerId': expenseSid}, where: 'id = ?', whereArgs: [id]);
+      p['expenseServerId'] = expenseSid;
+    }
+    await enqueue(ex, 'utility_bill_payment', eid, 'upsert', utilityBillPaymentPayload(p, billSid, expenseSid));
+  }
+
+  /// Payment ki sahi entity id (bill + mahina) — row delete hone se PEHLE nikalen. Bill/payment na mile to null.
+  static Future<String?> utilityBillPaymentEntityIdFor(DatabaseExecutor ex, int paymentId) async {
+    final p = await _row(ex, 'utility_bill_payments', 'id', paymentId);
+    if (p == null) return null;
+    final bill = await _row(ex, 'utility_bills', 'id', p['billId'] as Object);
+    if (bill == null) return null;
+    return utilityBillPaymentEntityId(utilityBillEntityId(bill), _s(p['month']));
+  }
+
+  /// Saare bills + payments queue mein (Resync / pehli baar). [onlyUnsynced] = sirf jin par abhi serverId nahi.
+  static Future<void> enqueueAllUtilityBills(DatabaseExecutor ex, {bool onlyUnsynced = false}) async {
+    final where = onlyUnsynced ? "serverId IS NULL OR serverId = ''" : null;
+    for (final b in await ex.query('utility_bills', where: where)) {
+      await enqueueUtilityBill(ex, b['id'] as int);
+    }
+    for (final p in await ex.query('utility_bill_payments', where: where)) {
+      await enqueueUtilityBillPayment(ex, p['id'] as int);
+    }
+  }
+
   /// Kisi bhi entity ka delete (tombstone). Row delete hone se PEHLE uski entity id nikal len
   /// ([entityIdFor]) warna doosre device se aayi row ki asal serverId kho jati hai.
   static Future<void> enqueueDelete(DatabaseExecutor ex, String entityType, String entityId) =>
@@ -1023,6 +1108,8 @@ class SyncQueueHelper {
       }
       // Shop Rents: dukaan (terms samet) pehle, phir uski ledger.
       await enqueueAllShopRents(txn);
+      // Utility Bills: bill pehle, phir uski payments.
+      await enqueueAllUtilityBills(txn);
     });
   }
 
@@ -1127,6 +1214,12 @@ class SyncQueueHelper {
       case 'shop_rent_entry':
         final n = await _localId(ex, 'shop_rent_ledger', id, 'shop_rent_entry');
         if (n != null) await enqueueShopRentEntry(ex, n);
+      case 'utility_bill':
+        final n = await _localId(ex, 'utility_bills', id, 'utility_bill');
+        if (n != null) await enqueueUtilityBill(ex, n);
+      case 'utility_bill_payment':
+        final n = await _localId(ex, 'utility_bill_payments', id, 'utility_bill_payment');
+        if (n != null) await enqueueUtilityBillPayment(ex, n);
       case 'app_setting':
         final v = await _row(ex, 'app_settings', 'key', id);
         if (v != null) await enqueueAppSetting(ex, id, _s(v['value']));
@@ -1194,5 +1287,7 @@ class SyncQueueHelper {
     'worker_salary_payment': 'worker_salary_payments',
     'shop_rent': 'shop_rents',
     'shop_rent_entry': 'shop_rent_ledger',
+    'utility_bill': 'utility_bills',
+    'utility_bill_payment': 'utility_bill_payments',
   };
 }

@@ -152,7 +152,9 @@ class SyncRepository {
           changes.workerAdvances.length +
           changes.workerSalaryPayments.length +
           changes.shopRents.length +
-          changes.shopRentEntries.length,
+          changes.shopRentEntries.length +
+          changes.utilityBills.length +
+          changes.utilityBillPayments.length,
     );
   }
 
