@@ -243,32 +243,6 @@ Future<void> applySuppliers(DatabaseExecutor db, List<SyncDoc> rows, {required i
   }
 }
 
-/// STOCK DIAGNOSTIC: pull ne local stock KAM kiya to audit log mein likho (kaun sa product, purani/nayi value,
-/// cloud ki value aur pending delta). "Stock khud kam ho jata hai" ka source pakadne ke liye.
-/// Sirf kami likhi jati hai; barhna (purchase) nahi. Audit screen mein action = `stock_pull_drop`.
-Future<void> _logStockPullDrop(
-  DatabaseExecutor db, {
-  required String barcode,
-  required double? cloudStock,
-  required double pending,
-  required double newStock,
-  required String via,
-}) async {
-  try {
-    final r = await db.query('products', columns: ['name', 'stock'], where: 'barcode = ?', whereArgs: [barcode], limit: 1);
-    if (r.isEmpty) return;
-    final old = _dbl(r.first['stock']);
-    if (newStock >= old - 0.0001) return;
-    await logMaintenanceAudit(
-      db,
-      username: 'sync',
-      action: 'stock_pull_drop',
-      reference: 'product:$barcode',
-      details: '${r.first['name']}: local $old -> $newStock (cloud ${cloudStock ?? 'n/a'}, pending $pending, via $via)',
-    );
-  } catch (_) {/* diagnostic kabhi sync nahi rokta */}
-}
-
 // ----------------------------------------------------------------- products
 
 Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
@@ -312,8 +286,6 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
       // Naam/qeemat ka apna edit bacha rahe, magar STOCK phir bhi cloud se aaye: purchase (rate set) ya edit ke
       // baad product upsert queue mein atak jaye to pehle is product ka stock hamesha ke liye purana rehta tha.
       if (stock != null && !keepLocalStock) {
-        await _logStockPullDrop(db,
-            barcode: barcode, cloudStock: stock, pending: localPendingStock, newStock: stock + localPendingStock, via: 'pending-upsert');
         await db.update(
           'products',
           {'stock': stock + localPendingStock, 'dirty': 1},
@@ -356,14 +328,6 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
     // Rate effective date: purane device ka doc (field nahi) local date 0 na kare.
     if (row.containsKey('ratesAt')) common['ratesAt'] = _d(row['ratesAt'])?.toInt() ?? 0;
     if (existing != null) {
-      if (!keepLocalStock) {
-        await _logStockPullDrop(db,
-            barcode: barcode,
-            cloudStock: stock,
-            pending: localPendingStock,
-            newStock: (stock ?? _dbl(existing['stock'])) + localPendingStock,
-            via: 'normal');
-      }
       if (existing['dirty'] == 1 && (existing['name'] != name || _dbl(existing['salePrice']) != salePrice)) {
         await _conflict(db, 'product:$barcode', '${existing['name']} / ${_dbl(existing['salePrice'])}',
             '$name / $salePrice');

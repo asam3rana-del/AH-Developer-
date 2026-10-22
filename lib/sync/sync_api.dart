@@ -162,16 +162,6 @@ class SyncApi implements SyncBackend {
           // devices ka pull ye doc dobara utha le.
           final setStock = (decodePayload(entry.payloadJson)['stock'] as num?)?.toDouble() ?? 0.0;
           final setTs = nowMs();
-          // STOCK DIAGNOSTIC: cloud ka stock absolute set hone se pehle purani cloud value likho.
-          num? prevCloud;
-          try {
-            prevCloud = (await docRef.get()).data()?['stock'] as num?;
-          } catch (_) {}
-          await logMaintenanceAudit(localDb,
-              username: 'sync',
-              action: 'cloud_stock_set',
-              reference: '${entry.entityType}:${entry.entityId}',
-              details: 'cloud stock ${prevCloud ?? 'n/a'} -> $setStock (set_stock push)');
           final setSeed = await loadSeedFields(localDb,
               entityType: entry.entityType, entityId: entry.entityId);
           await fs.runTransaction((tx) async {
