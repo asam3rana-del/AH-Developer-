@@ -94,6 +94,56 @@ List<DueBill> sortDueBills(Iterable<DueBill> bills) {
   return list;
 }
 
+/// FIX: payment bill se link na ho tab bhi payment ho chuki hoti hai — party ka `balance` ghat jata hai
+/// magar bill ka `paid` wahi rehta hai, is liye bill baqi dikhta rehta tha (Due Reminders / overdue badge).
+/// Ab har party ke bills ka kul baqi us party ke asli `balance` se zyada nahi dikhta: jo hissa balance se
+/// zyada hai wo "ada ho chuka" maana jata hai aur SAB SE PURANE bills se kata jata hai (FIFO — bina link wali
+/// payment purane bill ko pehle chukati hai). Sirf dikhane ka hisaab hai — DB / sync mein kuch nahi badalta.
+/// `balances` mein na milne wali party (ya partyId null: Walk-in) ke bills jaise hain waise rehte hain.
+/// Balance mein opening balance bhi hota hai, is liye balance bills ke kul se bara ho to kuch nahi katta
+/// (sirf zyada dikhane se bachata hai, kam nahi dikhata).
+List<DueBill> capDueByBalance(Iterable<DueBill> bills, Map<int, double> balances) {
+  final out = <DueBill>[];
+  final byParty = <int, List<DueBill>>{};
+  for (final b in bills) {
+    final id = b.partyId;
+    if (id == null || !balances.containsKey(id)) {
+      out.add(b);
+    } else {
+      (byParty[id] ??= []).add(b);
+    }
+  }
+  for (final e in byParty.entries) {
+    final balance = balances[e.key]!;
+    final owed = balance > 0 ? balance : 0.0;
+    final list = e.value.toList()..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    var excess = list.fold<double>(0.0, (sum, b) => sum + b.due) - owed;
+    for (final b in list) {
+      if (excess <= 0.009) {
+        out.add(b);
+        continue;
+      }
+      final cut = b.due < excess ? b.due : excess;
+      excess -= cut;
+      final left = b.due - cut;
+      if (left > 0.009) {
+        out.add(DueBill(
+          id: b.id,
+          partyId: b.partyId,
+          partyName: b.partyName,
+          partyPhone: b.partyPhone,
+          total: b.total,
+          paid: b.total - left,
+          dueDate: b.dueDate,
+          createdAt: b.createdAt,
+          isSale: b.isSale,
+        ));
+      }
+    }
+  }
+  return sortDueBills(out);
+}
+
 /// Party Dashboard ka badge (sirf customers): aaj tak ki date wali sale kisi customer ki ho to
 /// OVERDUE (agar koi aaj se pehle ki) warna DUE TODAY. Kotlin: `dueDate in 1 until tomorrow`.
 enum PartyDueStatus { overdue, dueToday }
@@ -158,7 +208,11 @@ class DueRemindersRepository {
       FROM sales s LEFT JOIN customers c ON c.id = s.customerId
       WHERE s.status = 'active' AND (s.total - s.paid) > 0.009
     ''');
-    return sortDueBills(rows.map((m) => _fromRow(m, true)));
+    final balances = <int, double>{
+      for (final r in await db.rawQuery('SELECT id, balance FROM customers'))
+        (r['id'] as num).toInt(): ((r['balance'] as num?) ?? 0).toDouble(),
+    };
+    return capDueByBalance(rows.map((m) => _fromRow(m, true)), balances);
   }
 
   /// PurchaseDao.duePurchases(): supplier nahi to 'Cash Purchase'.
@@ -171,7 +225,11 @@ class DueRemindersRepository {
       FROM purchases pu LEFT JOIN suppliers su ON su.id = pu.supplierId
       WHERE pu.status = 'active' AND (pu.total - pu.paid) > 0.009
     ''');
-    return sortDueBills(rows.map((m) => _fromRow(m, false)));
+    final balances = <int, double>{
+      for (final r in await db.rawQuery('SELECT id, balance FROM suppliers'))
+        (r['id'] as num).toInt(): ((r['balance'] as num?) ?? 0).toDouble(),
+    };
+    return capDueByBalance(rows.map((m) => _fromRow(m, false)), balances);
   }
 
   DueBill _fromRow(Map<String, Object?> m, bool isSale) => DueBill(
