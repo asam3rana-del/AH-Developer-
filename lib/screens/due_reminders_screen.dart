@@ -250,6 +250,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   Widget _billCard(DueBill b) {
     final (badgeText, badgeColor) = _badge(dueBucket(b.dueDate));
     final hasPhone = b.partyPhone.trim().isNotEmpty;
+    final canRemind = !b.isAdvance; // advance wali party ko "paisa do" ka reminder nahi bhejna
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: _cardDeco(),
@@ -264,7 +265,9 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(b.partyName, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark)),
                   const SizedBox(height: 2),
-                  Text(b.isBalance ? Loc.t('Previous balance (no bill)', 'پچھلا بقایا (بل کے بغیر)') : b.id,
+                  Text(b.isAdvance
+                      ? (b.isSale ? Loc.t('Customer advance (you owe them)', 'کسٹمر ایڈوانس (آپ کو دینا ہے)') : Loc.t('Advance paid to supplier (they owe you)', 'سپلائر کو ایڈوانس (انہیں دینا ہے)'))
+                      : b.isBalance ? Loc.t('Previous balance (no bill)', 'پچھلا بقایا (بل کے بغیر)') : b.id,
                       style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
                 ]),
               ),
@@ -292,8 +295,10 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                 ]),
               ),
               if (hasPhone) ...[
-                _circleButton(Icons.send, const Color(0xFF25D366), const Color(0xFFDDF6E8), () => _whatsApp(b)),
-                const SizedBox(width: 10),
+                if (canRemind) ...[
+                  _circleButton(Icons.send, const Color(0xFF25D366), const Color(0xFFDDF6E8), () => _whatsApp(b)),
+                  const SizedBox(width: 10),
+                ],
                 _circleButton(Icons.phone, _primary, _p.flatPurpleBg, () => _call(b)),
               ],
             ]),

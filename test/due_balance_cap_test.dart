@@ -93,4 +93,18 @@ void main() {
       expect(reminderMessage(out.single), isNot(contains('Bill ')));
     });
   });
+
+  group('oppositeSignRows (Party Dashboard total se poora mel)', () {
+    test('sirf negative closing wali parties, advance ke taur par', () {
+      final out = oppositeSignRows({
+        1: (name: 'A', phone: '', closing: -250.0, createdAt: 0),
+        2: (name: 'B', phone: '', closing: 400.0, createdAt: 0),
+        3: (name: 'C', phone: '', closing: 0.0, createdAt: 0),
+      }, isSale: true);
+      expect(out.length, 1);
+      expect(out.single.isAdvance && out.single.isBalance, isTrue);
+      expect(out.single.due, 250.0);
+      expect(out.single.partyName, 'A');
+    });
+  });
 }
