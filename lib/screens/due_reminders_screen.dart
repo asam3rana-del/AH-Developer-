@@ -135,6 +135,10 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   @override
   Widget build(BuildContext context) {
     final summary = summarizeDue(_bills);
+    // Walk-in / Cash Purchase (party nahi) Party Dashboard ke total mein nahi ginte — alag dikhate hain taake
+    // "Total outstanding" Dashboard ke You'll get / You'll give se mel khaye.
+    final noParty = _bills.where((b) => b.partyId == null).fold<double>(0.0, (a, b) => a + b.due);
+    final partyTotal = summary.totalDue - noParty;
     return Scaffold(
       backgroundColor: _p.bg,
       appBar: AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
@@ -153,7 +157,15 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
               ),
               _tabs(),
               _summaryCard(Icons.warning_amber_rounded, Loc.t('Overdue', 'میعاد گزری'), '${summary.overdue}', _red),
-              _summaryCard(Icons.account_balance_wallet_outlined, Loc.t('Total outstanding', 'کل بقایا'), _rs(summary.totalDue), _amber),
+              _summaryCard(Icons.account_balance_wallet_outlined, Loc.t('Total outstanding', 'کل بقایا'), _rs(partyTotal), _amber),
+              if (noParty > 0.009)
+                _summaryCard(
+                    Icons.person_off_outlined,
+                    _purchases
+                        ? Loc.t('Cash purchases (no supplier) — not in Party Dashboard', 'کیش خریداری (سپلائر نہیں) — پارٹی ڈیش بورڈ میں شامل نہیں')
+                        : Loc.t('Walk-in (no customer) — not in Party Dashboard', 'واک اِن (کسٹمر نہیں) — پارٹی ڈیش بورڈ میں شامل نہیں'),
+                    _rs(noParty),
+                    _p.textMuted),
               const SizedBox(height: 6),
               if (_loading)
                 const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
