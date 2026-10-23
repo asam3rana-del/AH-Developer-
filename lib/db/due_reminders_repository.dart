@@ -1,5 +1,6 @@
 
 import 'app_database.dart';
+import 'party_repository.dart';
 import '../sync/sync_queue_helper.dart';
 
 /// Ports the data side of DueRemindersActivity.kt + SaleDao.dueSales()/setDueDate() +
@@ -54,6 +55,11 @@ class DueBill {
   final int dueDate;
   final int createdAt;
   final bool isSale;
+
+  /// true => ye koi bill nahi, party ka baqi ledger balance hai jo kisi bill se nahi juda (opening
+  /// balance / purana hisaab) — Party Dashboard ke "Payable" mein ginta hai, is liye yahan bhi dikhta hai.
+  /// `id` mein party ka naam nahi, sirf label hota hai; date set nahi ho sakti.
+  final bool isBalance;
   const DueBill({
     required this.id,
     required this.partyId,
@@ -64,6 +70,7 @@ class DueBill {
     required this.dueDate,
     required this.createdAt,
     required this.isSale,
+    this.isBalance = false,
   });
   double get due => total - paid;
 }
@@ -137,9 +144,45 @@ List<DueBill> capDueByBalance(Iterable<DueBill> bills, Map<int, double> balances
           dueDate: b.dueDate,
           createdAt: b.createdAt,
           isSale: b.isSale,
+          isBalance: b.isBalance,
         ));
       }
     }
+  }
+  return sortDueBills(out);
+}
+
+/// Party Dashboard ke "Payable (You'll Give)" / "Receivable (You'll Get)" se mel (supplier: isSale=false,
+/// customer: isSale=true; dono mein closing > 0 matlab baqi paisa): jis supplier ka live closing > 0 hai (dukaan ne dena hai)
+/// us ka kul baqi yahan dikhna chahiye. Bills (cap ke baad) se jo hissa na dhaka ho (opening balance / bina bill
+/// wala purana hisaab) wo ek alag "Previous balance" row ban kar aata hai. Bills ka kul closing se zyada nahi
+/// hota (cap), is liye row kabhi negative nahi banti. `closings` = supplier id -> (naam, phone, closing).
+List<DueBill> addUnbilledBalance(
+  Iterable<DueBill> bills,
+  Map<int, ({String name, String phone, double closing, int createdAt})> closings, {
+  bool isSale = false,
+}) {
+  final billed = <int, double>{};
+  for (final b in bills) {
+    final id = b.partyId;
+    if (id != null) billed[id] = (billed[id] ?? 0.0) + b.due;
+  }
+  final out = bills.toList();
+  for (final e in closings.entries) {
+    final rest = e.value.closing - (billed[e.key] ?? 0.0);
+    if (e.value.closing <= 0.009 || rest <= 0.009) continue;
+    out.add(DueBill(
+      id: 'Previous balance',
+      partyId: e.key,
+      partyName: e.value.name,
+      partyPhone: e.value.phone,
+      total: rest,
+      paid: 0.0,
+      dueDate: 0,
+      createdAt: e.value.createdAt,
+      isSale: isSale,
+      isBalance: true,
+    ));
   }
   return sortDueBills(out);
 }
@@ -180,6 +223,12 @@ String whatsAppDigits(String phone) {
 /// Kotlin message (Roman Urdu, jaisa Android mein hai). Rs poore rupay (%.0f).
 String reminderMessage(DueBill b) {
   final rs = b.due.toStringAsFixed(0);
+  if (b.isBalance && b.isSale) {
+    return 'Assalam o Alaikum ${b.partyName}, aapke hisab mein Rs $rs abhi baaki hai. Barah-e-karam jald ada karein. Shukriya!';
+  }
+  if (b.isBalance) {
+    return 'Assalam o Alaikum ${b.partyName}, humare hisab mein Rs $rs abhi baaki hai. Barah-e-karam jald ada karenge. Shukriya!';
+  }
   return b.isSale
       ? 'Assalam o Alaikum ${b.partyName}, aapka bill (Invoice ${b.id}) mein Rs $rs abhi baaki hai. Barah-e-karam jald ada karein. Shukriya!'
       : 'Assalam o Alaikum ${b.partyName}, humare bill (Bill ${b.id}) mein Rs $rs abhi baaki hai. Barah-e-karam jald ada karenge. Shukriya!';
@@ -208,11 +257,25 @@ class DueRemindersRepository {
       FROM sales s LEFT JOIN customers c ON c.id = s.customerId
       WHERE s.status = 'active' AND (s.total - s.paid) > 0.009
     ''');
-    final balances = <int, double>{
-      for (final r in await db.rawQuery('SELECT id, balance FROM customers'))
-        (r['id'] as num).toInt(): ((r['balance'] as num?) ?? 0).toDouble(),
-    };
-    return capDueByBalance(rows.map((m) => _fromRow(m, true)), balances);
+    // LIVE closing (Party Dashboard jaisa: opening + ledger + stuck) — stored `balance` drift kar sakta hai.
+    final live = await PartyRepository.instance.liveCustomerBalances();
+    final closings = <int, ({String name, String phone, double closing, int createdAt})>{};
+    for (final r in await db.rawQuery('SELECT id, name, phone, openingBalance, stuckBalance FROM customers')) {
+      final id = (r['id'] as num).toInt();
+      closings[id] = (
+        name: (r['name'] as String?) ?? '',
+        phone: (r['phone'] as String?) ?? '',
+        closing: partyClosing(
+          opening: ((r['openingBalance'] as num?) ?? 0).toDouble(),
+          running: live[id] ?? 0.0,
+          stuck: ((r['stuckBalance'] as num?) ?? 0).toDouble(),
+        ),
+        createdAt: 0,
+      );
+    }
+    final capped = capDueByBalance(rows.map((m) => _fromRow(m, true)), {for (final e in closings.entries) e.key: e.value.closing});
+    // Jo customer Party Dashboard ke Receivable mein hai wo yahan bhi aaye (bill na bhi ho tab bhi).
+    return addUnbilledBalance(capped, closings, isSale: true);
   }
 
   /// PurchaseDao.duePurchases(): supplier nahi to 'Cash Purchase'.
@@ -225,11 +288,20 @@ class DueRemindersRepository {
       FROM purchases pu LEFT JOIN suppliers su ON su.id = pu.supplierId
       WHERE pu.status = 'active' AND (pu.total - pu.paid) > 0.009
     ''');
-    final balances = <int, double>{
-      for (final r in await db.rawQuery('SELECT id, balance FROM suppliers'))
-        (r['id'] as num).toInt(): ((r['balance'] as num?) ?? 0).toDouble(),
-    };
-    return capDueByBalance(rows.map((m) => _fromRow(m, false)), balances);
+    final live = await PartyRepository.instance.liveSupplierBalances();
+    final closings = <int, ({String name, String phone, double closing, int createdAt})>{};
+    for (final r in await db.rawQuery('SELECT id, name, phone, openingBalance FROM suppliers')) {
+      final id = (r['id'] as num).toInt();
+      closings[id] = (
+        name: (r['name'] as String?) ?? '',
+        phone: (r['phone'] as String?) ?? '',
+        closing: partyClosing(opening: ((r['openingBalance'] as num?) ?? 0).toDouble(), running: live[id] ?? 0.0),
+        createdAt: 0,
+      );
+    }
+    final capped = capDueByBalance(rows.map((m) => _fromRow(m, false)), {for (final e in closings.entries) e.key: e.value.closing});
+    // Jo supplier Party Dashboard ke Payable mein hai wo yahan bhi aaye (bill na bhi ho tab bhi).
+    return addUnbilledBalance(capped, closings);
   }
 
   DueBill _fromRow(Map<String, Object?> m, bool isSale) => DueBill(

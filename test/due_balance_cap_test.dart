@@ -60,4 +60,37 @@ void main() {
       expect(summarizeDue(out).totalDue, 260.0);
     });
   });
+
+  group('addUnbilledBalance (Party Dashboard payable se mel)', () {
+    test('bill ke baghair opening balance wala supplier "Previous balance" row ke saath aata hai', () {
+      final out = addUnbilledBalance(const [], {5: (name: 'Usman', phone: '0300', closing: 800.0, createdAt: 0)});
+      expect(out.single.isBalance, isTrue);
+      expect(out.single.due, 800.0);
+      expect(out.single.partyName, 'Usman');
+    });
+    test('bills + opening: bills ke upar ka hissa alag row', () {
+      final bills = [bill('B1', partyId: 5, total: 300, isSale: false)];
+      final out = addUnbilledBalance(bills, {5: (name: 'Usman', phone: '', closing: 1000.0, createdAt: 0)});
+      expect(out.length, 2);
+      expect(out.firstWhere((b) => b.isBalance).due, 700.0);
+      expect(summarizeDue(out).totalDue, 1000.0);
+    });
+    test('closing <= bills ya <= 0 => koi extra row nahi', () {
+      final bills = [bill('B1', partyId: 5, total: 300, isSale: false)];
+      expect(addUnbilledBalance(bills, {5: (name: 'U', phone: '', closing: 300.0, createdAt: 0)}).length, 1);
+      expect(addUnbilledBalance(const [], {5: (name: 'U', phone: '', closing: -50.0, createdAt: 0)}), isEmpty);
+      expect(addUnbilledBalance(const [], {5: (name: 'U', phone: '', closing: 0.0, createdAt: 0)}), isEmpty);
+    });
+    test('customer (isSale: true): opening/stuck wala receivable bhi aata hai', () {
+      final out = addUnbilledBalance(const [], {3: (name: 'Ali', phone: '', closing: 500.0, createdAt: 0)}, isSale: true);
+      expect(out.single.isBalance && out.single.isSale, isTrue);
+      expect(out.single.due, 500.0);
+      expect(reminderMessage(out.single), contains('aapke hisab mein Rs 500'));
+    });
+    test('balance row ka WhatsApp message bill number nahi likhta', () {
+      final out = addUnbilledBalance(const [], {5: (name: 'Usman', phone: '', closing: 800.0, createdAt: 0)});
+      expect(reminderMessage(out.single), contains('Rs 800'));
+      expect(reminderMessage(out.single), isNot(contains('Bill ')));
+    });
+  });
 }

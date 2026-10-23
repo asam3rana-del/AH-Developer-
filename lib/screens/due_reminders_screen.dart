@@ -93,6 +93,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   // ---- actions -----------------------------------------------------------
 
   Future<void> _pickDate(DueBill b) async {
+    if (b.isBalance) return; // bill nahi, ledger balance — date store karne ki jagah nahi
     final initial = b.dueDate > 0 ? DateTime.fromMillisecondsSinceEpoch(b.dueDate) : DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -254,7 +255,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
       decoration: _cardDeco(),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _pickDate(b),
+        onTap: b.isBalance ? null : () => _pickDate(b),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -263,7 +264,8 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(b.partyName, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark)),
                   const SizedBox(height: 2),
-                  Text(b.id, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+                  Text(b.isBalance ? Loc.t('Previous balance (no bill)', 'پچھلا بقایا (بل کے بغیر)') : b.id,
+                      style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
                 ]),
               ),
               Container(
@@ -280,7 +282,9 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: _primary)),
                   const SizedBox(height: 2),
                   Text(
-                    b.dueDate > 0
+                    b.isBalance
+                        ? b.isSale ? Loc.t('Receivable in Party Dashboard', 'پارٹی ڈیش بورڈ میں وصولی') : Loc.t('Payable in Party Dashboard', 'پارٹی ڈیش بورڈ میں قابل ادائیگی')
+                        : b.dueDate > 0
                         ? '${Loc.t('Due: ', 'تاریخ: ')}${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(b.dueDate))}'
                         : Loc.t('Tap to set a due date', 'تاریخ طے کرنے کے لیے دبائیں'),
                     style: TextStyle(fontSize: 11.5, color: _p.textMuted),
