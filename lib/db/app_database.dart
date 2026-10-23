@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 28;
+  static const _dbVersion = 29;
 
   Database? _db;
 
@@ -117,6 +117,8 @@ class AppDatabase {
         stuckBalance REAL NOT NULL DEFAULT 0,
         rateType TEXT NOT NULL DEFAULT '',
         dueDays INTEGER NOT NULL DEFAULT 0,
+        kind TEXT NOT NULL DEFAULT '',
+        returnDate INTEGER NOT NULL DEFAULT 0,
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1
@@ -503,6 +505,11 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'utility_bill_payments', 'serverId', 'TEXT');
       await _addColumnIfMissing(db, 'utility_bill_payments', 'expenseServerId', 'TEXT');
       await _addColumnIfMissing(db, 'utility_bill_payments', 'updatedAt', 'INTEGER NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 29) {
+      // v29: Customer par Amanat / Loan tag + wapsi ki tarikh (sirf label/reminder; balance ka hisaab nahi badalta).
+      await _addColumnIfMissing(db, 'customers', 'kind', "TEXT NOT NULL DEFAULT ''");
+      await _addColumnIfMissing(db, 'customers', 'returnDate', 'INTEGER NOT NULL DEFAULT 0');
     }
   }
 

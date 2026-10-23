@@ -167,6 +167,8 @@ class SyncQueueHelper {
         'stuckBalance': c['stuckBalance'],
         'rateType': c['rateType'] ?? '',
         'dueDays': c['dueDays'] ?? 0,
+        'kind': c['kind'] ?? '',
+        'returnDate': c['returnDate'] ?? 0,
       });
 
   static Map<String, Object?> supplierPayload(Map<String, Object?> s) => _stamp({

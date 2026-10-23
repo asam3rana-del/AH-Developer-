@@ -19,6 +19,13 @@ class Customer {
 
   /// Default payment muddat (din). 0 = set nahi. Sale mein udhaar bill par due date = bill date + dueDays.
   final int dueDays;
+
+  /// Party ki qism: '' (normal customer) | 'amanat' (customer ne paisa amanat rakhwaya) | 'loan'
+  /// (dukan ne cash udhar diya). Sirf label / reminders ke liye — balance ka hisaab pehle jaisa hi hai.
+  final String kind;
+
+  /// Amanat wapas karne / udhar wapas aane ki tarikh (din ki shuruaat, millis). 0 = set nahi.
+  final int returnDate;
   final String? serverId;
   final int updatedAt;
   final bool dirty;
@@ -33,10 +40,18 @@ class Customer {
     this.stuckBalance = 0.0,
     this.rateType = '',
     this.dueDays = 0,
+    this.kind = '',
+    this.returnDate = 0,
     this.serverId,
     this.updatedAt = 0,
     this.dirty = true,
   });
+
+  bool get isAmanat => kind == 'amanat';
+  bool get isLoan => kind == 'loan';
+
+  /// Return date set hai aur party amanat/loan hai => reminder mein aayegi.
+  bool get hasReturnReminder => (isAmanat || isLoan) && returnDate > 0;
 
   /// Kotlin `Customer.totalPayable()` — STORED balance ke saath. Screens live balance se
   /// `partyClosing(...)` (party_repository.dart) istemal karein.
@@ -52,6 +67,8 @@ class Customer {
     double? stuckBalance,
     String? rateType,
     int? dueDays,
+    String? kind,
+    int? returnDate,
     int? updatedAt,
     bool? dirty,
   }) =>
@@ -65,6 +82,8 @@ class Customer {
         stuckBalance: stuckBalance ?? this.stuckBalance,
         rateType: rateType ?? this.rateType,
         dueDays: dueDays ?? this.dueDays,
+        kind: kind ?? this.kind,
+        returnDate: returnDate ?? this.returnDate,
         serverId: serverId,
         updatedAt: updatedAt ?? this.updatedAt,
         dirty: dirty ?? this.dirty,
@@ -80,6 +99,8 @@ class Customer {
         'stuckBalance': stuckBalance,
         'rateType': rateType,
         'dueDays': dueDays,
+        'kind': kind,
+        'returnDate': returnDate,
         'serverId': serverId,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
@@ -95,6 +116,8 @@ class Customer {
         stuckBalance: (m['stuckBalance'] as num?)?.toDouble() ?? 0.0,
         rateType: (m['rateType'] as String?) ?? '',
         dueDays: (m['dueDays'] as num?)?.toInt() ?? 0,
+        kind: (m['kind'] as String?) ?? '',
+        returnDate: (m['returnDate'] as num?)?.toInt() ?? 0,
         serverId: m['serverId'] as String?,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,

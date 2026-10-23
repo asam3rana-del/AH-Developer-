@@ -271,6 +271,52 @@ Uri whatsAppUri(DueBill b) {
   return Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(reminderMessage(b))}');
 }
 
+/// Amanat / Loan party ka reminder (Customer.kind + returnDate). `closing` = LIVE party balance
+/// (opening + ledger + stuck), sirf dikhane ke liye.
+class ReturnReminder {
+  final int partyId;
+  final String partyName;
+  final String partyPhone;
+  final String kind; // 'amanat' | 'loan'
+  final int returnDate; // 0 = set nahi
+  final double closing;
+
+  const ReturnReminder({
+    required this.partyId,
+    required this.partyName,
+    required this.partyPhone,
+    required this.kind,
+    required this.returnDate,
+    required this.closing,
+  });
+
+  bool get isAmanat => kind == 'amanat';
+}
+
+/// Sort: date wale pehle (purani date pehle), phir "date nahi" wale (naam se).
+List<ReturnReminder> sortReturnReminders(List<ReturnReminder> list) {
+  final out = [...list];
+  out.sort((a, b) {
+    final aNo = a.returnDate <= 0, bNo = b.returnDate <= 0;
+    if (aNo != bNo) return aNo ? 1 : -1;
+    final c = a.returnDate.compareTo(b.returnDate);
+    return c != 0 ? c : a.partyName.toLowerCase().compareTo(b.partyName.toLowerCase());
+  });
+  return out;
+}
+
+/// Roman-Urdu message: amanat => "aapki amanat wapas karni hai", loan => "udhar wapas karein".
+String returnReminderMessage(ReturnReminder r) {
+  return r.isAmanat
+      ? 'Assalam o Alaikum ${r.partyName}, aapki amanat wapas karne ka waqt aa gaya hai. Barah-e-karam rabta karein. Shukriya!'
+      : 'Assalam o Alaikum ${r.partyName}, aapko diya hua udhar wapas karne ka waqt aa gaya hai. Barah-e-karam jald ada karein. Shukriya!';
+}
+
+Uri returnWhatsAppUri(ReturnReminder r) {
+  final digits = whatsAppDigits(r.partyPhone);
+  return Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(returnReminderMessage(r))}');
+}
+
 // ---------------------------------------------------------------------------
 // DB
 // ---------------------------------------------------------------------------
@@ -368,6 +414,47 @@ class DueRemindersRepository {
 
   /// Party Dashboard badge ke liye (customers only).
   Future<Map<int, PartyDueStatus>> customerDueStatus() async => overdueCustomerStatus(await dueSales());
+
+  /// Amanat / Loan wali sab customers (date ho ya na ho) — sorted. Kuch chhupta nahi.
+  Future<List<ReturnReminder>> returnReminders() async {
+    final db = await AppDatabase.instance.database;
+    final live = await PartyRepository.instance.liveCustomerBalances();
+    final rows = await db.query('customers', where: "kind IN ('amanat','loan')");
+    return sortReturnReminders([
+      for (final m in rows)
+        ReturnReminder(
+          partyId: m['id'] as int,
+          partyName: (m['name'] as String?) ?? '',
+          partyPhone: (m['phone'] as String?) ?? '',
+          kind: (m['kind'] as String?) ?? '',
+          returnDate: (m['returnDate'] as num?)?.toInt() ?? 0,
+          closing: ((m['openingBalance'] as num?)?.toDouble() ?? 0.0) +
+              (live[m['id']] ?? 0.0) +
+              ((m['stuckBalance'] as num?)?.toDouble() ?? 0.0),
+        ),
+    ]);
+  }
+
+  /// Wapsi ki tarikh set / badalna (0 = hatana). Ek transaction + sync_queue (setDueDate jaisa).
+  Future<bool> setReturnDate({required int partyId, required int returnDateMillis}) async {
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return db.transaction((txn) async {
+      final n = await txn.update(
+        'customers',
+        {
+          'returnDate': returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
+          'updatedAt': now,
+          'dirty': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      if (n == 0) return false;
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      return true;
+    });
+  }
 
   /// Date set / badalna. Ek transaction: dueDate + updatedAt + dirty, phir POORI row sync_queue mein
   /// (Kotlin FIX: sirf dirty=1 kaafi nahi, kisi ko scan nahi karta). `dueDateMillis` din ki shuruaat.
