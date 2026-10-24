@@ -435,6 +435,23 @@ class DueRemindersRepository {
     ]);
   }
 
+  /// Amanat / Loan wali customers jinki tabdeeli abhi cloud par NAHI gayi (sync_queue mein baaqi).
+  /// Dashboard ki Amanat / Loan screen par "Pending" / "Synced" dikhane ke liye.
+  Future<Set<int>> pendingReturnPartyIds() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.rawQuery('''
+      SELECT DISTINCT c.id AS id
+      FROM customers c
+      JOIN sync_queue q
+        ON q.entityType = 'customer'
+       AND q.syncedAt IS NULL
+       AND (q.entityId = c.serverId
+            OR (COALESCE(c.serverId, '') = '' AND q.entityId LIKE 'customer:%-' || c.id))
+      WHERE c.kind IN ('amanat', 'loan')
+    ''');
+    return {for (final r in rows) (r['id'] as num).toInt()};
+  }
+
   /// Wapsi ki tarikh set / badalna (0 = hatana). Ek transaction + sync_queue (setDueDate jaisa).
   Future<bool> setReturnDate({required int partyId, required int returnDateMillis}) async {
     final db = await AppDatabase.instance.database;

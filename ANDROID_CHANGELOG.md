@@ -1,5 +1,8 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Dashboard: Amanat / Loan screen (Flutter)
+- Dashboard par naya tile "Amanat / Loan" (admin/manager): sab Amanat + Loan parties, total, wapsi ki tarikh, WhatsApp/call, aur har party ka sync status (Synced / Pending) + "Sync Now" button. `lib/screens/amanat_loan_screen.dart`, `DueRemindersRepository.pendingReturnPartyIds()`.
+
 ## Flutter side (2026-10-21) — Shop Rents (kiraye ki dukaneen) + Kotlin files hata di gayin
 - [x] Repo cleanup: saari `.kt` files (kotlin_reference/main, test, androidTest aur root `androidTest/`) hata di gayin; `kotlin_reference/config/` rakhi gayi.
 - [x] **Shop Rents** (Expense screen ke upar card se khulti hai, Admin/Manager): `lib/screens/shop_rent_screen.dart`, `lib/db/shop_rent_repository.dart`, DB v25 (`shop_rents`, `shop_rent_terms`, `shop_rent_ledger`).
