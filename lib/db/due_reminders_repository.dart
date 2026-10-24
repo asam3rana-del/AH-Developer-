@@ -1,5 +1,7 @@
 
 import 'app_database.dart';
+import '../models/party.dart';
+import 'customer_repository.dart';
 import 'party_repository.dart';
 import '../sync/sync_queue_helper.dart';
 
@@ -469,6 +471,79 @@ class DueRemindersRepository {
       return true;
     });
   }
+
+  /// Amanat / Loan wali parties jin ki tabdeeli abhi sync nahi hui (dirty = 1) — screen par "pending" badge.
+  Future<Set<int>> pendingReturnPartyIds() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query('customers',
+        columns: ['id'], where: "kind IN ('amanat','loan') AND dirty = 1");
+    return {for (final m in rows) m['id'] as int};
+  }
+
+  /// Normal customers (kind khali) — "Existing customer" chunne ke liye, naam se sorted.
+  Future<List<({int id, String name, String phone})>> normalCustomers() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query('customers',
+        columns: ['id', 'name', 'phone'], where: "kind IS NULL OR kind = ''", orderBy: 'name COLLATE NOCASE');
+    return [
+      for (final m in rows)
+        (id: m['id'] as int, name: (m['name'] as String?) ?? '', phone: (m['phone'] as String?) ?? ''),
+    ];
+  }
+
+  Future<bool> _setKind(int partyId, String kind, int returnDateMillis) async {
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final ok = await db.transaction((txn) async {
+      final n = await txn.update(
+        'customers',
+        {
+          'kind': kind,
+          'returnDate': returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
+          'updatedAt': now,
+          'dirty': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      if (n == 0) return false;
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      return true;
+    });
+    await CustomerRepository.instance.refresh();
+    return ok;
+  }
+
+  /// Maujooda customer ko Amanat / Loan tag karna (balance / ledger nahi chhedta).
+  Future<bool> tagParty({required int partyId, required String kind, required int returnDateMillis}) =>
+      _setKind(partyId, kind, returnDateMillis);
+
+  /// Tag hatana => party wapas normal customer. Ledger aur bills jaise hain waise.
+  Future<bool> clearReturnTag(int partyId) => _setKind(partyId, '', 0);
+
+  /// Nayi Amanat / Loan party banana. Khali naam => [SavePartyResult.nameRequired].
+  Future<SavePartyResult> addNewReturnParty({
+    required String name,
+    required String phone,
+    required String kind,
+    required int returnDateMillis,
+    required double openingBalance,
+  }) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return SavePartyResult.nameRequired;
+    await PartyRepository.instance.saveCustomer(Customer(
+      name: trimmed,
+      phone: phone.trim(),
+      openingBalance: openingBalance,
+      kind: kind,
+      returnDate: returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
+    ));
+    return SavePartyResult.success;
+  }
+
+  /// Party delete (is device se + sync tombstone). Purane bills naam ke saath history mein rehte hain.
+  Future<void> deleteReturnParty(int partyId) =>
+      PartyRepository.instance.deleteCustomer(Customer(id: partyId, name: ''));
 
   /// Date set / badalna. Ek transaction: dueDate + updatedAt + dirty, phir POORI row sync_queue mein
   /// (Kotlin FIX: sirf dirty=1 kaafi nahi, kisi ko scan nahi karta). `dueDateMillis` din ki shuruaat.
