@@ -494,6 +494,10 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
                 sliver: SliverToBoxAdapter(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     _summaryCards(p),
+                    if (Session.isAdminOrManager) ...[
+                      const SizedBox(height: 12),
+                      _amanatTile(p),
+                    ],
                     const SizedBox(height: 16),
                     _tabs(p),
                     const SizedBox(height: 14),
@@ -561,6 +565,27 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
             onTap: () => _toggleSummaryFilter(PartyFilter.payable)),
       ),
     ]);
+  }
+
+  /// Dashboard par seedha Amanat / Loan screen ka button (add, edit, delete wahin).
+  Widget _amanatTile(AppPalette p) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AmanatLoanScreen())),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+        decoration: _cardDeco(p),
+        child: Row(children: [
+          Icon(Icons.savings_outlined, size: 22, color: p.flatPurpleFg),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(Loc.t('Amanat / Loan', 'امانت / قرض'),
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: p.textDark)),
+          ),
+          Icon(Icons.chevron_right, color: p.textMuted),
+        ]),
+      ),
+    );
   }
 
   Widget _summaryCard(
