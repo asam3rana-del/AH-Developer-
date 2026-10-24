@@ -164,6 +164,26 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
     if (mounted) await _load(showSpinner: false);
   }
 
+  Future<void> _edit(ReturnReminder r) async {
+    final res = await showModalBottomSheet<_AddResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _p.cardWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (_) => _AddSheet(repo: _repo, initial: r),
+    );
+    if (res == null || !mounted) return;
+    final out = await _repo.editReturnParty(
+      partyId: r.partyId,
+      name: res.name,
+      phone: res.phone,
+      kind: res.kind,
+      returnDateMillis: res.returnDate,
+    );
+    if (out == SavePartyResult.nameRequired && mounted) _toast(Loc.t('Name is required', 'نام ضروری ہے'));
+    if (mounted) await _load(showSpinner: false);
+  }
+
   Future<bool> _confirm(String title, String body, String yes) async {
     final r = await showDialog<bool>(
       context: context,
@@ -400,8 +420,9 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
                 icon: Icon(Icons.more_vert, size: 20, color: _p.textMuted),
-                onSelected: (v) => v == 'remove' ? _remove(r) : _delete(r),
+                onSelected: (v) => v == 'edit' ? _edit(r) : v == 'remove' ? _remove(r) : _delete(r),
                 itemBuilder: (_) => [
+                  PopupMenuItem(value: 'edit', child: Text(Loc.t('Edit', 'ایڈٹ'))),
                   PopupMenuItem(value: 'remove', child: Text(Loc.t('Remove from Amanat / Loan', 'امانت / قرض سے ہٹائیں'))),
                   PopupMenuItem(value: 'delete', child: Text(Loc.t('Delete party', 'پارٹی ڈیلیٹ کریں'), style: TextStyle(color: _p.red))),
                 ],
@@ -454,7 +475,8 @@ class _AddResult {
 
 class _AddSheet extends StatefulWidget {
   final DueRemindersRepository repo;
-  const _AddSheet({required this.repo});
+  final ReturnReminder? initial; // null => naya add; warna Edit
+  const _AddSheet({required this.repo, this.initial});
 
   @override
   State<_AddSheet> createState() => _AddSheetState();
@@ -472,6 +494,21 @@ class _AddSheetState extends State<_AddSheet> {
 
   AppPalette get _p => ThemeManager.palette;
   final _dateFmt = DateFormat('d MMM yyyy');
+
+  bool get _editing => widget.initial != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final r = widget.initial;
+    if (r != null) {
+      _kind = r.kind == 'loan' ? 'loan' : 'amanat';
+      _existing = false;
+      _name.text = r.partyName;
+      _phone.text = r.partyPhone;
+      if (r.returnDate > 0) _date = DateTime.fromMillisecondsSinceEpoch(r.returnDate);
+    }
+  }
 
   @override
   void dispose() {
@@ -559,7 +596,7 @@ class _AddSheetState extends State<_AddSheet> {
   }
 
   void _save() {
-    if (_existing && _picked == null) {
+    if (!_editing && _existing && _picked == null) {
       setState(() => _error = Loc.t('Select a customer', 'کسٹمر چنیں'));
       return;
     }
@@ -572,7 +609,7 @@ class _AddSheetState extends State<_AddSheet> {
       context,
       _AddResult(
         kind: _kind,
-        existingId: _existing ? _picked!.id : null,
+        existingId: _editing ? widget.initial!.partyId : (_existing ? _picked!.id : null),
         name: _name.text,
         phone: _phone.text,
         openingBalance: double.tryParse(_amount.text.trim()) ?? 0,
@@ -587,7 +624,7 @@ class _AddSheetState extends State<_AddSheet> {
       padding: EdgeInsets.fromLTRB(18, 16, 18, 18 + MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(Loc.t('Add Amanat / Loan', 'امانت / قرض شامل کریں'),
+          Text(_editing ? Loc.t('Edit Amanat / Loan', 'امانت / قرض ایڈٹ کریں') : Loc.t('Add Amanat / Loan', 'امانت / قرض شامل کریں'),
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _p.textDark)),
           const SizedBox(height: 14),
           _seg([
@@ -595,11 +632,13 @@ class _AddSheetState extends State<_AddSheet> {
             (Loc.t('Loan', 'قرض'), _kind == 'loan', () => setState(() => _kind = 'loan')),
           ]),
           const SizedBox(height: 10),
-          _seg([
-            (Loc.t('Existing customer', 'موجودہ کسٹمر'), _existing, () => setState(() => _existing = true)),
-            (Loc.t('New party', 'نئی پارٹی'), !_existing, () => setState(() => _existing = false)),
-          ]),
-          const SizedBox(height: 12),
+          if (!_editing) ...[
+            _seg([
+              (Loc.t('Existing customer', 'موجودہ کسٹمر'), _existing, () => setState(() => _existing = true)),
+              (Loc.t('New party', 'نئی پارٹی'), !_existing, () => setState(() => _existing = false)),
+            ]),
+            const SizedBox(height: 12),
+          ],
           if (_existing)
             OutlinedButton.icon(
               onPressed: _pickCustomer,
@@ -612,10 +651,11 @@ class _AddSheetState extends State<_AddSheet> {
                 controller: _phone,
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(labelText: Loc.t('Phone (optional)', 'فون (اختیاری)'))),
-            TextField(
-                controller: _amount,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(labelText: Loc.t('Opening balance (optional)', 'اوپننگ بیلنس (اختیاری)'))),
+            if (!_editing)
+              TextField(
+                  controller: _amount,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(labelText: Loc.t('Opening balance (optional)', 'اوپننگ بیلنس (اختیاری)'))),
           ],
           const SizedBox(height: 10),
           OutlinedButton.icon(

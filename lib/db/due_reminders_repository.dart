@@ -541,6 +541,38 @@ class DueRemindersRepository {
     return SavePartyResult.success;
   }
 
+  /// Amanat / Loan party ki details badalna: naam, phone, type, wapsi ki tarikh (0 = hatana).
+  /// Balance / ledger / bills nahi chhedta (history naam se rehti hai, jaise Party -> Edit).
+  Future<SavePartyResult> editReturnParty({
+    required int partyId,
+    required String name,
+    required String phone,
+    required String kind,
+    required int returnDateMillis,
+  }) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return SavePartyResult.nameRequired;
+    final db = await AppDatabase.instance.database;
+    await db.transaction((txn) async {
+      final n = await txn.update(
+        'customers',
+        {
+          'name': trimmed,
+          'phone': phone.trim(),
+          'kind': kind,
+          'returnDate': returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          'dirty': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      if (n > 0) await SyncQueueHelper.enqueueCustomer(txn, partyId);
+    });
+    await CustomerRepository.instance.refresh();
+    return SavePartyResult.success;
+  }
+
   /// Party delete (is device se + sync tombstone). Purane bills naam ke saath history mein rehte hain.
   Future<void> deleteReturnParty(int partyId) =>
       PartyRepository.instance.deleteCustomer(Customer(id: partyId, name: ''));

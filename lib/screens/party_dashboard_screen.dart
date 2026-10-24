@@ -11,6 +11,7 @@ import '../utils/loc.dart';
 import '../widgets/party_quick_add_menu.dart';
 import '../widgets/role_guard.dart';
 import '../db/due_reminders_repository.dart' show PartyDueStatus;
+import 'amanat_loan_screen.dart';
 import 'cash_screen.dart';
 import 'item_search_screen.dart';
 import 'login_screen.dart';
@@ -520,6 +521,11 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
         Expanded(
           child: Text(Loc.t('Dashboard', 'ڈیش بورڈ'),
               style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold)),
+        ),
+        IconButton(
+          tooltip: Loc.t('Amanat / Loan', 'امانت / قرض'),
+          icon: const Icon(Icons.savings_outlined, color: Colors.white),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AmanatLoanScreen())),
         ),
         IconButton(
           icon: const Icon(Icons.notifications_none, color: Colors.white),
