@@ -164,7 +164,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
 
   Future<void> _whatsApp(DueBill b) async {
     try {
-      final ok = await launchUrl(whatsAppUri(b), mode: LaunchMode.externalApplication);
+      final ok = await launchUrl(whatsAppUri(b, partyTotal: b.partyId == null ? null : partyDueTotals(_bills)[b.partyId]), mode: LaunchMode.externalApplication);
       if (!ok) throw Exception('launch failed');
     } catch (_) {
       if (mounted) _toast('WhatsApp nahi khul saka. Installed hai?');
@@ -232,7 +232,9 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                   ),
                 )
               else
-                for (final b in _bills) _billCard(b),
+                ...[
+                  for (final b in _bills) _billCard(b, partyDueTotals(_bills)),
+                ],
             ],
           ),
         ),
@@ -406,7 +408,8 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     }
   }
 
-  Widget _billCard(DueBill b) {
+  Widget _billCard(DueBill b, Map<int, double> totals) {
+    final partyTotal = (b.partyId == null || b.isAdvance) ? null : totals[b.partyId];
     final (badgeText, badgeColor) = _badge(dueBucket(b.dueDate));
     final hasPhone = b.partyPhone.trim().isNotEmpty;
     final canRemind = !b.isAdvance; // advance wali party ko "paisa do" ka reminder nahi bhejna
@@ -442,6 +445,11 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${_rs(b.due)}  ${Loc.t('due', 'واجب الادا')}',
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: _primary)),
+                  if (partyTotal != null && (partyTotal - b.due).abs() > 0.009) ...[
+                    const SizedBox(height: 2),
+                    Text('${Loc.t('Party total', 'پارٹی کا کل بقایا')}: ${_rs(partyTotal)}',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _p.textDark)),
+                  ],
                   const SizedBox(height: 2),
                   Text(
                     b.isBalance
