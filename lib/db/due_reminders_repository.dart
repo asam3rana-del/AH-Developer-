@@ -1,5 +1,7 @@
 
 import 'app_database.dart';
+import '../models/party.dart';
+import 'customer_repository.dart';
 import 'party_repository.dart';
 import '../sync/sync_queue_helper.dart';
 
@@ -450,6 +452,94 @@ class DueRemindersRepository {
       WHERE c.kind IN ('amanat', 'loan')
     ''');
     return {for (final r in rows) (r['id'] as num).toInt()};
+  }
+
+  /// Normal customers (jo abhi Amanat/Loan nahi) — Amanat/Loan screen ke "Add" picker ke liye.
+  Future<List<({int id, String name, String phone})>> normalCustomers() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query(
+      'customers',
+      columns: ['id', 'name', 'phone'],
+      where: "kind IS NULL OR kind NOT IN ('amanat','loan')",
+      orderBy: 'name COLLATE NOCASE ASC',
+    );
+    return [
+      for (final m in rows)
+        (id: m['id'] as int, name: (m['name'] as String?) ?? '', phone: (m['phone'] as String?) ?? ''),
+    ];
+  }
+
+  /// Maujooda customer ko Amanat / Loan bana do (kind + tarikh). Ek transaction + sync_queue.
+  Future<bool> tagParty({required int partyId, required String kind, required int returnDateMillis}) async {
+    assert(kind == 'amanat' || kind == 'loan');
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final ok = await db.transaction((txn) async {
+      final n = await txn.update(
+        'customers',
+        {
+          'kind': kind,
+          'returnDate': returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
+          'updatedAt': now,
+          'dirty': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      if (n == 0) return false;
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      return true;
+    });
+    await CustomerRepository.instance.refresh();
+    return ok;
+  }
+
+  /// Amanat / Loan se HATAO: party normal customer ban jati hai (ledger / bills jas ke tas).
+  /// kind '' + returnDate 0 sync mein bhi jata hai, doosre devices par bhi hat jata hai.
+  Future<bool> clearReturnTag(int partyId) async {
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final ok = await db.transaction((txn) async {
+      final n = await txn.update(
+        'customers',
+        {'kind': '', 'returnDate': 0, 'updatedAt': now, 'dirty': 1},
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      if (n == 0) return false;
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      return true;
+    });
+    await CustomerRepository.instance.refresh();
+    return ok;
+  }
+
+  /// Bilkul nayi Amanat / Loan party banao (naya customer row + kind + tarikh).
+  Future<SavePartyResult> addNewReturnParty({
+    required String name,
+    required String phone,
+    required String kind,
+    required int returnDateMillis,
+    double openingBalance = 0.0,
+  }) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return SavePartyResult.nameRequired;
+    await PartyRepository.instance.saveCustomer(Customer(
+      name: trimmed,
+      phone: phone.trim(),
+      openingBalance: openingBalance,
+      kind: kind,
+      returnDate: returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
+    ));
+    return SavePartyResult.success;
+  }
+
+  /// Party ko poori tarah delete karo (customer row + sync tombstone). Bills / history naam se rehti hai.
+  Future<void> deleteReturnParty(int partyId) async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
+    if (rows.isEmpty) return;
+    await PartyRepository.instance.deleteCustomer(Customer.fromMap(rows.first));
   }
 
   /// Wapsi ki tarikh set / badalna (0 = hatana). Ek transaction + sync_queue (setDueDate jaisa).

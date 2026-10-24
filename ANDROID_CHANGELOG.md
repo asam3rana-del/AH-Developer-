@@ -2,6 +2,7 @@
 
 ## Dashboard: Amanat / Loan screen (Flutter)
 - Dashboard par naya tile "Amanat / Loan" (admin/manager): sab Amanat + Loan parties, total, wapsi ki tarikh, WhatsApp/call, aur har party ka sync status (Synced / Pending) + "Sync Now" button. `lib/screens/amanat_loan_screen.dart`, `DueRemindersRepository.pendingReturnPartyIds()`.
+- Isi screen ke andar **Add** (maujooda customer ko Amanat/Loan banao ya nayi party) aur har card ke menu mein **Amanat/Loan se hatao** / **Party delete** (`tagParty`, `clearReturnTag`, `addNewReturnParty`, `deleteReturnParty`). Sab sync_queue mein jata hai.
 
 ## Flutter side (2026-10-21) — Shop Rents (kiraye ki dukaneen) + Kotlin files hata di gayin
 - [x] Repo cleanup: saari `.kt` files (kotlin_reference/main, test, androidTest aur root `androidTest/`) hata di gayin; `kotlin_reference/config/` rakhi gayi.
