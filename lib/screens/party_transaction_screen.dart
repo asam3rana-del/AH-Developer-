@@ -561,9 +561,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
                   _headerCard(p),
                   const SizedBox(height: 12),
                   if (_stats != null) ...[
-                    _balanceCard(p, _stats!),
-                    if (_stats!.stuck != 0) _stuckCard(p, _stats!),
-                    _statsCard(p, _stats!),
+                    _summaryCard(p, _stats!),
                   ],
                   const SizedBox(height: 2),
                   _searchBox(p),
@@ -597,7 +595,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
               ),
               onPressed: onTap,
-              child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+              child: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
             ),
           ),
         );
@@ -640,12 +638,12 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, color: p.textDark)),
+                Text(_name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: p.textDark)),
                 const SizedBox(height: 6),
                 InkWell(
                   onTap: _editPhone,
                   child: Text(noPhone ? Loc.t('Add Phone', 'فون شامل کریں') : _phone,
-                      style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: _actionBlue)),
+                      style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _actionBlue)),
                 ),
               ]),
             ),
@@ -659,7 +657,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text('${give ? Loc.t('Payable', 'قابل ادائیگی') : Loc.t('Receivable', 'قابل وصولی')}: ${_rs2(amount)}',
-                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: color, letterSpacing: 0.6)),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color)),
               ]),
               if (widget.isCustomer) ...[
                 const SizedBox(height: 8),
@@ -830,58 +828,19 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     );
   }
 
-  Widget _balanceCard(AppPalette p, PartyTxStats st) {
-    final give = partyGive(st.closing);
-    final color = give ? p.red : p.flatTealFg;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-      decoration: _cardDeco(p),
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(Loc.t('Opening', 'ابتدائی'), style: TextStyle(fontSize: 11, color: p.textMuted)),
-            const SizedBox(height: 4),
-            Text(_rs(st.opening), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.textDark)),
-          ]),
-        ),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(give ? Loc.t("You'll Give", 'آپ کو دینے ہیں') : Loc.t("You'll Get", 'آپ کو ملیں گے'),
-              style: TextStyle(fontSize: 11, color: color)),
-          const SizedBox(height: 4),
-          Text(_rs(st.closing.abs()), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+  /// Ek hi card: (stuck ho to) Daily/Stuck/Total Payable, phir Total Sales/Paid/Overdue/Credit Limit/Last Sale.
+  Widget _summaryCard(AppPalette p, PartyTxStats st) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
+        decoration: _cardDeco(p),
+        child: Column(children: [
+          if (st.stuck != 0) ...[
+            _stuckCard(p, st),
+            Divider(color: p.border, height: 18),
+          ],
+          _statsCard(p, st),
         ]),
-      ]),
-    );
-  }
-
-  Widget _chips(AppPalette p) {
-    Widget chip(String label, TxFilter mode) {
-      final active = _filter == mode;
-      return Padding(
-        padding: const EdgeInsets.only(right: 10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: () => setState(() => _filter = mode),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: active ? _accent : p.border.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Text(label,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: active ? Colors.white : p.textMuted)),
-          ),
-        ),
       );
-    }
-
-    return Row(children: [
-      chip(Loc.t('All', 'سب'), TxFilter.all),
-      chip(Loc.t('Bills', 'بل'), TxFilter.bills),
-      chip(Loc.t('Payments', 'ادائیگیاں'), TxFilter.payments),
-    ]);
-  }
 
   Widget _stuckCard(AppPalette p, PartyTxStats st) {
     Widget line(String label, double v, {bool bold = false}) => Padding(
@@ -898,17 +857,12 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
                     fontSize: bold ? 13 : 12, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: p.textDark)),
           ]),
         );
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-      decoration: _cardDeco(p),
-      child: Column(children: [
-        line(Loc.t('Daily Payable', 'روزانہ واجب الادا'), st.daily),
-        line(Loc.t('Stuck (Purana)', 'اسٹک (پرانا)'), st.stuck),
-        Divider(color: p.border, height: 10),
-        line(Loc.t('Total Payable', 'کل واجب الادا'), st.daily + st.stuck, bold: true),
-      ]),
-    );
+    return Column(children: [
+      line(Loc.t('Daily Payable', 'روزانہ واجب الادا'), st.daily),
+      line(Loc.t('Stuck (Purana)', 'اسٹک (پرانا)'), st.stuck),
+      Divider(color: p.border, height: 10),
+      line(Loc.t('Total Payable', 'کل واجب الادا'), st.daily + st.stuck, bold: true),
+    ]);
   }
 
   Widget _statsCard(AppPalette p, PartyTxStats st) {
@@ -928,11 +882,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     final last = (st.lastActivityAt != null && st.lastActivityAt! > 0)
         ? _dateFmt.format(DateTime.fromMillisecondsSinceEpoch(st.lastActivityAt!))
         : Loc.t('No activity yet', 'ابھی تک کوئی سرگرمی نہیں');
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
-      decoration: _cardDeco(p),
-      child: Column(children: [
+    return Column(children: [
         Row(children: [
           tile(widget.isCustomer ? Loc.t('Total Sales', 'کل سیلز') : Loc.t('Total Purchases', 'کل خریداری'),
               _rs(st.totalAmount), _accent),
@@ -946,8 +896,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
           tile(widget.isCustomer ? Loc.t('Last Sale', 'آخری سیل') : Loc.t('Last Purchase', 'آخری خریداری'), last,
               p.textDark),
         ]),
-      ]),
-    );
+    ]);
   }
 
 }
