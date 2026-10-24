@@ -828,6 +828,34 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     );
   }
 
+  Widget _chips(AppPalette p) {
+    Widget chip(String label, TxFilter mode) {
+      final active = _filter == mode;
+      return Padding(
+        padding: const EdgeInsets.only(right: 10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () => setState(() => _filter = mode),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: active ? _accent : p.border.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Text(label,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: active ? Colors.white : p.textMuted)),
+          ),
+        ),
+      );
+    }
+
+    return Row(children: [
+      chip(Loc.t('All', 'سب'), TxFilter.all),
+      chip(Loc.t('Bills', 'بل'), TxFilter.bills),
+      chip(Loc.t('Payments', 'ادائیگیاں'), TxFilter.payments),
+    ]);
+  }
+
   /// Ek hi card: (stuck ho to) Daily/Stuck/Total Payable, phir Total Sales/Paid/Overdue/Credit Limit/Last Sale.
   Widget _summaryCard(AppPalette p, PartyTxStats st) => Container(
         margin: const EdgeInsets.only(bottom: 12),
