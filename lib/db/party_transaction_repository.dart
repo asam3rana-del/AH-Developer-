@@ -209,7 +209,9 @@ class PartyTxData {
   final List<Sale> sales;
   final List<Purchase> purchases;
   final List<Payment> payments; // sirf standalone
+  final String phone;
   const PartyTxData({
+    this.phone = '',
     this.opening = 0,
     this.stuck = 0,
     this.creditLimit = 0,
@@ -248,16 +250,21 @@ class PartyTransactionRepository {
     if (!isCustomer && !Session.isAdminOrManager) return const PartyTxData();
     final db = await AppDatabase.instance.database;
     var opening = 0.0, stuck = 0.0, credit = 0.0;
+    var phone = '';
     if (isCustomer) {
       final r = await db.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
       if (r.isNotEmpty) {
         opening = (r.first['openingBalance'] as num?)?.toDouble() ?? 0.0;
         stuck = (r.first['stuckBalance'] as num?)?.toDouble() ?? 0.0;
         credit = (r.first['creditLimit'] as num?)?.toDouble() ?? 0.0;
+        phone = (r.first['phone'] as String?) ?? '';
       }
     } else {
       final r = await db.query('suppliers', where: 'id = ?', whereArgs: [partyId], limit: 1);
-      if (r.isNotEmpty) opening = (r.first['openingBalance'] as num?)?.toDouble() ?? 0.0;
+      if (r.isNotEmpty) {
+        opening = (r.first['openingBalance'] as num?)?.toDouble() ?? 0.0;
+        phone = (r.first['phone'] as String?) ?? '';
+      }
     }
 
     final sales = isCustomer
@@ -278,6 +285,7 @@ class PartyTransactionRepository {
     final payments = standalonePayments(payRows.map(Payment.fromMap), ownIds);
 
     return PartyTxData(
+      phone: phone,
       opening: opening,
       stuck: stuck,
       creditLimit: credit,
@@ -302,6 +310,26 @@ class PartyTransactionRepository {
       found = true;
       final now = _now();
       await txn.update(table, {'name': name, 'dirty': 1, 'updatedAt': now}, where: 'id = ?', whereArgs: [partyId]);
+      if (isCustomer) {
+        await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      } else {
+        await SyncQueueHelper.enqueueSupplier(txn, partyId);
+      }
+    });
+    if (found) await _refreshParties();
+    return found;
+  }
+
+  /// Party ka phone number badalna / lagana (sync queue ke saath, rename jaisa).
+  Future<bool> updatePhone({required bool isCustomer, required int partyId, required String phone}) async {
+    final db = await AppDatabase.instance.database;
+    final table = isCustomer ? 'customers' : 'suppliers';
+    var found = false;
+    await db.transaction((txn) async {
+      final r = await txn.query(table, where: 'id = ?', whereArgs: [partyId], limit: 1);
+      if (r.isEmpty) return;
+      found = true;
+      await txn.update(table, {'phone': phone.trim(), 'dirty': 1, 'updatedAt': _now()}, where: 'id = ?', whereArgs: [partyId]);
       if (isCustomer) {
         await SyncQueueHelper.enqueueCustomer(txn, partyId);
       } else {

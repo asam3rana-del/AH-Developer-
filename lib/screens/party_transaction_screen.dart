@@ -2,17 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../db/due_reminders_repository.dart' show whatsAppDigits;
 import '../db/party_transaction_repository.dart';
+import '../db/purchase_history_repository.dart';
+import '../db/sale_history_repository.dart';
 import '../db/payment_repository.dart';
 import '../models/misc_entities.dart';
 import '../models/purchase.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
+import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart' show formatQty;
+import '../widgets/role_guard.dart';
+import 'bill_preview_screen.dart';
 import 'payments_screen.dart' show showPaymentDialog;
+import 'purchase_screen.dart';
+import 'sale_screen.dart';
 
 /// Mirrors PartyTransactionActivity.kt.
 ///
@@ -62,6 +71,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
   final _searchCtrl = TextEditingController();
 
   late String _name = widget.partyName;
+  String _phone = '';
   PartyTxStats? _stats;
   List<TxEntry> _entries = const [];
   TxFilter _filter = TxFilter.all;
@@ -167,6 +177,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       setState(() {
+        _phone = d.phone;
         _stats = stats;
         _entries = entries;
         _loading = false;
@@ -323,6 +334,176 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
 
   // ------------------------------------------------------------------- build
 
+  static const _lightBlue = Color(0xFFE3F0FC);
+  static const _actionBlue = Color(0xFF0A6FE0);
+  static const _actionRed = Color(0xFFEE1B3B);
+
+  BoxDecoration _cardDeco(AppPalette p) => BoxDecoration(
+        color: p.cardWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.border),
+      );
+
+  String _rs2(double v) => 'Rs ${v.toStringAsFixed(2)}';
+
+  String _shortDate(int ms) => DateFormat('dd MMM, yy').format(DateTime.fromMillisecondsSinceEpoch(ms));
+
+  bool get _canAddBill => widget.isCustomer || Session.isAdmin;
+
+  // ---- new actions -------------------------------------------------------
+
+  Future<void> _editPhone() async {
+    final ctrl = TextEditingController(text: _phone);
+    final v = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Phone number', 'فون نمبر')),
+        content: TextField(controller: ctrl, autofocus: true, keyboardType: TextInputType.phone),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text(Loc.t('Save', 'محفوظ کریں'))),
+        ],
+      ),
+    );
+    if (v == null) return;
+    try {
+      final ok = await _repo.updatePhone(isCustomer: widget.isCustomer, partyId: widget.partyId, phone: v);
+      if (!mounted) return;
+      if (ok) {
+        setState(() => _phone = v);
+        _toast(Loc.t('Phone updated', 'فون نمبر اپ ڈیٹ ہو گیا'));
+      } else {
+        _toast(Loc.t('Party not found', 'پارٹی نہیں ملی'));
+      }
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  /// Customer ne paisa dena ho aur phone maujood ho to WhatsApp reminder.
+  bool get _canRemind => widget.isCustomer && _phone.trim().isNotEmpty && (_stats?.closing ?? 0) > 0.009;
+
+  Future<void> _sendReminder() async {
+    final st = _stats;
+    if (st == null) return;
+    final digits = whatsAppDigits(_phone);
+    final msg = 'Assalam o Alaikum $_name, aapka Rs ${st.closing.round()} abhi baaki hai. '
+        'Barah-e-karam jald ada karein. Shukriya!';
+    try {
+      final ok = await launchUrl(Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(msg)}'),
+          mode: LaunchMode.externalApplication);
+      if (!ok) throw Exception('launch failed');
+    } catch (_) {
+      _toast('WhatsApp nahi khul saka. Installed hai?');
+    }
+  }
+
+  Future<void> _addBill() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => widget.isCustomer
+            ? SaleScreen(initialCustomer: _name)
+            : RoleGuard(allowed: const {'admin'}, child: PurchaseScreen(initialSupplier: _name))));
+    if (mounted) _load();
+  }
+
+  Future<void> _printBill(TxEntry e) async {
+    try {
+      BillDoc? doc;
+      if (e.sale != null) {
+        final sale = e.sale!;
+        final items = await SaleHistoryRepository.instance.itemsForInvoice(sale.invoice);
+        doc = BillDoc(
+          isPurchase: false,
+          ref: sale.invoice,
+          date: DateTime.fromMillisecondsSinceEpoch(sale.createdAt),
+          partyName: _name,
+          partyId: widget.partyId,
+          partyPhone: _phone,
+          items: [for (final i in items) BillItem(name: i.product, qty: i.qty, unit: i.unit, rate: i.unitPrice, amount: i.amount)],
+          subtotal: sale.subtotal,
+          discount: sale.discount,
+          total: sale.total,
+          paid: sale.paid,
+          paymentMethod: sale.paymentMethod.isEmpty
+              ? ''
+              : sale.paymentMethod[0].toUpperCase() + sale.paymentMethod.substring(1),
+        );
+      } else if (e.purchase != null) {
+        final pu = e.purchase!;
+        final items = await PurchaseHistoryRepository.instance.itemsForBill(pu.billNo);
+        final lines = await PurchaseHistoryRepository.instance.linesForBill(pu.billNo);
+        doc = BillDoc(
+          isPurchase: true,
+          ref: pu.billNo,
+          date: DateTime.fromMillisecondsSinceEpoch(pu.createdAt),
+          partyName: _name,
+          partyId: widget.partyId,
+          partyPhone: _phone,
+          items: [
+            for (var i = 0; i < items.length; i++)
+              BillItem(name: lines[i].name, qty: items[i].qty, unit: lines[i].unit, rate: items[i].unitCost, amount: items[i].amount),
+          ],
+          subtotal: pu.subtotal,
+          discount: pu.discount,
+          total: pu.total,
+          paid: pu.paid,
+        );
+      }
+      if (doc == null || !mounted) return;
+      await BillPreviewScreen.open(context, doc);
+    } catch (err) {
+      _toast('$err');
+    }
+  }
+
+  Future<void> _shareBill(TxEntry e) async {
+    final isSale = e.sale != null;
+    final ref = e.sale?.invoice ?? e.purchase?.billNo ?? '';
+    final paid = e.sale?.paid ?? e.purchase?.paid ?? 0.0;
+    final due = e.status == 'returned' ? 0.0 : (e.amount - paid).clamp(0, double.infinity).toDouble();
+    final text = [
+      _name,
+      '${isSale ? Loc.t('Sale', 'سیل') : Loc.t('Purchase', 'خریداری')} $ref',
+      '${Loc.t('Date', 'تاریخ')}: ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}',
+      '${Loc.t('Total', 'کل')}: ${_rs2(e.amount)}',
+      '${Loc.t('Balance', 'بقایا')}: ${_rs2(due)}',
+    ].join('\n');
+    try {
+      await Share.share(text);
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: text));
+      _toast(Loc.t('Details copied', 'تفصیل کاپی ہو گئی'));
+    }
+  }
+
+  void _showPlusMenu() {
+    final p = _p;
+    Widget item(IconData icon, String label, VoidCallback onTap) => ListTile(
+          leading: Icon(icon, color: p.textDark),
+          title: Text(label, style: TextStyle(color: p.textDark, fontWeight: FontWeight.w600)),
+          onTap: () {
+            Navigator.pop(context);
+            onTap();
+          },
+        );
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: p.cardWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          if (_canAddBill)
+            item(Icons.add_shopping_cart, widget.isCustomer ? Loc.t('Add Sale', 'سیل شامل کریں') : Loc.t('Add Purchase', 'خریداری شامل کریں'), _addBill),
+          item(Icons.account_balance_wallet_outlined,
+              widget.isCustomer ? Loc.t('Take Payment', 'ادائیگی وصول کریں') : Loc.t('Make Payment', 'ادائیگی کریں'), () => _payment()),
+          item(Icons.description_outlined, Loc.t('Send Statement', 'سٹیٹمنٹ بھیجیں'), _copyStatement),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = _p;
@@ -343,58 +524,48 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       );
     }
 
+    final dark = ThemeManager.isDark.value;
     final visible = filterTxEntries(_entries, _filter, _searchCtrl.text);
     return Scaffold(
-      backgroundColor: p.bg,
+      backgroundColor: dark ? p.bg : _lightBlue,
       appBar: AppBar(
-        backgroundColor: p.navy,
-        foregroundColor: Colors.white,
-        titleSpacing: 0,
-        title: Text(_name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: p.cardWhite,
+        foregroundColor: p.textDark,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        title: Text(Loc.t('Party Details', 'پارٹی کی تفصیل'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 21)),
         actions: [
           IconButton(tooltip: Loc.t('Edit', 'ترمیم'), icon: const Icon(Icons.edit_outlined), onPressed: _editName),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TextButton.icon(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: _accent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-              ),
-              icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
-              label: Text(
-                widget.isCustomer ? Loc.t('Receive Payment', 'ادائیگی وصول کریں') : Loc.t('Make Payment', 'ادائیگی کریں'),
-                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
-              ),
-              onPressed: () => _payment(),
-            ),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'statement') _copyStatement();
+              if (v == 'phone') _editPhone();
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'statement', child: Text(Loc.t('Send Statement', 'سٹیٹمنٹ بھیجیں'))),
+              PopupMenuItem(value: 'phone', child: Text(Loc.t('Edit Phone', 'فون نمبر بدلیں'))),
+            ],
           ),
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _loading ? null : _bottomActions(p),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 110),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6, bottom: 12),
-                    child: Text(
-                      widget.isCustomer
-                          ? Loc.t('Customer transactions', 'کسٹمر لین دین')
-                          : Loc.t('Supplier transactions', 'سپلائر لین دین'),
-                      style: TextStyle(fontSize: 12.5, color: p.textMuted),
-                    ),
-                  ),
+                  _headerCard(p),
+                  const SizedBox(height: 12),
                   if (_stats != null) ...[
                     _balanceCard(p, _stats!),
                     if (_stats!.stuck != 0) _stuckCard(p, _stats!),
                     _statsCard(p, _stats!),
                   ],
-                  _shareButton(),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 2),
                   _searchBox(p),
                   const SizedBox(height: 10),
                   _chips(p),
@@ -407,18 +578,257 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
                           : Loc.t('No matching transactions', 'کوئی مماثل لین دین نہیں'),
                     )
                   else
-                    for (final e in visible) e.isPayment ? _paymentRow(p, e) : _billRow(p, e),
+                    for (final e in visible) _txCard(p, e),
                 ],
               ),
             ),
     );
   }
 
-  BoxDecoration _cardDeco(AppPalette p) => BoxDecoration(
-        color: p.cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: p.border),
+  Widget _bottomActions(AppPalette p) {
+    Widget pill(String label, Color color, VoidCallback onTap) => Expanded(
+          child: SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              ),
+              onPressed: onTap,
+              child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(children: [
+        pill(widget.isCustomer ? Loc.t('Take Payment', 'ادائیگی لیں') : Loc.t('Make Payment', 'ادائیگی کریں'), _actionBlue, () => _payment()),
+        const SizedBox(width: 10),
+        Material(
+          color: Colors.white,
+          shape: const CircleBorder(side: BorderSide(color: _actionBlue, width: 2)),
+          elevation: 4,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: _showPlusMenu,
+            child: const SizedBox(width: 52, height: 52, child: Icon(Icons.add, color: _actionBlue, size: 32)),
+          ),
+        ),
+        if (_canAddBill) ...[
+          const SizedBox(width: 10),
+          pill(widget.isCustomer ? Loc.t('Add Sale', 'سیل شامل کریں') : Loc.t('Add Purchase', 'خریداری شامل کریں'), _actionRed, _addBill),
+        ],
+      ]),
+    );
+  }
+
+  Widget _headerCard(AppPalette p) {
+    final st = _stats;
+    final give = st != null && partyGive(st.closing);
+    final color = give ? p.red : p.flatTealFg;
+    final amount = st == null ? 0.0 : st.closing.abs();
+    final noPhone = _phone.trim().isEmpty;
+    final remindColor = _canRemind ? _actionBlue : p.textMuted.withOpacity(0.6);
+    return Container(
+      decoration: _cardDeco(p),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, color: p.textDark)),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: _editPhone,
+                  child: Text(noPhone ? Loc.t('Add Phone', 'فون شامل کریں') : _phone,
+                      style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: _actionBlue)),
+                ),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: color.withOpacity(0.13), shape: BoxShape.circle),
+                  child: Icon(give ? Icons.north_east : Icons.south_west, size: 15, color: color),
+                ),
+                const SizedBox(width: 8),
+                Text('${give ? Loc.t('Payable', 'قابل ادائیگی') : Loc.t('Receivable', 'قابل وصولی')}: ${_rs2(amount)}',
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: color, letterSpacing: 0.6)),
+              ]),
+              if (widget.isCustomer) ...[
+                const SizedBox(height: 8),
+                Text(
+                  (st != null && st.creditLimit > 0)
+                      ? '${Loc.t('Credit Limit', 'کریڈٹ حد')}: ${_rs(st.creditLimit)}'
+                      : Loc.t('No Credit Limit Set', 'کریڈٹ حد مقرر نہیں'),
+                  style: TextStyle(fontSize: 14.5, color: p.textDark),
+                ),
+              ],
+            ]),
+          ]),
+        ),
+        Container(
+          color: const Color(0xFFF3F6F8).withOpacity(ThemeManager.isDark.value ? 0.06 : 1),
+          child: IntrinsicHeight(
+            child: Row(children: [
+              Expanded(
+                child: InkWell(
+                  onTap: _canRemind ? _sendReminder : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.notifications_active_outlined, size: 24, color: remindColor),
+                      const SizedBox(width: 10),
+                      Text(Loc.t('Send Reminder', 'یاد دہانی'),
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: remindColor)),
+                    ]),
+                  ),
+                ),
+              ),
+              VerticalDivider(width: 1, thickness: 1, indent: 12, endIndent: 12, color: p.border),
+              Expanded(
+                child: InkWell(
+                  onTap: _copyStatement,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: _StatementLabel(),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _searchBox(AppPalette p) => Container(
+        padding: const EdgeInsets.only(left: 14, right: 10),
+        decoration: BoxDecoration(color: p.cardWhite, borderRadius: BorderRadius.circular(14), border: Border.all(color: p.border)),
+        child: Row(children: [
+          const Icon(Icons.search, color: _actionBlue, size: 28),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (_) => setState(() {}),
+              style: const TextStyle(fontSize: 17),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                hintText: Loc.t('Search Transactions', 'لین دین تلاش کریں'),
+                hintStyle: TextStyle(color: p.textMuted),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ]),
       );
+
+  Widget _placeholder(AppPalette p, String text) => Container(
+        padding: const EdgeInsets.all(28),
+        decoration: _cardDeco(p),
+        child: Center(child: Text(text, style: TextStyle(color: p.textMuted, fontSize: 13.5))),
+      );
+
+  Widget _col(AppPalette p, String label, String value, {Color? valueColor}) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 16, color: p.textMuted)),
+          const SizedBox(height: 4),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: valueColor ?? p.textDark)),
+        ],
+      );
+
+  Widget _iconBtn(AppPalette p, IconData icon, VoidCallback onTap) => InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(padding: const EdgeInsets.all(8), child: Icon(icon, size: 26, color: p.textMuted)),
+      );
+
+  Widget _txCard(AppPalette p, TxEntry e) {
+    final isPay = e.isPayment;
+    final pay = e.payment;
+    final returned = e.status == 'returned';
+    final String title;
+    if (isPay) {
+      title = widget.isCustomer ? Loc.t('Payment Received', 'ادائیگی وصول ہوئی') : Loc.t('Payment Made', 'ادائیگی ہوئی');
+    } else {
+      title = (e.sale != null ? Loc.t('Sale', 'سیل') : Loc.t('Purchase', 'خریداری')) +
+          (returned ? '  \u2022  ${Loc.t('Returned', 'واپس')}' : '');
+    }
+    final paid = e.sale?.paid ?? e.purchase?.paid ?? 0.0;
+    final due = returned ? 0.0 : (e.amount - paid).clamp(0, double.infinity).toDouble();
+    final extra = isPay
+        ? [if (pay!.note.isNotEmpty) pay.note, if (pay.billReference.isNotEmpty) '${Loc.t('Against', 'برائے')} ${pay.billReference}'].join('  \u2022  ')
+        : '';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: p.cardWhite,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2))],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: isPay ? null : () => _openBill(e),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Row(children: [
+                Expanded(
+                    child: Text(title,
+                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: returned ? p.red : p.textDark))),
+                Text(_shortDate(e.createdAt), style: TextStyle(fontSize: 15.5, color: p.textMuted)),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              _col(p, isPay ? Loc.t('Amount', 'رقم') : Loc.t('Total', 'کل'), _rs2(e.amount)),
+              const SizedBox(width: 44),
+              if (isPay)
+                _col(p, Loc.t('Method', 'ذریعہ'), pay!.method.toUpperCase())
+              else
+                _col(p, Loc.t('Balance', 'بقایا'), _rs2(due), valueColor: due > 0.009 ? p.red : null),
+              const Spacer(),
+              if (!isPay) _iconBtn(p, Icons.print_outlined, () => _printBill(e)),
+              _iconBtn(p, Icons.share_outlined, () => isPay ? _copyReceipt(pay!) : _shareBill(e)),
+              _moreMenu(p, e),
+            ]),
+            if (extra.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 6),
+                child: Text(extra, style: TextStyle(fontSize: 12.5, color: p.textMuted)),
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _moreMenu(AppPalette p, TxEntry e) {
+    if (e.isPayment && !Session.isAdmin) return const SizedBox(width: 8);
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert, size: 26, color: p.textMuted),
+      onSelected: (v) {
+        if (v == 'items') _openBill(e);
+        if (v == 'edit') _payment(existing: e.payment);
+        if (v == 'delete') _deletePayment(e.payment!);
+      },
+      itemBuilder: (_) => [
+        if (!e.isPayment) PopupMenuItem(value: 'items', child: Text(Loc.t('View Items', 'آئٹمز دیکھیں'))),
+        if (e.isPayment) PopupMenuItem(value: 'edit', child: Text(Loc.t('Edit', 'ترمیم'))),
+        if (e.isPayment) PopupMenuItem(value: 'delete', child: Text(Loc.t('Delete', 'حذف'))),
+      ],
+    );
+  }
 
   Widget _balanceCard(AppPalette p, PartyTxStats st) {
     final give = partyGive(st.closing);
@@ -443,6 +853,34 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         ]),
       ]),
     );
+  }
+
+  Widget _chips(AppPalette p) {
+    Widget chip(String label, TxFilter mode) {
+      final active = _filter == mode;
+      return Padding(
+        padding: const EdgeInsets.only(right: 10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () => setState(() => _filter = mode),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: active ? _accent : p.border.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Text(label,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: active ? Colors.white : p.textMuted)),
+          ),
+        ),
+      );
+    }
+
+    return Row(children: [
+      chip(Loc.t('All', 'سب'), TxFilter.all),
+      chip(Loc.t('Bills', 'بل'), TxFilter.bills),
+      chip(Loc.t('Payments', 'ادائیگیاں'), TxFilter.payments),
+    ]);
   }
 
   Widget _stuckCard(AppPalette p, PartyTxStats st) {
@@ -512,154 +950,18 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     );
   }
 
-  Widget _shareButton() => SizedBox(
-        height: 46,
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _accent,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          icon: const Icon(Icons.share_outlined, size: 18),
-          label: Text(Loc.t('Share Statement', 'سٹیٹمنٹ شیئر کریں'), style: const TextStyle(fontWeight: FontWeight.bold)),
-          onPressed: _copyStatement,
-        ),
-      );
+}
 
-  Widget _searchBox(AppPalette p) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: p.fieldFill,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: p.border),
-        ),
-        child: TextField(
-          controller: _searchCtrl,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            border: InputBorder.none,
-            hintText: Loc.t('Search this history (date, note, amount)', 'اس تاریخ میں تلاش کریں'),
-          ),
-        ),
-      );
+class _StatementLabel extends StatelessWidget {
+  const _StatementLabel();
 
-  Widget _chips(AppPalette p) {
-    Widget chip(String label, TxFilter mode) {
-      final active = _filter == mode;
-      return Padding(
-        padding: const EdgeInsets.only(right: 10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: () => setState(() => _filter = mode),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: active ? _accent : p.border.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Text(label,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: active ? Colors.white : p.textMuted)),
-          ),
-        ),
-      );
-    }
-
-    return Row(children: [
-      chip(Loc.t('All', 'سب'), TxFilter.all),
-      chip(Loc.t('Bills', 'بل'), TxFilter.bills),
-      chip(Loc.t('Payments', 'ادائیگیاں'), TxFilter.payments),
-    ]);
-  }
-
-  Widget _placeholder(AppPalette p, String text) => Container(
-        padding: const EdgeInsets.all(28),
-        decoration: _cardDeco(p),
-        child: Center(child: Text(text, style: TextStyle(color: p.textMuted, fontSize: 13.5))),
-      );
-
-  Widget _billRow(AppPalette p, TxEntry e) {
-    final isSale = e.sale != null;
-    final returned = e.status == 'returned';
-    final label = (isSale ? Loc.t('Sale', 'سیل') : Loc.t('Purchase', 'خریداری')) +
-        (returned ? '  \u2022  ${Loc.t('Returned', 'واپس')}' : '');
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      color: p.cardWhite,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: p.border)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => _openBill(e),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(children: [
-            Icon(isSale ? Icons.shopping_cart_outlined : Icons.receipt_long_outlined, color: _accent),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt)),
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.textDark)),
-                const SizedBox(height: 3),
-                Text(label, style: TextStyle(fontSize: 12, color: returned ? p.red : p.textMuted)),
-              ]),
-            ),
-            Text(_rs(e.amount), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _accent)),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _paymentRow(AppPalette p, TxEntry e) {
-    final pay = e.payment!;
-    Widget chip(IconData icon, String label, Color color, VoidCallback onTap) => Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: color,
-              side: BorderSide(color: color.withOpacity(0.6)),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-              minimumSize: const Size(0, 32),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            ),
-            icon: Icon(icon, size: 14),
-            label: Text(label, style: const TextStyle(fontSize: 12)),
-            onPressed: onTap,
-          ),
-        );
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      color: p.cardWhite,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: p.border)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.account_balance_wallet_outlined, color: widget.isCustomer ? p.flatTealFg : p.flatCoralFg),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(pay.createdAt)),
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.textDark)),
-                const SizedBox(height: 3),
-                Text(_payLabel(pay), style: TextStyle(fontSize: 12, color: p.textMuted)),
-              ]),
-            ),
-            Text(_rs(pay.amount),
-                style: TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.bold, color: widget.isCustomer ? p.flatTealFg : p.flatCoralFg)),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            if (Session.isAdmin) chip(Icons.edit_outlined, Loc.t('Edit', 'ترمیم'), p.textDark, () => _payment(existing: pay)),
-            chip(Icons.send_outlined, Loc.t('Share', 'شیئر'), p.flatTealFg, () => _copyReceipt(pay)),
-            if (Session.isAdmin) chip(Icons.delete_outline, Loc.t('Delete', 'حذف'), p.red, () => _deletePayment(pay)),
-          ]),
-        ]),
-      ),
-    );
-  }
+  @override
+  Widget build(BuildContext context) => Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.assignment_outlined, size: 24, color: Color(0xFF0A6FE0)),
+        const SizedBox(width: 10),
+        Text(Loc.t('Send Statement', 'سٹیٹمنٹ بھیجیں'),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Color(0xFF0A6FE0))),
+      ]);
 }
 
 // ===========================================================================

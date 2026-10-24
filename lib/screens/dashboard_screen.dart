@@ -14,6 +14,7 @@ import '../utils/loc.dart';
 import '../widgets/menu_row.dart' show IconBadge;
 import '../widgets/party_quick_add_menu.dart' show showPartyPickerForPayment;
 import '../widgets/role_guard.dart';
+import 'amanat_loan_screen.dart';
 import 'backup_export_screen.dart';
 import 'daily_bills_screen.dart';
 import 'day_book_screen.dart';
@@ -408,6 +409,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _Action('Customers &\nSuppliers', 'گاہک اور\nسپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people_outline, p.flatPinkBg,
           p.flatPinkFg,
           open: () => const PartyDashboardScreen()),
+      // Amanat / Loan: ab Due Reminders se alag, seedha dashboard par (add / edit / delete wahin;
+      // party 'customers' table se hi sync hoti hai, is liye baqi parties ki tarah sab devices par auto-sync).
+      if (_am.contains(role))
+        _Action('Amanat / Loan', 'امانت / قرض', 'Deposits held & loans given', 'رکھوائی امانت اور دیے گئے قرض', Icons.account_balance_wallet_outlined,
+            p.flatAmberBg, p.flatAmberFg,
+            open: () => const AmanatLoanScreen()),
       _Action('Low Stock', 'کم اسٹاک', 'Items needing restock', 'دوبارہ منگوانے والی اشیاء', Icons.warning_amber_rounded, _partyRedBg,
           _partyRed,
           open: () => const StockReportScreen(lowStockOnly: true)),

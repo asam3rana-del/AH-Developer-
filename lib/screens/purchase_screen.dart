@@ -50,7 +50,10 @@ import '../theme/theme_manager.dart';
 class PurchaseScreen extends StatefulWidget {
   final String? editBillNo;
 
-  const PurchaseScreen({super.key, this.editBillNo});
+  /// Party screen ke "Add Purchase" se: supplier ka naam pehle se bhara hua (sirf nayi purchase par).
+  final String? initialSupplier;
+
+  const PurchaseScreen({super.key, this.editBillNo, this.initialSupplier});
 
   @override
   State<PurchaseScreen> createState() => _PurchaseScreenState();
@@ -148,7 +151,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _loading = true;
       _loadForEdit();
     } else {
-      _restoreDraft().then((_) => _restoreEntry());
+      _restoreDraft().then((_) => _restoreEntry()).then((_) {
+        final sName = widget.initialSupplier;
+        if (!mounted || sName == null || sName.trim().isEmpty) return;
+        setState(() => _supplierCtrl.text = sName.trim());
+      });
     }
   }
 

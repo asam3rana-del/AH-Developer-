@@ -44,7 +44,10 @@ class SaleScreen extends StatefulWidget {
   /// Sirf naye sale par (edit mode mein ignore).
   final bool openQuickSale;
 
-  const SaleScreen({super.key, this.editInvoice, this.openQuickSale = false});
+  /// Party screen ke "Add Sale" se: customer ka naam pehle se bhara hua (sirf naye sale par).
+  final String? initialCustomer;
+
+  const SaleScreen({super.key, this.editInvoice, this.openQuickSale = false, this.initialCustomer});
 
   @override
   State<SaleScreen> createState() => _SaleScreenState();
@@ -138,11 +141,19 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       // Customer picked/typed AFTER the item: re-check their usual rate.
       if (!_customerFocus.hasFocus) _suggestCustomerRate();
     });
-    _load();
+    _load().then((_) {
+      final c = widget.initialCustomer;
+      if (!mounted || _isEdit || c == null || c.trim().isEmpty) return;
+      setState(() => _customerCtrl.text = c.trim());
+    });
     // Sale shuru hote hi cursor Customer Name par (khali = walk-in; Enter se aage).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isEdit || widget.openQuickSale) return;
-      _customerFocus.requestFocus();
+      if (widget.initialCustomer != null && widget.initialCustomer!.trim().isNotEmpty) {
+        _itemFocus.requestFocus();
+      } else {
+        _customerFocus.requestFocus();
+      }
     });
   }
 
