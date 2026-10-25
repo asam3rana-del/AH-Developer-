@@ -1003,7 +1003,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               children: [
                 Text(
                   Loc.t('Bill Total: Rs ${billTotal.round()}', 'بل کل: Rs ${billTotal.round()}'),
-                  style: const TextStyle(fontSize: 13, color: Colors.black54),
+                  style: TextStyle(fontSize: 13, color: ThemeManager.palette.textMuted),
                 ),
                 const SizedBox(height: 8),
                 for (var i = 0; i < amountCtrls.length; i++)

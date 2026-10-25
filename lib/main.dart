@@ -81,13 +81,7 @@ class AhDeveloperApp extends StatelessWidget {
           key: ValueKey('$lang-$dark'),
           title: 'Hanna Solutions',
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            useMaterial3: true,
-            brightness: dark ? Brightness.dark : Brightness.light,
-            scaffoldBackgroundColor: p.bg,
-            colorSchemeSeed: ThemeManager.palette.navy,
-            fontFamily: 'Roboto',
-          ),
+          theme: _buildTheme(p, dark),
           // Desktop: mouse se bhi drag-scroll (touch-screen POS jaisa).
           scrollBehavior: const _DesktopScrollBehavior(),
           builder: (context, child) => Directionality(
@@ -100,6 +94,36 @@ class AhDeveloperApp extends StatelessWidget {
       },
     );
   }
+}
+
+/// Poori app ka ThemeData ThemeManager ke palette se: dialog, bottom sheet, popup menu, card, text-field
+/// aur unstyled Text bhi dark/light mein palette ke rang lete hain (pehle Material ke apne seeded rang the).
+/// Sirf stable ColorScheme/ThemeData fields — component themes (DialogTheme wagaira) jaan boojh kar nahi,
+/// kyunke naye Flutter versions mein unke class naam badal gaye hain.
+ThemeData _buildTheme(AppPalette p, bool dark) {
+  final brightness = dark ? Brightness.dark : Brightness.light;
+  final scheme = ColorScheme.fromSeed(seedColor: p.navy, brightness: brightness).copyWith(
+    surface: p.cardWhite,
+    onSurface: p.textDark,
+    onSurfaceVariant: p.textMuted,
+    surfaceContainerLowest: p.cardWhite,
+    surfaceContainerLow: p.cardWhite,
+    surfaceContainer: p.cardWhite,
+    surfaceContainerHigh: p.cardWhite,
+    surfaceContainerHighest: p.fieldFill,
+    outline: p.textMuted,
+    outlineVariant: p.border,
+    error: p.red,
+  );
+  final base = ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: p.bg,
+    canvasColor: p.cardWhite,
+    dividerColor: p.border,
+    fontFamily: 'Roboto',
+  );
+  return base.copyWith(textTheme: base.textTheme.apply(bodyColor: p.textDark, displayColor: p.textDark));
 }
 
 bool get _isDesktop => !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);

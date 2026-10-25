@@ -1395,7 +1395,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               children: [
                 Text(
                   Loc.t('Bill Total: Rs ${formatRound(billTotal)}', 'بل کل: Rs ${formatRound(billTotal)}'),
-                  style: const TextStyle(fontSize: 13, color: Colors.black54),
+                  style: TextStyle(fontSize: 13, color: ThemeManager.palette.textMuted),
                 ),
                 const SizedBox(height: 8),
                 for (var i = 0; i < rows.length; i++)

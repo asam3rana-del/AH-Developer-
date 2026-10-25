@@ -692,3 +692,10 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [x] `README.md` naye sire se (Hanna Solutions, build/secrets/zip-import/checks).
 - [x] Packages: `pubspec.lock` repo mein nahi, is liye har build par caret ranges ke andar sab se naye packages aate hain — pubspec mein version badalne ki zaroorat nahi thi. Flutter 3.24 -> naya stable (3.47.x) abhi NAHI kiya: Kotlin/AGP/Gradle/compileSdk fixes (`tools/android_fix.sh`) naye template par toot sakte hain; pehle manual Run workflow se aazmayen.
 - Note: `.github/` import-zip se paste nahi hota — `build.yml` aur `import-zip.yml` GitHub par haath se update karni hongi.
+
+## UI / dark mode polish (2026-10-25)
+- [x] `lib/main.dart`: `_buildTheme(p, dark)` — poori app ka ThemeData ab ThemeManager palette se (ColorScheme surface/onSurface/outline/error + surfaceContainer* = cardWhite/fieldFill, textTheme textDark, divider = border). Pehle sirf `colorSchemeSeed: navy` tha, is liye dialog / bottom sheet / popup menu / dropdown / card / unstyled Text dark mode mein Material ke apne (palette se alag) rang lete the. Sirf stable ColorScheme/ThemeData fields use huin (DialogTheme jaisi classes nahi, jin ke naam naye Flutter mein badle).
+- [x] Sale aur Purchase ke Split Payment dialog ka "Bill Total" text `Colors.black54` tha (dark dialog par nazar nahi aata) -> `palette.textMuted`.
+- [x] `utility_bills_screen.dart`: status chip (Paid / Overdue / Due today / Due tomorrow / In N days), Delete bill, error text aur Overdue amount ke `Colors.red/green/orange/blueGrey.shadeNNN` -> palette teal/red/amber/textMuted (dark mode mein theek contrast).
+- Check kiya, theek mila: header par safed pill/icons (navy header dono modes mein), login ka safed avatar, `Colors.black` sirf shadows/barrier mein.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test`, phir device par light aur dark dono mein dialogs, bottom sheets aur dropdowns dekh lein. Light mode mein surfaces ab pure white (palette cardWhite) hain, pehle halka lavender tint tha.
