@@ -678,3 +678,10 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [x] 17 screens ka `_toast()` ab `if (!mounted) return;` se shuru hota hai (await ke baad screen pop ho jaye to "deactivated widget" error nahi): bill_preview, bulk_default_unit, bulk_missing_rates, bulk_rate_tool, cash_register, cash, daily_bills (2), expense, items, purchase_history, sale_history, shell_ledger, shop_rent, stock_audit, user_management, zakat.
 - Check kiya, theek mila: global error handler (CrashHandler), int.parse wale sab sites pehle validate hote hain, dialog ke `Navigator.pop(ctx)` sahi context par.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
+
+## Cleanup (2026-10-25)
+- [x] Root par galti se paste hui purani copies hata di gayin: `db/`, `screens/`, `androidTest/` (kotlin_reference/androidTest jaisi hi), `firestore.rules` + `firestore.indexes.json` (firebase/ mein wahi files hain), aur 3 purani root tests (`sync_apply_test.dart`, `sync_apply_rest_test.dart`, `worker_sync_test.dart` — asli, naye versions test/ mein hain).
+- [x] `analysis_options.yaml` ab sirf `kotlin_reference/**` exclude karta hai.
+- Note: repo mein ye purani files pehle se hain to GitHub se inhe haath se delete karna hoga (import-zip sirf files add/overwrite karta hai).
+
+- [x] `kotlin_reference/` poora hata diya (port complete, Flutter zyada updated). `tools/import_zip.sh` aur `tools/check_root.sh` ab Kotlin folders ko merge ke bajaye skip/delete karte hain; `analysis_options.yaml` mein ab koi exclude nahi.
