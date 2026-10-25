@@ -1,4 +1,5 @@
 
+import '../utils/qty_math.dart';
 import '../sync/device_tag.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
@@ -656,7 +657,7 @@ class PurchaseRepository {
 
     // Stock is purchase se kam reh gaya (baad ki sale): stock beech mein minus jane do, cost ki value alag
     // rakho; akhri check savePurchase mein hota hai (nayi qty add hone ke baad).
-    if (product.stock < smallest || pendingValue.containsKey(it.barcode)) {
+    if (!hasEnoughStock(product.stock, smallest) || pendingValue.containsKey(it.barcode)) {
       final factor = product.smallestUnitFactor();
       final costPer = factor > 0 ? product.cost / factor : product.cost;
       final current = pendingValue[it.barcode] ?? (product.stock * costPer);
@@ -686,7 +687,7 @@ class PurchaseRepository {
       smallestQtyToRemove: smallest,
     );
     final n = await txn.rawUpdate(
-      'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock >= ?',
+      'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + $kStockEpsilon >= ?',
       [smallest, newCost, now, it.barcode, smallest],
     );
     if (n == 0) {

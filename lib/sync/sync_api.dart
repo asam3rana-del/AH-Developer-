@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import '../db/app_database.dart';
 import '../db/maintenance_sync.dart';
 import '../models/misc_entities.dart';
+import '../utils/qty_math.dart';
 import '../utils/loc.dart';
 import 'branch_config_store.dart';
 import 'cloud_config_store.dart';
@@ -87,11 +88,15 @@ class SyncApi implements SyncBackend {
   @override
   Future<bool> push(SyncQueueEntry entry) async {
     final fs = await firestoreFor();
-    if (fs == null) return false;
+    // Branch/cloud/sign-in nahi mil saka (aksar internet nahi => anonymous sign-in fail): ye is entry ki
+    // ghalti nahi — retryCount na barhao, push rok do (pull saaf wajah batayega).
+    if (fs == null) {
+      throw const SyncOfflineException('Cloud not reachable (sign-in failed, no branch code or no cloud project)');
+    }
     final localDb = await openDb();
     try {
       final collection = collectionFor(entry.entityType);
-      if (collection == null) return false;
+      if (collection == null) throw SyncPushException('Unknown entity type: ${entry.entityType}');
       final docRef = fs.collection(collection).doc(entry.entityId);
       final branch = BranchConfigStore.current;
 
@@ -159,7 +164,7 @@ class SyncApi implements SyncBackend {
             // do device ek saath badlein to bhi increment jaisa hi safe hai.
             final curRaw = snap.data()?[plan.incrementField];
             final cur = curRaw is num ? curRaw.toDouble() : 0.0;
-            diagNew = cur + plan.delta;
+            diagNew = plan.incrementField == 'stock' ? roundQty(cur + plan.delta) : cur + plan.delta;
             final write = <String, Object?>{
               plan.incrementField: diagNew,
               ...plan.otherFields,
@@ -250,7 +255,10 @@ class SyncApi implements SyncBackend {
       return true;
     } catch (e) {
       // Internet nahi => failure ginti mein nahi; entry pending rahe gi (SyncRepository push rok deta hai).
+      if (e is SyncOfflineException || e is SyncPermissionDeniedException) rethrow;
       if (isNetworkError(e)) throw SyncOfflineException(_messageOf(e));
+      final denied = isPermissionDenied(e);
+      final msg = denied ? permissionDeniedMessage() : _messageOf(e);
       await logMaintenanceAudit(
         localDb,
         username: 'sync',
@@ -258,7 +266,8 @@ class SyncApi implements SyncBackend {
         reference: '${entry.entityType}:${entry.entityId}',
         details: _messageOf(e),
       );
-      return false;
+      if (denied) throw SyncPermissionDeniedException(msg);
+      throw SyncPushException(msg);
     }
   }
 

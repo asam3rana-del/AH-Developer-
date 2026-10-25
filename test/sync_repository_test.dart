@@ -10,17 +10,22 @@ import 'package:ah_developer_kiryana_store/sync/sync_types.dart';
 /// Phase 10: SyncQueueDao + SyncRepository.syncNow (push -> pull -> apply), Kotlin SyncRepository jaisa.
 class FakeBackend implements SyncBackend {
   final Set<String> failIds;
+
+  /// entityId -> push par phenka jane wala error.
+  final Map<String, Object> throwIds;
   Object? pullError;
   PullResult result;
   final pushed = <String>[];
   int? pulledSince;
   int applied = 0;
 
-  FakeBackend({this.failIds = const {}, PullResult? result})
+  FakeBackend({this.failIds = const {}, this.throwIds = const {}, PullResult? result})
       : result = result ?? PullResult(serverTime: 5000);
 
   @override
   Future<bool> push(SyncQueueEntry entry) async {
+    final err = throwIds[entry.entityId];
+    if (err != null) throw err;
     if (failIds.contains(entry.entityId)) return false;
     pushed.add(entry.entityId);
     return true;
@@ -216,6 +221,41 @@ void main() {
       expect(r.pulledOk, isTrue);
       final ids = (await db.query('sync_queue')).map((e) => e['entityId']).toList();
       expect(ids, ['fresh']);
+    });
+
+    test('push ki asli ghalti lastError mein likhi jati hai ("push failed" nahi)', () async {
+      await q.enqueue(_e('boom'));
+      final fake = FakeBackend(throwIds: {'boom': Exception('Missing field: name')});
+      SyncRepository.backend = fake;
+      final r = await SyncRepository.syncNow();
+      expect(r.failedCount, 1);
+      final left = await q.pending();
+      expect(left.single.retryCount, 1);
+      expect(left.single.lastError, 'Missing field: name');
+    });
+
+    test('permission denied: retryCount nahi barhta, baqi push ruk jata hai, pull phir bhi chalta hai', () async {
+      await q.enqueue(_e('a', at: 1));
+      await q.enqueue(_e('b', at: 2));
+      final fake = FakeBackend(throwIds: {'a': const SyncPermissionDeniedException('rules say no')});
+      SyncRepository.backend = fake;
+      final r = await SyncRepository.syncNow();
+      expect(r.pushedCount, 0);
+      expect(r.failedCount, 0);
+      expect(fake.pushed, isEmpty); // 'b' bhi nahi bheji gayi
+      expect(r.pulledOk, isTrue);
+      expect(r.pushError, 'rules say no');
+      expect(r.summary(), contains('push blocked: rules say no'));
+      final left = await q.pending();
+      expect(left.map((e) => e.retryCount), [0, 0]);
+    });
+
+    test('offline (SocketException jaisi ghalti): retryCount nahi barhta', () async {
+      await q.enqueue(_e('a'));
+      final fake = FakeBackend(throwIds: {'a': const SyncOfflineException('no net')});
+      SyncRepository.backend = fake;
+      await SyncRepository.syncNow();
+      expect((await q.pending()).single.retryCount, 0);
     });
 
     test('summary: kuch nahi => Already up to date', () {

@@ -1,4 +1,5 @@
 
+import '../utils/qty_math.dart';
 import '../models/product.dart';
 import '../models/stock_movement.dart';
 import '../services/session.dart';
@@ -37,7 +38,7 @@ String? validateAdjustment(Product p, AdjustmentKind kind, double? qty) {
   if (!p.isValidSmallestQty(qty)) {
     return 'Miqdaar poori ${p.smallestUnitName()} mein honi chahiye (fraction nahi)';
   }
-  if (adjustmentDelta(kind, qty) < 0 && qty > p.stock + 1e-9) {
+  if (adjustmentDelta(kind, qty) < 0 && !hasEnoughStock(p.stock, qty)) {
     return 'Itna stock kam karne ke liye kaafi nahi hai (maujooda: ${p.formatStockBreakdown()})';
   }
   return null;
@@ -82,7 +83,7 @@ class StockAdjustmentRepository {
       // Guard SQL mein bhi: do device/tap ek saath ho to stock negative na ho.
       final n = await txn.rawUpdate(
         delta < 0
-            ? 'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= 0'
+            ? 'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= -$kStockEpsilon'
             : 'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
         delta < 0 ? [delta, now, barcode, delta] : [delta, now, barcode],
       );

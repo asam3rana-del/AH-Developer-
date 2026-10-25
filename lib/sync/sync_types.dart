@@ -108,6 +108,25 @@ class SyncOfflineException implements Exception {
   String toString() => message;
 }
 
+/// Server ne push RAD kiya (security rules / permission denied). Poori queue ka masla hai, ek entry ka nahi:
+/// push ruk jata hai aur `retryCount` NAHI barhta (warna rules theek hone se pehle sab entries 10 baar
+/// "fail" ho kar hamesha ke liye stuck ho jati thin).
+class SyncPermissionDeniedException implements Exception {
+  final String message;
+  const SyncPermissionDeniedException(this.message);
+  @override
+  String toString() => message;
+}
+
+/// Ek entry ka asli push error (kharab payload, unknown entity, server ki ghalti) — `lastError` mein
+/// yahi likha jata hai, "push failed" jaisa be-matlab lafz nahi.
+class SyncPushException implements Exception {
+  final String message;
+  const SyncPushException(this.message);
+  @override
+  String toString() => message;
+}
+
 /// Network/connection ki ghalti hai (internet nahi, server ka rasta nahi, timeout)?
 bool isNetworkError(Object e) {
   if (e is SyncOfflineException) return true;

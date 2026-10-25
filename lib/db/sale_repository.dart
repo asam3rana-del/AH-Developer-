@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:sqflite/sqflite.dart' show Transaction;
 
+import '../utils/qty_math.dart';
 import '../models/held_bill.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
@@ -539,7 +540,7 @@ class SaleRepository {
           final needed = entry.value
               .where(needsStock)
               .fold<double>(0, (sum, i) => sum + product.toSmallestUnits(lines[i].qty, lines[i].unit));
-          if (product.stock < needed) {
+          if (!hasEnoughStock(product.stock, needed)) {
             if (!allowShort) {
               throw SaleStockException(
                 'Stock badal gaya hai — "${product.name}" mein sirf ${_trimNum(product.stock)} ${product.smallestUnitName()} available hai. Bill dobara check karen.',
@@ -887,7 +888,7 @@ class SaleRepository {
       if (rows.isEmpty) throw SaleStockException('Stock badal gaya hai, dobara try karen');
       final current = Product.fromMap(rows.first);
       final smallest = current.toSmallestUnits(qty, unit);
-      if (current.stock < smallest && !await StockPolicy.readFrom(txn)) {
+      if (!hasEnoughStock(current.stock, smallest) && !await StockPolicy.readFrom(txn)) {
         throw SaleStockException('Stock badal gaya hai, dobara try karen');
       }
       if (!current.isValidSmallestQty(smallest)) {

@@ -72,17 +72,27 @@ class SyncRepository {
 
     var pushed = 0;
     var failed = 0;
+    String? pushBlocked; // server ne push rad kiya (permission denied) — retryCount nahi barhta
 
     // ---- 1. PUSH ----
     final pending = await queue.pending(limit: pushBatchLimit);
     for (final entry in pending) {
       var ok = false;
       var offline = false;
+      String error = 'push failed';
       try {
         ok = await api.push(entry);
       } catch (e) {
-        offline = isNetworkError(e);
         ok = false; // ek entry ka crash poori sync na roke
+        if (e is SyncPermissionDeniedException || api.isPermissionDenied(e)) {
+          // Security rules ka masla poori queue ka hai: retryCount na barhao (warna rules theek hone se
+          // pehle sab entries 10 baar fail ho kar stuck ho jati hain), baqi bhi abhi na bhejo.
+          pushBlocked = e is SyncPermissionDeniedException ? e.message : api.permissionDeniedMessage();
+          break;
+        }
+        offline = isNetworkError(e);
+        error = _messageOf(e);
+        if (error.length > 300) error = error.substring(0, 300);
       }
       if (offline) {
         // Internet nahi: retryCount na barhao, baqi entries bhi abhi na bhejo (agli sync par chalengi).
@@ -92,7 +102,8 @@ class SyncRepository {
         await queue.markSynced(entry.id!);
         pushed++;
       } else {
-        await queue.markFailed(entry.id!, 'push failed');
+        // Asli wajah lastError mein (Sync History / stuck list mein dikhti hai).
+        await queue.markFailed(entry.id!, error);
         failed++;
       }
     }
@@ -107,7 +118,7 @@ class SyncRepository {
       changes = await api.pull(since);
     } on BranchNotConfiguredException catch (e) {
       return SyncResult(
-          pushedCount: pushed, failedCount: failed, pulledOk: false, error: e.message);
+          pushedCount: pushed, failedCount: failed, pulledOk: false, error: pushBlocked ?? e.message);
     } catch (e) {
       final msg = api.isPermissionDenied(e) ? api.permissionDeniedMessage() : _messageOf(e);
       return SyncResult(pushedCount: pushed, failedCount: failed, pulledOk: false, error: msg);
@@ -134,6 +145,7 @@ class SyncRepository {
       pushedCount: pushed,
       failedCount: failed,
       pulledOk: true,
+      pushError: pushBlocked,
       customersReceived: changes.customers.length,
       suppliersReceived: changes.suppliers.length,
       productsReceived: changes.products.length,
@@ -185,6 +197,9 @@ class SyncResult {
   final int workersReceived;
   final String? error;
 
+  /// Push server ne rad kiya (permission denied) lekin pull chal gaya — user ko batana zaroori hai.
+  final String? pushError;
+
   const SyncResult({
     required this.pushedCount,
     required this.failedCount,
@@ -204,6 +219,7 @@ class SyncResult {
     this.cashRegistersReceived = 0,
     this.workersReceived = 0,
     this.error,
+    this.pushError,
   });
 
   int get totalReceived =>
@@ -229,6 +245,7 @@ class SyncResult {
     if (pushedCount > 0) parts.add('sent $pushedCount');
     if (totalReceived > 0) parts.add('received $totalReceived');
     if (failedCount > 0) parts.add('$failedCount failed');
+    if (pushError != null) parts.add('push blocked: $pushError');
     if (parts.isEmpty) return 'Already up to date';
     final s = parts.join(', ');
     return s[0].toUpperCase() + s.substring(1);

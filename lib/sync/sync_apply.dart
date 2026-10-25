@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../db/maintenance_sync.dart';
 import '../utils/password_hasher.dart';
+import '../utils/qty_math.dart';
 import 'sync_apply_rest.dart';
 import 'sync_push_plan.dart' show decodePayload;
 import 'sync_queue_dao.dart';
@@ -330,10 +331,10 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
       // baad product upsert queue mein atak jaye to pehle is product ka stock hamesha ke liye purana rehta tha.
       if (stock != null && !keepLocalStock) {
         await _logStockPullDrop(db,
-            barcode: barcode, cloudStock: stock, pending: localPendingStock, newStock: stock + localPendingStock, via: 'pending-upsert');
+            barcode: barcode, cloudStock: stock, pending: localPendingStock, newStock: roundQty(stock + localPendingStock), via: 'pending-upsert');
         await db.update(
           'products',
-          {'stock': stock + localPendingStock, 'dirty': 1},
+          {'stock': roundQty(stock + localPendingStock), 'dirty': 1},
           where: 'barcode = ?',
           whereArgs: [barcode],
         );
@@ -378,7 +379,7 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
             barcode: barcode,
             cloudStock: stock,
             pending: localPendingStock,
-            newStock: (stock ?? _dbl(existing['stock'])) + localPendingStock,
+            newStock: roundQty((stock ?? _dbl(existing['stock'])) + localPendingStock),
             via: 'normal');
       }
       if (existing['dirty'] == 1 && (existing['name'] != name || _dbl(existing['salePrice']) != salePrice)) {
@@ -389,7 +390,7 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
         'products',
         {
           ...common,
-          if (!keepLocalStock) 'stock': (stock ?? _dbl(existing['stock'])) + localPendingStock,
+          if (!keepLocalStock) 'stock': roundQty((stock ?? _dbl(existing['stock'])) + localPendingStock),
         },
         where: 'barcode = ?',
         whereArgs: [barcode],
@@ -397,7 +398,7 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
     } else {
       await db.insert(
         'products',
-        {'barcode': barcode, ...common, 'stock': (stock ?? 0.0) + localPendingStock},
+        {'barcode': barcode, ...common, 'stock': roundQty((stock ?? 0.0) + localPendingStock)},
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }

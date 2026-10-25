@@ -1,6 +1,7 @@
 
 import 'package:sqflite/sqflite.dart';
 
+import '../utils/qty_math.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../models/purchase.dart';
@@ -514,7 +515,7 @@ class PartyTransactionRepository {
       if (product != null && net != 0) {
         if (net > 0) {
           final rows = await txn.rawUpdate(
-              'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock >= ?',
+              'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + $kStockEpsilon >= ?',
               [net, _now(), cur.barcode, net]);
           if (rows == 0) throw const InsufficientStockException('Not enough stock');
         } else {
@@ -674,7 +675,7 @@ class PartyTransactionRepository {
                 lineAmount: newAmount)
             : costAfterReversal;
         final rows = await txn.rawUpdate(
-            'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= 0',
+            'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= -$kStockEpsilon',
             [net, finalCost, _now(), cur.barcode, net]);
         if (rows == 0) throw const InsufficientStockException('Not enough stock to reduce');
         await SyncQueueHelper.enqueueStockDelta(txn, cur.barcode, net);
@@ -726,7 +727,7 @@ class PartyTransactionRepository {
             factor: product.smallestUnitFactor(),
             itemAmount: cur.amount,
             smallestQtyToRemove: fullQty);
-        if (product.stock < fullQty) {
+        if (!hasEnoughStock(product.stock, fullQty)) {
           if (!force) throw const InsufficientStockException('Cannot delete: stock already used');
           // Force: jitna stock bacha hai bas utna nikalo (0 se neeche nahi), cost jo thi wahi.
           delta = product.stock > 0 ? product.stock : 0.0;

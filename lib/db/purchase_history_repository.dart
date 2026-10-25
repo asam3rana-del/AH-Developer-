@@ -1,6 +1,7 @@
 
 import 'package:sqflite/sqflite.dart';
 
+import '../utils/qty_math.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../models/purchase.dart';
@@ -425,7 +426,7 @@ class PurchaseHistoryRepository {
             itemAmount: it.amount,
             smallestQtyToRemove: smallest,
           );
-          if (product.stock < smallest) {
+          if (!hasEnoughStock(product.stock, smallest)) {
             if (!force) {
               throw InsufficientStockException(
                   '\"${product.name}\" ka stock is purchase ke baad kam ho chuka hai — delete karne se stock/cost galat ho jayega.');
