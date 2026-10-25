@@ -229,6 +229,23 @@ void main() {
       expect(text, contains('DUE'));
     });
 
+    test('items are numbered and counted', () {
+      final t = buildSaleBillText(
+        shopName: 'S',
+        invoice: 'I',
+        date: DateTime(2026, 9, 28),
+        customer: '',
+        lines: [for (var i = 1; i <= 10; i++) _line('Item$i', 1, 'kg', 10)],
+        subtotal: 100,
+        discount: 0,
+        total: 100,
+        paid: 100,
+      );
+      expect(t, contains('1. Item1'));
+      expect(t, contains('10. Item10'));
+      expect(t, contains('Total Items: 10'));
+    });
+
     test('no line is wider than the paper', () {
       for (final l in text.split('\n')) {
         expect(l.length, lessThanOrEqualTo(32), reason: l);

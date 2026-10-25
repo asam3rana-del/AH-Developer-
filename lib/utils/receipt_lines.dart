@@ -33,7 +33,9 @@ class RlItemRow extends ReceiptLine {
   final String rate;
   final String amount;
   final bool header;
-  const RlItemRow(this.name, this.qty, this.rate, this.amount, {this.header = false});
+  /// Serial number (1, 2, 3 ...) — header par '#'.
+  final String no;
+  const RlItemRow(this.name, this.qty, this.rate, this.amount, {this.header = false, this.no = ''});
 }
 
 class RlBlank extends ReceiptLine {
@@ -71,8 +73,10 @@ List<ReceiptLine> receiptHeader(BillDoc d) {
 
 /// Item table header + rows. Pehla element hamesha table header (paging isi par tikti hai).
 List<ReceiptLine> receiptItems(BillDoc d) => [
-      const RlItemRow('ITEM', 'QTY', 'RATE', 'AMOUNT', header: true),
-      for (final i in d.items) RlItemRow(i.name, '${_q(i.qty)} ${i.unit}', _m(i.rate), _r(i.amount)),
+      const RlItemRow('ITEM', 'QTY', 'RATE', 'AMOUNT', header: true, no: '#'),
+      for (var n = 0; n < d.items.length; n++)
+        RlItemRow(d.items[n].name, '${_q(d.items[n].qty)} ${d.items[n].unit}', _m(d.items[n].rate), _r(d.items[n].amount),
+            no: '${n + 1}'),
     ];
 
 /// Totals + footer — sirf aakhri slip par.
@@ -80,6 +84,7 @@ List<ReceiptLine> receiptFooter(BillDoc d, {double? netBalance}) {
   final due = d.total - d.paid;
   return [
     const RlDivider(),
+    RlTwoCol('Total Items', '${d.items.length}'),
     RlTwoCol('Subtotal', _r(d.subtotal)),
     if (d.discount > 0.009) RlTwoCol('Discount', '-${_r(d.discount)}'),
     RlTwoCol('TOTAL', _r(d.total), bold: true),

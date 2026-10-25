@@ -45,11 +45,13 @@ String buildSaleBillText({
   b.writeln('Date: ${DateFormat('dd/MM/yyyy hh:mm a').format(date)}');
   b.writeln('Customer: ${customer.trim().isEmpty ? 'Walk-in' : customer.trim()}');
   b.writeln(rule);
-  for (final l in lines) {
-    b.writeln(l.itemName);
+  for (var n = 0; n < lines.length; n++) {
+    final l = lines[n];
+    b.writeln('${n + 1}. ${l.itemName}');
     b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitPrice.toStringAsFixed(2)}', l.amount.round().toString()));
   }
   b.writeln(rule);
+  b.writeln('Total Items: ${lines.length}');
   b.writeln(row('Subtotal', subtotal.round().toString()));
   if (discount > 0.009) b.writeln(row('Discount', '-${discount.round()}'));
   b.writeln(row('TOTAL', total.round().toString()));
@@ -104,11 +106,13 @@ String buildPurchaseBillText({
   b.writeln('Date: ${DateFormat('dd/MM/yyyy hh:mm a').format(date)}');
   b.writeln('Supplier: ${supplier.trim().isEmpty ? 'Cash Purchase' : supplier.trim()}');
   b.writeln(rule);
-  for (final l in lines) {
-    b.writeln(l.name);
+  for (var n = 0; n < lines.length; n++) {
+    final l = lines[n];
+    b.writeln('${n + 1}. ${l.name}');
     b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitCost.toStringAsFixed(2)}', l.amount.round().toString()));
   }
   b.writeln(rule);
+  b.writeln('Total Items: ${lines.length}');
   b.writeln(row('Subtotal', subtotal.round().toString()));
   if (discount > 0.009) b.writeln(row('Discount', '-${discount.round()}'));
   b.writeln(row('TOTAL', total.round().toString()));

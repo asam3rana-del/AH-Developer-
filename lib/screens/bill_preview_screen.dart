@@ -287,16 +287,20 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
               _sKv('Payment Method', d.paymentMethod),
               const Divider(height: 22),
               Row(children: const [
+                SizedBox(width: 26, child: Text('#', style: hStyle)),
                 Expanded(flex: 4, child: Text('ITEM', style: hStyle)),
                 Expanded(flex: 3, child: Text('AMOUNT', textAlign: TextAlign.center, style: hStyle)),
                 Expanded(flex: 3, child: Text('QTY', textAlign: TextAlign.center, style: hStyle)),
                 Expanded(flex: 3, child: Text('RATE', textAlign: TextAlign.right, style: hStyle)),
               ]),
               const SizedBox(height: 6),
-              for (final i in d.items)
-                Padding(
+              for (var n = 0; n < d.items.length; n++)
+                Builder(builder: (_) {
+                  final i = d.items[n];
+                  return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 7),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    SizedBox(width: 26, child: Text('${n + 1}', style: TextStyle(fontSize: 15, color: ThemeManager.palette.textMuted))),
                     Expanded(flex: 4, child: Text(i.name, style: TextStyle(fontSize: 17, color: ThemeManager.palette.textDark))),
                     Expanded(
                         flex: 3,
@@ -312,8 +316,10 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                         child: Text(i.rate.toStringAsFixed(2),
                             textAlign: TextAlign.right, style: TextStyle(fontSize: 16, color: ThemeManager.palette.textDark))),
                   ]),
-                ),
+                  );
+                }),
               const Divider(height: 22),
+              _sKv('Total Items', '${d.items.length}'),
               _sKv('Subtotal', _m(d.subtotal)),
               if (d.discount > 0.009) _sKv('Discount', '-${_m(d.discount)}'),
               _sKv('Total', _m(d.total), bold: true),
@@ -384,19 +390,25 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
               Expanded(flex: 2, child: Text('RATE', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
               Expanded(flex: 2, child: Text('QTY', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
               Expanded(flex: 4, child: Text('ITEM', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+              SizedBox(width: 24, child: Text('#', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
             ]),
             const SizedBox(height: 6),
-            for (final i in d.items)
-              Padding(
+            for (var n = 0; n < d.items.length; n++)
+              Builder(builder: (_) {
+                final i = d.items[n];
+                return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(flex: 3, child: Text(i.amount.round().toString(), textAlign: TextAlign.left, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 2, child: Text(i.rate.toStringAsFixed(2), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 2, child: Text('${_q(i.qty)} ${i.unit}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 4, child: Text(i.name, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
+                  SizedBox(width: 24, child: Text('${n + 1}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                 ]),
-              ),
+              );
+              }),
             const Divider(height: 20),
+            _kv('Total Items', '${d.items.length}'),
             _kv('Subtotal', _m(d.subtotal)),
             if (d.discount > 0.009) _kv('Discount', '-${_m(d.discount)}'),
             _kv('Total', _m(d.total), bold: true),
