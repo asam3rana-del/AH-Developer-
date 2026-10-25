@@ -86,7 +86,10 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
     });
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   // ------------------------------------------------------------------ actions
 

@@ -53,9 +53,12 @@ class _ShellLedgerScreenState extends State<ShellLedgerScreen> {
     }
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(m)));
+  }
 
   String _reason(String key) {
     for (final r in shopReasonLabels) {

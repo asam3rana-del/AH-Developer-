@@ -66,7 +66,10 @@ class _BulkDefaultUnitScreenState extends State<BulkDefaultUnitScreen> {
     _chosenQuick = _queue.first.quickSaleDefaultUnitIndex;
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   // ------------------------------------------------------------ review (ek ek)
 

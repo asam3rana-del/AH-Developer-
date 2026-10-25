@@ -286,7 +286,10 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
 
   // ---- Daily Rent ------------------------------------------------------------------------
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   Future<void> _billOff(String invoice) async {
     try {
@@ -463,7 +466,10 @@ class _RentSheetState extends State<_RentSheet> {
     });
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   Future<void> _edit({RentConfig? existing}) async {
     final customers = await CustomerRepository.instance.listAll();

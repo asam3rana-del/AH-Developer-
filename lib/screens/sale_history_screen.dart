@@ -100,7 +100,10 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
     if (_expanded.contains(invoice) && !_items.containsKey(invoice)) _loadItems(invoice);
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   // ------------------------------------------------------------------ actions
 

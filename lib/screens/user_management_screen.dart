@@ -49,6 +49,14 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
     _tryFingerprint();
   }
 
+  @override
+  void dispose() {
+    for (final c in [_lockPass, _username, _displayName, _phone, _password]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
   /// Lock screen dikhte hi fingerprint prompt (Kotlin tryLockFingerprint). Fail/cancel par password field hi rehta hai.
   Future<void> _tryFingerprint({bool manual = false}) async {
     if (!await Biometric.isAvailable()) {
@@ -70,7 +78,10 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
     if (mounted) setState(() => _users = u);
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   bool _isLastActiveAdmin(User u) =>
       u.role == 'admin' && u.active && _users.where((x) => x.role == 'admin' && x.active).length <= 1;

@@ -73,7 +73,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
     });
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
+  }
 
   void _switchTab(_Tab t) {
     _debounce?.cancel();

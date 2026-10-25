@@ -66,9 +66,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    for (final c in [_shopName, _shopPhone, _newUsername, _newPassword]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    _shopName.text = await _repo.getSetting('shop_name') ?? '';
-    _shopPhone.text = await _repo.getSetting('shop_phone') ?? '';
+    final shopName = await _repo.getSetting('shop_name') ?? '';
+    final shopPhone = await _repo.getSetting('shop_phone') ?? '';
+    if (!mounted) return; // screen band ho chuki => disposed controller na chhedo
+    _shopName.text = shopName;
+    _shopPhone.text = shopPhone;
     if (_shopName.text.trim().isNotEmpty) _headerShop = _shopName.text.trim();
     final pr = await PrinterService.instance.selected();
     _printerName = pr?.name ?? '';
@@ -80,7 +91,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() => _loginMethod = const ['none', 'fingerprint', 'both', 'otp'].contains(m) ? m : 'password');
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   Future<void> _saveShop() async {
     await _repo.setSetting('shop_name', _shopName.text.trim());

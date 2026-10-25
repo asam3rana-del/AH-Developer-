@@ -96,7 +96,10 @@ class _BulkMissingRatesScreenState extends State<BulkMissingRatesScreen> {
     _fillCurrent();
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   static String trimNum(double v) => v == 0.0 ? '' : (v == v.truncateToDouble() ? v.toInt().toString() : v.toString());
 

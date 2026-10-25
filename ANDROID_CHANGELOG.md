@@ -671,3 +671,10 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 ## App ka naam (Oct 2)
 - [x] App ka naam "Hanna Solutions": Android icon label (tools/android_fix.sh), iOS home-screen naam aur Windows window title (build.yml), app ke andar title (lib/main.dart).
 - Package id (`com.…` / project name) nahi badla — warna purani app ke upar update nahi hota aur Firebase dobara set karna parta.
+
+## Robustness audit (2026-10-25)
+- [x] Controller leaks band: `SettingsScreen` (_shopName/_shopPhone/_newUsername/_newPassword) aur `UserManagementBody` (_lockPass/_username/_displayName/_phone/_password) ko `dispose()` mila.
+- [x] `SettingsScreen._load()`: await ke baad `mounted` check — screen jaldi band ho to disposed controller par likhne ka crash nahi.
+- [x] 17 screens ka `_toast()` ab `if (!mounted) return;` se shuru hota hai (await ke baad screen pop ho jaye to "deactivated widget" error nahi): bill_preview, bulk_default_unit, bulk_missing_rates, bulk_rate_tool, cash_register, cash, daily_bills (2), expense, items, purchase_history, sale_history, shell_ledger, shop_rent, stock_audit, user_management, zakat.
+- Check kiya, theek mila: global error handler (CrashHandler), int.parse wale sab sites pehle validate hote hain, dialog ke `Navigator.pop(ctx)` sahi context par.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.

@@ -87,7 +87,10 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     if (mounted) setState(() => _doc = d);
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   Future<void> _print() async {
     if (_printing) return;
