@@ -3,7 +3,27 @@ name: Build
 on:
   push:
     branches: [ main ]
+    # Sirf docs/markdown badalne par build (aur Actions ke minutes) zaya na hon.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
+    inputs:
+      flutter_version:
+        description: 'Flutter version (khali = neeche wala FLUTTER_VERSION). Naya version aazmane ke liye e.g. 3.47.2'
+        required: false
+        default: ''
+
+# Naya push aane par usi branch ki purani chalti run cancel (build minutes bachte hain).
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Flutter ka ek hi version, saari jobs ke liye. Bump karna ho to sirf yeh ek line badlein
+  # (ya Run workflow mein flutter_version likhein) — naye Flutter par Android/iOS/Windows
+  # build ke fixes (tools/android_fix.sh, Kotlin/AGP/Gradle versions) dobara check karne parte hain.
+  FLUTTER_VERSION: ${{ inputs.flutter_version || '3.24.0' }}
 
 jobs:
   # Analyze + test: har push par chalta hai. Builds se alag hai (fail ho to bhi APK/iOS build chalte hain),
@@ -11,13 +31,15 @@ jobs:
   analyze-test:
     name: Analyze + Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       - run: flutter pub get
 
@@ -36,13 +58,15 @@ jobs:
   build-ios:
     name: Build iOS (unsigned)
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       # Repo has no ios/ or android/ folders, so generate them.
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
@@ -73,7 +97,7 @@ jobs:
       # then Product > Archive (or use TestFlight for wider distribution).
       - run: flutter build ios --release --no-codesign
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ios-build
           path: build/ios/iphoneos/Runner.app
@@ -81,13 +105,15 @@ jobs:
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
@@ -111,7 +137,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
@@ -121,13 +147,15 @@ jobs:
     # windows-latest ab Visual Studio 2026 wala hai; Flutter 3.24.0 use nahi pehchanta
     # ("Generator Visual Studio 16 2019 could not find any instance"). windows-2022 mein VS 2022 hai.
     runs-on: windows-2022
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       # Repo mein windows/ folder nahi hota, isliye generate karte hain (iOS / Android jaisa).
       - run: flutter create --platforms=windows --project-name ah_developer_kiryana_store .
@@ -146,7 +174,7 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath AH-Kiryana-Store-windows.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-build
           path: AH-Kiryana-Store-windows.zip
