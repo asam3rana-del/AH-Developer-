@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/due_reminders_repository.dart';
+import '../screens/amanat_loan_screen.dart';
 import '../screens/due_reminders_screen.dart';
 import '../screens/utility_bills_screen.dart';
 import 'app_lock.dart';
@@ -56,16 +57,23 @@ class DueAlertService {
   }
 
   static void _open(String? payload) {
-    if (payload != _payload && payload != billsPayload) return;
+    if (payload != _payload && payload != billsPayload && payload != returnPayload) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppLock.navigatorKey.currentState?.push(MaterialPageRoute(
-        builder: (_) => payload == billsPayload ? const UtilityBillsScreen() : const DueRemindersScreen(),
+        builder: (_) => payload == billsPayload
+            ? const UtilityBillsScreen()
+            : payload == returnPayload
+                ? const AmanatLoanScreen()
+                : const DueRemindersScreen(),
       ));
     });
   }
 
   /// Utility Bills notification ka payload (tap par Utility Bills screen khulti hai).
   static const billsPayload = 'utility_bills';
+
+  /// Amanat / Loan wapsi notification ka payload (tap par Amanat / Loan screen khulti hai).
+  static const returnPayload = 'amanat_loan';
 
   static String _dateKey(DateTime t) =>
       '${t.year.toString().padLeft(4, '0')}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';

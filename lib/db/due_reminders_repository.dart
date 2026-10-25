@@ -333,6 +333,29 @@ Uri returnWhatsAppUri(ReturnReminder r) {
   return Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(returnReminderMessage(r))}');
 }
 
+/// Wapsi ki tarikh AAJ ya guzar chuki wali Amanat / Loan parties (tarikh set ho). Purani pehle.
+/// Roz ki notification (`ReturnAlertService`) isi se tay hoti hai; tarikh na ho to notification nahi.
+List<ReturnReminder> returnDueNow(List<ReturnReminder> all, {required int nowMillis}) {
+  final d = DateTime.fromMillisecondsSinceEpoch(nowMillis);
+  final tomorrow = DateTime(d.year, d.month, d.day + 1).millisecondsSinceEpoch;
+  return sortReturnReminders([
+    for (final r in all)
+      if (r.returnDate > 0 && r.returnDate < tomorrow) r,
+  ]);
+}
+
+/// Notification ka matan: kitni parties, pehle 3 ke naam, aur kitni ki tarikh guzar chuki.
+String returnAlertBody(List<ReturnReminder> due, {required int nowMillis}) {
+  final today = startOfDayMillis(nowMillis);
+  final overdue = due.where((r) => r.returnDate < today).length;
+  final names = due.take(3).map((r) => r.partyName).join(', ');
+  final more = due.length > 3 ? ' +${due.length - 3}' : '';
+  final b = StringBuffer('${due.length} Amanat/Loan ki wapsi ki tarikh aa gayi: $names$more');
+  if (overdue > 0) b.write(' ($overdue ki tarikh guzar chuki)');
+  b.write('. Tap karke dekhein.');
+  return b.toString();
+}
+
 // ---------------------------------------------------------------------------
 // DB
 // ---------------------------------------------------------------------------

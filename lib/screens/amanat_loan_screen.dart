@@ -67,14 +67,20 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
 
   Future<void> _load({bool showSpinner = true}) async {
     if (showSpinner) setState(() => _loading = true);
-    final list = await _repo.returnReminders();
-    final pending = await _repo.pendingReturnPartyIds();
-    if (!mounted) return;
-    setState(() {
-      _all = list;
-      _pending = pending;
-      _loading = false;
-    });
+    try {
+      final list = await _repo.returnReminders();
+      final pending = await _repo.pendingReturnPartyIds();
+      if (!mounted) return;
+      setState(() {
+        _all = list;
+        _pending = pending;
+      });
+    } catch (_) {
+      if (mounted) _toast(Loc.t('Could not load the list', 'فہرست لوڈ نہیں ہو سکی'));
+    } finally {
+      // Ghalti par bhi spinner na atke (pehle list khali dikhti, spinner chalta rehta).
+      if (mounted && _loading) setState(() => _loading = false);
+    }
   }
 
   void _toast(String msg) {
@@ -605,6 +611,7 @@ class _AddSheetState extends State<_AddSheet> {
       return;
     }
     final d = _date;
+    final amount = (double.tryParse(_amount.text.trim()) ?? 0).abs();
     Navigator.pop(
       context,
       _AddResult(
@@ -612,7 +619,7 @@ class _AddSheetState extends State<_AddSheet> {
         existingId: _editing ? widget.initial!.partyId : (_existing ? _picked!.id : null),
         name: _name.text,
         phone: _phone.text,
-        openingBalance: double.tryParse(_amount.text.trim()) ?? 0,
+        openingBalance: _kind == 'amanat' && amount > 0 ? -amount : amount,
         returnDate: d == null ? 0 : DateTime(d.year, d.month, d.day).millisecondsSinceEpoch,
       ),
     );
@@ -655,7 +662,17 @@ class _AddSheetState extends State<_AddSheet> {
               TextField(
                   controller: _amount,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(labelText: Loc.t('Opening balance (optional)', 'اوپننگ بیلنس (اختیاری)'))),
+                  decoration: InputDecoration(
+                    labelText: Loc.t('Opening balance (optional)', 'اوپننگ بیلنس (اختیاری)'),
+                    // Customer balance: + = customer ne dena hai, - = dukaan ne dena hai. Amanat dukaan ki
+                    // zimmedari hai, is liye amount khud minus mein jama hota hai (keypad par '-' nahi hota).
+                    helperText: _kind == 'amanat'
+                        ? Loc.t('Amount the shop holds for the customer (saved as minus: shop owes it)',
+                            'دکان کے پاس رکھی گاہک کی رقم (مائنس میں جمع ہوگی: دکان نے دینی ہے)')
+                        : Loc.t('Amount lent to the customer (saved as plus: customer owes it)',
+                            'گاہک کو دی گئی رقم (پلس میں جمع ہوگی: گاہک نے دینی ہے)'),
+                    helperMaxLines: 2,
+                  )),
           ],
           const SizedBox(height: 10),
           OutlinedButton.icon(

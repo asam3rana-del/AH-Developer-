@@ -13,6 +13,7 @@ import 'services/app_lock.dart';
 import 'services/crash_handler.dart';
 import 'services/bill_reminder_service.dart';
 import 'services/due_alert_service.dart';
+import 'services/return_alert_service.dart';
 import 'services/session.dart';
 import 'sync/branch_config_store.dart';
 import 'sync/device_tag.dart';
@@ -59,6 +60,7 @@ void main() async {
     await DueAlertService.init(withTap: true);
     unawaited(DueAlertService.checkAndNotify());
     unawaited(BillReminderService.checkAndNotify());
+    unawaited(ReturnAlertService.checkAndNotify());
   } catch (_) {}
   runApp(const AhDeveloperApp());
   unawaited(DueAlertService.handleLaunch());

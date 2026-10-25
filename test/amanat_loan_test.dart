@@ -86,4 +86,51 @@ void main() {
       expect(u.path, '/923001234567');
     });
   });
+
+  group('return alert (roz ki notification)', () {
+    // 2026-03-10 11:30 — "aaj".
+    final now = DateTime(2026, 3, 10, 11, 30).millisecondsSinceEpoch;
+
+    test('sirf aaj ya guzri hui tarikh; kal / bina tarikh wali nahi', () {
+      final due = returnDueNow([
+        rr('Kal', date: day(11)),
+        rr('Aaj', date: day(10)),
+        rr('Purani', date: day(2)),
+        rr('BinaDate'),
+      ], nowMillis: now);
+      expect(due.map((r) => r.partyName).toList(), ['Purani', 'Aaj']);
+    });
+
+    test('mahine ke aakhri din par bhi kal (agla mahina) shamil nahi', () {
+      final last = DateTime(2026, 3, 31, 9).millisecondsSinceEpoch;
+      final due = returnDueNow([
+        rr('Aaj', date: DateTime(2026, 3, 31).millisecondsSinceEpoch),
+        rr('Kal', date: DateTime(2026, 4, 1).millisecondsSinceEpoch),
+      ], nowMillis: last);
+      expect(due.map((r) => r.partyName).toList(), ['Aaj']);
+    });
+
+    test('khali list => khali', () {
+      expect(returnDueNow(const [], nowMillis: now), isEmpty);
+    });
+
+    test('body: ginti, pehle 3 naam, guzri hui ginti', () {
+      final due = returnDueNow([
+        rr('A', date: day(10)),
+        rr('B', date: day(9)),
+        rr('C', date: day(8)),
+        rr('D', date: day(7)),
+      ], nowMillis: now);
+      final body = returnAlertBody(due, nowMillis: now);
+      expect(body, contains('4 Amanat/Loan'));
+      expect(body, contains('D, C, B'));
+      expect(body, contains('+1'));
+      expect(body, contains('3 ki tarikh guzar chuki'));
+    });
+
+    test('body: sirf aaj wali => "guzar chuki" nahi', () {
+      final body = returnAlertBody([rr('A', date: day(10))], nowMillis: now);
+      expect(body, isNot(contains('guzar chuki')));
+    });
+  });
 }

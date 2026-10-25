@@ -1,5 +1,13 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-10-25) — Deep assessment + Amanat / Loan fixes
+- [x] Assessment (bina Flutter SDK, sirf static): sab 185 lib + 77 test files ke brackets/strings saaf; har `import` asal file par; SQL ke columns schema (v29) se mel; project ki classes ke `X.instance.method` / `X.static` / named-args call-sites sab maujood; sync ki 28 collections `pullCollections` = `firestore.rules` = `firestore.indexes.json`; CI actions (`checkout@v5`, `upload-artifact@v7`) maujood versions hain. Koi compile-level ghalti nahi mili.
+- [x] **Amanat / Loan: wapsi ki tarikh ki notification.** Pehle tarikh sirf screen par dikhti thi — aaj / guzri hui tarikh par koi yaad-dahani nahi aati thi. Ab roz 10 baje ke baad (din mein ek baar) ek notification: kitni parties, pehle 3 naam, kitni ki tarikh guzar chuki. Tap par Amanat / Loan screen. `lib/services/return_alert_service.dart` (naya), `returnDueNow` / `returnAlertBody` (pure, `due_reminders_repository.dart`), payload routing `due_alert_service.dart`, foreground `main.dart` + background `backup_background.dart` (WorkManager) dono se. Sirf admin/manager login par (background isolate mein session khud load hota hai); `DueAlertService.keyEnabled` off ho to ye bhi band.
+- [x] Amanat / Loan screen: list load fail hone par spinner hamesha chalta rehta tha — ab error toast + spinner band.
+- [x] Naya Amanat / Loan banate waqt Opening balance ka sign: Amanat dukaan ki zimmedari hai (customer balance minus), pehle positive likhne par customer "dukaan ko dega" ban jata tha aur Due Reminders / daily due notification mein ghalat aata. Ab Amanat ka amount khud minus mein jama hota hai, Loan ka plus mein (field ke neeche wazahat). Purani parties nahi badalti.
+- [x] Test: `test/amanat_loan_test.dart` mein 5 naye tests (aaj / guzri / kal / mahine ka aakhri din / body).
+- [ ] Ye sab bina `flutter analyze` / `flutter test` ke likha gaya (is environment mein Flutter SDK nahi) — CI par `Analyze + Test` dekhein. Device par: Android 13+ par notification permission, aur Oppo/Xiaomi par background notification.
+
 ## Flutter side (2026-10-21) — Shop Rents (kiraye ki dukaneen) + Kotlin files hata di gayin
 - [x] Repo cleanup: saari `.kt` files (kotlin_reference/main, test, androidTest aur root `androidTest/`) hata di gayin; `kotlin_reference/config/` rakhi gayi.
 - [x] **Shop Rents** (Expense screen ke upar card se khulti hai, Admin/Manager): `lib/screens/shop_rent_screen.dart`, `lib/db/shop_rent_repository.dart`, DB v25 (`shop_rents`, `shop_rent_terms`, `shop_rent_ledger`).

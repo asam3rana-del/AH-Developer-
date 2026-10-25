@@ -6,6 +6,7 @@ import 'package:workmanager/workmanager.dart';
 
 import '../services/bill_reminder_service.dart';
 import '../services/due_alert_service.dart';
+import '../services/return_alert_service.dart';
 import 'backup_scheduler.dart';
 
 /// Kotlin `BackupCheckpointWorker` (WorkManager, har 15 min) ka Flutter jor.
@@ -54,6 +55,8 @@ void backupCallbackDispatcher() {
       await DueAlertService.checkAndNotify();
       // Utility bills: ek din pehle / due din / guzarne ke baad reminder.
       await BillReminderService.checkAndNotify();
+      // Amanat / Loan: wapsi ki tarikh aa gayi ho to ek notification.
+      await ReturnAlertService.checkAndNotify();
       return true;
     } catch (_) {
       return false; // Kotlin Result.retry()
