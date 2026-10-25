@@ -143,7 +143,8 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
       ),
     );
     if (go != true) return;
-    if (c.text.length < 8) return _toast(Loc.t('Password must be at least 8 characters', 'پاس ورڈ کم از کم 8 حروف کا ہو'));
+    // Naye user / Update Login jaisa hi kam az kam 6 (pehle yahan 8 tha — ek hi app mein do qaide).
+    if (c.text.length < 6) return _toast(Loc.t('Password must be at least 6 characters', 'پاس ورڈ کم از کم 6 حروف کا ہو'));
     await _repo.upsert(User(
       username: u.username, displayName: u.displayName, role: u.role,
       passwordHash: await PasswordHasher.hash(c.text), active: u.active, phone: u.phone,

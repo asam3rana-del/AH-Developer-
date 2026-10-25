@@ -721,21 +721,28 @@ class SaleRepository {
       final sale = Sale.fromMap(rows.first);
       final itemRows = await txn.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       final now = DateTime.now().millisecondsSinceEpoch;
+      // Returned sale ka stock aur customer ka due returnSale() mein pehle hi ulta ho chuka hai —
+      // delete par dobara karne se stock do baar barh jata aur customer ka balance do baar ghat jata tha.
+      final alreadyReturned = sale.status == 'returned';
 
-      for (final r in itemRows) {
-        final si = SaleItem.fromMap(r);
-        final pr = await txn.query('products', where: 'barcode=?', whereArgs: [si.barcode], limit: 1);
-        final product = pr.isEmpty ? null : Product.fromMap(pr.first);
-        await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now,
-            type: MovementType.saleReversal, reference: invoice);
-      }
-      final outstanding = sale.total - sale.paid;
-      if (sale.customerId != null && outstanding.abs() > 0.009) {
-        await _adjustCustomerBalance(txn, sale.customerId!, -outstanding, now);
+      if (!alreadyReturned) {
+        for (final r in itemRows) {
+          final si = SaleItem.fromMap(r);
+          final pr = await txn.query('products', where: 'barcode=?', whereArgs: [si.barcode], limit: 1);
+          final product = pr.isEmpty ? null : Product.fromMap(pr.first);
+          await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now,
+              type: MovementType.saleReversal, reference: invoice);
+        }
+        final outstanding = sale.total - sale.paid;
+        if (sale.customerId != null && outstanding.abs() > 0.009) {
+          await _adjustCustomerBalance(txn, sale.customerId!, -outstanding, now);
+        }
       }
       await txn.delete('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       await txn.delete('sales', where: 'invoice=?', whereArgs: [invoice]);
       await _deleteCashByReference(txn, invoice);
+      // Return ki dated reversal rows bhi: asli rows hat gayin, akeli reversal cash book ko minus kar deti.
+      if (alreadyReturned) await _deleteCashByReference(txn, 'return:$invoice');
       // Bill-linked payments must not survive as orphan standalone payments.
       await _voidLinkedPayments(txn, invoice, now);
       await _enqueueSync(txn, 'sale', invoice, 'delete', {'invoice': invoice});

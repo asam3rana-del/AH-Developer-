@@ -1162,7 +1162,8 @@ class _BilledItemsDialogState extends State<_BilledItemsDialog> {
     final status = _sale?.status ?? _purchase?.status ?? 'active';
     final total = _sale?.total ?? _purchase?.total ?? 0.0;
     final count = widget.isSale ? _saleItems.length : _purchaseItems.length;
-    final admin = Session.isAdmin;
+    // Returned bill ke items edit/delete nahi (stock/balance pehle hi wapas ho chuka hota hai).
+    final admin = Session.isAdmin && status != 'returned';
 
     return AlertDialog(
       titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 4),

@@ -112,8 +112,12 @@ CloudSetupDecision decideCloudSetupSave({
   required String oldBranch,
   required String newBranch,
   required int pendingCount,
+  // Cloud project (Project ID / API key / App ID) badal raha ho: pending records purane project ke hain,
+  // naye project mein chale jate — branch badalne jaisa hi khatra.
+  bool projectChanged = false,
 }) {
-  if (!isRealBranchChange(branchConfigured: branchConfigured, oldBranch: oldBranch, newBranch: newBranch)) {
+  final branchChange = isRealBranchChange(branchConfigured: branchConfigured, oldBranch: oldBranch, newBranch: newBranch);
+  if (!branchChange && !projectChanged) {
     return const CloudSetupDecision.allow();
   }
   return pendingCount > 0 ? CloudSetupDecision.blockedBy(pendingCount) : const CloudSetupDecision.allow();
@@ -318,19 +322,28 @@ class SettingsSync {
     required String storageBucket,
     required String branchId,
   }) async {
-    await CloudConfigStore.save(CloudConfig(
-      projectId: projectId,
-      apiKey: apiKey,
-      appId: appId,
-      storageBucket: storageBucket,
-    ));
+    final oldConfig = await CloudConfigStore.get();
+    final oldBranch = BranchConfigStore.current;
+    final newConfig = CloudConfig(
+      projectId: projectId.trim(),
+      apiKey: apiKey.trim(),
+      appId: appId.trim(),
+      storageBucket: storageBucket.trim(),
+    );
+    await CloudConfigStore.save(newConfig);
     await BranchConfigStore.set(branchId);
+    // Naya project / naya branch: purana pull checkpoint wahan ka nahi — warna naye cloud ka purana data
+    // (checkpoint se pehle ka) kabhi pull nahi hota aur devices ka stock/balance alag rehta hai.
+    if (oldConfig != newConfig || oldBranch != branchId.trim()) {
+      await SyncRepository.resetSyncCheckpoint(0);
+    }
   }
 
   /// Kotlin Disconnect (pending check ke baad): cloud project aur branch code dono saaf.
   static Future<void> disconnect() async {
     await CloudConfigStore.clear();
     await BranchConfigStore.clear();
+    await SyncRepository.resetSyncCheckpoint(0); // dobara jorne par poora pull
   }
 
   /// Device ID (Firebase anonymous UID) — pehli sync se pehle null.

@@ -271,6 +271,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final newPass = _newPassword.text;
     if (newName.contains(' ')) return _toast(Loc.t('Username must not contain spaces', 'یوزر نیم میں خالی جگہ نہیں ہونی چاہیے'));
     if (newPass.isNotEmpty && newPass.length < 6) return _toast(Loc.t('Password must be at least 6 characters', 'پاس ورڈ کم از کم 6 حروف کا ہو'));
+    if (newName.isEmpty && newPass.isEmpty) {
+      return _toast(Loc.t('Enter a new username or password', 'نیا یوزر نیم یا پاس ورڈ لکھیں'));
+    }
     final finalName = newName.isNotEmpty ? newName : user.username;
     if (finalName != user.username && await _repo.find(finalName) != null) {
       return _toast(Loc.t('Username already exists', 'یہ یوزر نیم پہلے سے موجود ہے'));

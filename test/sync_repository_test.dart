@@ -245,7 +245,7 @@ void main() {
       expect(fake.pushed, isEmpty); // 'b' bhi nahi bheji gayi
       expect(r.pulledOk, isTrue);
       expect(r.pushError, 'rules say no');
-      expect(r.summary(), contains('push blocked: rules say no'));
+      expect(r.summary(), contains('Push blocked: rules say no'));
       final left = await q.pending();
       expect(left.map((e) => e.retryCount), [0, 0]);
     });

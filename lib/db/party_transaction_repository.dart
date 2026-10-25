@@ -234,6 +234,14 @@ class PartyTransactionRepository {
 
   int _now() => DateTime.now().millisecondsSinceEpoch;
 
+  /// Returned bill ki stock/balance/cash wapsi ho chuki hai — item edit/delete se wohi asar dobara lagta
+  /// (stock do baar wapas, balance do baar ulta). Poora bill History se delete karen.
+  void _rejectReturned(String status) {
+    if (status == 'returned') {
+      throw StateError('Returned bill ke item badle nahi ja sakte — poora bill History se delete karen.');
+    }
+  }
+
   /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   Future<void> _enqueue(DatabaseExecutor ex, String type, String id, String op, Map<String, Object?> payload) =>
       SyncQueueHelper.enqueueLegacy(ex, type, id, op, payload);
@@ -501,6 +509,7 @@ class PartyTransactionRepository {
       if (itemRows.isEmpty) throw StateError('Item not found');
       final cur = SaleItem.fromMap(itemRows.first);
       final sale = (await findSaleIn(txn, cur.invoice)) ?? (throw StateError('Sale not found'));
+      _rejectReturned(sale.status);
       final product = await _product(txn, cur.barcode);
       final oldQty = cur.qty;
 
@@ -582,6 +591,7 @@ class PartyTransactionRepository {
       if (itemRows.isEmpty) throw StateError('Item not found');
       final cur = SaleItem.fromMap(itemRows.first);
       final sale = (await findSaleIn(txn, cur.invoice)) ?? (throw StateError('Sale not found'));
+      _rejectReturned(sale.status);
       final product = await _product(txn, cur.barcode);
 
       if (product != null) {
@@ -638,6 +648,7 @@ class PartyTransactionRepository {
       if (itemRows.isEmpty) throw StateError('Item not found');
       final cur = PurchaseItem.fromMap(itemRows.first);
       final purchase = (await findPurchaseIn(txn, cur.billNo)) ?? (throw StateError('Purchase not found'));
+      _rejectReturned(purchase.status);
       final product = await _product(txn, cur.barcode);
 
       final qtyChanged = (newQty - cur.qty).abs() > 1e-9;
@@ -716,6 +727,7 @@ class PartyTransactionRepository {
       if (itemRows.isEmpty) throw StateError('Item not found');
       final cur = PurchaseItem.fromMap(itemRows.first);
       final purchase = (await findPurchaseIn(txn, cur.billNo)) ?? (throw StateError('Purchase not found'));
+      _rejectReturned(purchase.status);
       final product = await _product(txn, cur.barcode);
 
       if (product != null) {

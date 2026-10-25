@@ -460,6 +460,9 @@ class PurchaseHistoryRepository {
       await txn.delete('purchases', where: 'billNo = ?', whereArgs: [billNo]);
       await _deletePaymentsByReference(txn, billNo);
       await _deleteCashByReference(txn, billNo);
+      // Poori/aadhi return ki dated reversal rows bhi: asli rows hat gayin, akeli reversal cash book ko
+      // galat (zyada IN) kar deti.
+      await _deleteCashByReference(txn, 'return:$billNo');
       await _voidLinkedPayments(txn, billNo);
       await _enqueue(txn, 'purchase', billNo, 'delete', {'billNo': billNo});
       deleted = purchase;
