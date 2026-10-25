@@ -13,6 +13,7 @@ import '../utils/stock_touch_policy.dart';
 import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
 import 'customer_repository.dart';
+import 'party_repository.dart' show PartyRepository, partyClosing;
 import 'product_repository.dart';
 import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
@@ -481,7 +482,9 @@ class SaleRepository {
 
     // Credit limit (0 = no limit set). Only a KNOWN customer can exceed it.
     if (customer != null && customer.creditLimit > 0.0 && !overrideCreditLimit) {
-      var projected = customer.balance + due;
+      // LIVE ledger balance (stored `balance` doosre device ke sync se purana ho sakta hai).
+      final liveRunning = await PartyRepository.instance.liveCustomerBalance(customer.id!);
+      var projected = partyClosing(opening: customer.openingBalance, running: liveRunning, stuck: customer.stuckBalance) + due;
       // Editing: this bill's OWN old due is already inside `balance`.
       if (original != null && original.customerId == customer.id) {
         projected -= (original.total - original.paid);
@@ -880,7 +883,9 @@ class SaleRepository {
       final customers = await CustomerRepository.instance.listAll();
       final existing = customers.where((c) => c.name.toLowerCase() == name.toLowerCase()).firstOrNull;
       if (existing != null && existing.creditLimit > 0.0) {
-        final projected = existing.balance + amount;
+        final liveRunning = await PartyRepository.instance.liveCustomerBalance(existing.id!);
+        final projected =
+            partyClosing(opening: existing.openingBalance, running: liveRunning, stuck: existing.stuckBalance) + amount;
         if (projected > existing.creditLimit + 0.009) {
           throw SaleCreditLimitException(existing.name, existing.creditLimit, projected);
         }

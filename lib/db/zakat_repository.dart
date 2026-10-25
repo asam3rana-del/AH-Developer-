@@ -8,6 +8,7 @@ import '../services/session.dart';
 import '../utils/hijri.dart';
 import 'app_database.dart';
 import 'balance_sheet_repository.dart' show stockValueAtCost;
+import 'party_dashboard_repository.dart' show PartyDashboardRepository, partyTotals;
 import 'expense_repository.dart';
 import 'user_repository.dart';
 import '../sync/sync_queue_helper.dart';
@@ -196,12 +197,14 @@ class ZakatRepository {
         scalar('SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type=? AND method=?', [type, method]);
 
     final products = (await db.query('products')).map(Product.fromMap).toList();
+    // Receivable / payable LIVE ledger se (Dashboard ke You'll Get / You'll Give jaisa) — stored `balance` se nahi.
+    final party = partyTotals(await PartyDashboardRepository.instance.loadParties());
     return ZakatAutoFigures(
       await total('IN', 'cash') - await total('OUT', 'cash'),
       await total('IN', 'bank') - await total('OUT', 'bank'),
       stockValueAtCost(products),
-      await scalar('SELECT COALESCE(SUM(balance),0) FROM customers WHERE balance>0'),
-      await scalar('SELECT COALESCE(SUM(balance),0) FROM suppliers WHERE balance>0'),
+      party.toGet,
+      party.toGive,
     );
   }
 
