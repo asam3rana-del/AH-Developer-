@@ -30,4 +30,4 @@ Aakhri update: 2026-10-07 (CI Build #215 tak). "User" = dukaan wale ki apni devi
 
 ## Note
 - Month Close feature app se hata diya gaya hai (user ke kehne par). Unit screen wale changes Build #215 mein hain (pass). Baaki release checks (update test, backup-restore, do devices par ek saath sale) abhi list mein nahi.
-- CI ki sirf "Node.js 20 is deprecated" warnings hain (workflow actions ki), app ki nahi.
+- CI ki "Node.js 20 is deprecated" warnings workflow actions ki thin, app ki nahi. 2026-10-25: `actions/checkout` v5 aur `actions/upload-artifact` v7 par update kiye (agli Build mein warnings band honi chahiyen — verify karein).
