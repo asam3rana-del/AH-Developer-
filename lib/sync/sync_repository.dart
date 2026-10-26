@@ -75,13 +75,16 @@ class SyncRepository {
     String? pushBlocked; // server ne push rad kiya (permission denied) — retryCount nahi barhta
 
     // ---- 1. PUSH ----
+    // Pehle quota ki wajah se stuck hui entries wapas pending (quota reset ho chuka ho sakta hai).
+    await queue.resetQuotaStuck();
     final pending = await queue.pending(limit: pushBatchLimit);
     for (final entry in pending) {
       var ok = false;
       var offline = false;
       String error = 'push failed';
       try {
-        ok = await api.push(entry);
+        // Timeout: koi push (Firestore transaction / sign-in) atak jaye to poori sync hamesha ke liye na ruke.
+        ok = await api.push(entry).timeout(const Duration(seconds: 45));
       } catch (e) {
         ok = false; // ek entry ka crash poori sync na roke
         if (e is SyncPermissionDeniedException || api.isPermissionDenied(e)) {
@@ -91,6 +94,10 @@ class SyncRepository {
           break;
         }
         offline = isNetworkError(e);
+        // Quota khatam: user ko Sync Now ke natije mein saaf dikhao (chup chap "Already up to date" nahi).
+        if (e is SyncOfflineException && looksLikeQuotaMessage(e.message)) pushBlocked = e.message;
+        // Push kisi bhi wajah se ruka (sign-in / network / server): asli wajah Sync Now ke natije mein dikhao.
+        if (offline) pushBlocked ??= error.length > 200 ? error.substring(0, 200) : error;
         error = _messageOf(e);
         if (error.length > 300) error = error.substring(0, 300);
       }
@@ -115,7 +122,7 @@ class SyncRepository {
     final pullStartedAt = nowMs();
     final PullResult changes;
     try {
-      changes = await api.pull(since);
+      changes = await api.pull(since).timeout(const Duration(seconds: 90));
     } on BranchNotConfiguredException catch (e) {
       return SyncResult(
           pushedCount: pushed, failedCount: failed, pulledOk: false, error: pushBlocked ?? e.message);

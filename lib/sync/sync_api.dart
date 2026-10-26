@@ -67,7 +67,7 @@ class SyncApi implements SyncBackend {
     final auth = FirebaseAuth.instanceFor(app: app);
     if (auth.currentUser == null) {
       try {
-        await auth.signInAnonymously();
+        await auth.signInAnonymously().timeout(const Duration(seconds: 20));
       } catch (_) {
         return null;
       }
@@ -257,6 +257,11 @@ class SyncApi implements SyncBackend {
       // Internet nahi => failure ginti mein nahi; entry pending rahe gi (SyncRepository push rok deta hai).
       if (e is SyncOfflineException || e is SyncPermissionDeniedException) rethrow;
       if (isNetworkError(e)) throw SyncOfflineException(_messageOf(e));
+      if (isQuotaError(e)) {
+        await logMaintenanceAudit(localDb,
+            username: 'sync', action: 'sync_quota_exhausted', reference: '${entry.entityType}:${entry.entityId}', details: _messageOf(e));
+        throw SyncOfflineException('Firestore quota khatam — baad mein dobara try hoga: ${_messageOf(e)}');
+      }
       final denied = isPermissionDenied(e);
       final msg = denied ? permissionDeniedMessage() : _messageOf(e);
       await logMaintenanceAudit(

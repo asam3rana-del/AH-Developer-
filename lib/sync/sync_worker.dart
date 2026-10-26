@@ -143,7 +143,8 @@ class SyncWorker {
     isRunning.value = true;
     SyncOutcome outcome;
     try {
-      final r = await runSync();
+      // Poori sync par had: atki hui sync `_inFlight` ko hamesha ke liye band kar deti thi (baad ki har sync no-op).
+      final r = await runSync().timeout(const Duration(minutes: 5));
       outcome = SyncOutcome(success: r.pulledOk, summary: r.summary(), result: r);
     } catch (e, st) {
       var msg = e.toString();

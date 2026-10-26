@@ -127,6 +127,21 @@ class SyncPushException implements Exception {
   String toString() => message;
 }
 
+/// Firestore ka daily/minute quota khatam (resource-exhausted / "Quota exceeded")? Ye entry ki ghalti nahi —
+/// retryCount na barhao, warna quota wapas aane se pehle hi sari entries 10 baar fail ho kar stuck ho jati hain.
+bool isQuotaError(Object e) {
+  try {
+    final code = (e as dynamic).code;
+    if (code is String && code.toLowerCase().replaceAll('_', '-') == 'resource-exhausted') return true;
+  } catch (_) {}
+  return looksLikeQuotaMessage(e.toString());
+}
+
+bool looksLikeQuotaMessage(String s) {
+  final l = s.toLowerCase();
+  return l.contains('resource-exhausted') || l.contains('resource_exhausted') || l.contains('quota');
+}
+
 /// Network/connection ki ghalti hai (internet nahi, server ka rasta nahi, timeout)?
 bool isNetworkError(Object e) {
   if (e is SyncOfflineException) return true;
