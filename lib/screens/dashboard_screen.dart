@@ -39,7 +39,7 @@ class _Action {
 }
 
 /// Mirrors MainActivity.kt — header (Settings / dark toggle / Quick Switch), live item-rate search,
-/// Today's sale/profit (tap = hide), QUICK ACTIONS grid, DUES SUMMARY (You'll get / give).
+/// Customer/Supplier search, QUICK ACTIONS grid, DUES SUMMARY (You'll get / give).
 ///
 /// Data + faislay `lib/db/dashboard_repository.dart` mein hain (pure functions, test/dashboard_test.dart).
 /// Kotlin Dashboard par sirf quick actions hain; baqi screens (Reports, Products, Zakat ...) Kotlin mein
@@ -70,10 +70,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Product> _matches = const [];
   String _query = '';
 
-  double _sale = 0;
-  double _profit = 0;
-  bool _saleHidden = false;
-  bool _profitHidden = false;
+  // Party (Customer + Supplier) search — Today's sale / profit cards ki jagah.
+  final _partyCtrl = TextEditingController();
+  List<PartyRow>? _parties; // cache; doosri screen se wapas aane par reset
+  List<PartyRow> _partyMatches = const [];
+  String _partyQuery = '';
+  bool _showCustomers = true;
+  bool _showSuppliers = true;
+
   double _toGet = 0;
   double _toGive = 0;
   int _pending = 0;
@@ -133,6 +137,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _partyCtrl.dispose();
     super.dispose();
   }
 
@@ -144,15 +149,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final repo = DashboardRepository.instance;
     String? error;
 
-    DashboardTotals? totals;
     ({double toGet, double toGive})? party;
     int? pending;
     String? shop;
-    try {
-      totals = await repo.todayTotals();
-    } catch (e) {
-      error ??= e.toString();
-    }
     try {
       party = await repo.partyTotalsNow();
     } catch (e) {
@@ -170,10 +169,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     if (!mounted) return;
     setState(() {
-      if (totals != null) {
-        _sale = totals.sale;
-        _profit = totals.profit ?? 0;
-      }
       if (party != null) {
         _toGet = party.toGet;
         _toGive = party.toGive;
@@ -202,14 +197,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _matches = dashboardSearch(_products!, t));
   }
 
+  bool get _canSeeSuppliers => _am.contains(Session.role); // cashier ko supplier screen band
+
+  /// Customer + Supplier search (naam / phone). Data wahi loadParties() jo Payment picker use karta hai.
+  Future<void> _onPartySearch(String q) async {
+    final t = q.trim();
+    setState(() => _partyQuery = t);
+    if (t.isEmpty) {
+      setState(() => _partyMatches = const []);
+      return;
+    }
+    try {
+      _parties ??= await PartyDashboardRepository.instance.loadParties();
+    } catch (e) {
+      _toast(e.toString());
+      return;
+    }
+    if (!mounted || _partyCtrl.text.trim() != t) return;
+    setState(() => _partyMatches = dashboardPartySearch(
+          _parties!,
+          t,
+          customers: _showCustomers,
+          suppliers: _showSuppliers,
+          canSeeSuppliers: _canSeeSuppliers,
+        ));
+  }
+
   // ------------------------------------------------------------ navigation
 
   Future<void> _push(Widget screen) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
     if (!mounted) return;
     _products = null; // products doosri screen par badal sakte hain
+    _parties = null; // baqaya badal gaya ho sakta hai
     _refresh();
     if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
+    if (_partyQuery.isNotEmpty) _onPartySearch(_partyCtrl.text);
   }
 
   /// Payment Received / Made: parties load karke seedha picker kholta hai; chunne par us party ka
@@ -454,7 +477,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _searchBar(p),
                 if (_query.isNotEmpty) _searchResults(p),
                 const SizedBox(height: 22),
-                _statRow(p),
+                _partySearchCard(p),
                 const SizedBox(height: 26),
                 _sectionLabel(p, Loc.t('QUICK ACTIONS', 'فوری کام')),
                 _grid(_quickActions(p), cols, p),
@@ -645,24 +668,139 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Today's sale (sab roles) + Today's profit (sirf admin). Tap = amount chhupao / dikhao.
-  Widget _statRow(AppPalette p) {
-    final sale = _statCard(
-      label: Loc.t("Today's sale", 'آج کی سیل'),
-      value: dashboardAmount(_sale, hidden: _saleHidden),
-      bg: p.flatTealBg,
-      fg: p.flatTealFg,
-      onTap: () => setState(() => _saleHidden = !_saleHidden),
+  /// Customer + Supplier search card (Today's sale / profit ki jagah).
+  Widget _partySearchCard(AppPalette p) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      decoration: BoxDecoration(
+        color: p.cardWhite,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          IconBadge(icon: Icons.people_outline, color: p.flatPinkFg, bg: p.flatPinkBg, size: 36, iconSize: 16),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _partyCtrl,
+              onChanged: _onPartySearch,
+              textInputAction: TextInputAction.search,
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: p.textDark),
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: _canSeeSuppliers
+                    ? Loc.t('Search customer / supplier…', 'کسٹمر / سپلائر سرچ کریں…')
+                    : Loc.t('Search customer…', 'کسٹمر سرچ کریں…'),
+                hintStyle: TextStyle(color: p.textMuted, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          if (_partyQuery.isNotEmpty)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.close, size: 18, color: p.textMuted),
+              onPressed: () {
+                _partyCtrl.clear();
+                _onPartySearch('');
+              },
+            ),
+        ]),
+        if (_canSeeSuppliers) ...[
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: [
+            _partyChip(p, Loc.t('All', 'سب'), _showCustomers && _showSuppliers, () => _setPartyFilter(true, true)),
+            _partyChip(p, Loc.t('Customers', 'کسٹمرز'), _showCustomers && !_showSuppliers, () => _setPartyFilter(true, false)),
+            _partyChip(p, Loc.t('Suppliers', 'سپلائرز'), !_showCustomers && _showSuppliers, () => _setPartyFilter(false, true)),
+          ]),
+        ],
+        if (_partyQuery.isNotEmpty) _partyResults(p),
+      ]),
     );
-    if (!showsProfitCard(Session.role)) return sale;
-    final profit = _statCard(
-      label: Loc.t("Today's profit", 'آج کا منافع'),
-      value: dashboardAmount(_profit, hidden: _profitHidden),
-      bg: p.flatBlueBg,
-      fg: p.flatBlueFg,
-      onTap: () => setState(() => _profitHidden = !_profitHidden),
+  }
+
+  void _setPartyFilter(bool customers, bool suppliers) {
+    setState(() {
+      _showCustomers = customers;
+      _showSuppliers = suppliers;
+    });
+    if (_partyQuery.isNotEmpty) _onPartySearch(_partyCtrl.text);
+  }
+
+  Widget _partyChip(AppPalette p, String label, bool selected, VoidCallback onTap) {
+    return ChoiceChip(
+      label: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: selected ? p.flatPinkFg : p.textMuted)),
+      selected: selected,
+      selectedColor: p.flatPinkBg,
+      backgroundColor: p.cardWhite,
+      side: BorderSide(color: p.border),
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
+      onSelected: (_) => onTap(),
     );
-    return Row(children: [Expanded(child: sale), const SizedBox(width: 18), Expanded(child: profit)]);
+  }
+
+  Widget _partyResults(AppPalette p) {
+    if (_partyMatches.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+        child: Text(Loc.t('No matching party', 'کوئی پارٹی نہیں ملی'), style: TextStyle(fontSize: 13, color: p.textMuted)),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(children: [
+        for (var i = 0; i < _partyMatches.length; i++) ...[
+          _partyRow(p, _partyMatches[i]),
+          if (i != _partyMatches.length - 1) Divider(height: 1, thickness: 1, color: p.border),
+        ],
+      ]),
+    );
+  }
+
+  Widget _partyRow(AppPalette p, PartyRow r) {
+    final settled = r.isSettled;
+    final color = settled ? p.textMuted : (r.isGive ? _partyRed : _partyGreen);
+    final status = settled
+        ? Loc.t('Settled', 'برابر')
+        : (r.isGive ? Loc.t("You'll give", 'دینا ہے') : Loc.t("You'll get", 'ملنا ہے'));
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _push(PartyTransactionScreen(
+        partyId: r.id,
+        partyName: r.name,
+        isCustomer: r.isCustomer,
+        dueHint: r.closing > 0 ? r.closing : 0,
+      )),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(r.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.textDark)),
+              const SizedBox(height: 3),
+              Text(
+                [
+                  r.isCustomer ? Loc.t('Customer', 'کسٹمر') : Loc.t('Supplier', 'سپلائر'),
+                  if (r.phone.isNotEmpty) r.phone,
+                ].join(' • '),
+                style: TextStyle(fontSize: 11, color: p.textMuted),
+              ),
+            ]),
+          ),
+          const SizedBox(width: 10),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(dashboardAmount(r.closing.abs()), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: color)),
+            const SizedBox(height: 3),
+            Text(status, style: TextStyle(fontSize: 11, color: color)),
+          ]),
+        ]),
+      ),
+    );
   }
 
   /// Kotlin: dono card tap => Party Dashboard.

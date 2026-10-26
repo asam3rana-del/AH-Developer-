@@ -35,6 +35,31 @@ List<Product> dashboardSearch(List<Product> all, String query, {int limit = 6}) 
 /// Aaj ka profit = aaj ki sale (discount ke baad) - COGS (Kotlin FIX: pehle discount ignore hota tha).
 double dashboardProfit(double sale, double cogs) => sale - cogs;
 
+/// Dashboard Party search: naam (case-insensitive) ya phone (substring); khali query = kuch nahi.
+/// [customers] / [suppliers] filter chips; [canSeeSuppliers] false (cashier) => suppliers kabhi nahi.
+/// Customers pehle, phir naam ke hisaab se; pehle [limit] nateeje. PURE — test ke liye.
+List<PartyRow> dashboardPartySearch(
+  List<PartyRow> all,
+  String query, {
+  bool customers = true,
+  bool suppliers = true,
+  bool canSeeSuppliers = true,
+  int limit = 8,
+}) {
+  final q = query.trim();
+  if (q.isEmpty) return const [];
+  final qLower = q.toLowerCase();
+  final list = all.where((r) {
+    if (r.isCustomer ? !customers : (!suppliers || !canSeeSuppliers)) return false;
+    return r.name.toLowerCase().contains(qLower) || r.phone.contains(q);
+  }).toList()
+    ..sort((a, b) {
+      if (a.isCustomer != b.isCustomer) return a.isCustomer ? -1 : 1;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+  return list.take(limit).toList();
+}
+
 /// Sync pending label; 0 => null (label chhupa hua).
 String? syncPendingMessage(int count, {required bool urdu}) {
   if (count <= 0) return null;
