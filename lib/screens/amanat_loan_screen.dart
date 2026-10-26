@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../db/due_reminders_repository.dart';
 import '../db/party_repository.dart' show SavePartyResult;
-import '../sync/settings_sync.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
@@ -13,7 +12,7 @@ import '../widgets/role_guard.dart';
 /// Dashboard ki "Amanat / Loan" screen.
 ///
 /// Sab Amanat (customer ne paisa rakhwaya) aur Loan (dukaan ne udhar diya) wali parties ek jagah:
-/// balance, wapsi ki tarikh, aur SYNC ki halat (Synced / Pending). Upar "Sync Now" button.
+/// balance aur wapsi ki tarikh. Sync sirf dashboard header ke Sync button se.
 /// Sab kaam yahin: "Add" (maujooda customer ko Amanat/Loan banao ya nayi party), card par tap = tarikh,
 /// card ka menu = Amanat/Loan se hatao ya party delete.
 ///
@@ -37,11 +36,8 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
   final _dateFmt = DateFormat('d MMM yyyy');
 
   bool _loading = true;
-  bool _syncing = false;
   int _filter = 0; // 0 = sab, 1 = Amanat, 2 = Loan
   List<ReturnReminder> _all = const [];
-  Set<int> _pending = const {};
-  int? _lastSyncedAt;
 
   AppPalette get _p => ThemeManager.palette;
 
@@ -69,11 +65,9 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
     if (showSpinner) setState(() => _loading = true);
     try {
       final list = await _repo.returnReminders();
-      final pending = await _repo.pendingReturnPartyIds();
       if (!mounted) return;
       setState(() {
         _all = list;
-        _pending = pending;
       });
     } catch (_) {
       if (mounted) _toast(Loc.t('Could not load the list', 'فہرست لوڈ نہیں ہو سکی'));
@@ -87,26 +81,6 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  Future<void> _syncNow() async {
-    if (_syncing) return;
-    setState(() => _syncing = true);
-    try {
-      final summary = await SettingsSync.syncNow();
-      if (!mounted) return;
-      if (summary == null) {
-        _toast(Loc.t('No internet connection', 'انٹرنیٹ کنکشن نہیں'));
-      } else {
-        _lastSyncedAt = DateTime.now().millisecondsSinceEpoch;
-        _toast(summary);
-      }
-    } catch (_) {
-      if (mounted) _toast(Loc.t('Sync failed', 'سنک ناکام'));
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-      await _load(showSpinner: false);
-    }
   }
 
   Future<void> _pickReturnDate(ReturnReminder r) async {
@@ -264,9 +238,8 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                   children: [
                     PremiumHeader(
                       title: Loc.t('Amanat / Loan', 'امانت / قرض'),
-                      subtitle: Loc.t('All Amanat & Loan parties with sync status', 'تمام امانت اور قرض پارٹیاں، سنک کی حالت کے ساتھ'),
+                      subtitle: Loc.t('All Amanat & Loan parties', 'تمام امانت اور قرض پارٹیاں'),
                     ),
-                    _syncCard(),
                     const SizedBox(height: 10),
                     Row(children: [
                       Expanded(child: _totalCard(Loc.t('Amanat', 'امانت'), '${amanat.length}', _rs(amanatTotal), _p.flatTealFg)),
@@ -300,39 +273,6 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _p.border),
       );
-
-  Widget _syncCard() {
-    final n = _pending.length;
-    final ok = n == 0;
-    final color = ok ? _p.flatTealFg : _p.flatAmberFg;
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-      decoration: _cardDeco(),
-      child: Row(children: [
-        Icon(ok ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined, color: color, size: 26),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              ok ? Loc.t('All synced', 'سب سنک ہو چکا') : Loc.t('$n waiting to sync', '$n سنک کے منتظر'),
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
-            ),
-            if (_lastSyncedAt != null)
-              Text(Loc.t('Last sync: ${formatSyncTime(_lastSyncedAt!)}', 'آخری سنک: ${formatSyncTime(_lastSyncedAt!)}'),
-                  style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
-          ]),
-        ),
-        FilledButton.icon(
-          onPressed: _syncing ? null : _syncNow,
-          icon: _syncing
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.sync, size: 18),
-          label: Text(Loc.t('Sync Now', 'سنک')),
-        ),
-      ]),
-    );
-  }
 
   Widget _totalCard(String label, String count, String total, Color accent) => Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -390,12 +330,10 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
 
   Widget _card(ReturnReminder r) {
     final hasPhone = r.partyPhone.trim().isNotEmpty;
-    final pending = _pending.contains(r.partyId);
     final overdue = r.returnDate > 0 && r.returnDate < DateTime.now().millisecondsSinceEpoch - 86400000;
     final kindLabel = r.isAmanat
         ? Loc.t('Amanat — return to customer', 'امانت — کسٹمر کو واپس کرنی ہے')
         : Loc.t('Loan — collect from customer', 'قرض — کسٹمر سے وصول کرنا ہے');
-    final syncColor = pending ? _p.flatAmberFg : _p.flatTealFg;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: _cardDeco(),
@@ -411,16 +349,6 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                   Text(r.partyName, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark)),
                   const SizedBox(height: 2),
                   Text(kindLabel, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
-                ]),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: syncColor.withOpacity(0.14), borderRadius: BorderRadius.circular(8)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(pending ? Icons.schedule : Icons.check_circle_outline, size: 13, color: syncColor),
-                  const SizedBox(width: 4),
-                  Text(pending ? Loc.t('Pending', 'منتظر') : Loc.t('Synced', 'سنک'),
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: syncColor)),
                 ]),
               ),
               PopupMenuButton<String>(

@@ -9,6 +9,7 @@ import '../models/product.dart';
 import '../services/biometric.dart';
 import '../services/crash_handler.dart';
 import '../services/session.dart';
+import '../sync/settings_sync.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/menu_row.dart' show IconBadge;
@@ -82,6 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _toGive = 0;
   int _pending = 0;
   String _shopName = '';
+  bool _syncing = false;
 
   @override
   void initState() {
@@ -195,6 +197,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Is dauran user ne aur type kar diya ho to purana jawab na dikhayen.
     if (!mounted || _searchCtrl.text.trim() != t) return;
     setState(() => _matches = dashboardSearch(_products!, t));
+  }
+
+  /// Header ka Sync button: Settings wala Sync Now (internet nahi => message). Baad mein dashboard refresh.
+  Future<void> _syncNow() async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    try {
+      final summary = await SettingsSync.syncNow();
+      if (!mounted) return;
+      _toast(summary ?? Loc.t('No internet connection', 'انٹرنیٹ کنکشن نہیں'));
+    } catch (_) {
+      if (mounted) _toast(Loc.t('Sync failed', 'سنک ناکام'));
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+    if (!mounted) return;
+    _products = null;
+    _parties = null;
+    await _refresh();
+    if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
+    if (_partyQuery.isNotEmpty) _onPartySearch(_partyCtrl.text);
   }
 
   bool get _canSeeSuppliers => _am.contains(Session.role); // cashier ko supplier screen band
@@ -509,9 +532,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _circleButton(Icons.settings_outlined, p.flatPurpleBg, p.flatPurpleFg, Loc.t('Settings', 'سیٹنگز'),
               () => _push(const SettingsScreen())),
           const SizedBox(width: 10),
-          // Us mode ka icon jis par switch hoga.
-          _circleButton(ThemeManager.isDark.value ? Icons.light_mode_outlined : Icons.dark_mode_outlined, p.flatAmberBg, p.flatAmberFg,
-              Loc.t('Dark mode', 'ڈارک موڈ'), () => ThemeManager.toggleDarkMode()),
+          // Dark mode ab sirf Settings mein; yahan Sync (pending ho to laal dot).
+          _syncButton(p),
           const SizedBox(width: 10),
           _circleButton(Icons.swap_horiz, p.flatTealBg, p.flatTealFg, Loc.t('Switch user', 'یوزر تبدیل کریں'), _openQuickSwitch),
           const Spacer(),
@@ -550,6 +572,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox(width: 40, height: 40, child: Icon(icon, size: 18, color: fg)),
+        ),
+      ),
+    );
+  }
+
+  Widget _syncButton(AppPalette p) {
+    return Tooltip(
+      message: Loc.t('Sync now', 'ابھی سنک کریں'),
+      child: Material(
+        color: p.flatAmberBg,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _syncing ? null : _syncNow,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Stack(alignment: Alignment.center, children: [
+              _syncing
+                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: p.flatAmberFg))
+                  : Icon(Icons.sync, size: 18, color: p.flatAmberFg),
+              if (_pending > 0 && !_syncing)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: _partyRed,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: p.flatAmberBg, width: 1.5),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
         ),
       ),
     );
