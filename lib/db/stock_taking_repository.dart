@@ -6,6 +6,7 @@ import 'app_database.dart';
 import 'product_repository.dart';
 import 'stock_ledger.dart';
 import '../sync/sync_queue_helper.dart';
+import '../sync/sync_worker.dart';
 
 /// Ports the data side of StockTakingActivity.kt (physical count vs system stock).
 ///
@@ -155,33 +156,48 @@ class StockTakingRepository {
     final sessionId = stockTakeSessionId(DateTime.now());
     final cleanNote = note.trim();
 
+    // MULTI-DEVICE FIX: pehle sync (doosre device ki sales/purchases is device tak aayen, is device ke pending
+    // bahar jayen). Is device ka stock purana ho (jaise negative) to "gintee - purana stock" ka farq cloud par
+    // purchase/sale ko DO BAAR laga deta tha. Offline / fail ho to bhi save chalta hai.
+    try {
+      await SyncWorker.instance.syncNowOnce().timeout(const Duration(seconds: 25));
+    } catch (_) {}
+
+    final applied = <StockTakeVariance>[];
     await db.transaction((txn) async {
       for (final v in variances) {
         final barcode = v.product.barcode;
         final now = DateTime.now().millisecondsSinceEpoch;
+        // Farq TAAZA stock se (review ke baad sync/sale se stock badal chuka ho sakta hai): delta = gintee - abhi ka stock.
+        final curRows = await txn.query('products', columns: ['stock'], where: 'barcode=?', whereArgs: [barcode], limit: 1);
+        if (curRows.isEmpty) throw StockTakingException('${v.product.name}: product nahi mila');
+        final curStock = (curRows.first['stock'] as num?)?.toDouble() ?? 0.0;
+        final fresh = StockTakeVariance(v.product, v.counted, v.counted - curStock);
+        if (fresh.delta.abs() < 1e-9) continue; // pehle se gintee ke barabar
+        applied.add(fresh);
         final n = await txn.rawUpdate(
           'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
-          [v.delta, now, barcode],
+          [fresh.delta, now, barcode],
         );
         if (n == 0) throw StockTakingException('${v.product.name}: product nahi mila');
 
         await StockLedger.log(txn,
             barcode: barcode,
             type: MovementType.stockTake,
-            signedQty: v.delta,
+            signedQty: fresh.delta,
             reference: sessionId,
-            note: stockTakeLineNote(v.product.stock, v.counted, cleanNote),
+            note: stockTakeLineNote(curStock, v.counted, cleanNote),
             now: now);
 
         // Stock ka DELTA (increment_stock) — do device ek hi product gine to koi gintee nahi khoti.
-        await SyncQueueHelper.enqueueStockDelta(txn, barcode, v.delta);
+        await SyncQueueHelper.enqueueStockDelta(txn, barcode, fresh.delta);
       }
     });
 
-    final total = variances.fold<double>(0, (a, v) => a + v.valueImpact);
+    final total = applied.fold<double>(0, (a, v) => a + v.valueImpact);
     var queueInfo = '';
     try {
-      for (final v in variances.take(3)) {
+      for (final v in applied.take(3)) {
         final qr = await db.query('sync_queue',
             columns: ['id', 'operation', 'syncedAt'],
             where: 'entityType = ? AND entityId = ?',
