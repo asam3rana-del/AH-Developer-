@@ -1,5 +1,7 @@
 
 import 'app_database.dart';
+import '../models/misc_entities.dart' show CashTransaction;
+import '../sync/device_tag.dart';
 import '../models/party.dart';
 import '../models/return_entry.dart';
 import 'customer_repository.dart';
@@ -325,7 +327,7 @@ class ReturnReminder {
   }
 }
 
-enum ReturnEntryResult { ok, notFound, kindMismatch, invalidAmount }
+enum ReturnEntryResult { ok, notFound, kindMismatch, invalidAmount, nothingToSettle }
 
 /// Sort: date wale pehle (purani date pehle), phir "date nahi" wale (naam se).
 List<ReturnReminder> sortReturnReminders(List<ReturnReminder> list) {
@@ -668,6 +670,66 @@ class DueRemindersRepository {
         whereArgs: [partyId],
       );
       await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      return ReturnEntryResult.ok;
+    });
+    await CustomerRepository.instance.refresh();
+    return res;
+  }
+
+  /// Amanat wapas karna (dukaan paisa deti hai => Cash OUT) / Loan wasool karna (paisa aata hai => Cash IN).
+  /// Ek transaction mein: entries FIFO se kam (poori ho to hat jati hai), opening balance 0 ki taraf
+  /// (amanat +, loan -), wapsi ki tarikh bachi entries ki sab se purani (koi nahi to 0) aur Cash register
+  /// mein ek row (reference `manual-return-entry-<partyId>-<tag>-<ms>`: `manual-` se Day Book mein alag line). Customer + cash
+  /// dono sync hote hain. [amount] bachi raqam se zyada ho to bachi raqam tak settle hota hai.
+  Future<ReturnEntryResult> settleReturn({
+    required int partyId,
+    required double amount,
+    required String method,
+    String note = '',
+  }) async {
+    if (!(amount > 0) || !amount.isFinite) return ReturnEntryResult.invalidAmount;
+    final m = method == 'bank' ? 'bank' : 'cash';
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final res = await db.transaction((txn) async {
+      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
+      if (rows.isEmpty) return ReturnEntryResult.notFound;
+      final cur = rows.first;
+      final kind = (cur['kind'] as String?) ?? '';
+      if (kind != 'amanat' && kind != 'loan') return ReturnEntryResult.kindMismatch;
+      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
+      if (entries.isEmpty) return ReturnEntryResult.nothingToSettle;
+      final out = settleEntriesFifo(entries, amount);
+      if (!(out.settled > 0)) return ReturnEntryResult.nothingToSettle;
+      // amanat wapas: balance (minus) upar aata hai; loan wasool: balance (plus) neeche aata hai.
+      final delta = -signedReturnAmount(kind, out.settled);
+      await txn.update(
+        'customers',
+        {
+          'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + delta,
+          'returnEntries': encodeReturnEntries(out.remaining),
+          'returnDate': earliestReturnDate(out.remaining),
+          'updatedAt': now,
+          'dirty': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      final name = (cur['name'] as String?) ?? '';
+      final isAmanat = kind == 'amanat';
+      final n = note.trim();
+      final cash = CashTransaction(
+        type: isAmanat ? 'OUT' : 'IN',
+        method: m,
+        amount: out.settled,
+        reason: '${isAmanat ? 'Amanat wapas' : 'Loan wasool'}: $name${n.isEmpty ? '' : ' | $n'}',
+        reference: 'manual-return-entry-$partyId-${DeviceTag.current}-$now',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final cashId = await txn.insert('cash_transactions', cash.toMap());
+      await SyncQueueHelper.enqueueCashTransaction(txn, cashId);
       return ReturnEntryResult.ok;
     });
     await CustomerRepository.instance.refresh();

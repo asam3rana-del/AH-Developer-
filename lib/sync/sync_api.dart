@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sqflite/sqflite.dart';
@@ -60,20 +62,53 @@ class SyncApi implements SyncBackend {
   /// (caller isay "sync nahi ho sakta" samjhe). Anonymous Auth: Firestore rules `request.auth != null`
   /// maangte hain — sirf API key wala koi bhi bahar wala data nahi chhoo sakta.
   Future<FirebaseFirestore?> firestoreFor() async {
+    connectIssue = '';
     // Branch ke baghair kabhi cloud request nahi (galat/khali tenant mein likhne se bachao).
-    if (!BranchConfigStore.isConfigured()) return null;
+    if (!BranchConfigStore.isConfigured()) {
+      connectIssue = Loc.t(
+        'Branch Code is empty — open Settings > Cloud Sync Setup and save a Branch Code.',
+        'برانچ کوڈ خالی ہے — Settings > Cloud Sync Setup میں برانچ کوڈ محفوظ کریں۔',
+      );
+      return null;
+    }
     final app = await CloudConfigStore.firebaseApp();
-    if (app == null) return null;
+    if (app == null) {
+      connectIssue = Loc.t(
+        'Firebase project is not set — open Settings > Cloud Sync Setup and enter the Firebase project details.',
+        'Firebase پراجیکٹ سیٹ نہیں — Settings > Cloud Sync Setup میں Firebase پراجیکٹ کی تفصیل درج کریں۔',
+      );
+      return null;
+    }
     final auth = FirebaseAuth.instanceFor(app: app);
     if (auth.currentUser == null) {
       try {
         await auth.signInAnonymously().timeout(const Duration(seconds: 20));
-      } catch (_) {
+      } catch (e) {
+        final code = e is FirebaseException ? e.code : '';
+        if (code == 'operation-not-allowed' || code == 'admin-restricted-operation') {
+          connectIssue = Loc.t(
+            'Anonymous sign-in is OFF in Firebase — Firebase Console > Authentication > Sign-in method > turn on Anonymous.',
+            'Firebase میں Anonymous سائن اِن بند ہے — Firebase Console > Authentication > Sign-in method میں Anonymous آن کریں۔',
+          );
+        } else if (code == 'network-request-failed' || e is TimeoutException || isNetworkError(e)) {
+          connectIssue = Loc.t(
+            'No internet (or too slow) — sync will retry when the connection is back.',
+            'انٹرنیٹ نہیں (یا بہت سست) — کنکشن آنے پر سنک دوبارہ کوشش کرے گا۔',
+          );
+        } else {
+          connectIssue = Loc.t(
+            'Anonymous sign-in failed (${code.isEmpty ? e.toString() : code}) — check the API key / project in Cloud Sync Setup.',
+            'Anonymous سائن اِن ناکام (${code.isEmpty ? e.toString() : code}) — Cloud Sync Setup میں API key / پراجیکٹ چیک کریں۔',
+          );
+        }
         return null;
       }
     }
     return FirebaseFirestore.instanceFor(app: app);
   }
+
+  /// Aakhri [firestoreFor] null lauta to asal wajah (khali = koi masla nahi). Push/pull ke message ke liye.
+  String connectIssue = '';
 
   // ---------- PUSH ----------
 
@@ -91,7 +126,8 @@ class SyncApi implements SyncBackend {
     // Branch/cloud/sign-in nahi mil saka (aksar internet nahi => anonymous sign-in fail): ye is entry ki
     // ghalti nahi — retryCount na barhao, push rok do (pull saaf wajah batayega).
     if (fs == null) {
-      throw const SyncOfflineException('Cloud not reachable (sign-in failed, no branch code or no cloud project)');
+      throw SyncOfflineException(
+          connectIssue.isEmpty ? 'Cloud not reachable (sign-in failed, no branch code or no cloud project)' : connectIssue);
     }
     final localDb = await openDb();
     try {
@@ -304,10 +340,12 @@ class SyncApi implements SyncBackend {
     if (fs == null) {
       // FIX: pehle yahan khali (kamyab) result jata tha, is liye sign-in fail / cloud na milne par bhi
       // "Already up to date" dikhta tha. Ab saaf ghalti — SyncRepository usay "Sync failed: ..." banata hai.
-      throw Exception(Loc.t(
-        'Could not connect to the cloud (sign-in failed or cloud project not available) — check internet and Cloud Sync Setup, then try again.',
-        'کلاؤڈ سے رابطہ نہیں ہو سکا (سائن اِن ناکام یا کلاؤڈ پراجیکٹ دستیاب نہیں) — انٹرنیٹ اور Cloud Sync Setup چیک کر کے دوبارہ کوشش کریں۔',
-      ));
+      throw Exception(connectIssue.isNotEmpty
+          ? connectIssue
+          : Loc.t(
+              'Could not connect to the cloud (sign-in failed or cloud project not available) — check internet and Cloud Sync Setup, then try again.',
+              'کلاؤڈ سے رابطہ نہیں ہو سکا (سائن اِن ناکام یا کلاؤڈ پراجیکٹ دستیاب نہیں) — انٹرنیٹ اور Cloud Sync Setup چیک کر کے دوبارہ کوشش کریں۔',
+            ));
     }
 
     Future<MapEntry<String, List<SyncDoc>>> load(String collection) async {

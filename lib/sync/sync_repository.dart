@@ -1,3 +1,4 @@
+import '../utils/loc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -127,7 +128,14 @@ class SyncRepository {
       return SyncResult(
           pushedCount: pushed, failedCount: failed, pulledOk: false, error: pushBlocked ?? e.message);
     } catch (e) {
-      final msg = api.isPermissionDenied(e) ? api.permissionDeniedMessage() : _messageOf(e);
+      final msg = api.isPermissionDenied(e)
+          ? api.permissionDeniedMessage()
+          : isNetworkError(e)
+              ? Loc.t(
+                  'Cloud is not reachable right now (no/slow internet or Firebase temporarily down). Your data is safe on this device and will sync automatically — try Sync again in a minute. If it keeps happening: try mobile data instead of Wi-Fi, and check Firebase status.',
+                  'کلاؤڈ ابھی دستیاب نہیں (انٹرنیٹ نہیں/سست یا Firebase عارضی بند)۔ آپ کا ڈیٹا اس ڈیوائس پر محفوظ ہے اور خود سنک ہو جائے گا — ایک منٹ بعد دوبارہ Sync کریں۔ بار بار ہو تو Wi-Fi کی جگہ موبائل ڈیٹا آزمائیں۔',
+                )
+              : _messageOf(e);
       return SyncResult(pushedCount: pushed, failedCount: failed, pulledOk: false, error: msg);
     }
 

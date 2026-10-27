@@ -78,3 +78,40 @@ int earliestReturnDate(List<ReturnEntry> list) {
   }
   return best;
 }
+
+/// Wapsi / wasooli: [amount] entries mein se FIFO (sab se purani wapsi ki tarikh pehle, tarikh na ho to
+/// sab se aakhir mein; barabar par purani date, phir id) ghatata hai. Poori khatam hui entry list se
+/// nikal jati hai, adhoori ka amount kam hota hai. [amount] kul se zyada ho to sirf kul tak settle hota hai.
+/// Lautata hai: bachi hui entries aur asal mein settle hui raqam.
+({List<ReturnEntry> remaining, double settled}) settleEntriesFifo(List<ReturnEntry> entries, double amount) {
+  final order = List<ReturnEntry>.of(entries)
+    ..sort((a, b) {
+      final ar = a.returnDate > 0 ? a.returnDate : 1 << 62;
+      final br = b.returnDate > 0 ? b.returnDate : 1 << 62;
+      if (ar != br) return ar.compareTo(br);
+      if (a.date != b.date) return a.date.compareTo(b.date);
+      return a.id.compareTo(b.id);
+    });
+  var left = amount;
+  var settled = 0.0;
+  final byId = <int, ReturnEntry?>{for (final e in entries) e.id: e};
+  for (final e in order) {
+    if (left <= 0.004) break;
+    if (left + 0.004 >= e.amount) {
+      left -= e.amount;
+      settled += e.amount;
+      byId[e.id] = null;
+    } else {
+      byId[e.id] = e.copyWith(amount: e.amount - left);
+      settled += left;
+      left = 0;
+    }
+  }
+  return (
+    remaining: [for (final e in entries) if (byId[e.id] != null) byId[e.id]!],
+    settled: settled,
+  );
+}
+
+/// Entries ka kul (musbat) amount.
+double returnEntriesTotal(List<ReturnEntry> list) => list.fold<double>(0.0, (a, e) => a + e.amount);

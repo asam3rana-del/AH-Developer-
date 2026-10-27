@@ -164,6 +164,8 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
             'یہ پارٹی پہلے سے دوسری قسم (امانت/قرض) کی ہے۔ پہلے اسے امانت / قرض سے ہٹائیں۔'));
       case ReturnEntryResult.invalidAmount:
         _toast(Loc.t('Enter a valid amount', 'درست رقم لکھیں'));
+      case ReturnEntryResult.nothingToSettle:
+        _toast(Loc.t('No pending entry left to settle', 'واپس / وصول کرنے کے لیے کوئی انٹری باقی نہیں'));
     }
   }
 
@@ -181,6 +183,83 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
     );
     if (mounted) _toastForResult(out);
     if (mounted) await _load(showSpinner: false);
+  }
+
+  /// Amanat wapas karo / Loan wasool karo: raqam + Cash/Bank chun kar. Balance aur cash register dono update.
+  Future<void> _settle(ReturnReminder r) async {
+    final total = returnEntriesTotal(r.entries);
+    if (total <= 0) {
+      _toast(Loc.t('No pending entry left to settle', 'واپس / وصول کرنے کے لیے کوئی انٹری باقی نہیں'));
+      return;
+    }
+    final ctrl = TextEditingController(text: total == total.roundToDouble() ? total.toStringAsFixed(0) : total.toStringAsFixed(2));
+    var method = 'cash';
+    String? err;
+    final res = await showDialog<({double amount, String method})>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: Text(r.isAmanat
+              ? Loc.t('Return Amanat', 'امانت واپس کریں')
+              : Loc.t('Collect Loan', 'قرض وصول کریں')),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${r.partyName} — ${Loc.t('pending', 'باقی')}: ${_rs(total)}'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: Loc.t('Amount', 'رقم'), errorText: err),
+            ),
+            const SizedBox(height: 10),
+            SegmentedButton<String>(
+              segments: [
+                ButtonSegment(value: 'cash', label: Text(Loc.t('Cash', 'کیش'))),
+                ButtonSegment(value: 'bank', label: Text(Loc.t('Bank', 'بینک'))),
+              ],
+              selected: {method},
+              onSelectionChanged: (v) => setS(() => method = v.first),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              r.isAmanat
+                  ? Loc.t('Cash OUT will be recorded.', 'کیش آؤٹ درج ہوگا۔')
+                  : Loc.t('Cash IN will be recorded.', 'کیش اِن درج ہوگا۔'),
+              style: TextStyle(fontSize: 12, color: _p.textMuted),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
+            TextButton(
+              onPressed: () {
+                final v = double.tryParse(ctrl.text.trim().replaceAll(',', ''));
+                if (v == null || !v.isFinite || v <= 0) {
+                  setS(() => err = Loc.t('Enter a valid amount', 'درست رقم لکھیں'));
+                  return;
+                }
+                if (v > total + 0.009) {
+                  setS(() => err = Loc.t('More than pending (${_rs(total)})', 'باقی رقم (${_rs(total)}) سے زیادہ ہے'));
+                  return;
+                }
+                Navigator.pop(ctx, (amount: v, method: method));
+              },
+              child: Text(r.isAmanat ? Loc.t('Return', 'واپس') : Loc.t('Collect', 'وصول')),
+            ),
+          ],
+        ),
+      ),
+    );
+    ctrl.dispose();
+    if (res == null || !mounted) return;
+    final out = await _repo.settleReturn(partyId: r.partyId, amount: res.amount, method: res.method);
+    if (!mounted) return;
+    _toastForResult(out);
+    if (out == ReturnEntryResult.ok) {
+      _toast(r.isAmanat
+          ? Loc.t('Amanat returned — Cash OUT recorded', 'امانت واپس — کیش آؤٹ درج ہو گیا')
+          : Loc.t('Loan collected — Cash IN recorded', 'قرض وصول — کیش اِن درج ہو گیا'));
+    }
+    await _load(showSpinner: false);
   }
 
   Future<void> _openEntries(ReturnReminder r) async {
@@ -397,6 +476,8 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                   switch (v) {
                     case 'entries':
                       _openEntries(r);
+                    case 'settle':
+                      _settle(r);
                     case 'add':
                       _addAnother(r);
                     case 'date':
@@ -410,6 +491,12 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                   }
                 },
                 itemBuilder: (_) => [
+                  if (r.entries.isNotEmpty)
+                    PopupMenuItem(
+                        value: 'settle',
+                        child: Text(r.isAmanat
+                            ? Loc.t('Return Amanat (pay back)', 'امانت واپس کریں')
+                            : Loc.t('Collect Loan (receive)', 'قرض وصول کریں'))),
                   PopupMenuItem(value: 'entries', child: Text(Loc.t('Entries / edit amount', 'انٹریاں / رقم ایڈٹ'))),
                   PopupMenuItem(
                       value: 'add',
