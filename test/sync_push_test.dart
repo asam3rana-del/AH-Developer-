@@ -61,9 +61,12 @@ void main() {
       final doc = <String, Object?>{'updatedAt': 200, 'upsertAt': 50};
       expect(upsertClock(doc), 50);
       expect(shouldApplyUpsert(100, upsertClock(doc)), isTrue);
-      // Purana doc (upsertAt nahi) => purani updatedAt par hi chalta hai.
-      expect(upsertClock({'updatedAt': 200}), 200);
-      expect(shouldApplyUpsert(100, upsertClock({'updatedAt': 200})), isFalse);
+      // Purana live doc (upsertAt nahi): updatedAt increment se bump ho sakti hai => upsert lag jata hai.
+      expect(upsertClock({'updatedAt': 200}), isNull);
+      expect(shouldApplyUpsert(100, upsertClock({'updatedAt': 200})), isTrue);
+      // Purana tombstone: purani updatedAt par hi chalta hai (hata hua record zinda nahi hota).
+      expect(upsertClock({'updatedAt': 200, '_deleted': true}), 200);
+      expect(shouldApplyUpsert(100, upsertClock({'updatedAt': 200, '_deleted': true})), isFalse);
       // Naya doc.
       expect(upsertClock(null), isNull);
       expect(shouldApplyUpsert(1, upsertClock(null)), isTrue);

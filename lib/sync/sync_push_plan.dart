@@ -91,8 +91,19 @@ bool shouldApplyUpsert(int incomingUpdatedAt, int? serverUpdatedAt) =>
 /// cloud par rate 0.0 reh kar agle pull mein local rate bhi mita deta tha.
 /// Ab upsert ka apna alag waqt `upsertAt` hai jo sirf upsert likhta hai; stale-check usi se hota hai.
 /// Purane doc (jis mein `upsertAt` nahi) par purani `updatedAt` hi chalti hai.
-int? upsertClock(Map<String, Object?>? data) =>
-    asMillis(data?['upsertAt']) ?? asMillis(data?['updatedAt']);
+///
+/// FIX 2 (purchase se set kiya shopkeeper rate sync ke baad wapas "Not set"): purane live doc mein `upsertAt` nahi
+/// hota, aur uska `updatedAt` purchase ke increment_stock se push ke waqt par aage ja chuka hota hai — to usi
+/// `updatedAt` se check karne par rates ka upsert hamesha "stale" ginke skip hota tha, aur agla pull local rate
+/// ko cloud ki purani (0) value par wapas kar deta tha. Ab live doc mein `upsertAt` na ho to koi upsert-clock
+/// nahi (upsert lag jata hai, aur us ke saath `upsertAt` likha jata hai taake aage se protection rahe).
+/// Tombstone (`_deleted`) par purani `updatedAt` hi chalti hai, taake purani edit hata hua record zinda na kare.
+int? upsertClock(Map<String, Object?>? data) {
+  final up = asMillis(data?['upsertAt']);
+  if (up != null) return up;
+  if (data?['_deleted'] == true) return asMillis(data?['updatedAt']);
+  return null;
+}
 
 /// Delete bhi wohi: purana delete naye cloud record ko nahi mitata.
 bool shouldApplyDelete(int deleteAt, int? serverUpdatedAt) =>
