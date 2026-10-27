@@ -182,6 +182,7 @@ class SyncQueueHelper {
         'dueDays': c['dueDays'] ?? 0,
         'kind': c['kind'] ?? '',
         'returnDate': c['returnDate'] ?? 0,
+        'returnEntries': c['returnEntries'] ?? '',
       });
 
   static Map<String, Object?> supplierPayload(Map<String, Object?> s) => _stamp({

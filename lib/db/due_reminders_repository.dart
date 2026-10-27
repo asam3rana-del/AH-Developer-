@@ -1,6 +1,7 @@
 
 import 'app_database.dart';
 import '../models/party.dart';
+import '../models/return_entry.dart';
 import 'customer_repository.dart';
 import 'party_repository.dart';
 import '../sync/sync_queue_helper.dart';
@@ -297,6 +298,10 @@ class ReturnReminder {
   final int returnDate; // 0 = set nahi
   final double closing;
 
+  /// Customer ka opening balance (entries is mein jama hoti hain) aur alag alag entries.
+  final double opening;
+  final List<ReturnEntry> entries;
+
   const ReturnReminder({
     required this.partyId,
     required this.partyName,
@@ -304,10 +309,23 @@ class ReturnReminder {
     required this.kind,
     required this.returnDate,
     required this.closing,
+    this.opening = 0,
+    this.entries = const [],
   });
 
   bool get isAmanat => kind == 'amanat';
+
+  /// Entries ka kul (musbat) — kitni baar kitna liya / diya.
+  double get entriesTotal => entries.fold<double>(0.0, (a, e) => a + e.amount);
+
+  /// Entries ke bahar ka (purana / opening) hissa, musbat amount. 0 = koi nahi.
+  double get baseAmount {
+    final base = opening - signedReturnTotal(kind, entries);
+    return base.abs() < 0.009 ? 0.0 : base.abs();
+  }
 }
+
+enum ReturnEntryResult { ok, notFound, kindMismatch, invalidAmount }
 
 /// Sort: date wale pehle (purani date pehle), phir "date nahi" wale (naam se).
 List<ReturnReminder> sortReturnReminders(List<ReturnReminder> list) {
@@ -470,6 +488,8 @@ class DueRemindersRepository {
           closing: ((m['openingBalance'] as num?)?.toDouble() ?? 0.0) +
               (live[m['id']] ?? 0.0) +
               ((m['stuckBalance'] as num?)?.toDouble() ?? 0.0),
+          opening: (m['openingBalance'] as num?)?.toDouble() ?? 0.0,
+          entries: decodeReturnEntries(m['returnEntries'] as String?),
         ),
     ]);
   }
@@ -514,6 +534,146 @@ class DueRemindersRepository {
     ];
   }
 
+  /// "Existing customer" chunne ke liye: SAB customers (pehle se Amanat/Loan wale bhi — unhein dobara
+  /// loan/amanat diya ja sakta hai). `kind` khali = normal customer.
+  Future<List<({int id, String name, String phone, String kind})>> pickableCustomers() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query('customers', columns: ['id', 'name', 'phone', 'kind'], orderBy: 'name COLLATE NOCASE');
+    return [
+      for (final m in rows)
+        (
+          id: m['id'] as int,
+          name: (m['name'] as String?) ?? '',
+          phone: (m['phone'] as String?) ?? '',
+          kind: (m['kind'] as String?) ?? '',
+        ),
+    ];
+  }
+
+  int _day(int millis) => millis <= 0 ? 0 : startOfDayMillis(millis);
+
+  /// Naya loan / amanat (ek aur entry) kisi bhi customer ko. Balance mein jama hota hai (amanat = minus,
+  /// loan = plus) aur customer ke saath sync hota hai. Pehle se doosri qism ki ho to [ReturnEntryResult.kindMismatch].
+  Future<ReturnEntryResult> addReturnEntry({
+    required int partyId,
+    required String kind,
+    required double amount,
+    required int dateMillis,
+    required int returnDateMillis,
+    String note = '',
+  }) async {
+    if (!(amount > 0) || !amount.isFinite) return ReturnEntryResult.invalidAmount;
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final res = await db.transaction((txn) async {
+      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
+      if (rows.isEmpty) return ReturnEntryResult.notFound;
+      final cur = rows.first;
+      final curKind = (cur['kind'] as String?) ?? '';
+      if (curKind.isNotEmpty && curKind != kind) return ReturnEntryResult.kindMismatch;
+      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
+      entries.add(ReturnEntry(
+        id: nextReturnEntryId(entries),
+        amount: amount,
+        date: _day(dateMillis),
+        returnDate: _day(returnDateMillis),
+        note: note.trim(),
+      ));
+      final earliest = earliestReturnDate(entries);
+      await txn.update(
+        'customers',
+        {
+          'kind': kind,
+          'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + signedReturnAmount(kind, amount),
+          'returnEntries': encodeReturnEntries(entries),
+          if (earliest > 0) 'returnDate': earliest,
+          'updatedAt': now,
+          'dirty': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      return ReturnEntryResult.ok;
+    });
+    await CustomerRepository.instance.refresh();
+    return res;
+  }
+
+  /// Ek entry ka amount / tarikh / wapsi / note badalna. Amount ka farq balance mein jata hai.
+  Future<ReturnEntryResult> editReturnEntry({
+    required int partyId,
+    required int entryId,
+    required double amount,
+    required int dateMillis,
+    required int returnDateMillis,
+    String note = '',
+  }) async {
+    if (!(amount > 0) || !amount.isFinite) return ReturnEntryResult.invalidAmount;
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final res = await db.transaction((txn) async {
+      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
+      if (rows.isEmpty) return ReturnEntryResult.notFound;
+      final cur = rows.first;
+      final kind = (cur['kind'] as String?) ?? '';
+      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
+      final i = entries.indexWhere((e) => e.id == entryId);
+      if (i < 0) return ReturnEntryResult.notFound;
+      final old = entries[i];
+      entries[i] = old.copyWith(amount: amount, date: _day(dateMillis), returnDate: _day(returnDateMillis), note: note.trim());
+      final delta = signedReturnAmount(kind, amount) - signedReturnAmount(kind, old.amount);
+      await txn.update(
+        'customers',
+        {
+          'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + delta,
+          'returnEntries': encodeReturnEntries(entries),
+          'returnDate': earliestReturnDate(entries),
+          'updatedAt': now,
+          'dirty': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      return ReturnEntryResult.ok;
+    });
+    await CustomerRepository.instance.refresh();
+    return res;
+  }
+
+  /// Ek entry hatana (galat entry): uska amount balance se wapas nikal jata hai.
+  Future<ReturnEntryResult> deleteReturnEntry({required int partyId, required int entryId}) async {
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final res = await db.transaction((txn) async {
+      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
+      if (rows.isEmpty) return ReturnEntryResult.notFound;
+      final cur = rows.first;
+      final kind = (cur['kind'] as String?) ?? '';
+      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
+      final i = entries.indexWhere((e) => e.id == entryId);
+      if (i < 0) return ReturnEntryResult.notFound;
+      final old = entries.removeAt(i);
+      await txn.update(
+        'customers',
+        {
+          'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) - signedReturnAmount(kind, old.amount),
+          'returnEntries': encodeReturnEntries(entries),
+          if (entries.isNotEmpty) 'returnDate': earliestReturnDate(entries),
+          'updatedAt': now,
+          'dirty': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [partyId],
+      );
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      return ReturnEntryResult.ok;
+    });
+    await CustomerRepository.instance.refresh();
+    return res;
+  }
+
   Future<bool> _setKind(int partyId, String kind, int returnDateMillis, {double amount = 0}) async {
     final db = await AppDatabase.instance.database;
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -551,52 +711,81 @@ class DueRemindersRepository {
   Future<bool> clearReturnTag(int partyId) => _setKind(partyId, '', 0);
 
   /// Nayi Amanat / Loan party banana. Khali naam => [SavePartyResult.nameRequired].
+  /// [amount] (musbat, optional) pehli entry ban jati hai (taareekh + wapsi ki taareekh + note ke saath).
   Future<SavePartyResult> addNewReturnParty({
     required String name,
     required String phone,
     required String kind,
     required int returnDateMillis,
-    required double openingBalance,
+    required double amount,
+    int dateMillis = 0,
+    String note = '',
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
+    final entries = <ReturnEntry>[
+      if (amount > 0 && amount.isFinite)
+        ReturnEntry(id: 1, amount: amount, date: _day(dateMillis), returnDate: _day(returnDateMillis), note: note.trim()),
+    ];
     await PartyRepository.instance.saveCustomer(Customer(
       name: trimmed,
       phone: phone.trim(),
-      openingBalance: openingBalance,
+      openingBalance: entries.isEmpty ? 0.0 : signedReturnAmount(kind, amount),
       kind: kind,
       returnDate: returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
+      returnEntries: encodeReturnEntries(entries),
     ));
     return SavePartyResult.success;
   }
 
   /// Amanat / Loan party ki details badalna: naam, phone, type, wapsi ki tarikh (0 = hatana).
-  /// Balance / ledger / bills nahi chhedta (history naam se rehti hai, jaise Party -> Edit).
+  /// [baseAmount] (musbat; null = na chhedo) = entries ke bahar ka purana / opening amount — sirf tab badalta hai
+  /// jab purani value se alag ho. Type tab hi badalta hai jab party par koi entry na ho.
+  /// Ledger / bills nahi chhedta (history naam se rehti hai, jaise Party -> Edit).
   Future<SavePartyResult> editReturnParty({
     required int partyId,
     required String name,
     required String phone,
     required String kind,
     required int returnDateMillis,
+    double? baseAmount,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
-      final n = await txn.update(
+      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
+      if (rows.isEmpty) return;
+      final cur = rows.first;
+      final curKind = (cur['kind'] as String?) ?? '';
+      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
+      final useKind = entries.isNotEmpty && curKind.isNotEmpty ? curKind : kind;
+      final opening = (cur['openingBalance'] as num?)?.toDouble() ?? 0.0;
+      var newOpening = opening;
+      if (baseAmount != null && baseAmount >= 0 && baseAmount.isFinite) {
+        final base = opening - signedReturnTotal(useKind, entries);
+        if ((baseAmount - base.abs()).abs() > 0.009) {
+          newOpening = signedReturnTotal(useKind, entries) + signedReturnAmount(useKind, baseAmount);
+        }
+      }
+      await txn.update(
         'customers',
         {
           'name': trimmed,
           'phone': phone.trim(),
-          'kind': kind,
-          'returnDate': returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
+          'kind': useKind,
+          'openingBalance': newOpening,
+          // Entries hon to tarikh unhi se aati hai; warna yahan ki tarikh.
+          'returnDate': entries.isNotEmpty
+              ? earliestReturnDate(entries)
+              : (returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis)),
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
           'dirty': 1,
         },
         where: 'id = ?',
         whereArgs: [partyId],
       );
-      if (n > 0) await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      await SyncQueueHelper.enqueueCustomer(txn, partyId);
     });
     await CustomerRepository.instance.refresh();
     return SavePartyResult.success;

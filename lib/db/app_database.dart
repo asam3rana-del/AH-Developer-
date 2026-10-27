@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 30;
+  static const _dbVersion = 31;
 
   Database? _db;
 
@@ -119,6 +119,7 @@ class AppDatabase {
         dueDays INTEGER NOT NULL DEFAULT 0,
         kind TEXT NOT NULL DEFAULT '',
         returnDate INTEGER NOT NULL DEFAULT 0,
+        returnEntries TEXT NOT NULL DEFAULT '',
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1
@@ -516,6 +517,10 @@ class AppDatabase {
     if (oldVersion < 30) {
       // v30: Recycle Bin (delete hue records wapas lane ke liye).
       await db.execute(_recycleBinSql);
+    }
+    if (oldVersion < 31) {
+      // v31: Amanat / Loan ki alag alag entries (ek customer kai bar loan/amanat le sakta hai).
+      await _addColumnIfMissing(db, 'customers', 'returnEntries', "TEXT NOT NULL DEFAULT ''");
     }
   }
 

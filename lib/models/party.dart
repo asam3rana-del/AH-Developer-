@@ -26,6 +26,9 @@ class Customer {
 
   /// Amanat wapas karne / udhar wapas aane ki tarikh (din ki shuruaat, millis). 0 = set nahi.
   final int returnDate;
+
+  /// Amanat / Loan ki alag alag entries (JSON text, dekhein models/return_entry.dart). '' = koi nahi.
+  final String returnEntries;
   final String? serverId;
   final int updatedAt;
   final bool dirty;
@@ -42,6 +45,7 @@ class Customer {
     this.dueDays = 0,
     this.kind = '',
     this.returnDate = 0,
+    this.returnEntries = '',
     this.serverId,
     this.updatedAt = 0,
     this.dirty = true,
@@ -69,6 +73,7 @@ class Customer {
     int? dueDays,
     String? kind,
     int? returnDate,
+    String? returnEntries,
     int? updatedAt,
     bool? dirty,
   }) =>
@@ -84,6 +89,7 @@ class Customer {
         dueDays: dueDays ?? this.dueDays,
         kind: kind ?? this.kind,
         returnDate: returnDate ?? this.returnDate,
+        returnEntries: returnEntries ?? this.returnEntries,
         serverId: serverId,
         updatedAt: updatedAt ?? this.updatedAt,
         dirty: dirty ?? this.dirty,
@@ -101,6 +107,8 @@ class Customer {
         'dueDays': dueDays,
         'kind': kind,
         'returnDate': returnDate,
+        // Khali ho to key hi nahi: purane schema / edit par DB ki maujooda entries na mitein.
+        if (returnEntries.isNotEmpty) 'returnEntries': returnEntries,
         'serverId': serverId,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
@@ -118,6 +126,7 @@ class Customer {
         dueDays: (m['dueDays'] as num?)?.toInt() ?? 0,
         kind: (m['kind'] as String?) ?? '',
         returnDate: (m['returnDate'] as num?)?.toInt() ?? 0,
+        returnEntries: (m['returnEntries'] as String?) ?? '',
         serverId: m['serverId'] as String?,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,
