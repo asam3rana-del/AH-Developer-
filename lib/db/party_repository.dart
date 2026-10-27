@@ -8,6 +8,7 @@ import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
+import 'recycle_bin_repository.dart';
 import '../sync/sync_queue_helper.dart';
 
 /// Ports PartyRepository.kt + PartyUseCases.kt (ViewModel/Factory skip — PORTING_PLAN).
@@ -198,7 +199,22 @@ class PartyRepository {
   Future<void> _deleteParty(DatabaseExecutor ex, {required bool customer, required int id}) async {
     final type = customer ? 'customer' : 'supplier';
     final eid = await SyncQueueHelper.entityIdFor(ex, type, '$id');
-    await ex.delete(customer ? 'customers' : 'suppliers', where: 'id = ?', whereArgs: [id]);
+    final table = customer ? 'customers' : 'suppliers';
+    final snap = await ex.query(table, where: 'id = ?', whereArgs: [id], limit: 1);
+    if (snap.isNotEmpty) {
+      await RecycleBinRepository.record(
+        ex,
+        kind: customer ? RecycleBinRepository.kindCustomer : RecycleBinRepository.kindSupplier,
+        refKey: '$id',
+        title: (snap.first['name'] as String?) ?? '',
+        subtitle: (snap.first['phone'] as String?) ?? '',
+        amount: (snap.first['balance'] as num?)?.toDouble() ?? 0.0,
+        rows: {
+          table: [Map<String, Object?>.from(snap.first)],
+        },
+      );
+    }
+    await ex.delete(table, where: 'id = ?', whereArgs: [id]);
     await SyncQueueHelper.enqueueDelete(ex, type, eid);
   }
 

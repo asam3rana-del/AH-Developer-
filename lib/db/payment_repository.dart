@@ -4,6 +4,7 @@ import '../models/misc_entities.dart';
 import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
+import 'recycle_bin_repository.dart';
 import 'supplier_repository.dart';
 import '../sync/device_tag.dart';
 import '../sync/sync_queue_helper.dart';
@@ -46,6 +47,13 @@ class PaymentRepository {
       [delta, partyId],
     );
     await SyncQueueHelper.enqueueBalanceDelta(txn, customer: isCustomer, partyId: partyId, delta: delta);
+  }
+
+  /// Recycle Bin restore: delete ka ulta — party balance wapas ghata (payment dubara lagi) aur bill ka `paid` barhao.
+  Future<void> reapplyRestored(DatabaseExecutor txn,
+      {required bool isCustomer, int? partyId, required double amount, String billReference = ''}) async {
+    if (partyId != null) await _adjustBalance(txn, isCustomer, partyId, -amount);
+    await _applyBillPaidDelta(txn, isCustomer, billReference, amount);
   }
 
   /// Applies [delta] to the linked bill's `paid`, clamped to [0, total].
@@ -286,6 +294,36 @@ class PaymentRepository {
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       // Tombstone ki entity id (serverId-preferred) row delete se PEHLE nikalti hai.
+      // Recycle Bin snapshot (payment + cash rows + balance/bill asar ka meta) delete se pehle.
+      final payRows = await txn.query('payments', where: 'reference = ?', whereArgs: [payment.reference]);
+      final cashRows = await txn.query('cash_transactions', where: 'reference = ?', whereArgs: [payment.reference]);
+      String who = isCustomer ? 'Customer' : 'Supplier';
+      if (payment.partyId != null) {
+        final pr = await txn.query(isCustomer ? 'customers' : 'suppliers',
+            columns: ['name'], where: 'id = ?', whereArgs: [payment.partyId], limit: 1);
+        if (pr.isNotEmpty) who = (pr.first['name'] as String?) ?? who;
+      }
+      await RecycleBinRepository.record(
+        txn,
+        kind: RecycleBinRepository.kindPayment,
+        refKey: payment.reference,
+        title: isCustomer ? 'Payment received: $who' : 'Payment made: $who',
+        subtitle: payment.billReference.isEmpty ? payment.reference : 'Bill ${payment.billReference}',
+        amount: payment.amount,
+        rows: {
+          'payments': [for (final r in payRows) Map<String, Object?>.from(r)],
+          'cash_transactions': [for (final r in cashRows) Map<String, Object?>.from(r)],
+          'meta': [
+            {
+              'isCustomer': isCustomer ? 1 : 0,
+              'partyId': payment.partyId,
+              'amount': payment.amount,
+              'billReference': payment.billReference,
+            }
+          ],
+        },
+      );
+
       await SyncQueueHelper.deletePaymentsByReference(txn, payment.reference);
       await SyncQueueHelper.deleteCashTransactionsByReference(txn, payment.reference);
 

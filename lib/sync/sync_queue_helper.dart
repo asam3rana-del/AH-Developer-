@@ -43,6 +43,9 @@ class SyncQueueHelper {
 
   // ------------------------------------------------------------------ ids
 
+  /// Recycle Bin restore ke dauran `runZoned(..., zoneValues: {kRestoreZoneKey: true})` se set hota hai.
+  static const Symbol kRestoreZoneKey = #recycleBinRestore;
+
   static String _tag() => DeviceTag.current;
 
   /// serverId ho to wahi, warna `<prefix><tag>-<id>`.
@@ -125,6 +128,16 @@ class SyncQueueHelper {
     String operation,
     Map<String, Object?> payload,
   ) async {
+    // Recycle Bin restore: upsert par `_restore` nishan (push par cloud ka tombstone hata deta hai) aur
+    // isi record ka abhi tak push na hua delete queue se nikal do (warna restore ke baad cloud par delete jata).
+    if (operation == 'upsert' && Zone.current[kRestoreZoneKey] == true) {
+      await ex.delete(
+        'sync_queue',
+        where: "syncedAt IS NULL AND operation = 'delete' AND entityType = ? AND entityId = ?",
+        whereArgs: [entityType, entityId],
+      );
+      payload = {...payload, '_restore': true};
+    }
     await ex.insert('sync_queue', {
       'entityType': entityType,
       'entityId': entityId,

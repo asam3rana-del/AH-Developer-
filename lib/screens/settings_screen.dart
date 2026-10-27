@@ -23,6 +23,7 @@ import 'items_screen.dart';
 import 'login_screen.dart';
 import 'party_dashboard_screen.dart';
 import 'purchase_screen.dart';
+import 'recycle_bin_screen.dart';
 import 'reports_screen.dart';
 import 'sale_screen.dart';
 import 'shell_ledger_screen.dart';
@@ -504,6 +505,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onSelectionChanged: (s) => Loc.setLanguage(s.first),
           ),
         ]),
+        if (admin)
+          _card(Loc.t('Recycle Bin', 'ری سائیکل بِن'), Icons.restore_from_trash_outlined, [
+            Text(Loc.t('Restore deleted bills, expenses, payments, parties, items and workers',
+                'حذف کیے گئے بل، خرچے، ادائیگیاں، پارٹیاں، آئٹمز اور ورکرز واپس لائیں')),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => _open(const RecycleBinScreen()),
+              child: Text(Loc.t('OPEN RECYCLE BIN', 'ری سائیکل بن کھولیں')),
+            ),
+          ]),
         if (admin)
           _card(Loc.t('Users', 'یوزرز'), Icons.people, [
             OutlinedButton(

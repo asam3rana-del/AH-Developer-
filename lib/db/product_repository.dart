@@ -10,6 +10,7 @@ import 'stock_ledger.dart';
 import '../services/session.dart';
 import '../sync/sync_queue_helper.dart';
 import 'watch_util.dart';
+import 'recycle_bin_repository.dart';
 
 /// Dart port of ProductDao (Database.kt). Room's `Flow<List<Product>>` is
 /// mirrored here with a broadcast StreamController that re-queries and
@@ -119,6 +120,20 @@ class ProductRepository {
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await SyncQueueHelper.assertProductDeletable(txn, product.barcode);
+      final snap = await txn.query('products', where: 'barcode=?', whereArgs: [product.barcode], limit: 1);
+      if (snap.isNotEmpty) {
+        await RecycleBinRepository.record(
+          txn,
+          kind: RecycleBinRepository.kindProduct,
+          refKey: product.barcode,
+          title: product.name,
+          subtitle: product.barcode,
+          amount: (snap.first['stock'] as num?)?.toDouble() ?? 0.0,
+          rows: {
+            'products': [Map<String, Object?>.from(snap.first)],
+          },
+        );
+      }
       await txn.delete('products', where: 'barcode=?', whereArgs: [product.barcode]);
       // Kotlin confirmDeleteProduct: enqueue(product, "delete") — server par tombstone.
       await SyncQueueHelper.enqueueDelete(txn, 'product', SyncQueueHelper.productEntityId({'barcode': product.barcode}));

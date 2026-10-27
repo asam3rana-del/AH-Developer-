@@ -70,6 +70,12 @@ class StampedPayload {
 }
 
 StampedPayload stampPayload(Map<String, Object?> raw, String branchId, int nowMs) {
+  // Recycle Bin restore: tombstone hatao (`_deleted:false`) aur waqt push ka lo, taake purane delete ke
+  // updatedAt se stale na ginay. `_restore` nishan cloud par nahi likha jata.
+  if (raw['_restore'] == true) {
+    final map = {...raw}..remove('_restore');
+    return StampedPayload({...map, 'branchId': branchId, 'updatedAt': nowMs, '_deleted': false}, nowMs);
+  }
   final incoming = asMillis(raw['updatedAt']) ?? nowMs;
   return StampedPayload({...raw, 'branchId': branchId, 'updatedAt': incoming}, incoming);
 }

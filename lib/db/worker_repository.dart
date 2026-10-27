@@ -5,6 +5,7 @@ import '../services/session.dart';
 import '../sync/sync_queue_helper.dart';
 import 'app_database.dart';
 import 'expense_repository.dart';
+import 'recycle_bin_repository.dart';
 
 /// Workers: hazri/chhutti, advance aur mahine ki salary.
 ///
@@ -280,6 +281,19 @@ class WorkerRepository {
       }
       // Entity id row delete se PEHLE (doosre device se aaye worker ki asal serverId na khoye).
       final eid = SyncQueueHelper.workerEntityId(Map<String, Object?>.from(rows.first));
+      final attendance = await txn.query('worker_attendance', where: 'workerId = ?', whereArgs: [workerId]);
+      await RecycleBinRepository.record(
+        txn,
+        kind: RecycleBinRepository.kindWorker,
+        refKey: '$workerId',
+        title: (rows.first['name'] as String?) ?? '',
+        subtitle: (rows.first['phone'] as String?) ?? '',
+        amount: (rows.first['rate'] as num?)?.toDouble() ?? 0.0,
+        rows: {
+          'workers': [Map<String, Object?>.from(rows.first)],
+          'worker_attendance': [for (final a in attendance) Map<String, Object?>.from(a)],
+        },
+      );
       for (final a in await txn.query('worker_attendance', where: 'workerId = ?', whereArgs: [workerId])) {
         await SyncQueueHelper.enqueueWorkerAttendanceDelete(txn, workerId, a['day'] as String);
       }

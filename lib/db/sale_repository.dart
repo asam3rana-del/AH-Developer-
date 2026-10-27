@@ -15,6 +15,7 @@ import 'app_database.dart';
 import 'customer_repository.dart';
 import 'party_repository.dart' show PartyRepository, partyClosing;
 import 'product_repository.dart';
+import 'recycle_bin_repository.dart';
 import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
 import '../utils/stock_policy.dart';
@@ -152,6 +153,9 @@ class SaleRepository {
   /// Har naye subscriber ko PEHLE current list milti hai, phir live updates.
   /// (Pehle sirf pehla subscriber list pata tha — screen dobara khulne par list khali reh jati thi.)
   Stream<List<Sale>> watchAll() => watchWithInitial(_controller, listAll);
+
+  /// Recycle Bin restore ke baad list live refresh.
+  Future<void> refreshAfterRestore() => _notify();
 
   Future<void> _notify() async {
     final rows = await listAll();
@@ -744,6 +748,39 @@ class SaleRepository {
           await _adjustCustomerBalance(txn, sale.customerId!, -outstanding, now);
         }
       }
+      // Recycle Bin: delete se pehle poora snapshot (bill + items + cash rows + bill-linked payments).
+      final linkedPays = await txn.query('payments',
+          where: 'billReference = ? AND reference != ?', whereArgs: [invoice, invoice]);
+      final cashRefs = <String>{
+        invoice,
+        if (alreadyReturned) 'return:$invoice',
+        for (final p in linkedPays) (p['reference'] as String?) ?? '',
+      }..remove('');
+      final cashRows = await txn.query('cash_transactions',
+          where: 'reference IN (${List.filled(cashRefs.length, '?').join(',')})', whereArgs: cashRefs.toList());
+      String who = 'Walk-in';
+      if (sale.customerId != null) {
+        final cr = await txn.query('customers', columns: ['name'], where: 'id = ?', whereArgs: [sale.customerId], limit: 1);
+        if (cr.isNotEmpty) who = (cr.first['name'] as String?) ?? who;
+      }
+      await RecycleBinRepository.record(
+        txn,
+        kind: RecycleBinRepository.kindSale,
+        refKey: invoice,
+        title: 'Sale $invoice',
+        subtitle: who,
+        amount: sale.total,
+        rows: {
+          'sales': [Map<String, Object?>.from(rows.first)],
+          'sale_items': [for (final r in itemRows) Map<String, Object?>.from(r)],
+          'payments': [for (final r in linkedPays) Map<String, Object?>.from(r)],
+          'cash_transactions': [for (final r in cashRows) Map<String, Object?>.from(r)],
+          'meta': [
+            {'alreadyReturned': alreadyReturned ? 1 : 0}
+          ],
+        },
+      );
+
       await txn.delete('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       await txn.delete('sales', where: 'invoice=?', whereArgs: [invoice]);
       await _deleteCashByReference(txn, invoice);
