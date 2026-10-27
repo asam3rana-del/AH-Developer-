@@ -117,7 +117,10 @@ class SaleForEdit {
 class CustomerItemRate {
   final double unitPrice;
   final String unit;
-  const CustomerItemRate(this.unitPrice, this.unit);
+
+  /// Us sale ka waqt (ms) jis par ye rate laga tha; 0 = pata nahi.
+  final int soldAt;
+  const CustomerItemRate(this.unitPrice, this.unit, [this.soldAt = 0]);
 }
 
 /// Removes [linkedPaid] (money already recorded by bill-linked payments, each
@@ -841,7 +844,7 @@ class SaleRepository {
     try {
       final db = await AppDatabase.instance.database;
       final rows = await db.rawQuery(
-        'SELECT si.unitPrice AS unitPrice, si.unit AS unit FROM sale_items si '
+        'SELECT si.unitPrice AS unitPrice, si.unit AS unit, s.createdAt AS soldAt FROM sale_items si '
         'JOIN sales s ON si.invoice = s.invoice '
         "WHERE si.barcode = ? AND s.customerId = ? AND s.status != 'returned' "
         'ORDER BY s.createdAt DESC LIMIT 1',
@@ -851,6 +854,7 @@ class SaleRepository {
       return CustomerItemRate(
         (rows.first['unitPrice'] as num).toDouble(),
         (rows.first['unit'] as String?) ?? '',
+        (rows.first['soldAt'] as num?)?.toInt() ?? 0,
       );
     } catch (_) {
       return null;

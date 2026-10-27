@@ -125,6 +125,35 @@ void main() {
     });
   });
 
+  group('evaluateCustomerRate', () {
+    test('rate unchanged and above cost: customer rate applied', () {
+      final o = evaluateCustomerRate(_juice.copyWith(ratesAt: 1000),
+          lastUnitPrice: 550, lastUnit: 'Carton', chosenUnit: 'Carton', lastSoldAt: 2000);
+      expect(o.suggestion!.primaryRate, 550);
+      expect(o.skip, CustomerRateSkip.none);
+    });
+
+    test('item rate changed after last sale: old customer rate ignored', () {
+      final o = evaluateCustomerRate(_juice.copyWith(ratesAt: 3000),
+          lastUnitPrice: 550, lastUnit: 'Carton', chosenUnit: 'Carton', lastSoldAt: 2000);
+      expect(o.suggestion, isNull);
+      expect(o.skip, CustomerRateSkip.rateChanged);
+    });
+
+    test('old rate at or below cost: ignored', () {
+      final o = evaluateCustomerRate(_juice,
+          lastUnitPrice: 480, lastUnit: 'Carton', chosenUnit: 'Carton', lastSoldAt: 2000);
+      expect(o.suggestion, isNull);
+      expect(o.skip, CustomerRateSkip.belowCost);
+    });
+
+    test('unknown ratesAt / sale time skips the staleness rule', () {
+      final o = evaluateCustomerRate(_juice,
+          lastUnitPrice: 550, lastUnit: 'Carton', chosenUnit: 'Carton');
+      expect(o.suggestion, isNotNull);
+    });
+  });
+
   group('customerRateFor', () {
     test('last rate per Dozen becomes the same rate per Dozen', () {
       final s = customerRateFor(_juice, lastUnitPrice: 50, lastUnit: 'Dozen', chosenUnit: 'Dozen');

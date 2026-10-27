@@ -95,6 +95,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   /// Set when the price box was filled with THIS customer's usual rate.
   String? _customerRateName;
+  // Purana customer rate kyun nahi laga (item ka rate badla / cost se kam) — koi raqam nahi, har role ke liye mehfooz.
+  String? _customerRateSkipNote;
 
   // Draft autosave (new sales only).
   Timer? _draftTimer;
@@ -496,6 +498,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _selectedUnit = defaultUnitFor(p);
       _lastMainPrice = 0.0;
       _customerRateName = null;
+      _customerRateSkipNote = null;
       _refillAutoPrice();
     });
     // A regular customer's own usual rate replaces the standard one.
@@ -544,7 +547,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _lastMainPrice = p.toPrimaryUnitRate(double.tryParse(v.trim()) ?? 0.0, unit);
     }
     // The shopkeeper typed their own number: it wins over the suggestion.
-    setState(() => _customerRateName = null);
+    setState(() {
+      _customerRateName = null;
+      _customerRateSkipNote = null;
+    });
   }
 
   /// If [customer] has bought the picked item before, use THEIR last rate
@@ -579,10 +585,25 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     if (_priceCtrl.text != priceBefore) return;
 
     final unit = _selectedUnit.isEmpty ? product.unit : _selectedUnit;
-    final suggestion = customerRateFor(product,
-        lastUnitPrice: last.unitPrice, lastUnit: last.unit, chosenUnit: unit);
-    if (suggestion == null) return;
+    final outcome = evaluateCustomerRate(product,
+        lastUnitPrice: last.unitPrice, lastUnit: last.unit, chosenUnit: unit, lastSoldAt: last.soldAt);
+    final suggestion = outcome.suggestion;
+    if (suggestion == null) {
+      // Purana rate nahi lagana: item ka apna (naya) rate rehta hai, bas wajah dikha do.
+      final note = switch (outcome.skip) {
+        CustomerRateSkip.rateChanged => Loc.t(
+            "Item's rate changed — new rate applied (not $customerDisplayName's old rate)",
+            'آئٹم کا ریٹ بدل گیا ہے — نیا ریٹ لگا دیا گیا ($customerDisplayName کا پرانا ریٹ نہیں)'),
+        CustomerRateSkip.belowCost => Loc.t(
+            "$customerDisplayName's old rate is now below cost — new rate applied",
+            '$customerDisplayName کا پرانا ریٹ اب لاگت سے کم ہے — نیا ریٹ لگا دیا گیا'),
+        CustomerRateSkip.none => null,
+      };
+      if (note != null) setState(() => _customerRateSkipNote = note);
+      return;
+    }
     setState(() {
+      _customerRateSkipNote = null;
       _lastMainPrice = suggestion.primaryRate;
       _priceCtrl.text = formatAmount(suggestion.priceInChosenUnit);
       _customerRateName = customerDisplayName;
@@ -625,6 +646,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _isShopkeeper = shopkeeper;
       _lastMainPrice = 0.0;
       _customerRateName = null;
+      _customerRateSkipNote = null;
       _refillAutoPrice();
       _applyBulkRate();
       // Lines already in the cart are re-rated too (cost untouched).
@@ -777,6 +799,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     _lastMainPrice = 0.0;
     _qtyIsAmountMode = false;
     _customerRateName = null;
+    _customerRateSkipNote = null;
   }
 
   /// Loads a billed line back into the entry fields so a mistake can be
@@ -809,6 +832,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _qtyCtrl.text = formatQty(line.qty);
       _qtyIsAmountMode = false;
       _customerRateName = null;
+      _customerRateSkipNote = null;
       _priceCtrl.text = line.unitPrice == line.unitPrice.truncateToDouble()
           ? line.unitPrice.toInt().toString()
           : line.unitPrice.toString();
@@ -2109,6 +2133,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       _selectedUnit = '';
                       _lastMainPrice = 0.0;
                       _customerRateName = null;
+                      _customerRateSkipNote = null;
+      _customerRateSkipNote = null;
                     });
                   }
                 },
@@ -2225,6 +2251,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   '$_customerRateName کا معمول کا ریٹ لگا دیا گیا: روپے ${price.toStringAsFixed(2)} / $unitValue',
                 ),
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue),
+              ),
+            ),
+          if (_customerRateSkipNote != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, left: 4),
+              child: Text(
+                _customerRateSkipNote!,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeManager.palette.flatAmberFg),
               ),
             ),
           _buildMarginWarning(),
