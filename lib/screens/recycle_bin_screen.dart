@@ -23,6 +23,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
 
   static const _kinds = <String, (String, String, IconData)>{
     RecycleBinRepository.kindSale: ('Sales', 'سیل', Icons.receipt_long),
+    RecycleBinRepository.kindPurchase: ('Purchases', 'پرچیز', Icons.shopping_cart_outlined),
     RecycleBinRepository.kindExpense: ('Expenses', 'خرچے', Icons.money_off),
     RecycleBinRepository.kindPayment: ('Payments', 'ادائیگیاں', Icons.payments_outlined),
     RecycleBinRepository.kindCustomer: ('Customers', 'کسٹمرز', Icons.person),

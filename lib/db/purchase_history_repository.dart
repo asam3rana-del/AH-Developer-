@@ -11,6 +11,7 @@ import 'party_transaction_repository.dart'
     show InsufficientStockException, purchaseItemSmallestQty, reconcilePaid, reversePurchaseLineCost;
 import '../models/stock_movement.dart' show MovementType;
 import 'product_repository.dart';
+import 'recycle_bin_repository.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
 import '../sync/sync_queue_helper.dart';
@@ -412,6 +413,9 @@ class PurchaseHistoryRepository {
       final items = (await txn.query('purchase_items', where: 'billNo = ?', whereArgs: [billNo])).map(PurchaseItem.fromMap).toList();
       final now = _now();
 
+      // Recycle Bin: har item ka asal asar (kitna stock nikla, cost pehle/baad) restore ke liye.
+      final effects = <Map<String, Object?>>[];
+
       // Returned bill ka stock pehle hi nikal chuka hai — dobara nahi nikalna.
       if (purchase.status != 'returned') {
         for (final it in items) {
@@ -448,6 +452,7 @@ class PurchaseHistoryRepository {
                 unitCost: newCost,
                 now: now);
           }
+          effects.add({'barcode': it.barcode, 'removed': removed, 'costBefore': product.cost, 'costAfter': newCost});
           await _enqueueProduct(txn, it.barcode);
         }
         final outstanding = purchase.total - purchase.paid;
@@ -455,6 +460,43 @@ class PurchaseHistoryRepository {
           await _adjustSupplierBalance(txn, purchase.supplierId!, -outstanding);
         }
       }
+
+      // Recycle Bin snapshot (bill + items + payments + cash rows) — rows hatne se pehle.
+      final linkedPays = await txn.query('payments', where: 'billReference = ? AND reference != ?', whereArgs: [billNo, billNo]);
+      final ownPays = await txn.query('payments', where: 'reference = ?', whereArgs: [billNo]);
+      final cashRefs = <String>{
+        billNo,
+        'return:$billNo',
+        for (final p in linkedPays) (p['reference'] as String?) ?? '',
+      }..remove('');
+      final cashRows = await txn.query('cash_transactions',
+          where: 'reference IN (${List.filled(cashRefs.length, '?').join(',')})', whereArgs: cashRefs.toList());
+      var supplierName = 'Cash purchase';
+      if (purchase.supplierId != null) {
+        final sr = await txn.query('suppliers', columns: ['name'], where: 'id = ?', whereArgs: [purchase.supplierId], limit: 1);
+        if (sr.isNotEmpty) supplierName = (sr.first['name'] as String?) ?? supplierName;
+      }
+      await RecycleBinRepository.record(
+        txn,
+        kind: RecycleBinRepository.kindPurchase,
+        refKey: billNo,
+        title: 'Purchase $billNo',
+        subtitle: supplierName,
+        amount: purchase.total,
+        rows: {
+          'purchases': [Map<String, Object?>.from(pr.first)],
+          'purchase_items': [
+            for (final r in await txn.query('purchase_items', where: 'billNo = ?', whereArgs: [billNo]))
+              Map<String, Object?>.from(r)
+          ],
+          'payments': [for (final r in [...ownPays, ...linkedPays]) Map<String, Object?>.from(r)],
+          'cash_transactions': [for (final r in cashRows) Map<String, Object?>.from(r)],
+          'stock_effects': effects,
+          'meta': [
+            {'alreadyReturned': purchase.status == 'returned' ? 1 : 0}
+          ],
+        },
+      );
 
       await txn.delete('purchase_items', where: 'billNo = ?', whereArgs: [billNo]);
       await txn.delete('purchases', where: 'billNo = ?', whereArgs: [billNo]);

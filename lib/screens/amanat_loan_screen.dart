@@ -129,7 +129,8 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
     );
     if (res == null || !mounted) return;
     if (res.existingId != null) {
-      final ok = await _repo.tagParty(partyId: res.existingId!, kind: res.kind, returnDateMillis: res.returnDate);
+      final ok = await _repo.tagParty(
+          partyId: res.existingId!, kind: res.kind, returnDateMillis: res.returnDate, amount: res.openingBalance);
       if (!ok && mounted) _toast(Loc.t('This party no longer exists', 'یہ پارٹی اب موجود نہیں'));
     } else {
       final r = await _repo.addNewReturnParty(
@@ -586,22 +587,24 @@ class _AddSheetState extends State<_AddSheet> {
                 controller: _phone,
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(labelText: Loc.t('Phone (optional)', 'فون (اختیاری)'))),
-            if (!_editing)
-              TextField(
-                  controller: _amount,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: Loc.t('Opening balance (optional)', 'اوپننگ بیلنس (اختیاری)'),
-                    // Customer balance: + = customer ne dena hai, - = dukaan ne dena hai. Amanat dukaan ki
-                    // zimmedari hai, is liye amount khud minus mein jama hota hai (keypad par '-' nahi hota).
-                    helperText: _kind == 'amanat'
-                        ? Loc.t('Amount the shop holds for the customer (saved as minus: shop owes it)',
-                            'دکان کے پاس رکھی گاہک کی رقم (مائنس میں جمع ہوگی: دکان نے دینی ہے)')
-                        : Loc.t('Amount lent to the customer (saved as plus: customer owes it)',
-                            'گاہک کو دی گئی رقم (پلس میں جمع ہوگی: گاہک نے دینی ہے)'),
-                    helperMaxLines: 2,
-                  )),
           ],
+          if (!_editing)
+            TextField(
+              controller: _amount,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: Loc.t('Amount', 'رقم'),
+                prefixText: 'Rs ',
+                // Customer balance: + = customer ne dena hai, - = dukaan ne dena hai. Amanat dukaan ki
+                // zimmedari hai, is liye amount khud minus mein jama hota hai (keypad par '-' nahi hota).
+                helperText: _kind == 'amanat'
+                    ? Loc.t('Amount the shop holds for the customer (saved as minus: shop owes it)',
+                        'دکان کے پاس رکھی گاہک کی رقم (مائنس میں جمع ہوگی: دکان نے دینی ہے)')
+                    : Loc.t('Amount lent to the customer (saved as plus: customer owes it)',
+                        'گاہک کو دی گئی رقم (پلس میں جمع ہوگی: گاہک نے دینی ہے)'),
+                helperMaxLines: 2,
+              ),
+            ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: _pickDate,

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/product.dart';
+import '../models/purchase.dart';
 import '../models/sale.dart';
 import '../models/stock_movement.dart' show MovementType;
 import '../services/session.dart';
@@ -96,6 +97,7 @@ class RecycleBinRepository {
   static final RecycleBinRepository instance = RecycleBinRepository._();
 
   static const kindSale = 'sale';
+  static const kindPurchase = 'purchase';
   static const kindExpense = 'expense';
   static const kindPayment = 'payment';
   static const kindCustomer = 'customer';
@@ -177,6 +179,9 @@ class RecycleBinRepository {
           switch (entry.kind) {
             case kindSale:
               await _restoreSale(txn, data);
+              break;
+            case kindPurchase:
+              await _restorePurchase(txn, data);
               break;
             case kindExpense:
               await _restoreExpense(txn, data);
@@ -312,6 +317,72 @@ class RecycleBinRepository {
     }
 
     await SyncQueueHelper.enqueueSale(txn, sale.invoice);
+    for (final p in _rows(d, 'payments')) {
+      final pid = (p['id'] as num?)?.toInt();
+      if (pid != null) await SyncQueueHelper.enqueuePayment(txn, pid);
+    }
+    await _enqueueCashRows(txn, _rows(d, 'cash_transactions'));
+  }
+
+  // ---- purchase
+
+  Future<void> _restorePurchase(Transaction txn, Map<String, List<Map<String, Object?>>> d) async {
+    final bills = _rows(d, 'purchases');
+    if (bills.isEmpty) throw const RecycleBinException('Purchase ka data nahi mila');
+    final purchase = Purchase.fromMap(bills.first);
+    await _assertAbsent(txn, 'purchases', 'billNo', purchase.billNo, 'Ye purchase bill');
+    final alreadyReturned = (_meta(d)?['alreadyReturned'] as num?) == 1;
+
+    await txn.insert('purchases', Map<String, Object?>.from(bills.first));
+    await _insertAll(txn, 'purchase_items', _rows(d, 'purchase_items'));
+    await _insertAll(txn, 'payments', _rows(d, 'payments'));
+    await _insertAll(txn, 'cash_transactions', _rows(d, 'cash_transactions'));
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!alreadyReturned) {
+      // Delete ne jitna stock nikala tha utna wapas; cost sirf tab pehle wali jab us ke baad badli na ho.
+      for (final fx in _rows(d, 'stock_effects')) {
+        final barcode = fx['barcode'] as String;
+        final removed = (fx['removed'] as num?)?.toDouble() ?? 0.0;
+        final costBefore = (fx['costBefore'] as num?)?.toDouble();
+        final costAfter = (fx['costAfter'] as num?)?.toDouble();
+        final pr = await txn.query('products', where: 'barcode = ?', whereArgs: [barcode], limit: 1);
+        if (pr.isEmpty) continue; // item delete ho chuka: sirf bill wapas aayega.
+        final curCost = (pr.first['cost'] as num?)?.toDouble() ?? 0.0;
+        final restoreCost = costBefore != null && costAfter != null && (curCost - costAfter).abs() < 0.0001;
+        await txn.rawUpdate(
+          restoreCost
+              ? 'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?'
+              : 'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+          restoreCost ? [removed, costBefore, now, barcode] : [removed, now, barcode],
+        );
+        if (removed > 0) {
+          await SyncQueueHelper.enqueueStockDelta(txn, barcode, removed);
+          await StockLedger.log(txn,
+              barcode: barcode,
+              type: MovementType.purchase,
+              signedQty: removed,
+              reference: purchase.billNo,
+              unitCost: restoreCost ? costBefore : curCost,
+              now: now);
+        }
+        await SyncQueueHelper.enqueueProduct(txn, barcode);
+      }
+      final outstanding = purchase.total - purchase.paid;
+      final sid = purchase.supplierId;
+      if (sid != null && outstanding.abs() > 0.009) {
+        final exists = await txn.query('suppliers', columns: ['id'], where: 'id = ?', whereArgs: [sid], limit: 1);
+        if (exists.isNotEmpty) {
+          await txn.rawUpdate(
+            'UPDATE suppliers SET balance = balance + ?, dirty = 1, updatedAt = ? WHERE id = ?',
+            [outstanding, now, sid],
+          );
+          await SyncQueueHelper.enqueueBalanceDelta(txn, customer: false, partyId: sid, delta: outstanding);
+        }
+      }
+    }
+
+    await SyncQueueHelper.enqueuePurchase(txn, purchase.billNo);
     for (final p in _rows(d, 'payments')) {
       final pid = (p['id'] as num?)?.toInt();
       if (pid != null) await SyncQueueHelper.enqueuePayment(txn, pid);

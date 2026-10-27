@@ -514,10 +514,15 @@ class DueRemindersRepository {
     ];
   }
 
-  Future<bool> _setKind(int partyId, String kind, int returnDateMillis) async {
+  Future<bool> _setKind(int partyId, String kind, int returnDateMillis, {double amount = 0}) async {
     final db = await AppDatabase.instance.database;
     final now = DateTime.now().millisecondsSinceEpoch;
     final ok = await db.transaction((txn) async {
+      // Amount ho to maujooda opening balance mein jama (amanat = minus, loan = plus).
+      if (amount != 0) {
+        await txn.rawUpdate(
+            'UPDATE customers SET openingBalance = COALESCE(openingBalance, 0) + ? WHERE id = ?', [amount, partyId]);
+      }
       final n = await txn.update(
         'customers',
         {
@@ -537,9 +542,10 @@ class DueRemindersRepository {
     return ok;
   }
 
-  /// Maujooda customer ko Amanat / Loan tag karna (balance / ledger nahi chhedta).
-  Future<bool> tagParty({required int partyId, required String kind, required int returnDateMillis}) =>
-      _setKind(partyId, kind, returnDateMillis);
+  /// Maujooda customer ko Amanat / Loan tag karna. `amount` (optional) opening balance mein jama hota hai.
+  Future<bool> tagParty(
+          {required int partyId, required String kind, required int returnDateMillis, double amount = 0}) =>
+      _setKind(partyId, kind, returnDateMillis, amount: amount);
 
   /// Tag hatana => party wapas normal customer. Ledger aur bills jaise hain waise.
   Future<bool> clearReturnTag(int partyId) => _setKind(partyId, '', 0);

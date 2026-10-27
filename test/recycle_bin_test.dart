@@ -11,6 +11,8 @@ import 'package:ah_developer_kiryana_store/db/expense_repository.dart';
 import 'package:ah_developer_kiryana_store/db/party_repository.dart';
 import 'package:ah_developer_kiryana_store/db/payment_repository.dart';
 import 'package:ah_developer_kiryana_store/db/product_repository.dart';
+import 'package:ah_developer_kiryana_store/db/purchase_history_repository.dart';
+import 'package:ah_developer_kiryana_store/db/purchase_repository.dart';
 import 'package:ah_developer_kiryana_store/db/recycle_bin_repository.dart';
 import 'package:ah_developer_kiryana_store/db/sale_repository.dart';
 import 'package:ah_developer_kiryana_store/db/stock_ledger.dart';
@@ -172,6 +174,41 @@ void main() {
       expect(await bin.list(), hasLength(1));
       await bin.purge(id);
       expect(await bin.list(), isEmpty);
+    });
+
+    test('purchase: stock, supplier balance aur bill wapas', () async {
+      await addRice();
+      final billNo = await PurchaseRepository.instance.savePurchase(
+        supplierName: 'Sup',
+        lines: [
+          const PurchaseLine(
+              itemName: 'Rice', barcode: 'rice', qty: 5, unit: 'pcs', rate: 40, amount: 200,
+              retailRate: 100, wholesaleRate: 90, shopkeeperRate: 95),
+        ],
+        amountPaid: 0,
+        purchaseDateMillis: now,
+      );
+      Future<double> supplierBalance() async =>
+          ((await db.query('suppliers')).single['balance'] as num).toDouble();
+      expect(await stockOf('rice'), 15);
+      final balanceAfter = await supplierBalance();
+      expect(balanceAfter, greaterThan(0));
+
+      await PurchaseHistoryRepository.instance.deletePurchase(billNo);
+      expect(await stockOf('rice'), 10);
+      expect(await supplierBalance(), 0);
+      expect(await db.query('purchases', where: 'billNo = ?', whereArgs: [billNo]), isEmpty);
+      final entries = await bin.list();
+      expect(entries.single.kind, RecycleBinRepository.kindPurchase);
+      expect(entries.single.title, contains(billNo));
+
+      await bin.restore(entries.single.id);
+      expect(await stockOf('rice'), 15);
+      expect(await supplierBalance(), balanceAfter);
+      expect(await db.query('purchases', where: 'billNo = ?', whereArgs: [billNo]), hasLength(1));
+      expect(await db.query('purchase_items', where: 'billNo = ?', whereArgs: [billNo]), hasLength(1));
+      expect(await bin.list(), isEmpty);
+      expect(await restoreFlagged('purchase'), isTrue);
     });
 
     test('expense: cash OUT row bhi wapas', () async {
