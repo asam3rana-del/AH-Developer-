@@ -171,6 +171,10 @@ Future<void> applySales(DatabaseExecutor db, List<SyncDoc> rows, {required int F
           'cost': _d(im['cost']) ?? 0.0,
           'amount': _d(im['amount']) ?? 0.0,
           'conversionFactor': _d(im['conversionFactor']) ?? 0.0,
+          // Purane device ki entry mein ye fields nahi => 0 / '' (cost pakki maani jati hai).
+          'pendingQty': _d(im['pendingQty']) ?? 0.0,
+          'pendingEst': _d(im['pendingEst']) ?? 0.0,
+          'backfillLog': _s(im['backfillLog']) ?? '',
         });
       }
       if (items.isNotEmpty) {

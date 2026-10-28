@@ -165,8 +165,10 @@ class BillCostRepairRepository {
       for (final l in chosen) {
         // Sirf tab jab cost abhi bhi wahi purani ho (beech mein sync se badli to chhod do).
         final n = await txn.rawUpdate(
-          'UPDATE sale_items SET cost = ? WHERE id = ? AND ABS(cost - ?) < 0.01',
-          [l.newCost, l.itemId, l.oldCost],
+          // pendingEst (costPending line ka andaza) bhi cost ke ratio se, taake pending hissa theek rahe.
+          'UPDATE sale_items SET pendingEst = CASE WHEN cost > 0 THEN pendingEst * ? / cost ELSE pendingEst END, '
+          'cost = ? WHERE id = ? AND ABS(cost - ?) < 0.01',
+          [l.newCost, l.newCost, l.itemId, l.oldCost],
         );
         if (n > 0) {
           changed += n;

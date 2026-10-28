@@ -12,6 +12,7 @@ import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
 import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
+import 'cost_backfill.dart';
 import 'customer_repository.dart';
 import 'party_repository.dart' show PartyRepository, partyClosing;
 import 'product_repository.dart';
@@ -609,6 +610,10 @@ class SaleRepository {
         await txn.insert('sales', sale.toMap());
       }
 
+      // costPending: har barcode ka stock deduct hone se PEHLE (edit mein reversal ke baad), line ba line ghatta hua.
+      final runningStock = <String, double>{
+        for (final e in productByBarcode.entries) e.key: e.value.stock,
+      };
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];
         // An untouched line keeps the factor frozen when it was first sold;
@@ -618,6 +623,33 @@ class SaleRepository {
         final factor = unchangedOriginal != null
             ? unchangedOriginal.conversionFactor
             : (productByBarcode[line.barcode]?.smallestPerUnitOf(line.unit) ?? 0.0);
+        var lineCost = line.cost;
+        var pendingQty = 0.0;
+        var pendingEst = 0.0;
+        var backfillLog = '';
+        if (unchangedOriginal != null) {
+          // Bilkul na badli line: pending status aur bhari hui cost jaisi thi waisi (stock dobara touch nahi hota).
+          pendingQty = unchangedOriginal.pendingQty;
+          pendingEst = unchangedOriginal.pendingEst;
+          backfillLog = unchangedOriginal.backfillLog;
+          if (pendingQty > kPendingEpsilon || backfillLog.isNotEmpty) lineCost = unchangedOriginal.cost;
+        } else {
+          final prod = productByBarcode[line.barcode];
+          if (prod != null) {
+            final needed = prod.toSmallestUnits(line.qty, line.unit);
+            final before = runningStock[line.barcode] ?? prod.stock;
+            final fac = prod.smallestUnitFactor();
+            final p = CostBackfill.pendingForSale(
+              needed: needed,
+              stockBefore: before,
+              costPerSmallest: fac > 0 ? prod.cost / fac : prod.cost,
+              lineCost: line.cost,
+            );
+            pendingQty = p.pendingQty;
+            pendingEst = p.pendingEst;
+            runningStock[line.barcode] = before - needed;
+          }
+        }
         await txn.insert('sale_items', {
           'invoice': invoice,
           'barcode': line.barcode,
@@ -625,9 +657,12 @@ class SaleRepository {
           'qty': line.qty,
           'unit': line.unit,
           'unitPrice': line.unitPrice,
-          'cost': line.cost,
+          'cost': lineCost,
           'amount': line.amount,
           'conversionFactor': factor,
+          'pendingQty': pendingQty,
+          'pendingEst': pendingEst,
+          'backfillLog': backfillLog,
         });
       }
 
@@ -970,6 +1005,13 @@ class SaleRepository {
       final factor = current.smallestUnitFactor();
       final costPerSmallest = factor > 0 ? current.cost / factor : current.cost;
       final lineCost = smallest * costPerSmallest;
+      // costPending: stock se na dhaka hissa (ya cost 0) — purchase aane par asal cost bhari jayegi.
+      final quickPending = CostBackfill.pendingForSale(
+        needed: smallest,
+        stockBefore: current.stock,
+        costPerSmallest: costPerSmallest,
+        lineCost: lineCost,
+      );
 
       final invoice = nextInvoiceNumber(now);
       final dup = await txn.query('sales', where: 'invoice=?', whereArgs: [invoice], limit: 1);
@@ -1006,6 +1048,8 @@ class SaleRepository {
         'cost': lineCost,
         'amount': amount,
         'conversionFactor': current.smallestPerUnitOf(unit),
+        'pendingQty': quickPending.pendingQty,
+        'pendingEst': quickPending.pendingEst,
       });
 
       await txn.rawUpdate(

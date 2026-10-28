@@ -13,6 +13,7 @@ import '../utils/purchase_calc.dart' show roundBillTotal;
 import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
 import 'app_database.dart';
+import 'cost_backfill.dart';
 import 'party_transaction_repository.dart' show addPurchaseLineCost, purchaseItemSmallestQty, reversePurchaseLineCost;
 import 'product_repository.dart';
 import 'sale_repository.dart' show subtractLinkedPaid;
@@ -498,6 +499,9 @@ class PurchaseRepository {
         'supplierInvoiceNo': invoiceNo,
       });
 
+      // costPending: jin barcodes ka stock/cost is save mein badla, unki sale-line cost backfill dobara.
+      final backfillBarcodes = <String>{...reversedBarcodes};
+
       // ---- stock + weighted-average cost + rates (sirf badli/nayi lines)
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];
@@ -548,6 +552,7 @@ class PurchaseRepository {
               unitCost: newCost,
               now: now);
           touched = true;
+          backfillBarcodes.add(barcode);
         }
 
         // Retail / wholesale: 0 = "na badlo". Rule (DATE WISE): product par us item ki sab se nayi BILL-DATE
@@ -581,6 +586,11 @@ class PurchaseRepository {
           }
         }
         if (touched) await _enqueueProduct(txn, barcode);
+      }
+
+      // costPending: minus stock par bani sale lines ki cost ab is purchase ke rate se (edit mein purani wapas).
+      for (final bc in backfillBarcodes) {
+        await CostBackfill.reallocateBill(txn, billNo: billNo, barcode: bc);
       }
 
       // ---- edit ke baad bhi stock minus ho to rok do (poora transaction rollback)

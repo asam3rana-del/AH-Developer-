@@ -427,6 +427,10 @@ class SyncQueueHelper {
           'amount': it['amount'],
           // Transaction-time conversion factor (unit ladder badalne par purani sale ka reversal sahi).
           'conversionFactor': it['conversionFactor'],
+          // costPending: purchase se na dhaki hui qty + andaza + backfill log (dono devices par same rahe).
+          'pendingQty': it['pendingQty'] ?? 0,
+          'pendingEst': it['pendingEst'] ?? 0,
+          'backfillLog': it['backfillLog'] ?? '',
         }
     ];
     return _stamp({

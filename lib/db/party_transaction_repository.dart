@@ -11,6 +11,7 @@ import '../services/session.dart';
 import '../utils/stock_touch_policy.dart' show saleItemSmallestQty;
 import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
+import 'cost_backfill.dart';
 import 'customer_repository.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
@@ -573,6 +574,13 @@ class PartyTransactionRepository {
           'conversionFactor': qtyChanged
               ? (product != null ? product.smallestPerUnitOf(cur.unit) : cur.conversionFactor)
               : cur.conversionFactor,
+          // costPending: cost ki tarah pending qty / andaza / backfill log bhi nayi qty ke ratio se.
+          ...scaledPendingColumns(
+            pendingQty: cur.pendingQty,
+            pendingEst: cur.pendingEst,
+            backfillLog: cur.backfillLog,
+            ratio: oldQty != 0 ? newQty / oldQty : 1.0,
+          ),
         },
         where: 'id = ?',
         whereArgs: [cur.id],
@@ -725,6 +733,8 @@ class PartyTransactionRepository {
 
       await txn.update('purchase_items', {'qty': newQty, 'unitCost': newRate, 'amount': newAmount},
           where: 'id = ?', whereArgs: [cur.id]);
+      // costPending: nayi qty / rate se minus stock par bani sale lines ki cost dobara.
+      await CostBackfill.reallocateBill(txn, billNo: cur.billNo, barcode: cur.barcode);
 
       final deltaAmount = newAmount - cur.amount;
       final newTotal = purchase.total + deltaAmount;
@@ -784,6 +794,8 @@ class PartyTransactionRepository {
         await _enqueueProduct(txn, cur.barcode);
       }
       await txn.delete('purchase_items', where: 'id = ?', whereArgs: [cur.id]);
+      // costPending: delete hui line ki bhari hui cost wapas pending (bachi lines dobara).
+      await CostBackfill.reallocateBill(txn, billNo: cur.billNo, barcode: cur.barcode);
 
       final remaining = Sqflite.firstIntValue(await txn
               .rawQuery('SELECT COUNT(*) FROM purchase_items WHERE billNo = ?', [purchase.billNo])) ??

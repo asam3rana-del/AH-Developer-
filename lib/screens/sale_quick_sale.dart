@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/party.dart';
+import '../db/bill_cost_repair_repository.dart' show isSuspiciousLineCost, repairedLineCost;
 import '../models/product.dart';
+import '../services/session.dart';
 import '../utils/stock_policy.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart';
@@ -134,7 +136,7 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
   double get _qty => double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
   double get _price => double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
 
-  void _save() {
+  Future<void> _save() async {
     // Resolve by the TYPED name (like Kotlin) so editing the name after a
     // pick can never sell the previously picked product by mistake.
     final product = _findByName(_itemCtrl.text);
@@ -159,6 +161,32 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
       setState(() => _error =
           'Stock kam hai (available: ${formatQty(product.stock)} ${product.smallestUnitName()})');
       return;
+    }
+
+    // Cost guard: cost sale amount se bohat zyada ho to profit bigad jayega (jaise unit badalne ke baad purani cost).
+    final lineCost = repairedLineCost(product, qty, unit, 0);
+    final lineAmount = qty * price;
+    if (isSuspiciousLineCost(lineCost, lineAmount)) {
+      final detail = Session.isAdminOrManager
+          ? '${product.name}: cost Rs ${lineCost.toStringAsFixed(0)}, sale Rs ${lineAmount.toStringAsFixed(0)}'
+          : product.name;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(Loc.t('Cost shak wali hai', 'لاگت مشکوک ہے')),
+          content: Text(Loc.t(
+            'Is item ki cost sale amount se bohat zyada lag rahi hai:\n$detail\n\n'
+                'Product ki unit/cost check karen. Phir bhi save karen?',
+            'اس آئٹم کی لاگت سیل رقم سے بہت زیادہ لگ رہی ہے:\n$detail\n\n'
+                'پروڈکٹ کی یونٹ/لاگت چیک کریں۔ پھر بھی محفوظ کریں؟',
+          )),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں'))),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
     }
 
     Navigator.of(context).pop(QuickSaleRequest(

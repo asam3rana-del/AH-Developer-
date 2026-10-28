@@ -37,6 +37,7 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
   List<SaleWithCustomer> _all = const [];
   List<SaleGroup> _groups = const [];
   Map<String, double> _profits = const {};
+  Set<String> _pendingCost = const {};
   SaleHistorySummary _summary = const SaleHistorySummary(0, 0);
   String _query = '';
 
@@ -72,8 +73,10 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
     if (showSpinner) setState(() => _loading = true);
     final all = await _repo.allSales();
     final profits = await _repo.saleProfits();
+    final pendingCost = await _repo.pendingCostInvoices();
     if (!mounted) return;
     setState(() {
+      _pendingCost = pendingCost;
       _all = all;
       _groups = groupSalesByCustomer(all);
       _profits = profits;
@@ -298,7 +301,8 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
             if (_admin)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: Text('${Loc.t('Profit', 'منافع')}: ${_rs(g.profit(_profits))}',
+                child: Text(
+                    '${Loc.t('Profit', 'منافع')}${g.sales.any((x) => _pendingCost.contains(x.invoice)) ? ' ${Loc.t('(est.)', '(اندازہ)')}' : ''}: ${_rs(g.profit(_profits))}',
                     style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: _p.teal)),
               ),
           ]),
@@ -342,7 +346,9 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
                   Text(_rs(s.total),
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: s.isReturned ? _p.red : _p.teal)),
                   if (_admin && profit != null)
-                    Text('${Loc.t('Profit', 'منافع')}: ${_rs(profit)}', style: TextStyle(fontSize: 10.5, color: _p.textMuted)),
+                    Text(
+                        '${Loc.t('Profit', 'منافع')}${_pendingCost.contains(s.invoice) ? ' ${Loc.t('(est. - cost pending)', '(اندازہ - لاگت باقی)')}' : ''}: ${_rs(profit)}',
+                        style: TextStyle(fontSize: 10.5, color: _pendingCost.contains(s.invoice) ? Colors.orange.shade800 : _p.textMuted)),
                 ]),
               ),
               icon(Icons.print_outlined, _p.navy, () => _print(s)),

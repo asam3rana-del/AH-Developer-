@@ -19,7 +19,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 32;
+  static const _dbVersion = 33;
 
   Database? _db;
 
@@ -173,7 +173,10 @@ class AppDatabase {
         unitPrice REAL NOT NULL,
         cost REAL NOT NULL,
         amount REAL NOT NULL,
-        conversionFactor REAL NOT NULL DEFAULT 0
+        conversionFactor REAL NOT NULL DEFAULT 0,
+        pendingQty REAL NOT NULL DEFAULT 0,
+        pendingEst REAL NOT NULL DEFAULT 0,
+        backfillLog TEXT NOT NULL DEFAULT ''
       )
     ''');
 
@@ -538,6 +541,14 @@ class AppDatabase {
         await db.update('customers', {'returnLog': encodeReturnLog(backfillReturnLog(kind, entries))},
             where: 'id = ?', whereArgs: [r['id']]);
       }
+    }
+    if (oldVersion < 33) {
+      // v33: minus stock / cost 0 par bani sale line ki cost "pending" (costPending): pendingQty = abhi tak
+      // purchase se na dhaki hui qty (smallest units), pendingEst = us hisse ki andaza shuda cost jo `cost`
+      // mein shamil hai, backfillLog = kin purchase bills se kitni cost bhari gayi (reverse ke liye, JSON).
+      await _addColumnIfMissing(db, 'sale_items', 'pendingQty', 'REAL NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'sale_items', 'pendingEst', 'REAL NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'sale_items', 'backfillLog', "TEXT NOT NULL DEFAULT ''");
     }
   }
 

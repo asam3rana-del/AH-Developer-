@@ -125,6 +125,17 @@ class SaleHistoryRepository {
     return {for (final r in rows) r['invoice'] as String: (r['profit'] as num).toDouble()};
   }
 
+  /// costPending: wo bills jin ki koi line ki asal cost purchase se abhi tak nahi bhari (profit "estimated").
+  Future<Set<String>> pendingCostInvoices() async {
+    if (!Session.isAdmin) return const {};
+    final db = await AppDatabase.instance.database;
+    final rows = await db.rawQuery(
+      'SELECT DISTINCT si.invoice AS invoice FROM sale_items si JOIN sales s ON s.invoice = si.invoice '
+      "WHERE si.pendingQty > 0.000001 AND s.status != 'returned'",
+    );
+    return {for (final r in rows) r['invoice'] as String};
+  }
+
   Future<List<SaleItem>> itemsForInvoice(String invoice) async {
     final db = await AppDatabase.instance.database;
     final rows = await db.query('sale_items', where: 'invoice = ?', whereArgs: [invoice]);

@@ -7,6 +7,7 @@ import '../models/product.dart';
 import '../models/purchase.dart';
 import '../services/session.dart';
 import 'app_database.dart';
+import 'cost_backfill.dart';
 import 'party_transaction_repository.dart'
     show InsufficientStockException, purchaseItemSmallestQty, reconcilePaid, reversePurchaseLineCost;
 import '../models/stock_movement.dart' show MovementType;
@@ -312,11 +313,13 @@ class PurchaseHistoryRepository {
       if (purchase.status == 'returned') throw StateError('Ye purchase pehle hi return ho chuki hai');
       final now = _now();
 
+      final backfillBarcodes = <String>{};
       for (final e in requested.entries) {
         if (e.value <= 0) continue;
         final ir = await txn.query('purchase_items', where: 'id = ?', whereArgs: [e.key], limit: 1);
         if (ir.isEmpty) continue;
         final item = PurchaseItem.fromMap(ir.first);
+        backfillBarcodes.add(item.barcode);
         final qty = e.value > item.qty ? item.qty : e.value;
         if (qty <= 0) continue;
 
@@ -361,6 +364,11 @@ class PurchaseHistoryRepository {
           await txn.update('purchase_items', {'qty': remainingQty, 'amount': item.amount - amount}, where: 'id = ?', whereArgs: [item.id]);
         }
         returnedTotal += amount;
+      }
+
+      // costPending: wapas hui qty ki bhari hui cost wapas pending; bachi qty dobara bill ke rate se.
+      for (final bc in backfillBarcodes) {
+        await CostBackfill.reallocateBill(txn, billNo: billNo, barcode: bc);
       }
 
       if (returnedTotal <= 0) return;
@@ -412,6 +420,9 @@ class PurchaseHistoryRepository {
       final purchase = Purchase.fromMap(pr.first);
       final items = (await txn.query('purchase_items', where: 'billNo = ?', whereArgs: [billNo])).map(PurchaseItem.fromMap).toList();
       final now = _now();
+
+      // costPending: is bill ki bhari hui cost sab sale lines par wapas "pending".
+      await CostBackfill.reverse(txn, billNo: billNo);
 
       // Recycle Bin: har item ka asal asar (kitna stock nikla, cost pehle/baad) restore ke liye.
       final effects = <Map<String, Object?>>[];
