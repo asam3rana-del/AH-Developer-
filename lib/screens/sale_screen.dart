@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
+import '../db/bill_cost_repair_repository.dart' show isSuspiciousLineCost;
 import '../db/customer_repository.dart';
 import '../db/party_dashboard_repository.dart';
 import '../db/product_repository.dart';
@@ -924,6 +925,12 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       if (dup != null && !await _confirmDuplicate(dup, totals.total)) return;
     }
 
+    // Cost guard: kisi line ki cost uski sale amount se bohat zyada ho to bill ka profit bigad jayega.
+    if (!skipDuplicateCheck) {
+      final suspects = [for (final l in _lines) if (isSuspiciousLineCost(l.cost, l.amount)) l];
+      if (suspects.isNotEmpty && !await _confirmSuspectCost(suspects)) return;
+    }
+
     // Snapshot for the bill preview — _clearAll() wipes the screen after save.
     final previewLines = List<SaleLine>.of(_lines);
     final previewCustomer = _customerCtrl.text.trim();
@@ -1342,6 +1349,37 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   String _paymentLabel(double paid) {
     final l = paymentMethodLabel(paid: paid, payments: _splitPayments, singleMethod: _paymentMethod);
     return l == 'credit' ? 'Credit' : l;
+  }
+
+  Future<bool> _confirmSuspectCost(List<SaleLine> suspects) async {
+    final showFigures = Session.isAdminOrManager;
+    final names = suspects.map((l) => l.itemName).take(5).join(', ');
+    final detail = showFigures
+        ? suspects
+            .take(5)
+            .map((l) => '${l.itemName}: cost Rs ${l.cost.toStringAsFixed(0)}, sale Rs ${l.amount.toStringAsFixed(0)}')
+            .join('\n')
+        : names;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Cost shak wali hai', 'لاگت مشکوک ہے')),
+        content: Text(Loc.t(
+          'In items ki cost sale amount se bohat zyada lag rahi hai:\n$detail\n\n'
+              'Is se bill ka profit bohat minus aayega. Product ki unit/cost check karen. Phir bhi save karen?',
+          'ان آئٹمز کی لاگت سیل رقم سے بہت زیادہ لگ رہی ہے:\n$detail\n\n'
+              'اس سے بل کا منافع بہت منفی آئے گا۔ پروڈکٹ کی یونٹ/لاگت چیک کریں۔ پھر بھی محفوظ کریں؟',
+        )),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں')),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Future<bool> _confirmDuplicate(Sale dup, double total) async {

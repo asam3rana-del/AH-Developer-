@@ -4,6 +4,8 @@ import '../db/reports_repository.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import 'balance_sheet_screen.dart';
+import 'bill_cost_repair_screen.dart';
+import '../services/session.dart';
 import 'cash_register_screen.dart';
 import 'due_reminders_screen.dart';
 import 'history_screen.dart';
@@ -148,6 +150,10 @@ class _ReportsBodyState extends State<_ReportsBody> {
             _row(p, Loc.t('Stock Rebuild (Sep)', 'اسٹاک ری بلڈ (ستمبر)'),
                 Loc.t('One time: stock = Sep purchases - later sales', 'ایک بار: اسٹاک = ستمبر خریداری - بعد کی سیلز'), p.red,
                 () => _open(const StockRebuildScreen())),
+            if (Session.isAdmin)
+              _row(p, Loc.t('Fix Bill Cost', 'بل کی لاگت درست کریں'),
+                  Loc.t('Repair wrong cost on old bills (after unit change)', 'یونٹ بدلنے کے بعد پرانی بلز کی غلط لاگت درست کریں'), p.red,
+                  () => _open(const RoleGuard(allowed: {'admin'}, child: BillCostRepairScreen()))),
             _row(p, Loc.t('Stock Taking', 'اسٹاک گنتی'), Loc.t('Physical count vs system stock', 'اصل گنتی بمقابلہ سسٹم اسٹاک'),
                 p.flatBlueFg, () => _open(const StockTakingScreen())),
             _row(p, Loc.t('Reorder Suggestions', 'دوبارہ آرڈر تجاویز'),
