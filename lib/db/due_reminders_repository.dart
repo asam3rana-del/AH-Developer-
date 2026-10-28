@@ -341,11 +341,11 @@ List<ReturnReminder> sortReturnReminders(List<ReturnReminder> list) {
   return out;
 }
 
-/// Roman-Urdu message: amanat => "aapki amanat wapas karni hai", loan => "udhar wapas karein".
+/// English message: amanat (deposit) => "time to return your deposit", loan => "loan repayment is due".
 String returnReminderMessage(ReturnReminder r) {
   return r.isAmanat
-      ? 'Assalam o Alaikum ${r.partyName}, aapki amanat wapas karne ka waqt aa gaya hai. Barah-e-karam rabta karein. Shukriya!'
-      : 'Assalam o Alaikum ${r.partyName}, aapko diya hua udhar wapas karne ka waqt aa gaya hai. Barah-e-karam jald ada karein. Shukriya!';
+      ? 'Assalam o Alaikum ${r.partyName}, it is time to return your deposit. Please contact us. Thank you!'
+      : 'Assalam o Alaikum ${r.partyName}, your loan repayment is due. Please pay as soon as possible. Thank you!';
 }
 
 Uri returnWhatsAppUri(ReturnReminder r) {
@@ -370,9 +370,9 @@ String returnAlertBody(List<ReturnReminder> due, {required int nowMillis}) {
   final overdue = due.where((r) => r.returnDate < today).length;
   final names = due.take(3).map((r) => r.partyName).join(', ');
   final more = due.length > 3 ? ' +${due.length - 3}' : '';
-  final b = StringBuffer('${due.length} Amanat/Loan ki wapsi ki tarikh aa gayi: $names$more');
-  if (overdue > 0) b.write(' ($overdue ki tarikh guzar chuki)');
-  b.write('. Tap karke dekhein.');
+  final b = StringBuffer('${due.length} Deposit/Loan return dates are due: $names$more');
+  if (overdue > 0) b.write(' ($overdue overdue)');
+  b.write('. Tap to view.');
   return b.toString();
 }
 

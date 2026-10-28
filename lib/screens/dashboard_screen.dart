@@ -458,7 +458,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Amanat / Loan: ab Due Reminders se alag, seedha dashboard par (add / edit / delete wahin;
       // party 'customers' table se hi sync hoti hai, is liye baqi parties ki tarah sab devices par auto-sync).
       if (_am.contains(role))
-        _Action('Amanat / Loan', 'امانت / قرض', 'Deposits held & loans given', 'رکھوائی امانت اور دیے گئے قرض', Icons.account_balance_wallet_outlined,
+        _Action('Deposit / Loan', 'امانت / قرض', 'Deposits held & loans given', 'رکھوائی امانت اور دیے گئے قرض', Icons.account_balance_wallet_outlined,
             p.flatAmberBg, p.flatAmberFg,
             open: () => const AmanatLoanScreen()),
       _Action('Low Stock', 'کم اسٹاک', 'Items needing restock', 'دوبارہ منگوانے والی اشیاء', Icons.warning_amber_rounded, _partyRedBg,

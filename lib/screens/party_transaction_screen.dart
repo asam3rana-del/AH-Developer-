@@ -138,22 +138,22 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     final String base;
     switch (r.type) {
       case kLogGiven:
-        base = amanat ? Loc.t('Amanat Received', 'امانت وصول ہوئی') : Loc.t('Loan Given', 'قرض دیا');
+        base = amanat ? Loc.t('Deposit Received', 'امانت وصول ہوئی') : Loc.t('Loan Given', 'قرض دیا');
         break;
       case kLogRecovered:
-        base = amanat ? Loc.t('Amanat Returned', 'امانت واپس کی') : Loc.t('Loan Recovered', 'قرض وصول ہوا');
+        base = amanat ? Loc.t('Deposit Returned', 'امانت واپس کی') : Loc.t('Loan Recovered', 'قرض وصول ہوا');
         break;
       case kLogRemoved:
-        base = amanat ? Loc.t('Amanat Entry Removed', 'امانت کی انٹری ہٹائی') : Loc.t('Loan Entry Removed', 'قرض کی انٹری ہٹائی');
+        base = amanat ? Loc.t('Deposit Entry Removed', 'امانت کی انٹری ہٹائی') : Loc.t('Loan Entry Removed', 'قرض کی انٹری ہٹائی');
         break;
       default:
-        base = amanat ? Loc.t('Amanat Adjusted', 'امانت ایڈجسٹ') : Loc.t('Loan Adjusted', 'قرض ایڈجسٹ');
+        base = amanat ? Loc.t('Deposit Adjusted', 'امانت ایڈجسٹ') : Loc.t('Loan Adjusted', 'قرض ایڈجسٹ');
     }
     return r.id == -1 ? '$base  \u2022  ${Loc.t('earlier records', 'پرانا ریکارڈ')}' : base;
   }
 
   String get _loanChipLabel =>
-      _loanKind == 'amanat' ? Loc.t('Amanat', 'امانت') : Loc.t('Loan', 'قرض');
+      _loanKind == 'amanat' ? Loc.t('Deposit', 'امانت') : Loc.t('Loan', 'قرض');
 
   // ------------------------------------------------------------------- load
 
@@ -346,7 +346,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       ..writeln('${Loc.t('Outstanding', 'بقایا')}: ${_rs(st.closing.abs())}'
           ' (${give ? Loc.t("You'll Give", 'آپ کو دینے ہیں') : Loc.t("You'll Get", 'آپ کو ملیں گے')})');
     if (widget.isCustomer && _loanKind.isNotEmpty && _loanOutstanding.abs() > 0.009) {
-      sb.writeln('${_loanKind == 'amanat' ? Loc.t('Amanat Held', 'امانت جمع') : Loc.t('Loan Outstanding', 'قرض بقایا')}: ${_rs(_loanOutstanding.abs())}');
+      sb.writeln('${_loanKind == 'amanat' ? Loc.t('Deposit Held', 'امانت جمع') : Loc.t('Loan Outstanding', 'قرض بقایا')}: ${_rs(_loanOutstanding.abs())}');
     }
     if (st.stuck != 0) {
       sb
@@ -1015,7 +1015,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         if (widget.isCustomer && _loanKind.isNotEmpty && (_loanOutstanding.abs() > 0.009 || _hasLoanRows))
           Row(children: [
             tile(
-                _loanKind == 'amanat' ? Loc.t('Amanat Held', 'امانت جمع') : Loc.t('Loan Outstanding', 'قرض بقایا'),
+                _loanKind == 'amanat' ? Loc.t('Deposit Held', 'امانت جمع') : Loc.t('Loan Outstanding', 'قرض بقایا'),
                 _rs(_loanOutstanding.abs()),
                 _loanOutstanding > 0.009 ? p.red : p.textDark),
           ]),

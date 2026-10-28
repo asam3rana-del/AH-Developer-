@@ -527,7 +527,7 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
               style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold)),
         ),
         IconButton(
-          tooltip: Loc.t('Amanat / Loan', 'امانت / قرض'),
+          tooltip: Loc.t('Deposit / Loan', 'امانت / قرض'),
           icon: const Icon(Icons.savings_outlined, color: Colors.white),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AmanatLoanScreen())),
         ),
@@ -579,7 +579,7 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
           Icon(Icons.savings_outlined, size: 22, color: p.flatPurpleFg),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(Loc.t('Amanat / Loan', 'امانت / قرض'),
+            child: Text(Loc.t('Deposit / Loan', 'امانت / قرض'),
                 style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: p.textDark)),
           ),
           Icon(Icons.chevron_right, color: p.textMuted),

@@ -63,7 +63,7 @@ String buildSaleBillText({
     b.writeln(row('Net Balance', netBalance.round().toString()));
   }
   b.writeln(rule);
-  b.writeln(center('Shukriya! Dobara tashreef layen'));
+  b.writeln(center('Thank you! Please visit again.'));
   return b.toString();
 }
 

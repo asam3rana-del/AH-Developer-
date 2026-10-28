@@ -37,7 +37,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
   final _dateFmt = DateFormat('d MMM yyyy');
 
   bool _loading = true;
-  int _filter = 0; // 0 = sab, 1 = Amanat, 2 = Loan
+  int _filter = 0; // 0 = sab, 1 = Deposit, 2 = Loan
   List<ReturnReminder> _all = const [];
 
   AppPalette get _p => ThemeManager.palette;
@@ -160,7 +160,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
       case ReturnEntryResult.notFound:
         _toast(Loc.t('This party no longer exists', 'یہ پارٹی اب موجود نہیں'));
       case ReturnEntryResult.kindMismatch:
-        _toast(Loc.t('This party is already the other type (Amanat/Loan). Remove it from Amanat / Loan first.',
+        _toast(Loc.t('This party is already the other type (Deposit/Loan). Remove it from Deposit / Loan first.',
             'یہ پارٹی پہلے سے دوسری قسم (امانت/قرض) کی ہے۔ پہلے اسے امانت / قرض سے ہٹائیں۔'));
       case ReturnEntryResult.invalidAmount:
         _toast(Loc.t('Enter a valid amount', 'درست رقم لکھیں'));
@@ -200,7 +200,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
           title: Text(r.isAmanat
-              ? Loc.t('Return Amanat', 'امانت واپس کریں')
+              ? Loc.t('Return Deposit', 'امانت واپس کریں')
               : Loc.t('Collect Loan', 'قرض وصول کریں')),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('${r.partyName} — ${Loc.t('pending', 'باقی')}: ${_rs(total)}'),
@@ -256,7 +256,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
     _toastForResult(out);
     if (out == ReturnEntryResult.ok) {
       _toast(r.isAmanat
-          ? Loc.t('Amanat returned — Cash OUT recorded', 'امانت واپس — کیش آؤٹ درج ہو گیا')
+          ? Loc.t('Deposit returned — Cash OUT recorded', 'امانت واپس — کیش آؤٹ درج ہو گیا')
           : Loc.t('Loan collected — Cash IN recorded', 'قرض وصول — کیش اِن درج ہو گیا'));
     }
     await _load(showSpinner: false);
@@ -299,7 +299,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
 
   Future<void> _remove(ReturnReminder r) async {
     final yes = await _confirm(
-      Loc.t('Remove from Amanat / Loan?', 'امانت / قرض سے ہٹائیں؟'),
+      Loc.t('Remove from Deposit / Loan?', 'امانت / قرض سے ہٹائیں؟'),
       Loc.t('${r.partyName} will become a normal customer. Ledger and bills stay as they are.',
           '${r.partyName} عام کسٹمر بن جائے گا۔ کھاتہ اور بل جیسے ہیں ویسے رہیں گے۔'),
       Loc.t('Remove', 'ہٹائیں'),
@@ -355,12 +355,12 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 100),
                   children: [
                     PremiumHeader(
-                      title: Loc.t('Amanat / Loan', 'امانت / قرض'),
-                      subtitle: Loc.t('All Amanat & Loan parties', 'تمام امانت اور قرض پارٹیاں'),
+                      title: Loc.t('Deposit / Loan', 'امانت / قرض'),
+                      subtitle: Loc.t('All Deposit & Loan parties', 'تمام امانت اور قرض پارٹیاں'),
                     ),
                     const SizedBox(height: 10),
                     Row(children: [
-                      Expanded(child: _totalCard(Loc.t('Amanat', 'امانت'), '${amanat.length}', _rs(amanatTotal), _p.flatTealFg)),
+                      Expanded(child: _totalCard(Loc.t('Deposit', 'امانت'), '${amanat.length}', _rs(amanatTotal), _p.flatTealFg)),
                       const SizedBox(width: 10),
                       Expanded(child: _totalCard(Loc.t('Loan', 'قرض'), '${loans.length}', _rs(loanTotal), _p.flatAmberFg)),
                     ]),
@@ -371,7 +371,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
                         child: Text(
                           Loc.t(
-                              'No Amanat or Loan parties yet.\nTap "Add" to create one.',
+                              'No Deposit or Loan parties yet.\nTap "Add" to create one.',
                               'ابھی کوئی امانت یا قرض پارٹی نہیں۔\n"شامل کریں" دبائیں۔'),
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 13, color: _p.textMuted),
@@ -429,7 +429,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
       child: Row(children: [
         pill(Loc.t('All', 'سب'), 0),
         const SizedBox(width: 8),
-        pill(Loc.t('Amanat', 'امانت'), 1),
+        pill(Loc.t('Deposit', 'امانت'), 1),
         const SizedBox(width: 8),
         pill(Loc.t('Loan', 'قرض'), 2),
       ]),
@@ -450,7 +450,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
     final hasPhone = r.partyPhone.trim().isNotEmpty;
     final overdue = r.returnDate > 0 && r.returnDate < DateTime.now().millisecondsSinceEpoch - 86400000;
     final kindLabel = r.isAmanat
-        ? Loc.t('Amanat — return to customer', 'امانت — کسٹمر کو واپس کرنی ہے')
+        ? Loc.t('Deposit — return to customer', 'امانت — کسٹمر کو واپس کرنی ہے')
         : Loc.t('Loan — collect from customer', 'قرض — کسٹمر سے وصول کرنا ہے');
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -495,18 +495,18 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                     PopupMenuItem(
                         value: 'settle',
                         child: Text(r.isAmanat
-                            ? Loc.t('Return Amanat (pay back)', 'امانت واپس کریں')
+                            ? Loc.t('Return Deposit (pay back)', 'امانت واپس کریں')
                             : Loc.t('Collect Loan (receive)', 'قرض وصول کریں'))),
                   PopupMenuItem(value: 'entries', child: Text(Loc.t('Entries / edit amount', 'انٹریاں / رقم ایڈٹ'))),
                   PopupMenuItem(
                       value: 'add',
                       child: Text(r.isAmanat
-                          ? Loc.t('Add another Amanat', 'ایک اور امانت شامل کریں')
+                          ? Loc.t('Add another Deposit', 'ایک اور امانت شامل کریں')
                           : Loc.t('Add another Loan', 'ایک اور قرض شامل کریں'))),
                   if (r.entries.isEmpty)
                     PopupMenuItem(value: 'date', child: Text(Loc.t('Set return date', 'واپسی کی تاریخ'))),
                   PopupMenuItem(value: 'edit', child: Text(Loc.t('Edit party', 'پارٹی ایڈٹ'))),
-                  PopupMenuItem(value: 'remove', child: Text(Loc.t('Remove from Amanat / Loan', 'امانت / قرض سے ہٹائیں'))),
+                  PopupMenuItem(value: 'remove', child: Text(Loc.t('Remove from Deposit / Loan', 'امانت / قرض سے ہٹائیں'))),
                   PopupMenuItem(value: 'delete', child: Text(Loc.t('Delete party', 'پارٹی ڈیلیٹ کریں'), style: TextStyle(color: _p.red))),
                 ],
               ),
@@ -721,7 +721,7 @@ class _EntriesSheetState extends State<_EntriesSheet> {
                     Text(r.partyName, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _p.textDark)),
                     const SizedBox(height: 2),
                     Text(
-                      '${r.isAmanat ? Loc.t('Amanat', 'امانت') : Loc.t('Loan', 'قرض')} • ${Loc.t('Balance', 'بیلنس')}: ${_money(r.closing)}',
+                      '${r.isAmanat ? Loc.t('Deposit', 'امانت') : Loc.t('Loan', 'قرض')} • ${Loc.t('Balance', 'بیلنس')}: ${_money(r.closing)}',
                       style: TextStyle(fontSize: 12.5, color: _p.textMuted),
                     ),
                     const SizedBox(height: 12),
@@ -753,7 +753,7 @@ class _EntriesSheetState extends State<_EntriesSheet> {
                         onPressed: _add,
                         icon: const Icon(Icons.add),
                         label: Text(r.isAmanat
-                            ? Loc.t('Add another Amanat', 'ایک اور امانت شامل کریں')
+                            ? Loc.t('Add another Deposit', 'ایک اور امانت شامل کریں')
                             : Loc.t('Add another Loan', 'ایک اور قرض شامل کریں')),
                       ),
                     ),
@@ -895,7 +895,7 @@ class _AddSheetState extends State<_AddSheet> {
                           itemBuilder: (_, i) {
                             final c = list[i];
                             final tag = c.kind == 'amanat'
-                                ? Loc.t('Amanat', 'امانت')
+                                ? Loc.t('Deposit', 'امانت')
                                 : c.kind == 'loan'
                                     ? Loc.t('Loan', 'قرض')
                                     : '';
@@ -945,7 +945,7 @@ class _AddSheetState extends State<_AddSheet> {
     }
     if (_isNew && _existing && _picked != null && _picked!.kind.isNotEmpty && _picked!.kind != _kind) {
       setState(() => _error = Loc.t(
-          'This party is already ${_picked!.kind == 'loan' ? 'Loan' : 'Amanat'}. Choose the same type.',
+          'This party is already ${_picked!.kind == 'loan' ? 'Loan' : 'Deposit'}. Choose the same type.',
           'یہ پارٹی پہلے سے ${_picked!.kind == 'loan' ? 'قرض' : 'امانت'} ہے۔ وہی قسم چنیں۔'));
       return;
     }
@@ -1004,9 +1004,9 @@ class _AddSheetState extends State<_AddSheet> {
             ? Loc.t('Edit entry', 'انٹری ایڈٹ کریں')
             : _forParty
                 ? (_kind == 'amanat'
-                    ? Loc.t('Add another Amanat', 'ایک اور امانت')
+                    ? Loc.t('Add another Deposit', 'ایک اور امانت')
                     : Loc.t('Add another Loan', 'ایک اور قرض'))
-                : Loc.t('Add Amanat / Loan', 'امانت / قرض شامل کریں');
+                : Loc.t('Add Deposit / Loan', 'امانت / قرض شامل کریں');
     return Padding(
       padding: EdgeInsets.fromLTRB(18, 16, 18, 18 + MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
@@ -1020,7 +1020,7 @@ class _AddSheetState extends State<_AddSheet> {
           const SizedBox(height: 14),
           if (!_forParty && !_kindLocked) ...[
             _seg([
-              (Loc.t('Amanat', 'امانت'), _kind == 'amanat', () => setState(() => _kind = 'amanat')),
+              (Loc.t('Deposit', 'امانت'), _kind == 'amanat', () => setState(() => _kind = 'amanat')),
               (Loc.t('Loan', 'قرض'), _kind == 'loan', () => setState(() => _kind = 'loan')),
             ]),
             const SizedBox(height: 10),

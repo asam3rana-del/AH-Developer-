@@ -330,15 +330,15 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                 _sKv('Net Balance', _m(_net!), bold: true, color: _net! > 0.009 ? ThemeManager.palette.red : null),
               ],
               const SizedBox(height: 8),
-              Text(d.receiptFooter.trim().isEmpty ? 'Shukriya! Dobara tashreef layen.' : d.receiptFooter.trim(),
+              Text(d.receiptFooter.trim().isEmpty ? 'Thank you! Please visit again.' : d.receiptFooter.trim(),
                   textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 14)),
             ]),
           ),
           const SizedBox(height: 14),
-          _gBtn(Loc.t('WhatsApp par bhejein', 'واٹس ایپ پر بھیجیں'), Icons.send,
+          _gBtn(Loc.t('Send on WhatsApp', 'واٹس ایپ پر بھیجیں'), Icons.send,
               const [Color(0xFF25D366), Color(0xFF1DA851)], _whatsApp),
           const SizedBox(height: 12),
-          _gBtn(Loc.t('+ NAYA PURCHASE BILL', '+ نیا خریداری بل'), Icons.check,
+          _gBtn(Loc.t('+ NEW PURCHASE BILL', '+ نیا خریداری بل'), Icons.check,
               const [Color(0xFF16915F), Color(0xFF0F7A55)], () => Navigator.of(context).pop('new')),
           const SizedBox(height: 12),
           Row(children: [
@@ -419,29 +419,21 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
               _kv('Net Balance', _m(_net!), bold: true, color: _net! > 0.009 ? ThemeManager.palette.red : ThemeManager.palette.textDark),
             ],
             const SizedBox(height: 10),
-            Text(d.receiptFooter.trim().isEmpty ? 'Shukriya! Dobara tashreef layen.' : d.receiptFooter.trim(),
+            Text(d.receiptFooter.trim().isEmpty ? 'Thank you! Please visit again.' : d.receiptFooter.trim(),
                 textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 12)),
           ]),
         ),
         const SizedBox(height: 16),
         _btn(_printing ? Loc.t('Printing…', 'پرنٹ ہو رہا ہے…') : Loc.t('PRINT', 'پرنٹ'), Icons.print, ThemeManager.palette.blue, _printing ? null : _print),
         const SizedBox(height: 10),
-        _btn(Loc.t('WhatsApp par bhejein', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
-        // Save ke foran baad (Purchase ki tarah) Copy Text nahi dikhana.
-        if (!widget.justSaved) ...[
-          const SizedBox(height: 10),
-          _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, ThemeManager.palette.navyLight, () async {
-            await Clipboard.setData(ClipboardData(text: d.toText(netBalance: _partyId == null ? null : _net)));
-            _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
-          }),
-        ],
+        _btn(Loc.t('Send on WhatsApp', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
         const SizedBox(height: 10),
         Row(children: [
           Expanded(child: _btn(Loc.t('DONE', 'مکمل'), Icons.check, ThemeManager.palette.teal, () => Navigator.of(context).pop())),
         ]),
         if (widget.showNewBill) ...[
           const SizedBox(height: 10),
-          _btn(d.isPurchase ? Loc.t('+ NAYA PURCHASE BILL', '+ نیا خریداری بل') : Loc.t('+ NAYI SALE BILL', '+ نیا سیل بل'),
+          _btn(d.isPurchase ? Loc.t('+ NEW PURCHASE BILL', '+ نیا خریداری بل') : Loc.t('+ NEW SALE BILL', '+ نیا سیل بل'),
               Icons.add, ThemeManager.palette.navyInk, () => Navigator.of(context).pop('new')),
         ],
         const SizedBox(height: 30),

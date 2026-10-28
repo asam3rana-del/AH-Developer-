@@ -95,7 +95,7 @@ List<ReceiptLine> receiptFooter(BillDoc d, {double? netBalance}) {
       RlTwoCol('Net Balance', _r(netBalance), bold: true),
     ],
     const RlDivider(),
-    RlCenter(d.receiptFooter.trim().isEmpty ? 'Shukriya! Dobara tashreef layen.' : d.receiptFooter.trim()),
+    RlCenter(d.receiptFooter.trim().isEmpty ? 'Thank you! Please visit again.' : d.receiptFooter.trim()),
   ];
 }
 

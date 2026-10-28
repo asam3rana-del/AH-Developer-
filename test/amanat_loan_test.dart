@@ -76,8 +76,8 @@ void main() {
     });
 
     test('message amanat vs loan', () {
-      expect(returnReminderMessage(rr('Ali')), contains('amanat'));
-      expect(returnReminderMessage(rr('Ali', kind: 'loan')), contains('udhar'));
+      expect(returnReminderMessage(rr('Ali')), contains('deposit'));
+      expect(returnReminderMessage(rr('Ali', kind: 'loan')), contains('loan repayment'));
     });
 
     test('whatsapp uri', () {
@@ -122,10 +122,10 @@ void main() {
         rr('D', date: day(7)),
       ], nowMillis: now);
       final body = returnAlertBody(due, nowMillis: now);
-      expect(body, contains('4 Amanat/Loan'));
+      expect(body, contains('4 Deposit/Loan'));
       expect(body, contains('D, C, B'));
       expect(body, contains('+1'));
-      expect(body, contains('3 ki tarikh guzar chuki'));
+      expect(body, contains('3 overdue'));
     });
 
     test('body: sirf aaj wali => "guzar chuki" nahi', () {

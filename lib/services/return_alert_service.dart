@@ -49,13 +49,13 @@ class ReturnAlertService {
       await DueAlertService.init();
       await DueAlertService.plugin.show(
         _notificationId,
-        'Amanat / Loan ki wapsi',
+        'Deposit / Loan returns',
         returnAlertBody(due, nowMillis: t.millisecondsSinceEpoch),
         const NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
-            'Amanat / Loan reminders',
-            channelDescription: 'Amanat wapas karne aur Loan wapas milne ki tarikh ki yaad dihani',
+            'Deposit / Loan reminders',
+            channelDescription: 'Reminders for deposit return and loan repayment dates',
             importance: Importance.high,
             priority: Priority.high,
           ),
