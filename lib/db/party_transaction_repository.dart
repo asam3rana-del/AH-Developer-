@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../utils/qty_math.dart';
 import '../models/misc_entities.dart';
+import '../models/return_entry.dart';
 import '../models/product.dart';
 import '../models/purchase.dart';
 import '../models/sale.dart';
@@ -31,7 +32,7 @@ import '../sync/sync_queue_helper.dart';
 // Pure helpers
 // ---------------------------------------------------------------------------
 
-enum TxFilter { all, bills, payments }
+enum TxFilter { all, bills, payments, loan }
 
 /// Ek row: bill (sale / purchase) ya standalone payment.
 class TxEntry {
@@ -41,6 +42,9 @@ class TxEntry {
   final Sale? sale;
   final Purchase? purchase;
   final Payment? payment;
+
+  /// Amanat / Loan ki ledger row (sirf dikhane ke liye; bill / payment nahi).
+  final ReturnLogRow? loan;
   const TxEntry({
     required this.createdAt,
     required this.isPayment,
@@ -48,9 +52,11 @@ class TxEntry {
     this.sale,
     this.purchase,
     this.payment,
+    this.loan,
   });
 
-  double get amount => sale?.total ?? purchase?.total ?? payment?.amount ?? 0.0;
+  bool get isLoan => loan != null;
+  double get amount => sale?.total ?? purchase?.total ?? payment?.amount ?? loan?.amount.abs() ?? 0.0;
   String get status => sale?.status ?? purchase?.status ?? 'active';
 }
 
@@ -60,8 +66,9 @@ List<TxEntry> filterTxEntries(List<TxEntry> all, TxFilter filter, String query) 
   return all.where((e) {
     final ok = switch (filter) {
       TxFilter.all => true,
-      TxFilter.bills => !e.isPayment,
+      TxFilter.bills => !e.isPayment && !e.isLoan,
       TxFilter.payments => e.isPayment,
+      TxFilter.loan => e.isLoan,
     };
     return ok && (q.isEmpty || e.searchText.contains(q));
   }).toList();
@@ -211,8 +218,16 @@ class PartyTxData {
   final List<Purchase> purchases;
   final List<Payment> payments; // sirf standalone
   final String phone;
+
+  /// Amanat / Loan: party ki qism ('' = normal), maujooda entries aur history log (sirf customers).
+  final String loanKind;
+  final List<ReturnEntry> loanEntries;
+  final List<ReturnLogRow> loanLog;
   const PartyTxData({
     this.phone = '',
+    this.loanKind = '',
+    this.loanEntries = const [],
+    this.loanLog = const [],
     this.opening = 0,
     this.stuck = 0,
     this.creditLimit = 0,
@@ -260,6 +275,9 @@ class PartyTransactionRepository {
     final db = await AppDatabase.instance.database;
     var opening = 0.0, stuck = 0.0, credit = 0.0;
     var phone = '';
+    var loanKind = '';
+    var loanEntries = <ReturnEntry>[];
+    var loanLog = <ReturnLogRow>[];
     if (isCustomer) {
       final r = await db.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
       if (r.isNotEmpty) {
@@ -267,6 +285,9 @@ class PartyTransactionRepository {
         stuck = (r.first['stuckBalance'] as num?)?.toDouble() ?? 0.0;
         credit = (r.first['creditLimit'] as num?)?.toDouble() ?? 0.0;
         phone = (r.first['phone'] as String?) ?? '';
+        loanKind = (r.first['kind'] as String?) ?? '';
+        loanEntries = decodeReturnEntries(r.first['returnEntries'] as String?);
+        loanLog = decodeReturnLog(r.first['returnLog'] as String?);
       }
     } else {
       final r = await db.query('suppliers', where: 'id = ?', whereArgs: [partyId], limit: 1);
@@ -295,6 +316,9 @@ class PartyTransactionRepository {
 
     return PartyTxData(
       phone: phone,
+      loanKind: loanKind,
+      loanEntries: loanEntries,
+      loanLog: loanLog,
       opening: opening,
       stuck: stuck,
       creditLimit: credit,

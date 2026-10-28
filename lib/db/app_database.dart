@@ -1,6 +1,8 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../models/return_entry.dart';
+
 import 'stock_ledger.dart';
 
 /// Ports the Room schema from Database.kt table-for-table so data shape
@@ -17,7 +19,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 31;
+  static const _dbVersion = 32;
 
   Database? _db;
 
@@ -120,6 +122,7 @@ class AppDatabase {
         kind TEXT NOT NULL DEFAULT '',
         returnDate INTEGER NOT NULL DEFAULT 0,
         returnEntries TEXT NOT NULL DEFAULT '',
+        returnLog TEXT NOT NULL DEFAULT '',
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1
@@ -521,6 +524,20 @@ class AppDatabase {
     if (oldVersion < 31) {
       // v31: Amanat / Loan ki alag alag entries (ek customer kai bar loan/amanat le sakta hai).
       await _addColumnIfMissing(db, 'customers', 'returnEntries', "TEXT NOT NULL DEFAULT ''");
+    }
+    if (oldVersion < 32) {
+      // v32: Amanat / Loan log (given / recovered / adjusted) — party ledger / statement mein dikhane ke liye.
+      // Maujooda entries se 'given' rows banti hain (asal raqam maloom nahi => bachi hui raqam). Balance nahi chhedta.
+      await _addColumnIfMissing(db, 'customers', 'returnLog', "TEXT NOT NULL DEFAULT ''");
+      final rows = await db.query('customers',
+          columns: ['id', 'kind', 'returnEntries'], where: "returnEntries IS NOT NULL AND returnEntries != ''");
+      for (final r in rows) {
+        final entries = decodeReturnEntries(r['returnEntries'] as String?);
+        if (entries.isEmpty) continue;
+        final kind = (r['kind'] as String?) == 'amanat' ? 'amanat' : 'loan';
+        await db.update('customers', {'returnLog': encodeReturnLog(backfillReturnLog(kind, entries))},
+            where: 'id = ?', whereArgs: [r['id']]);
+      }
     }
   }
 

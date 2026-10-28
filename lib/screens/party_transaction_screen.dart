@@ -11,6 +11,7 @@ import '../db/sale_history_repository.dart';
 import '../db/payment_repository.dart';
 import '../models/misc_entities.dart';
 import '../models/purchase.dart';
+import '../models/return_entry.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
@@ -75,6 +76,9 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
   PartyTxStats? _stats;
   List<TxEntry> _entries = const [];
   TxFilter _filter = TxFilter.all;
+  // Amanat / Loan (sirf customers): party ki qism aur bachi hui raqam (signed: loan +, amanat -). Display-only.
+  String _loanKind = '';
+  double _loanOutstanding = 0.0;
   bool _loading = true;
   int _loadSeq = 0; // Kotlin loadJob.cancel(): purani load ka late natija naya na bigaade.
 
@@ -123,6 +127,33 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         '${pay.note.isNotEmpty ? '  \u2022  ${pay.note}' : ''}'
         '${pay.billReference.isNotEmpty ? '  \u2022  ${Loc.t('Against', 'برائے راست')} ${pay.billReference}' : ''}';
   }
+
+  // ------------------------------------------------------------ amanat / loan
+
+  bool get _hasLoanRows => _entries.any((e) => e.isLoan);
+
+  /// Ledger row ka naam: kind (loan / amanat) x type (given / recovered / adjusted / removed).
+  String _loanLabel(ReturnLogRow r) {
+    final amanat = r.kind == 'amanat';
+    final String base;
+    switch (r.type) {
+      case kLogGiven:
+        base = amanat ? Loc.t('Amanat Received', 'امانت وصول ہوئی') : Loc.t('Loan Given', 'قرض دیا');
+        break;
+      case kLogRecovered:
+        base = amanat ? Loc.t('Amanat Returned', 'امانت واپس کی') : Loc.t('Loan Recovered', 'قرض وصول ہوا');
+        break;
+      case kLogRemoved:
+        base = amanat ? Loc.t('Amanat Entry Removed', 'امانت کی انٹری ہٹائی') : Loc.t('Loan Entry Removed', 'قرض کی انٹری ہٹائی');
+        break;
+      default:
+        base = amanat ? Loc.t('Amanat Adjusted', 'امانت ایڈجسٹ') : Loc.t('Loan Adjusted', 'قرض ایڈجسٹ');
+    }
+    return r.id == -1 ? '$base  \u2022  ${Loc.t('earlier records', 'پرانا ریکارڈ')}' : base;
+  }
+
+  String get _loanChipLabel =>
+      _loanKind == 'amanat' ? Loc.t('Amanat', 'امانت') : Loc.t('Loan', 'قرض');
 
   // ------------------------------------------------------------------- load
 
@@ -174,11 +205,27 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
                 '${_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(pay.createdAt))} ${_payLabel(pay)} ${pay.amount} ${pay.method} ${pay.note} ${pay.billReference}'
                     .toLowerCase(),
           ),
+        // Amanat / Loan: sirf dikhane wali rows (balance mein pehle se hain, dobara nahi ginti).
+        if (widget.isCustomer)
+          for (final r in ledgerLogRows(d.loanKind, d.loanEntries, d.loanLog))
+            TxEntry(
+              createdAt: r.date,
+              isPayment: false,
+              loan: r,
+              searchText: [
+                if (r.date > 0) _dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(r.date)),
+                _loanLabel(r),
+                r.amount.abs().toString(),
+                if (r.note.isNotEmpty) r.note,
+              ].join(' ').toLowerCase(),
+            ),
       ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       setState(() {
         _phone = d.phone;
         _stats = stats;
+        _loanKind = d.loanKind;
+        _loanOutstanding = widget.isCustomer ? signedReturnTotal(d.loanKind, d.loanEntries) : 0.0;
         _entries = entries;
         _loading = false;
       });
@@ -298,6 +345,9 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       ..writeln(widget.isCustomer ? Loc.t('Customer Statement', 'کسٹمر سٹیٹمنٹ') : Loc.t('Supplier Statement', 'سپلائر سٹیٹمنٹ'))
       ..writeln('${Loc.t('Outstanding', 'بقایا')}: ${_rs(st.closing.abs())}'
           ' (${give ? Loc.t("You'll Give", 'آپ کو دینے ہیں') : Loc.t("You'll Get", 'آپ کو ملیں گے')})');
+    if (widget.isCustomer && _loanKind.isNotEmpty && _loanOutstanding.abs() > 0.009) {
+      sb.writeln('${_loanKind == 'amanat' ? Loc.t('Amanat Held', 'امانت جمع') : Loc.t('Loan Outstanding', 'قرض بقایا')}: ${_rs(_loanOutstanding.abs())}');
+    }
     if (st.stuck != 0) {
       sb
         ..writeln('${Loc.t('Daily Payable', 'روزانہ واجب الادا')}: ${_rs(st.daily)}')
@@ -306,7 +356,9 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     sb.writeln('----------------------------');
     final oldestFirst = [..._entries]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
     for (final e in oldestFirst) {
-      sb.writeln('${_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}  \u2014  ${e.searchText}');
+      sb.writeln(e.createdAt > 0
+          ? '${_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}  \u2014  ${e.searchText}'
+          : e.searchText);
     }
     try {
       await Share.share(sb.toString());
@@ -749,7 +801,46 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         child: Padding(padding: const EdgeInsets.all(8), child: Icon(icon, size: 26, color: p.textMuted)),
       );
 
+  /// Amanat / Loan ki ledger row: sirf history (na print / share, na edit) — edit / delete Amanat / Loan screen se.
+  Widget _loanCard(AppPalette p, TxEntry e) {
+    final r = e.loan!;
+    final raises = r.balanceEffect > 0;
+    final color = raises ? p.red : p.flatTealFg;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: p.cardWhite,
+        borderRadius: BorderRadius.circular(12),
+        border: Border(left: BorderSide(color: color, width: 4)),
+        boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2))],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+              child: Text(_loanLabel(r),
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: p.textDark))),
+          if (r.date > 0) Text(_shortDate(r.date), style: TextStyle(fontSize: 15.5, color: p.textMuted)),
+        ]),
+        const SizedBox(height: 14),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          _col(p, Loc.t('Amount', 'رقم'), _rs2(r.amount.abs())),
+          const SizedBox(width: 44),
+          _col(p, Loc.t('Effect on balance', 'بیلنس پر اثر'),
+              raises ? Loc.t('Adds to balance', 'بیلنس میں اضافہ') : Loc.t('Reduces balance', 'بیلنس میں کمی'),
+              valueColor: color),
+        ]),
+        if (r.note.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(r.note, style: TextStyle(fontSize: 12.5, color: p.textMuted)),
+          ),
+      ]),
+    );
+  }
+
   Widget _txCard(AppPalette p, TxEntry e) {
+    if (e.isLoan) return _loanCard(p, e);
     final isPay = e.isPayment;
     final pay = e.payment;
     final returned = e.status == 'returned';
@@ -853,6 +944,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       chip(Loc.t('All', 'سب'), TxFilter.all),
       chip(Loc.t('Bills', 'بل'), TxFilter.bills),
       chip(Loc.t('Payments', 'ادائیگیاں'), TxFilter.payments),
+      if (_hasLoanRows) chip(_loanChipLabel, TxFilter.loan),
     ]);
   }
 
@@ -920,6 +1012,13 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
           tile(Loc.t('Overdue', 'واجب الادا'), _rs(st.overdue), st.overdue > 0 ? p.red : p.textDark),
           tile(Loc.t('Credit Limit', 'کریڈٹ حد'), credit, p.textDark),
         ]),
+        if (widget.isCustomer && _loanKind.isNotEmpty && (_loanOutstanding.abs() > 0.009 || _hasLoanRows))
+          Row(children: [
+            tile(
+                _loanKind == 'amanat' ? Loc.t('Amanat Held', 'امانت جمع') : Loc.t('Loan Outstanding', 'قرض بقایا'),
+                _rs(_loanOutstanding.abs()),
+                _loanOutstanding > 0.009 ? p.red : p.textDark),
+          ]),
         Row(children: [
           tile(widget.isCustomer ? Loc.t('Last Sale', 'آخری سیل') : Loc.t('Last Purchase', 'آخری خریداری'), last,
               p.textDark),

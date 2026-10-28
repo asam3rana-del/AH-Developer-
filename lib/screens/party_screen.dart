@@ -249,9 +249,6 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     const money = TextInputType.numberWithOptions(decimal: true);
     var rateType = c.rateType;
     final dueDays = TextEditingController(text: c.dueDays > 0 ? c.dueDays.toString() : '');
-    var kind = c.kind;
-    var returnDate = c.returnDate; // 0 = set nahi
-    final dateFmt = DateFormat('d MMM yyyy');
 
     var nameError = false;
     final ok = await showDialog<bool>(
@@ -300,52 +297,6 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
                     controller: dueDays,
                     keyboardType: TextInputType.number,
                     decoration: _dlgDeco(Loc.t('Payment due in (days) — optional', 'ادائیگی کی مدت (دن) — اختیاری'))),
-                const SizedBox(height: 10),
-                // Amanat / Loan: sirf label + wapsi ki yaad-dahani; balance ka hisaab nahi badalta.
-                DropdownButtonFormField<String>(
-                  value: const ['', 'amanat', 'loan'].contains(kind) ? kind : '',
-                  isExpanded: true,
-                  decoration: _dlgDeco(Loc.t('Party type', 'پارٹی کی قسم')),
-                  items: [
-                    DropdownMenuItem(value: '', child: Text(Loc.t('Normal customer', 'عام کسٹمر'))),
-                    DropdownMenuItem(value: 'amanat', child: Text(Loc.t('Amanat (customer deposited money)', 'امانت (کسٹمر نے پیسے رکھوائے)'))),
-                    DropdownMenuItem(value: 'loan', child: Text(Loc.t('Loan (shop lent cash)', 'قرض (دکان نے نقد دیا)'))),
-                  ],
-                  onChanged: (v) => setLocal(() {
-                    kind = v ?? '';
-                    if (kind.isEmpty) returnDate = 0;
-                  }),
-                ),
-                if (kind.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: returnDate > 0 ? DateTime.fromMillisecondsSinceEpoch(returnDate) : DateTime.now(),
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) {
-                        setLocal(() => returnDate = DateTime(picked.year, picked.month, picked.day).millisecondsSinceEpoch);
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: _dlgDeco(kind == 'amanat'
-                          ? Loc.t('Return date (amanat)', 'واپسی کی تاریخ (امانت)')
-                          : Loc.t('Expected repayment date (loan)', 'وصولی کی تاریخ (قرض)')),
-                      child: Row(children: [
-                        Expanded(
-                          child: Text(returnDate > 0
-                              ? dateFmt.format(DateTime.fromMillisecondsSinceEpoch(returnDate))
-                              : Loc.t('Tap to set (optional)', 'تاریخ چنیں (اختیاری)')),
-                        ),
-                        if (returnDate > 0)
-                          InkWell(onTap: () => setLocal(() => returnDate = 0), child: const Icon(Icons.close, size: 18)),
-                      ]),
-                    ),
-                  ),
-                ],
               ],
             ]),
           ),
@@ -384,8 +335,6 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           stuckBalance: stuckValue, // null (cashier) => purana stuck barqarar
           rateType: _canEditStuck ? rateType : null, // cashier rate-type nahi badal sakta
           dueDays: _canEditStuck ? (int.tryParse(dueDays.text.trim()) ?? 0).clamp(0, 365) : null,
-          kind: _canEditStuck ? kind : null, // cashier qism/tarikh nahi badal sakta
-          returnDate: _canEditStuck ? (kind.isEmpty ? 0 : returnDate) : null,
         );
         if (mounted) _toast(Loc.t('Updated', 'اپ ڈیٹ ہو گیا'));
         await _reload();
@@ -854,8 +803,6 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           accent: _customerAccent,
           icon: Icons.person,
           isCustomer: true,
-          kind: c.kind,
-          returnDate: c.returnDate,
           onTap: () => _showCustomerHistory(c),
           onEdit: () => _editCustomer(c),
           onDelete: () => _deleteCustomer(c),
@@ -1133,8 +1080,6 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     required VoidCallback onTap,
     required VoidCallback onEdit,
     required VoidCallback onDelete,
-    String kind = '',
-    int returnDate = 0,
   }) {
     final closing = partyClosing(opening: opening, running: running, stuck: stuck);
     final isGive = partyIsGive(isCustomer: isCustomer, closing: closing);
@@ -1176,18 +1121,6 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.textDark)),
                 if (phone.isNotEmpty) Text(phone, style: TextStyle(fontSize: 12, color: p.textMuted)),
-                if (kind == 'amanat' || kind == 'loan')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '${kind == 'amanat' ? Loc.t('Amanat', 'امانت') : Loc.t('Loan', 'قرض')}'
-                      '${returnDate > 0 ? '  •  ${Loc.t('Return', 'واپسی')}: ${DateFormat('d MMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(returnDate))}' : ''}',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: returnDate > 0 && returnDate < DateTime.now().millisecondsSinceEpoch - 86400000 ? p.red : p.flatAmberFg),
-                    ),
-                  ),
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(

@@ -574,13 +574,15 @@ class DueRemindersRepository {
       final curKind = (cur['kind'] as String?) ?? '';
       if (curKind.isNotEmpty && curKind != kind) return ReturnEntryResult.kindMismatch;
       final entries = decodeReturnEntries(cur['returnEntries'] as String?);
-      entries.add(ReturnEntry(
+      final entry = ReturnEntry(
         id: nextReturnEntryId(entries),
         amount: amount,
         date: _day(dateMillis),
         returnDate: _day(returnDateMillis),
         note: note.trim(),
-      ));
+      );
+      entries.add(entry);
+      final log = logAddGiven(decodeReturnLog(cur['returnLog'] as String?), kind, entry, atMillis: now);
       final earliest = earliestReturnDate(entries);
       await txn.update(
         'customers',
@@ -588,6 +590,7 @@ class DueRemindersRepository {
           'kind': kind,
           'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + signedReturnAmount(kind, amount),
           'returnEntries': encodeReturnEntries(entries),
+          'returnLog': encodeReturnLog(log),
           if (earliest > 0) 'returnDate': earliest,
           'updatedAt': now,
           'dirty': 1,
@@ -624,12 +627,14 @@ class DueRemindersRepository {
       if (i < 0) return ReturnEntryResult.notFound;
       final old = entries[i];
       entries[i] = old.copyWith(amount: amount, date: _day(dateMillis), returnDate: _day(returnDateMillis), note: note.trim());
+      final log = logEditEntry(decodeReturnLog(cur['returnLog'] as String?), kind, old, entries[i], atMillis: now);
       final delta = signedReturnAmount(kind, amount) - signedReturnAmount(kind, old.amount);
       await txn.update(
         'customers',
         {
           'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + delta,
           'returnEntries': encodeReturnEntries(entries),
+          'returnLog': encodeReturnLog(log),
           'returnDate': earliestReturnDate(entries),
           'updatedAt': now,
           'dirty': 1,
@@ -657,11 +662,13 @@ class DueRemindersRepository {
       final i = entries.indexWhere((e) => e.id == entryId);
       if (i < 0) return ReturnEntryResult.notFound;
       final old = entries.removeAt(i);
+      final log = logRemoveEntry(decodeReturnLog(cur['returnLog'] as String?), kind, old, atMillis: now);
       await txn.update(
         'customers',
         {
           'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) - signedReturnAmount(kind, old.amount),
           'returnEntries': encodeReturnEntries(entries),
+          'returnLog': encodeReturnLog(log),
           if (entries.isNotEmpty) 'returnDate': earliestReturnDate(entries),
           'updatedAt': now,
           'dirty': 1,
@@ -703,11 +710,14 @@ class DueRemindersRepository {
       if (!(out.settled > 0)) return ReturnEntryResult.nothingToSettle;
       // amanat wapas: balance (minus) upar aata hai; loan wasool: balance (plus) neeche aata hai.
       final delta = -signedReturnAmount(kind, out.settled);
+      final log = logRecovered(decodeReturnLog(cur['returnLog'] as String?), kind, out.settled,
+          atMillis: now, note: note.trim());
       await txn.update(
         'customers',
         {
           'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + delta,
           'returnEntries': encodeReturnEntries(out.remaining),
+          'returnLog': encodeReturnLog(log),
           'returnDate': earliestReturnDate(out.remaining),
           'updatedAt': now,
           'dirty': 1,
@@ -796,6 +806,7 @@ class DueRemindersRepository {
       kind: kind,
       returnDate: returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
       returnEntries: encodeReturnEntries(entries),
+      returnLog: encodeReturnLog(backfillReturnLog(kind, entries, atMillis: DateTime.now().millisecondsSinceEpoch)),
     ));
     return SavePartyResult.success;
   }

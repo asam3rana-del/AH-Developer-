@@ -118,6 +118,8 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
     final returnDateRemote = row.containsKey('returnDate') ? (_i(row['returnDate']) ?? 0) : null;
     // Amanat/Loan entries: purane doc mein na ho to local entries na todo.
     final returnEntriesRemote = row.containsKey('returnEntries') ? (_s(row['returnEntries']) ?? '') : null;
+    // Amanat/Loan log (DB v32): purane doc mein na ho to local log na todo.
+    final returnLogRemote = row.containsKey('returnLog') ? (_s(row['returnLog']) ?? '') : null;
     final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
     final localPending = await pendingDelta(q, 'customer', serverId, 'increment_balance');
     // 2-device FIX: is device ka apna naam/phone edit abhi push nahi hua => server ki purani copy se
@@ -159,6 +161,7 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
           if (kindRemote != null) 'kind': kindRemote,
           if (returnDateRemote != null) 'returnDate': returnDateRemote,
           if (returnEntriesRemote != null) 'returnEntries': returnEntriesRemote,
+          if (returnLogRemote != null) 'returnLog': returnLogRemote,
           'updatedAt': serverUpdatedAt,
           'dirty': localPending != 0.0 ? 1 : 0,
         },
@@ -178,6 +181,7 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
         if (kindRemote != null) 'kind': kindRemote,
         if (returnDateRemote != null) 'returnDate': returnDateRemote,
         if (returnEntriesRemote != null) 'returnEntries': returnEntriesRemote,
+        if (returnLogRemote != null) 'returnLog': returnLogRemote,
         'serverId': serverId,
         'updatedAt': serverUpdatedAt,
         'dirty': localPending != 0.0 ? 1 : 0,
