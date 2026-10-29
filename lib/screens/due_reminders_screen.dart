@@ -10,7 +10,9 @@ import '../widgets/role_guard.dart';
 
 /// Mirrors DueRemindersActivity.kt.
 ///
-/// Har credit / partially-paid bill ek jagah, due date ke hisaab se. Card tap => date picker
+/// Har party ka EK card (us ke saare baqi bills jama, ek hi reminder) + upar search box (naam / phone / invoice).
+/// Ek bill wali party: card tap => date picker; kai bills: card tap => bills ki list (har bill ki date alag badal sakti hai).
+/// Pehle har credit / partially-paid bill ek jagah tha, due date ke hisaab se. Card tap => date picker
 /// (checkout mein date field nahi chahiye). Date wale pehle; "date nahi" wale bhi dikhte hain (gray)
 /// taake baqi paisa kabhi chhupe nahi. Call + WhatsApp reminder (wa.me) party ke phone par.
 ///
@@ -38,6 +40,8 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   bool _purchases = false;
   bool _loading = true;
   List<DueBill> _bills = const [];
+  final _search = TextEditingController();
+  String _query = '';
 
   final _dateFmt = DateFormat('d MMM yyyy');
 
@@ -59,6 +63,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _search.dispose();
     super.dispose();
   }
 
@@ -114,32 +119,109 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     await _load(showSpinner: false);
   }
 
-  Future<void> _whatsApp(DueBill b) async {
+  Future<void> _whatsApp(DueParty g) async {
     try {
-      final ok = await launchUrl(whatsAppUri(b, partyTotal: b.partyId == null ? null : partyDueTotals(_bills)[b.partyId]), mode: LaunchMode.externalApplication);
+      // Ek bill => us bill ka message; kai bills / previous balance => ek hi message poore total ke saath.
+      final single = g.bills.length == 1 && !g.bills.first.isBalance ? g.bills.first : null;
+      final uri = single != null ? whatsAppUri(single) : whatsAppUri(g.toTotalBill());
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok) throw Exception('launch failed');
     } catch (_) {
       if (mounted) _toast('WhatsApp nahi khul saka. Installed hai?');
     }
   }
 
-  Future<void> _call(DueBill b) async {
+  Future<void> _call(DueParty g) async {
     try {
-      final ok = await launchUrl(Uri(scheme: 'tel', path: b.partyPhone.trim()));
+      final ok = await launchUrl(Uri(scheme: 'tel', path: g.partyPhone.trim()));
       if (!ok) throw Exception('launch failed');
     } catch (_) {
       if (mounted) _toast(Loc.t('Could not open the dialer', 'ڈائلر نہیں کھل سکا'));
     }
   }
 
+  /// Party ke saare bills ki list (har bill ki date alag badalne ke liye). Date badalne ke baad list dobara khulti hai.
+  Future<void> _openBills(String key) async {
+    final matches = groupDueByParty(_bills).where((g) => g.key == key);
+    if (matches.isEmpty || !mounted) return;
+    final g = matches.first;
+    final picked = await showModalBottomSheet<DueBill>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _p.cardWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.75),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            children: [
+              Text(g.partyName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _p.textDark)),
+              const SizedBox(height: 2),
+              Text('${_rs(g.total)} ${Loc.t('due', 'واجب الادا')} • ${Loc.t('Tap a bill to set its date', 'تاریخ طے کرنے کے لیے بل دبائیں')}',
+                  style: TextStyle(fontSize: 12, color: _p.textMuted)),
+              const SizedBox(height: 10),
+              for (final b in g.bills) _billRow(ctx, b),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    await _pickDate(picked);
+    if (mounted) await _openBills(key);
+  }
+
+  Widget _billRow(BuildContext ctx, DueBill b) {
+    final (badgeText, badgeColor) = _badge(dueBucket(b.dueDate));
+    final title = b.isAdvance
+        ? Loc.t('Advance', 'ایڈوانس')
+        : b.isBalance
+            ? Loc.t('Previous balance (no bill)', 'پچھلا بقایا (بل کے بغیر)')
+            : b.id;
+    final dateText = b.isBalance
+        ? ''
+        : b.dueDate > 0
+            ? _dateFmt.format(DateTime.fromMillisecondsSinceEpoch(b.dueDate))
+            : Loc.t('Tap to set a due date', 'تاریخ طے کرنے کے لیے دبائیں');
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: b.isBalance ? null : () => Navigator.pop(ctx, b),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: _p.textDark)),
+              if (dateText.isNotEmpty) Text(dateText, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+            ]),
+          ),
+          Text(_rs(b.due), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: _primary)),
+          const SizedBox(width: 10),
+          if (!b.isBalance)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(8)),
+              child: Text(badgeText, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+        ]),
+      ),
+    );
+  }
+
   // ---- build -------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    final summary = summarizeDue(_bills);
+    // Search ke baad jo parties bachin, summary un ki (taake kisi ek customer ka total saaf nazar aaye).
+    final groups = groupDueByParty(_bills).where((g) => dueMatches(g, _query)).toList();
+    final shown = [for (final g in groups) ...g.bills];
+    final summary = summarizeDue(shown);
+    final overdueParties = groups.where((g) => g.hasOverdue()).length;
     // Walk-in / Cash Purchase (party nahi) Party Dashboard ke total mein nahi ginte — alag dikhate hain taake
     // "Total outstanding" Dashboard ke You'll get / You'll give se mel khaye.
-    final noParty = _bills.where((b) => b.partyId == null).fold<double>(0.0, (a, b) => a + b.due);
+    final noParty = shown.where((b) => b.partyId == null).fold<double>(0.0, (a, b) => a + b.due);
     final partyTotal = summary.totalDue - noParty;
     return Scaffold(
       backgroundColor: _p.bg,
@@ -158,7 +240,8 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                     : Loc.t('Credit sales still owed, by due date', 'ادھار سیلز جو ابھی واجب الادا ہیں'),
               ),
               _tabs(),
-              _summaryCard(Icons.warning_amber_rounded, Loc.t('Overdue', 'میعاد گزری'), '${summary.overdue}', _red),
+              _searchBox(),
+              _summaryCard(Icons.warning_amber_rounded, Loc.t('Overdue', 'میعاد گزری'), '$overdueParties', _red),
               _summaryCard(Icons.account_balance_wallet_outlined, Loc.t('Total outstanding', 'کل بقایا'), _rs(partyTotal), _amber),
               if (noParty > 0.009)
                 _summaryCard(
@@ -182,9 +265,15 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                     style: TextStyle(fontSize: 13, color: _p.textMuted),
                   ),
                 )
+              else if (groups.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 30),
+                  child: Text(Loc.t('No match for "${_query.trim()}"', '"${_query.trim()}" نہیں ملا'),
+                      textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _p.textMuted)),
+                )
               else
                 ...[
-                  for (final b in _bills) _billCard(b, partyDueTotals(_bills)),
+                  for (final g in groups) _partyCard(g),
                 ],
             ],
           ),
@@ -192,6 +281,37 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
       ),
     );
   }
+
+  Widget _searchBox() => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextField(
+          controller: _search,
+          style: TextStyle(color: _p.textDark),
+          textInputAction: TextInputAction.search,
+          onChanged: (v) => setState(() => _query = v),
+          decoration: InputDecoration(
+            hintText: Loc.t('Search name, phone or invoice', 'نام، فون یا انوائس تلاش کریں'),
+            hintStyle: TextStyle(color: _p.textMuted, fontSize: 13),
+            prefixIcon: Icon(Icons.search, color: _p.textMuted),
+            suffixIcon: _query.isEmpty
+                ? null
+                : IconButton(
+                    icon: Icon(Icons.close, color: _p.textMuted),
+                    onPressed: () {
+                      _search.clear();
+                      setState(() => _query = '');
+                    },
+                  ),
+            filled: true,
+            fillColor: _p.cardWhite,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _p.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _p.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _primary)),
+          ),
+        ),
+      );
 
   Widget _tabs() {
     Widget pill(String label, bool selected, VoidCallback onTap) => Expanded(
@@ -263,29 +383,64 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     }
   }
 
-  Widget _billCard(DueBill b, Map<int, double> totals) {
-    final partyTotal = (b.partyId == null || b.isAdvance) ? null : totals[b.partyId];
-    final (badgeText, badgeColor) = _badge(dueBucket(b.dueDate));
-    final hasPhone = b.partyPhone.trim().isNotEmpty;
-    final canRemind = !b.isAdvance; // advance wali party ko "paisa do" ka reminder nahi bhejna
+  Widget _partyCard(DueParty g) {
+    final multi = g.bills.length > 1;
+    final one = g.bills.first;
+    final (badgeText, badgeColor) = _badge(dueBucket(g.earliestDue));
+    final hasPhone = g.partyPhone.trim().isNotEmpty;
+    final canRemind = !g.isAdvance; // advance wali party ko "paisa do" ka reminder nahi bhejna
+    final onlyBalance = !multi && one.isBalance;
+
+    String subtitle;
+    if (g.isAdvance) {
+      subtitle = g.isSale
+          ? Loc.t('Customer advance (you owe them)', 'کسٹمر ایڈوانس (آپ کو دینا ہے)')
+          : Loc.t('Advance paid to supplier (they owe you)', 'سپلائر کو ایڈوانس (انہیں دینا ہے)');
+    } else if (onlyBalance) {
+      subtitle = Loc.t('Previous balance (no bill)', 'پچھلا بقایا (بل کے بغیر)');
+    } else if (multi) {
+      subtitle = '${g.billCount} ${Loc.t('bills', 'بل')}${g.hasBalanceRow ? ' + ${Loc.t('previous balance', 'پچھلا بقایا')}' : ''}';
+    } else {
+      subtitle = one.id;
+    }
+
+    String dateLine;
+    if (g.isAdvance || onlyBalance) {
+      dateLine = g.isAdvance
+          ? ''
+          : g.isSale
+              ? Loc.t('Receivable in Party Dashboard', 'پارٹی ڈیش بورڈ میں وصولی')
+              : Loc.t('Payable in Party Dashboard', 'پارٹی ڈیش بورڈ میں قابل ادائیگی');
+    } else if (g.earliestDue > 0) {
+      final label = !multi ? Loc.t('Due: ', 'تاریخ: ') : g.hasOverdue() ? Loc.t('Oldest due: ', 'سب سے پرانی: ') : Loc.t('Next due: ', 'اگلی تاریخ: ');
+      dateLine = '$label${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(g.earliestDue))}';
+      if (multi && g.undatedCount > 0) dateLine += ' • ${g.undatedCount} ${Loc.t('without date', 'بغیر تاریخ')}';
+    } else {
+      dateLine = multi ? Loc.t('Tap to set dates', 'تاریخیں طے کرنے کے لیے دبائیں') : Loc.t('Tap to set a due date', 'تاریخ طے کرنے کے لیے دبائیں');
+    }
+
+    VoidCallback? onTap;
+    if (multi) {
+      onTap = () => _openBills(g.key);
+    } else if (!one.isBalance) {
+      onTap = () => _pickDate(one);
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: _cardDeco(),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: b.isBalance ? null : () => _pickDate(b),
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(b.partyName, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark)),
+                  Text(g.partyName, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark)),
                   const SizedBox(height: 2),
-                  Text(b.isAdvance
-                      ? (b.isSale ? Loc.t('Customer advance (you owe them)', 'کسٹمر ایڈوانس (آپ کو دینا ہے)') : Loc.t('Advance paid to supplier (they owe you)', 'سپلائر کو ایڈوانس (انہیں دینا ہے)'))
-                      : b.isBalance ? Loc.t('Previous balance (no bill)', 'پچھلا بقایا (بل کے بغیر)') : b.id,
-                      style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+                  Text(subtitle, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
                 ]),
               ),
               Container(
@@ -298,30 +453,21 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
             Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${_rs(b.due)}  ${Loc.t('due', 'واجب الادا')}',
+                  Text('${_rs(g.total)}  ${Loc.t('due', 'واجب الادا')}',
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: _primary)),
-                  if (partyTotal != null && (partyTotal - b.due).abs() > 0.009) ...[
+                  if (dateLine.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text('${Loc.t('Party total', 'پارٹی کا کل بقایا')}: ${_rs(partyTotal)}',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _p.textDark)),
+                    Text(dateLine, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
                   ],
-                  const SizedBox(height: 2),
-                  Text(
-                    b.isBalance
-                        ? b.isSale ? Loc.t('Receivable in Party Dashboard', 'پارٹی ڈیش بورڈ میں وصولی') : Loc.t('Payable in Party Dashboard', 'پارٹی ڈیش بورڈ میں قابل ادائیگی')
-                        : b.dueDate > 0
-                        ? '${Loc.t('Due: ', 'تاریخ: ')}${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(b.dueDate))}'
-                        : Loc.t('Tap to set a due date', 'تاریخ طے کرنے کے لیے دبائیں'),
-                    style: TextStyle(fontSize: 11.5, color: _p.textMuted),
-                  ),
                 ]),
               ),
+              if (multi) Icon(Icons.chevron_right, color: _p.textMuted),
               if (hasPhone) ...[
                 if (canRemind) ...[
-                  _circleButton(Icons.send, const Color(0xFF25D366), const Color(0xFFDDF6E8), () => _whatsApp(b)),
+                  _circleButton(Icons.send, const Color(0xFF25D366), const Color(0xFFDDF6E8), () => _whatsApp(g)),
                   const SizedBox(width: 10),
                 ],
-                _circleButton(Icons.phone, _primary, _p.flatPurpleBg, () => _call(b)),
+                _circleButton(Icons.phone, _primary, _p.flatPurpleBg, () => _call(g)),
               ],
             ]),
           ]),

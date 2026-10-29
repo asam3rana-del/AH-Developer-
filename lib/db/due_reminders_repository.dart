@@ -269,6 +269,111 @@ Map<int, double> partyDueTotals(Iterable<DueBill> bills) {
   return out;
 }
 
+/// Ek party ke SAARE baqi bills ek jagah (Due Reminders mein ek card, har bill ka alag nahi).
+/// Walk-in / Cash Purchase (partyId null) ka har bill apna alag group rehta hai (koi ek party nahi).
+class DueParty {
+  final int? partyId;
+  final String partyName;
+  final String partyPhone;
+  final bool isSale;
+  final List<DueBill> bills;
+  const DueParty({
+    required this.partyId,
+    required this.partyName,
+    required this.partyPhone,
+    required this.isSale,
+    required this.bills,
+  });
+
+  /// Group ki pehchan (advance rows alag, taake bills mein na milen).
+  String get key => '${partyId ?? 'x${bills.first.id}'}:${isAdvance ? 'a' : 'b'}';
+
+  double get total => bills.fold<double>(0.0, (a, b) => a + b.due);
+
+  /// Sirf advance wali row(s): reminder nahi bhejna.
+  bool get isAdvance => bills.isNotEmpty && bills.every((b) => b.isAdvance);
+
+  /// Asli bills ki ginti ("Previous balance" / advance rows nahi).
+  int get billCount => bills.where((b) => !b.isBalance && !b.isAdvance).length;
+
+  bool get hasBalanceRow => bills.any((b) => b.isBalance && !b.isAdvance);
+
+  /// Jin asli bills par date nahi.
+  int get undatedCount => bills.where((b) => !b.isBalance && !b.isAdvance && b.dueDate == 0).length;
+
+  /// Sab se purani (overdue ho to) ya sab se qareeb date. 0 = kisi bill par date nahi.
+  int get earliestDue {
+    var m = 0;
+    for (final b in bills) {
+      if (b.isBalance || b.dueDate <= 0) continue;
+      if (m == 0 || b.dueDate < m) m = b.dueDate;
+    }
+    return m;
+  }
+
+  int get earliestCreated => bills.map((b) => b.createdAt).reduce((a, b) => a < b ? a : b);
+
+  bool hasOverdue({int? nowMillis}) {
+    final today = startOfDayMillis(nowMillis ?? DateTime.now().millisecondsSinceEpoch);
+    return bills.any((b) => b.dueDate > 0 && b.dueDate < today);
+  }
+
+  /// Poore group ka ek hi reminder: total ke saath (WhatsApp message "aapke hisab mein Rs X baaki hai").
+  DueBill toTotalBill() => DueBill(
+        id: 'Total',
+        partyId: partyId,
+        partyName: partyName,
+        partyPhone: partyPhone,
+        total: total,
+        paid: 0.0,
+        dueDate: earliestDue,
+        createdAt: earliestCreated,
+        isSale: isSale,
+        isBalance: true,
+      );
+}
+
+/// Bills ko party ke hisaab se jama karo. Sort: date wale pehle (sab se purani/qareeb date pehle),
+/// phir "date nahi" wale (purane bill pehle); barabar par naam.
+List<DueParty> groupDueByParty(Iterable<DueBill> bills) {
+  final map = <String, List<DueBill>>{};
+  final order = <String>[];
+  for (final b in bills) {
+    final k = b.partyId == null ? 'x${b.id}' : '${b.partyId}:${b.isAdvance ? 'a' : 'b'}';
+    if (!map.containsKey(k)) order.add(k);
+    (map[k] ??= []).add(b);
+  }
+  final out = <DueParty>[
+    for (final k in order)
+      DueParty(
+        partyId: map[k]!.first.partyId,
+        partyName: map[k]!.first.partyName,
+        partyPhone: map[k]!.first.partyPhone,
+        isSale: map[k]!.first.isSale,
+        bills: sortDueBills(map[k]!),
+      ),
+  ];
+  out.sort((a, b) {
+    final ae = a.earliestDue, be = b.earliestDue;
+    final aNo = ae == 0 ? 1 : 0, bNo = be == 0 ? 1 : 0;
+    if (aNo != bNo) return aNo.compareTo(bNo);
+    if (ae != be) return ae.compareTo(be);
+    final c = a.earliestCreated.compareTo(b.earliestCreated);
+    return c != 0 ? c : a.partyName.toLowerCase().compareTo(b.partyName.toLowerCase());
+  });
+  return out;
+}
+
+/// Search: naam, phone (sirf digits se bhi) ya kisi bhi bill ka invoice / bill number. Khali => sab.
+bool dueMatches(DueParty g, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  if (g.partyName.toLowerCase().contains(q)) return true;
+  final qd = q.replaceAll(RegExp(r'[^0-9]'), '');
+  if (qd.isNotEmpty && g.partyPhone.replaceAll(RegExp(r'[^0-9]'), '').contains(qd)) return true;
+  return g.bills.any((b) => !b.isBalance && !b.isAdvance && b.id.toLowerCase().contains(q));
+}
+
 /// Kotlin message (Roman Urdu, jaisa Android mein hai). Rs poore rupay (%.0f).
 /// [partyTotal]: party ka kul baqi. "Previous balance" wali row ka reminder bhi poora balance batata hai
 /// (warna party ko sirf bina-bill hissa, jaise 35350, likha jata tha jab ke asal balance 75866 hota).

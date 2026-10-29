@@ -145,4 +145,74 @@ void main() {
       expect(Purchase.fromMap(p.toMap()..remove('dueDate')).dueDate, 0);
     });
   });
+  group('groupDueByParty / dueMatches (ek party = ek card)', () {
+    test('ek party ke kai bills ek group; total jod; sab se purani date; date nahi wale ginti', () {
+      final g = groupDueByParty([
+        bill('A', partyId: 1, total: 100, dueDate: day(20)),
+        bill('B', partyId: 1, total: 50, paid: 10, dueDate: day(10)),
+        bill('C', partyId: 1, total: 5),
+        bill('D', partyId: 2, name: 'Bilal', total: 70, dueDate: day(12)),
+      ]);
+      expect(g.length, 2);
+      final ali = g.firstWhere((x) => x.partyId == 1);
+      expect(ali.bills.length, 3);
+      expect(ali.total, 100 + 40 + 5);
+      expect(ali.earliestDue, day(10));
+      expect(ali.undatedCount, 1);
+      expect(ali.billCount, 3);
+    });
+
+    test('sort: sab se purani date wali party pehle; date nahi wali sab se aakhir mein', () {
+      final g = groupDueByParty([
+        bill('N', partyId: 3, name: 'Nodate', dueDate: 0),
+        bill('A', partyId: 1, name: 'Ali', dueDate: day(20)),
+        bill('B', partyId: 2, name: 'Bilal', dueDate: day(12)),
+      ]);
+      expect(g.map((x) => x.partyName).toList(), ['Bilal', 'Ali', 'Nodate']);
+    });
+
+    test('Previous balance row party ke group mein jati hai; bill count mein nahi', () {
+      final bal = DueBill(
+        id: 'Previous balance', partyId: 1, partyName: 'Ali', partyPhone: '', total: 30, paid: 0,
+        dueDate: 0, createdAt: 1, isSale: true, isBalance: true,
+      );
+      final g = groupDueByParty([bill('A', total: 100, dueDate: day(20)), bal]).single;
+      expect(g.total, 130);
+      expect(g.billCount, 1);
+      expect(g.hasBalanceRow, true);
+      expect(g.earliestDue, day(20)); // balance row ki date nahi ginti
+    });
+
+    test('Walk-in (partyId null) ka har bill alag group', () {
+      final g = groupDueByParty([bill('A', partyId: null), bill('B', partyId: null)]);
+      expect(g.length, 2);
+    });
+
+    test('hasOverdue + toTotalBill (WhatsApp ek hi message poore total ka)', () {
+      final g = groupDueByParty([
+        bill('A', total: 100, dueDate: day(10)),
+        bill('B', total: 50, dueDate: day(30)),
+      ]).single;
+      expect(g.hasOverdue(nowMillis: now), true);
+      final t = g.toTotalBill();
+      expect(t.due, 150);
+      expect(reminderMessage(t), contains('Rs 150'));
+    });
+
+    test('search: naam, phone (digits se), invoice; khali => sab', () {
+      final g = groupDueByParty([
+        bill('102659985736', partyId: 1, name: 'Zaman Jani', phone: '0300-1234567'),
+        bill('102655827152', partyId: 1, name: 'Zaman Jani', phone: '0300-1234567'),
+      ]).single;
+      expect(dueMatches(g, ''), true);
+      expect(dueMatches(g, '  '), true);
+      expect(dueMatches(g, 'zaman'), true);
+      expect(dueMatches(g, 'JANI'), true);
+      expect(dueMatches(g, '03001234'), true);
+      expect(dueMatches(g, '0300 123'), true);
+      expect(dueMatches(g, '102655'), true);
+      expect(dueMatches(g, 'bilal'), false);
+      expect(dueMatches(g, '9999'), false);
+    });
+  });
 }
