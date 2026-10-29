@@ -10,7 +10,7 @@ import 'app_database.dart';
 /// `sale_items.cost` us waqt ki purani primary unit (ctn) ke hisaab se "pakki raqam" ban kar likhi reh jati hai,
 /// jo asal se kai guna zyada hoti hai (jaise Rs 194,000) aur bill ka profit bohat bada minus dikhata hai.
 ///
-/// Ye tool aisi shak wali lines (cost >> sale amount) aur cost-0 lines (profit = poora bill) dhoondhta hai aur har line ki cost dobara
+/// Ye tool aisi shak wali lines dhoondhta hai (cost >> line ki sale amount) aur har line ki cost dobara
 /// nikalta hai:   naya cost = smallest qty x product ki maujooda cost per smallest unit.
 /// Admin list dekh kar "Apply" karta hai; bills sync queue mein jati hain to dono devices par profit theek ho jata hai.
 
@@ -107,10 +107,7 @@ class BillCostRepairRepository {
       'si.conversionFactor AS cf, s.createdAt AS at, c.name AS party '
       'FROM sale_items si JOIN sales s ON s.invoice = si.invoice '
       'LEFT JOIN customers c ON c.id = s.customerId '
-      "WHERE s.status = 'active' AND ((si.cost > si.amount * ? AND (si.cost - si.amount) > ?) "
-      // Cost 0 par save hui line (profit = poora bill) jo "cost pending" bhi nahi (pendingQty 0): product ki
-      // maujooda cost se bharo. Pending lines purchase se khud bharti hain, un ko nahi chheda jata.
-      'OR (si.cost <= 0 AND si.amount > 0 AND COALESCE(si.pendingQty, 0) <= 0.000001)) '
+      "WHERE s.status = 'active' AND si.cost > si.amount * ? AND (si.cost - si.amount) > ? "
       'ORDER BY s.createdAt DESC, si.id',
       [kCostSuspectRatio, kCostSuspectMinGap],
     );

@@ -73,9 +73,7 @@ List<BackfillResult> planBackfill(
 }) {
   final out = <BackfillResult>[];
   var remaining = smallestQty;
-  // Rate 0 (free / zero-amount purchase line) asal cost nahi hai: isay bharne se sale ki cost 0 ho jati thi aur
-  // "(est.)" tag bhi chala jata tha (profit = poora bill). Line pending hi rahe jab tak sahi rate wali purchase na aaye.
-  if (remaining <= kPendingEpsilon || !ratePerSmallest.isFinite || ratePerSmallest <= 0) return out;
+  if (remaining <= kPendingEpsilon || !ratePerSmallest.isFinite || ratePerSmallest < 0) return out;
   for (final l in lines) {
     if (remaining <= kPendingEpsilon) break;
     if (l.pendingQty <= kPendingEpsilon) continue;

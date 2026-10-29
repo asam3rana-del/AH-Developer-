@@ -6,7 +6,6 @@ import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart' show formatQty;
-import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 
 /// Mirrors PartyReportsActivity.kt.
@@ -37,6 +36,10 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
   bool _customers = true;
   bool _loading = true;
   List<ReportPartyRow> _rows = const [];
+  final _search = TextEditingController();
+  String _query = '';
+  bool _onlyDue = false; // sirf wo party jin ka hisaab baqi hai
+  bool _byAmount = false; // true = zyada baqi pehle, false = naam
 
   final _dateFmt = DateFormat('dd MMM yyyy');
   final _dateTimeFmt = DateFormat('dd MMM yyyy, hh:mm a');
@@ -53,6 +56,28 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// Search (naam / phone) + "sirf baqi" + sort lagakar dikhane wali list.
+  List<ReportPartyRow> get _visible {
+    final q = _query.trim().toLowerCase();
+    final list = _rows.where((r) {
+      if (_onlyDue && r.closing.abs() < 0.5) return false;
+      if (q.isEmpty) return true;
+      return r.name.toLowerCase().contains(q) || r.phone.contains(q);
+    }).toList();
+    if (_byAmount) {
+      list.sort((a, b) => b.closing.abs().compareTo(a.closing.abs()));
+    } else {
+      list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    }
+    return list;
   }
 
   Future<void> _load() async {
@@ -75,33 +100,141 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
 
   @override
   Widget build(BuildContext context) {
+    final rows = _visible;
     return Scaffold(
       backgroundColor: _p.bg,
-      appBar: AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(
+        backgroundColor: _p.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(Loc.t('Party Reports', 'پارٹی رپورٹس'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(Loc.t('Customer & supplier balances', 'کسٹمر اور سپلائر کا بیلنس'),
+              style: TextStyle(fontSize: 11.5, color: _p.headerSubtitleColor)),
+        ]),
+      ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 30),
-          children: [
-            PremiumHeader(
-              title: Loc.t('Party Reports', 'پارٹی رپورٹس'),
-              subtitle: Loc.t('Customer & supplier balances', 'کسٹمر اور سپلائر کا بیلنس'),
-            ),
-            _tabs(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 0, 10),
-              child: Text(
-                Loc.t('Tap a party to select a report', 'رپورٹ منتخب کرنے کے لیے پارٹی پر ٹیپ کریں'),
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: _p.textMuted),
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 30),
+            children: [
+              _tabs(),
+              if (!_loading) _summaryCards(),
+              _searchBox(),
+              _filterChips(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 2, 0, 10),
+                child: Text(
+                  '${rows.length} ${_customers ? Loc.t('customers', 'کسٹمرز') : Loc.t('suppliers', 'سپلائرز')} · '
+                  '${Loc.t('Tap a party to select a report', 'رپورٹ منتخب کرنے کے لیے پارٹی پر ٹیپ کریں')}',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _p.textMuted),
+                ),
+              ),
+              if (_loading)
+                const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
+              else if (rows.isEmpty)
+                _empty(_rows.isEmpty
+                    ? (_customers ? Loc.t('No customers yet', 'کوئی کسٹمر نہیں ہے') : Loc.t('No suppliers yet', 'کوئی سپلائر نہیں ہے'))
+                    : Loc.t('No party matches', 'کوئی پارٹی نہیں ملی'))
+              else
+                for (final r in rows) _partyRow(r),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Kul Lena (hara) / Kul Dena (laal). Customer tab mein Lena pehle, Supplier tab mein Dena pehle.
+  Widget _summaryCards() {
+    var lena = 0.0, dena = 0.0;
+    for (final r in _rows) {
+      if (r.closing.abs() < 0.5) continue;
+      if (r.isGive) {
+        dena += r.closing.abs();
+      } else {
+        lena += r.closing.abs();
+      }
+    }
+    Widget card(String arrow, String label, double v, Color c) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            decoration: BoxDecoration(color: _p.cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: _p.border)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text(arrow, style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(width: 6),
+                Flexible(child: Text(label, style: TextStyle(color: _p.textMuted, fontSize: 12.5))),
+              ]),
+              const SizedBox(height: 6),
+              Text(_rs(v), style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: c)),
+            ]),
+          ),
+        );
+    final lenaCard = card('↓', Loc.t('Total to Receive', 'کل لینا'), lena, _teal);
+    final denaCard = card('↑', Loc.t('Total to Pay', 'کل دینا'), dena, _red);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(children: [
+        if (_customers) ...[lenaCard, const SizedBox(width: 10), denaCard] else ...[denaCard, const SizedBox(width: 10), lenaCard],
+      ]),
+    );
+  }
+
+  Widget _searchBox() => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(color: _p.cardWhite, borderRadius: BorderRadius.circular(24), border: Border.all(color: _p.border)),
+        child: Row(children: [
+          Icon(Icons.search, size: 18, color: _primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _search,
+              onChanged: (v) => setState(() => _query = v),
+              style: TextStyle(fontSize: 14, color: _p.textDark),
+              decoration: InputDecoration(
+                hintText: Loc.t('Search name or phone', 'نام یا فون سے تلاش کریں'),
+                hintStyle: TextStyle(color: _p.textMuted),
+                border: InputBorder.none,
               ),
             ),
-            if (_loading)
-              const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
-            else if (_rows.isEmpty)
-              _empty(_customers ? Loc.t('No customers yet', 'کوئی کسٹمر نہیں ہے') : Loc.t('No suppliers yet', 'کوئی سپلائر نہیں ہے'))
-            else
-              for (final r in _rows) _partyRow(r),
-          ],
-        ),
+          ),
+          if (_query.isNotEmpty)
+            GestureDetector(
+              onTap: () => setState(() {
+                _search.clear();
+                _query = '';
+              }),
+              child: Icon(Icons.close, size: 18, color: _p.textMuted),
+            ),
+        ]),
+      );
+
+  Widget _filterChips() {
+    Widget chip(String label, bool on, VoidCallback tap) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            label: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: on ? Colors.white : _p.textDark)),
+            selected: on,
+            selectedColor: _primary,
+            backgroundColor: _p.cardWhite,
+            side: BorderSide(color: on ? _primary : _p.border),
+            showCheckmark: false,
+            visualDensity: VisualDensity.compact,
+            onSelected: (_) => tap(),
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          chip(Loc.t('Only balance', 'صرف باقی'), _onlyDue, () => setState(() => _onlyDue = !_onlyDue)),
+          chip(Loc.t('Highest first', 'زیادہ باقی پہلے'), _byAmount, () => setState(() => _byAmount = true)),
+          chip(Loc.t('Name A-Z', 'نام'), !_byAmount, () => setState(() => _byAmount = false)),
+        ]),
       ),
     );
   }
@@ -137,6 +270,13 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
 
   Widget _partyRow(ReportPartyRow r) {
     final accent = r.isCustomer ? _primary : _amber;
+    final clear = r.closing.abs() < 0.5;
+    final color = clear ? _p.textMuted : (r.isGive ? _red : _teal);
+    final tag = clear
+        ? Loc.t('Clear', 'صاف')
+        : r.isGive
+            ? Loc.t('To pay', 'دینا ہے')
+            : Loc.t('To receive', 'لینا ہے');
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -154,10 +294,20 @@ class _PartyReportsBodyState extends State<_PartyReportsBody> {
             _iconCircle(r.isCustomer ? Icons.person_outline : Icons.inventory_2_outlined, accent, 40),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(r.name, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(r.name, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark)),
+                if (r.phone.trim().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(r.phone, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+                  ),
+              ]),
             ),
-            Text(_rs(r.closing),
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: r.isGive ? _red : _teal)),
+            const SizedBox(width: 8),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(_rs(r.closing.abs()), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+              Text(tag, style: TextStyle(fontSize: 10.5, color: _p.textMuted)),
+            ]),
           ]),
         ),
       ),

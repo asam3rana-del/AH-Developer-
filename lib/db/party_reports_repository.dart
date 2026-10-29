@@ -227,6 +227,7 @@ class ReportPartyRow {
   final double stuck;
   final double closing;
   final bool isCustomer;
+  final String phone;
   const ReportPartyRow({
     required this.id,
     required this.name,
@@ -234,6 +235,7 @@ class ReportPartyRow {
     required this.stuck,
     required this.closing,
     required this.isCustomer,
+    this.phone = '',
   });
   bool get isGive => reportIsGive(isCustomer: isCustomer, closing: closing);
 }
@@ -266,6 +268,7 @@ class PartyReportsRepository {
             stuck: c.stuckBalance,
             closing: partyClosing(opening: c.openingBalance, running: live[c.id] ?? 0.0, stuck: c.stuckBalance),
             isCustomer: true,
+            phone: c.phone,
           ),
       ];
     }
@@ -280,6 +283,7 @@ class PartyReportsRepository {
           stuck: 0.0,
           closing: partyClosing(opening: s.openingBalance, running: live[s.id] ?? 0.0),
           isCustomer: false,
+          phone: s.phone,
         ),
     ];
   }
