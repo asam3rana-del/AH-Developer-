@@ -69,8 +69,19 @@ Future<HeldBillChoice?> showHeldBillsDialog(BuildContext context, List<HeldBill>
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('${heldItemCount(h.payload)} items',
-                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
+                                    Builder(builder: (_) {
+                                      final name = heldCustomerName(h.payload);
+                                      return Text(
+                                          name.isEmpty ? Loc.t('No customer name', 'کسٹمر کا نام نہیں') : name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: name.isEmpty ? ThemeManager.palette.textMuted : ThemeManager.palette.textDark));
+                                    }),
+                                    Text('${heldItemCount(h.payload)} items • Rs ${heldItemsTotal(h.payload).round()}',
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: ThemeManager.palette.textDark)),
                                     Text(fmt.format(DateTime.fromMillisecondsSinceEpoch(h.createdAt)),
                                         style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
                                   ],

@@ -225,6 +225,24 @@ void main() {
       expect(heldItemCount('garbage'), 0);
     });
 
+    test('heldCustomerName / heldItemsTotal list ke liye (poora decode kiye baghair)', () {
+      final p = _oneTier();
+      final draft = HeldSaleDraft(
+        customerName: '  Zaman Jani ',
+        isWholesale: false,
+        isCash: false,
+        discountText: '',
+        lines: [_line(p, 'kg', 1, 100), _line(p, 'kg', 2, 100)],
+      );
+      final payload = encodeHold(draft);
+      expect(heldCustomerName(payload), 'Zaman Jani');
+      expect(heldItemsTotal(payload), closeTo(decodeHold(payload).lines.fold<double>(0.0, (a, l) => a + l.amount), 1e-9));
+      expect(heldCustomerName(encodeHold(HeldSaleDraft(
+          customerName: '', isWholesale: false, isCash: true, discountText: '', lines: []))), '');
+      expect(heldCustomerName('garbage'), '');
+      expect(heldItemsTotal('garbage'), 0.0);
+    });
+
     test('malformed rows are skipped, not crashed on', () {
       final payload = 'c\u0001Retail\u0001CASH\u00010\u0004a\u0003b\u0003c'; // < 10 fields
       final d = decodeHold(payload);

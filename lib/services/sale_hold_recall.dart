@@ -126,3 +126,22 @@ int heldItemCount(String payload) {
   if (parts.length < 2) return 0;
   return parts[1].split(_sepRow).where((r) => r.isNotEmpty).length;
 }
+
+/// Held bill ki party ka naam (list mein dikhane ke liye, poora decode kiye baghair). Naam na ho => ''.
+String heldCustomerName(String payload) {
+  final header = payload.split(_sepHeaderItems).first.split(_sepHeaderField);
+  return header.length >= 4 ? header[0].trim() : '';
+}
+
+/// Held bill ke saare items ka amount ka jod (list mein "Rs ..." dikhane ke liye; discount shamil nahi).
+double heldItemsTotal(String payload) {
+  final parts = payload.split(_sepHeaderItems);
+  if (parts.length < 2) return 0.0;
+  var total = 0.0;
+  for (final row in parts[1].split(_sepRow)) {
+    final f = row.split(_sepItemField);
+    if (f.length < 10) continue;
+    total += (f.length > 6 ? double.tryParse(f[6]) : null) ?? 0.0;
+  }
+  return total;
+}
