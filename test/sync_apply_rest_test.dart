@@ -46,7 +46,8 @@ Future<Database> _memDb() async {
     status TEXT NOT NULL DEFAULT 'active', $_sync, dueDate INTEGER NOT NULL DEFAULT 0, customerServerId TEXT)''');
   await x('''CREATE TABLE sale_items (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice TEXT NOT NULL,
     barcode TEXT NOT NULL, product TEXT NOT NULL, qty REAL NOT NULL, unit TEXT NOT NULL DEFAULT '',
-    unitPrice REAL NOT NULL, cost REAL NOT NULL, amount REAL NOT NULL, conversionFactor REAL NOT NULL DEFAULT 0)''');
+    unitPrice REAL NOT NULL, cost REAL NOT NULL, amount REAL NOT NULL, conversionFactor REAL NOT NULL DEFAULT 0,
+    pendingQty REAL NOT NULL DEFAULT 0, pendingEst REAL NOT NULL DEFAULT 0, backfillLog TEXT NOT NULL DEFAULT '')''');
   await x('''CREATE TABLE purchases (billNo TEXT PRIMARY KEY NOT NULL, supplierId INTEGER, total REAL NOT NULL,
     paid REAL NOT NULL, createdAt INTEGER NOT NULL, subtotal REAL NOT NULL DEFAULT 0,
     discount REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', $_sync,

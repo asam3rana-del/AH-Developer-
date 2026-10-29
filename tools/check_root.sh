@@ -13,12 +13,12 @@ android ios windows assets analysis_options.yaml pubspec.yaml pubspec.lock \
 ANDROID_CHANGELOG.md PORTING_PLAN.md PORT_STATUS.md README.md LICENSE \
 docs firebase lib test tools"
 
-for d in main config androidTest db screens; do
+for d in main config androidTest db screens models sync services widgets utils theme backup; do
   if [ -d "$d" ]; then
     if [ $FIX -eq 1 ]; then
       rm -rf "$d"; echo "FIXED: root '$d/' hata diya"
     else
-      echo "STRAY: root par '$d/' hai (Kotlin/purani copy)"; BAD=1
+      echo "STRAY: root par '$d/' hai (Kotlin/purani ya lib/ ke bahar paste hui copy)"; BAD=1
     fi
   fi
 done
