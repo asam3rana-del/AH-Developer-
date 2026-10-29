@@ -363,9 +363,67 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
         if (items.isEmpty)
           _itemLine(Loc.t('No items on this sale.', 'اس سیل میں کوئی آئٹم نہیں۔'), muted: true)
         else
-          for (final si in items)
-            _itemLine('${si.product}  —  ${_qty(si.qty)} ${si.unit} × Rs ${_qty(si.unitPrice)} = ${_rs(si.amount)}'),
+          _itemsPanel(s, items),
     ];
+  }
+
+  /// Bill ki tafseel: har item do lines mein (naam alag, neeche "qty unit × rate"), amount saaf daayen taraf,
+  /// aur neeche hisaab (items ka jod, discount, total, paid, baqi). Naam alag line mein hone se Urdu / English
+  /// naam qty aur unit ke beech nahi ghusta.
+  Widget _itemsPanel(SaleWithCustomer s, List<SaleItem> items) {
+    final itemsTotal = items.fold<double>(0.0, (a, i) => a + i.amount);
+    final discount = itemsTotal - s.total;
+    final due = s.total - s.paid;
+    Widget sumRow(String label, String value, {bool bold = false, Color? color}) => Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Row(children: [
+            Expanded(
+                child: Text(label,
+                    style: TextStyle(fontSize: 12.5, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: color ?? _p.textMuted))),
+            Text(value,
+                style: TextStyle(fontSize: bold ? 14 : 12.5, fontWeight: bold ? FontWeight.bold : FontWeight.w600, color: color ?? _p.textDark)),
+          ]),
+        );
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 0, 0, 12),
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      decoration: BoxDecoration(
+        color: _p.fieldFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _p.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: _p.border),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(
+                width: 24,
+                child: Text('${i + 1}.', style: TextStyle(fontSize: 12, color: _p.textMuted)),
+              ),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(items[i].product,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _p.textDark)),
+                  const SizedBox(height: 2),
+                  Text('${_qty(items[i].qty)} ${items[i].unit}  ×  Rs ${_qty(items[i].unitPrice)}',
+                      style: TextStyle(fontSize: 12.5, color: _p.textMuted)),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Text(_rs(items[i].amount), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _p.textDark)),
+            ]),
+          ),
+        ],
+        Divider(height: 8, thickness: 1.5, color: _p.border),
+        sumRow('${Loc.t('Items', 'آئٹمز')}: ${items.length}', _rs(itemsTotal)),
+        if (discount > 0.5) sumRow(Loc.t('Discount', 'رعایت'), '- ${_rs(discount)}'),
+        sumRow(Loc.t('Total', 'کل'), _rs(s.total), bold: true, color: s.isReturned ? _p.red : _p.teal),
+        if (!s.isReturned && s.paid > 0.009) sumRow(Loc.t('Paid', 'ادا شدہ'), _rs(s.paid)),
+        if (!s.isReturned && due > 0.5) sumRow(Loc.t('Due', 'باقی'), _rs(due), bold: true, color: _p.red),
+      ]),
+    );
   }
 
   Widget _itemLine(String text, {bool muted = false}) => Padding(
