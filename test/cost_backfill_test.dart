@@ -48,6 +48,11 @@ void main() {
       expect(r.first.pendingEst, 0);
     });
 
+    test('purchase rate 0 ho to sale ki cost 0 nahi hoti, line pending rehti hai', () {
+      final r = planBackfill([line(1)], billNo: 'P1', smallestQty: 10, ratePerSmallest: 0);
+      expect(r, isEmpty);
+    });
+
     test('aadhi qty cover: baaqi pending rehti hai', () {
       final r = planBackfill([line(1)], billNo: 'B1', smallestQty: 4, ratePerSmallest: 12);
       expect(r.first.cost, closeTo(108, 1e-9));
