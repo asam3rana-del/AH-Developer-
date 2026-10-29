@@ -18,7 +18,6 @@ import 'rate_comparison_screen.dart';
 import 'stock_adjustment_screen.dart';
 import 'stock_audit_screen.dart';
 import 'stock_movement_screen.dart';
-import 'stock_rebuild_screen.dart';
 import 'stock_report_screen.dart';
 import 'stock_taking_screen.dart';
 import 'zakat_screen.dart';
@@ -27,12 +26,13 @@ import '../widgets/role_guard.dart';
 /// Mirrors ReportsActivity.kt.
 ///
 /// Reports hub (sale / stock / financial rows) + neeche period filter (Today / This Week / This Month /
-/// All Time) ke saath summary cards, Profit & Loss statement, Top Products aur Daily Sales.
+/// All Time) ke saath summary cards (Purchases / Returns / Number of Sales; Total Sales, Profit aur Expenses
+/// alag card nahi — woh Profit & Loss statement mein hi hain), Profit & Loss statement, Top Products aur Daily Sales.
 ///
 /// Role: admin + manager (RoleGuard; ReportsRepository.load dobara check karta hai).
 ///
 /// Farq (Kotlin se):
-///  * Stock/Insights ki sab rows ab chalti hain (Reorder / Damage / Margin / Movers = InventoryInsightsScreen).
+///  * Stock/Insights ki sab rows ab chalti hain (Reorder / Damage / Margin / Movers = ek row "Inventory Insights", andar 4 tab).
 ///  * "Today" ka end agla midnight (DST-safe); hafta Monday se (Kotlin mein locale ka firstDayOfWeek).
 ///  * Purchase History row manager ko dikhti hai magar screen admin-only hai (RoleGuard message).
 class ReportsScreen extends StatelessWidget {
@@ -147,27 +147,16 @@ class _ReportsBodyState extends State<_ReportsBody> {
             _row(p, Loc.t('Stock Adjustment', 'اسٹاک ایڈجسٹمنٹ'),
                 Loc.t('Log damage, loss, or a correction', 'نقصان یا درستگی درج کریں'), p.red,
                 () => _open(const StockAdjustmentScreen())),
-            _row(p, Loc.t('Stock Rebuild (Sep)', 'اسٹاک ری بلڈ (ستمبر)'),
-                Loc.t('One time: stock = Sep purchases - later sales', 'ایک بار: اسٹاک = ستمبر خریداری - بعد کی سیلز'), p.red,
-                () => _open(const StockRebuildScreen())),
             if (Session.isAdmin)
               _row(p, Loc.t('Fix Bill Cost', 'بل کی لاگت درست کریں'),
                   Loc.t('Repair wrong cost on old bills (after unit change)', 'یونٹ بدلنے کے بعد پرانی بلز کی غلط لاگت درست کریں'), p.red,
                   () => _open(const RoleGuard(allowed: {'admin'}, child: BillCostRepairScreen()))),
             _row(p, Loc.t('Stock Taking', 'اسٹاک گنتی'), Loc.t('Physical count vs system stock', 'اصل گنتی بمقابلہ سسٹم اسٹاک'),
                 p.flatBlueFg, () => _open(const StockTakingScreen())),
-            _row(p, Loc.t('Reorder Suggestions', 'دوبارہ آرڈر تجاویز'),
-                Loc.t('Items at or below reorder level', 'کم اسٹاک آئٹمز'), p.flatAmberFg,
-                () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.reorder))),
-            _row(p, Loc.t('Damage / Loss Report', 'نقصان کی رپورٹ'),
-                Loc.t('Value of stock damaged or lost', 'خراب یا ضائع اسٹاک کی مالیت'), p.red,
-                () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.damage))),
-            _row(p, Loc.t('Profit Margin per Item', 'فی آئٹم منافع'),
-                Loc.t('Sale price vs cost, item by item', 'سیل پرائس بمقابلہ لاگت'), p.flatTealFg,
-                () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.profit))),
-            _row(p, Loc.t('Fast / Slow Movers', 'تیز / سست چلنے والے'),
-                Loc.t("Which items sell, and which don't", 'کون سے آئٹم بکتے ہیں'), p.flatBlueFg,
-                () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.movers))),
+            // Reorder / Damage / Margin / Movers ek hi screen ke 4 tab hain — pehle 4 alag rows thin (duplicate).
+            _row(p, Loc.t('Inventory Insights', 'انوینٹری تجزیہ'),
+                Loc.t('Reorder, Damage / Loss, Profit Margin & Fast / Slow Movers', 'دوبارہ آرڈر، نقصان، منافع اور تیز / سست چلنے والے'),
+                p.flatAmberFg, () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.reorder))),
             _row(p, Loc.t('Rate Comparison', 'ریٹ کا موازنہ'),
                 Loc.t('Compare supplier rates per item', 'فی آئٹم سپلائرز کے ریٹ کا موازنہ'), p.flatTealFg,
                 () => _open(const RoleGuard(allowed: {'admin', 'manager'}, child: RateComparisonScreen()))),
@@ -303,10 +292,7 @@ class _ReportsBodyState extends State<_ReportsBody> {
 
   // ---------- results ----------
   List<Widget> _results(AppPalette p, ReportData d) => [
-        _summary(p, Icons.account_balance_wallet, Loc.t('Total Sales', 'کل سیل'), _rs(d.totalSales), p.flatBlueFg, p.flatBlueBg),
-        _summary(p, Icons.trending_up, Loc.t('Total Profit', 'کل منافع'), _rs(d.totalProfit), p.flatTealFg, p.flatTealBg),
         _summary(p, Icons.receipt_long, Loc.t('Total Purchases', 'کل خریداری'), _rs(d.totalPurchases), p.flatAmberFg, p.flatAmberBg),
-        _summary(p, Icons.trending_down, Loc.t('Total Expenses', 'کل اخراجات'), _rs(d.totalExpenses), p.red, p.flatCoralBg),
         _summary(p, Icons.undo, Loc.t('Sale Returns', 'سیل کی واپسی'), _rs(d.saleReturns), p.flatPinkFg, p.flatPinkBg),
         _summary(p, Icons.undo, Loc.t('Purchase Returns', 'خریداری کی واپسی'), _rs(d.purchaseReturns), p.flatTealFg, p.flatTealBg),
         _summary(p, Icons.tag, Loc.t('Number of Sales', 'سیلز کی تعداد'), '${d.saleCount}', p.flatBlueFg, p.flatBlueBg),
