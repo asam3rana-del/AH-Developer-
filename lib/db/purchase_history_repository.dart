@@ -76,10 +76,18 @@ PurchaseHistorySummary summarizePurchases(List<PurchaseHistoryRow> rows) {
 }
 
 /// Bill number ya supplier naam (case-insensitive); khali = sab.
-List<PurchaseHistoryRow> filterPurchaseRows(List<PurchaseHistoryRow> rows, String query) {
+/// [itemText] (optional): billNo -> us bill ke items ke naam (lowercase). Is se "Capstan" likh kar bhi
+/// wo bills milte hain jin mein Capstan khareeda gaya (kis supplier se liya tha).
+List<PurchaseHistoryRow> filterPurchaseRows(List<PurchaseHistoryRow> rows, String query,
+    {Map<String, String> itemText = const {}}) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return rows;
-  return rows.where((r) => r.billNo.toLowerCase().contains(q) || r.supplierName.toLowerCase().contains(q)).toList();
+  return rows
+      .where((r) =>
+          r.billNo.toLowerCase().contains(q) ||
+          r.supplierName.toLowerCase().contains(q) ||
+          (itemText[r.billNo]?.contains(q) ?? false))
+      .toList();
 }
 
 /// Return dialog ki ek line: kitni khareedi gayi thi.
@@ -158,6 +166,24 @@ class PurchaseHistoryRepository {
               status: (r['status'] as String?) ?? 'active',
             ))
         .toList();
+  }
+
+  /// billNo -> sab items ke naam + search tag (lowercase, ek string). Search mein item ka naam shamil karne ke liye.
+  Future<Map<String, String>> itemTextByBill() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.rawQuery('''
+      SELECT pi.billNo AS billNo, pi.itemName AS itemName, p.name AS pname, p.searchTag AS tag
+      FROM purchase_items pi LEFT JOIN products p ON p.barcode = pi.barcode
+    ''');
+    final out = <String, StringBuffer>{};
+    for (final r in rows) {
+      final b = out.putIfAbsent(r['billNo'] as String, () => StringBuffer());
+      for (final k in ['itemName', 'pname', 'tag']) {
+        final v = (r[k] as String?)?.trim() ?? '';
+        if (v.isNotEmpty) b.write('${v.toLowerCase()} ');
+      }
+    }
+    return {for (final e in out.entries) e.key: e.value.toString()};
   }
 
   Future<Purchase?> findPurchase(String billNo) async {

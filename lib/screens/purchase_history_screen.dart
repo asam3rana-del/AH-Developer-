@@ -9,6 +9,7 @@ import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
 import '../utils/bill_text.dart';
 import 'bill_preview_screen.dart';
+import '../models/purchase.dart';
 import '../utils/loc.dart';
 import '../widgets/role_guard.dart';
 import 'purchase_screen.dart';
@@ -22,7 +23,7 @@ import 'purchase_screen.dart';
 /// Role: admin-only (RoleGuard; PORTING_PLAN — Purchase admin-only). Return/Delete data layer par bhi check.
 ///
 /// Farq (Kotlin se):
-///  * Card tap = PurchaseScreen(editBillNo:) (saved purchase edit, Kotlin jaisa). Returned bill edit nahi
+///  * Card tap = bill ki items neeche expand (Sale History jaisa); edit = pencil icon -> PurchaseScreen(editBillNo:). Returned bill edit nahi
 ///    hota (Kotlin bhi rokta hai) — us par tap = bill ki lines ka detail dialog.
 ///  * Print = Bill Preview screen (Bluetooth / WhatsApp / Copy). Share = clipboard (share plugin nahi).
 ///  * Line ka naam bill par jama shuda (purani rows ke liye live product).
@@ -49,6 +50,12 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
   List<PurchaseHistoryRow> _rows = const [];
   PurchaseHistorySummary _summary = const PurchaseHistorySummary(0, 0);
   String _query = '';
+  Map<String, String> _itemText = const {};
+
+  // Card tap = bill neeche khulti hai (Sale History jaisa); edit alag pencil se.
+  final Set<String> _expanded = {};
+  final Map<String, List<PurchaseItem>> _items = {};
+  final Map<String, List<ReturnableLine>> _lines = {};
 
   AppPalette get _p => ThemeManager.palette;
   Color get _green => const Color(0xFF1E9E6B);
@@ -78,12 +85,37 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
   Future<void> _load({bool showSpinner = true}) async {
     if (showSpinner) setState(() => _loading = true);
     final rows = await _repo.allPurchases();
+    final itemText = await _repo.itemTextByBill();
     if (!mounted) return;
     setState(() {
       _rows = rows;
+      _itemText = itemText;
       _summary = summarizePurchases(rows);
+      _items.clear();
+      _lines.clear();
+      _expanded.removeWhere((b) => !rows.any((r) => r.billNo == b));
       _loading = false;
     });
+    for (final b in _expanded) {
+      _loadItems(b);
+    }
+  }
+
+  Future<void> _loadItems(String billNo) async {
+    final items = await _repo.itemsForBill(billNo);
+    final lines = await _repo.linesForBill(billNo);
+    if (!mounted) return;
+    setState(() {
+      _items[billNo] = items;
+      _lines[billNo] = lines;
+    });
+  }
+
+  void _toggle(String billNo) {
+    setState(() {
+      if (!_expanded.add(billNo)) _expanded.remove(billNo);
+    });
+    if (_expanded.contains(billNo) && !_items.containsKey(billNo)) _loadItems(billNo);
   }
 
   void _toast(String m) {
@@ -93,41 +125,10 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
 
   // ------------------------------------------------------------------ actions
 
-  /// Card tap: active bill => edit screen; returned bill => sirf lines ka detail dialog.
-  Future<void> _openBill(PurchaseHistoryRow r) async {
-    if (r.isReturned) return _details(r);
+  /// Pencil: sirf active bill edit hota hai (returned bill Kotlin mein bhi edit nahi hota).
+  Future<void> _edit(PurchaseHistoryRow r) async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => PurchaseScreen(editBillNo: r.billNo)));
     if (mounted) _load(showSpinner: false);
-  }
-
-  Future<void> _details(PurchaseHistoryRow r) async {
-    final items = await _repo.itemsForBill(r.billNo);
-    final lines = await _repo.linesForBill(r.billNo);
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${r.supplierName} · ${_dayFmt.format(DateTime.fromMillisecondsSinceEpoch(r.createdAt))}'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: items.isEmpty
-              ? Text(Loc.t('No items on this purchase.', 'اس خریداری میں کوئی آئٹم نہیں۔'))
-              : ListView(shrinkWrap: true, children: [
-                  for (var i = 0; i < items.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        '${lines[i].name}  —  ${_qty(items[i].qty)} ${lines[i].unit} × Rs ${_qty(items[i].unitCost)} = ${_rs(items[i].amount)}',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
-        ],
-      ),
-    );
   }
 
   /// Kotlin printPurchase(): DB se taza bill utha kar text preview.
@@ -236,7 +237,7 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
 
   @override
   Widget build(BuildContext context) {
-    final rows = filterPurchaseRows(_rows, _query);
+    final rows = filterPurchaseRows(_rows, _query, itemText: _itemText);
     return Scaffold(
       backgroundColor: _p.bg,
       appBar: AppBar(
@@ -313,7 +314,7 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
               onChanged: (v) => setState(() => _query = v),
               style: TextStyle(fontSize: 14.5, color: _p.textDark),
               decoration: InputDecoration(
-                hintText: Loc.t('Search bill no. or supplier…', 'بل نمبر یا سپلائر تلاش کریں…'),
+                hintText: Loc.t('Search supplier, item or bill no.…', 'سپلائر، آئٹم یا بل نمبر تلاش کریں…'),
                 hintStyle: TextStyle(color: _p.textMuted),
                 border: InputBorder.none,
               ),
@@ -326,63 +327,136 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
     final due = r.due;
     final duePill = due > 0;
     final pillColor = duePill ? _p.red : _green;
+    final open = _expanded.contains(r.billNo);
+    final items = _items[r.billNo];
+    final lines = _lines[r.billNo];
+    Widget act(IconData i, Color c, VoidCallback onTap) => InkWell(
+          onTap: onTap,
+          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Icon(i, size: 19, color: c)),
+        );
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(color: _p.cardWhite, borderRadius: BorderRadius.circular(18), border: Border.all(color: _p.border)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => _openBill(r),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Row(children: [
-                Flexible(child: Text(r.supplierName, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark))),
-                if (r.isActive)
-                  Container(
-                    margin: const EdgeInsets.only(left: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: pillColor.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: pillColor.withOpacity(0.35)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _toggle(r.billNo),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Row(children: [
+                  Flexible(child: Text(r.supplierName, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark))),
+                  if (r.isActive)
+                    Container(
+                      margin: const EdgeInsets.only(left: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: pillColor.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: pillColor.withOpacity(0.35)),
+                      ),
+                      child: Text(duePill ? Loc.t('DUE', 'باقی') : Loc.t('PAID', 'ادا شدہ'),
+                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: pillColor)),
                     ),
-                    child: Text(duePill ? Loc.t('DUE', 'باقی') : Loc.t('PAID', 'ادا شدہ'),
-                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: pillColor)),
-                  ),
-                const Spacer(),
-                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text(r.isActive ? Loc.t('Purchase', 'خریداری') : _cap(r.status), style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
-                  Text(_dayFmt.format(DateTime.fromMillisecondsSinceEpoch(r.createdAt)), style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+                  const Spacer(),
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Text(r.isActive ? Loc.t('Purchase', 'خریداری') : _cap(r.status), style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+                    Text(_dayFmt.format(DateTime.fromMillisecondsSinceEpoch(r.createdAt)), style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+                  ]),
                 ]),
-              ]),
-            ),
-            const SizedBox(height: 10),
-            Text(_rs(r.total), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _p.textDark)),
-            const SizedBox(height: 6),
-            Text('${Loc.t('Balance', 'باقی')}: ${_rs(due)}', style: TextStyle(fontSize: 12, color: _p.textMuted)),
-            if (r.isActive)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(icon: Icon(Icons.print_outlined, size: 19, color: _p.navy), onPressed: () => _print(r)),
-                  IconButton(icon: Icon(Icons.share_outlined, size: 19, color: _p.navy), onPressed: () => _share(r)),
-                  PopupMenuButton<int>(
-                    icon: Icon(Icons.more_vert, size: 19, color: _p.textMuted),
-                    onSelected: (v) => v == 1 ? _return(r) : _delete(r),
-                    itemBuilder: (_) => [
-                      PopupMenuItem(value: 1, child: Text(Loc.t('Return', 'واپسی'))),
-                      PopupMenuItem(value: 2, child: Text(Loc.t('Delete', 'حذف کریں'))),
-                    ],
-                  ),
-                ]),
-              )
-            else
+              ),
               const SizedBox(height: 10),
-          ]),
+              Row(children: [
+                Text(_rs(r.total), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: r.isReturned ? _p.red : _p.textDark)),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(open ? Icons.expand_less : Icons.expand_more, size: 22, color: _p.textMuted),
+                ),
+              ]),
+              const SizedBox(height: 4),
+              // Paid bill par "Balance: Rs 0" jagah gherta tha — ab sirf baqaya ho to "Due".
+              if (r.isActive && duePill)
+                Text('${Loc.t('Due', 'باقی')}: ${_rs(due)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _p.red)),
+              if (r.isActive)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    act(Icons.print_outlined, _p.navy, () => _print(r)),
+                    act(Icons.share_outlined, _p.navy, () => _share(r)),
+                    act(Icons.edit_outlined, _p.teal, () => _edit(r)),
+                    PopupMenuButton<int>(
+                      icon: Icon(Icons.more_vert, size: 19, color: _p.textMuted),
+                      onSelected: (v) => v == 1 ? _return(r) : _delete(r),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(value: 1, child: Text(Loc.t('Return', 'واپسی'))),
+                        PopupMenuItem(value: 2, child: Text(Loc.t('Delete', 'حذف کریں'))),
+                      ],
+                    ),
+                  ]),
+                )
+              else
+                const SizedBox(height: 10),
+            ]),
+          ),
         ),
-      ),
+        if (open)
+          items == null || lines == null
+              ? const Padding(padding: EdgeInsets.all(14), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
+              : _itemsPanel(r, items, lines),
+      ]),
+    );
+  }
+
+  /// Sale History jaisa saaf design: naam bold, neeche "qty unit × rate", amount daayen; neeche hisaab.
+  Widget _itemsPanel(PurchaseHistoryRow r, List<PurchaseItem> items, List<ReturnableLine> lines) {
+    if (items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: Text(Loc.t('No items on this purchase.', 'اس خریداری میں کوئی آئٹم نہیں۔'), style: TextStyle(fontSize: 12, color: _p.textMuted)),
+      );
+    }
+    final itemsTotal = items.fold<double>(0.0, (a, i) => a + i.amount);
+    final discount = itemsTotal - r.total;
+    Widget sumRow(String label, String value, {bool bold = false, Color? color}) => Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Row(children: [
+            Expanded(child: Text(label, style: TextStyle(fontSize: 12.5, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: color ?? _p.textMuted))),
+            Text(value, style: TextStyle(fontSize: bold ? 14 : 12.5, fontWeight: bold ? FontWeight.bold : FontWeight.w600, color: color ?? _p.textDark)),
+          ]),
+        );
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      decoration: BoxDecoration(color: _p.fieldFill, borderRadius: BorderRadius.circular(12), border: Border.all(color: _p.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: _p.border),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(width: 24, child: Text('${i + 1}.', style: TextStyle(fontSize: 12, color: _p.textMuted))),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(lines[i].name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _p.textDark)),
+                  const SizedBox(height: 2),
+                  Text('${_qty(items[i].qty)} ${lines[i].unit}  ×  Rs ${_qty(items[i].unitCost)}', style: TextStyle(fontSize: 12.5, color: _p.textMuted)),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Text(_rs(items[i].amount), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _p.textDark)),
+            ]),
+          ),
+        ],
+        Divider(height: 8, thickness: 1.5, color: _p.border),
+        sumRow('${Loc.t('Items', 'آئٹمز')}: ${items.length}', _rs(itemsTotal)),
+        if (discount > 0.5) sumRow(Loc.t('Discount', 'رعایت'), '- ${_rs(discount)}'),
+        sumRow(Loc.t('Total', 'کل'), _rs(r.total), bold: true, color: r.isReturned ? _p.red : _p.navy),
+        if (r.isActive && r.paid > 0.009) sumRow(Loc.t('Paid', 'ادا شدہ'), _rs(r.paid)),
+        if (r.isActive && r.due > 0.5) sumRow(Loc.t('Due', 'باقی'), _rs(r.due), bold: true, color: _p.red),
+      ]),
     );
   }
 
