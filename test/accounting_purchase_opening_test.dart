@@ -48,7 +48,8 @@ void main() {
         'phone': '',
         'creditLimit': 0.0,
         'openingBalance': openingBalance,
-        'balance': openingBalance,
+        // App opening balance alag column mein rakhta hai; stored `balance` sirf bills - payments hai.
+        'balance': 0.0,
         'stuckBalance': 0.0,
         'updatedAt': now,
         'dirty': 1,
@@ -58,7 +59,7 @@ void main() {
         'name': name,
         'phone': '',
         'openingBalance': openingBalance,
-        'balance': openingBalance,
+        'balance': 0.0,
         'updatedAt': now,
         'dirty': 1,
       });
@@ -211,9 +212,9 @@ void main() {
       paymentMethod: 'Cash',
     );
 
-    // Opening + naya bill - payment.
-    expect(await customerBalance(customerId), 450); // 100 + 400 - 50
-    expect(await supplierBalance(supplierId), 600); // 200 + 700 - 300
+    // Stored balance = sirf naye bills - payments (opening alag); balance sheet closing = opening + balance.
+    expect(await customerBalance(customerId), 350); // 400 - 50
+    expect(await supplierBalance(supplierId), 400); // 700 - 300
 
     sheet = await BalanceSheetRepository.instance.load();
     expect(sheet.figures.receivables, 450);

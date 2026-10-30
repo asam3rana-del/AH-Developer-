@@ -102,5 +102,20 @@ void main() {
         _argError('Rate'),
       );
     });
+
+    test('NaN / infinity qty or price -> error', () async {
+      for (final qty in [double.nan, double.infinity]) {
+        await expectLater(
+          repo.saveQuickSale(product: rice, qty: qty, price: 100, unit: 'kg', customerName: ''),
+          _argError('Qty'),
+        );
+      }
+      for (final price in [double.nan, double.infinity]) {
+        await expectLater(
+          repo.saveQuickSale(product: rice, qty: 1, price: price, unit: 'kg', customerName: 'Ali'),
+          _argError('Rate'),
+        );
+      }
+    });
   });
 }

@@ -17,6 +17,7 @@ import 'customer_repository.dart';
 import 'party_repository.dart' show PartyRepository, partyClosing;
 import 'product_repository.dart';
 import 'recycle_bin_repository.dart';
+import '../sync/device_tag.dart';
 import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
 import '../utils/stock_policy.dart';
@@ -170,12 +171,15 @@ class SaleRepository {
   }
 
   /// Mirrors invoice generation in `saveSale()`: MMyy + last 8 digits of the
-  /// current time in milliseconds.
+  /// current time in milliseconds + `-<deviceTag>`.
   String nextInvoiceNumber(int saleDateMillis) {
     final date = DateTime.fromMillisecondsSinceEpoch(saleDateMillis);
     final mmYY = '${date.month.toString().padLeft(2, '0')}${(date.year % 100).toString().padLeft(2, '0')}';
     final suffix = DateTime.now().millisecondsSinceEpoch.toString();
-    return mmYY + suffix.substring(suffix.length - 8);
+    // Device tag (purchase `nextBillNo()` jaisa): invoice hi primary key aur cloud doc id hai, aur akele
+    // 8-digit ms suffix har ~27.7 ghante baad dohrate hain — do devices ka bill sync par ek dusre ko
+    // overwrite kar sakta tha.
+    return '${mmYY + suffix.substring(suffix.length - 8)}-${DeviceTag.current}';
   }
 
   // ------------------------------------------------------------ Admin guard
@@ -485,6 +489,21 @@ class SaleRepository {
       final linkedAmount = (linked.first['total'] as num?)?.toDouble() ?? 0.0;
       if (linkedAmount > 0.009) {
         throw ArgumentError('Linked payment maujood hai. Pehle payment ko unlink/reassign karen, phir customer badlein.');
+      }
+    }
+
+    // Bill-linked payments (Receive Payment > link to bill) already hold real money with their own cash rows.
+    // Total unse neeche ho jaye to `paid` clamp hota hai aur extra raqam na cash book mein rehti hai, na party
+    // balance (advance) mein — chupke se gayab. Is liye aisa edit rok do; pehle payment edit/delete ho.
+    if (original != null) {
+      final linkedRows = await db.rawQuery(
+        'SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE billReference = ? AND reference != ?',
+        [original.invoice, original.invoice],
+      );
+      final linkedPaid = (linkedRows.first['total'] as num?)?.toDouble() ?? 0.0;
+      if (total + 0.009 < linkedPaid) {
+        throw ArgumentError(
+            'Is bill par Rs ${linkedPaid.toStringAsFixed(0)} ki linked payment maujood hai, bill total (Rs ${total.toStringAsFixed(0)}) us se kam nahi ho sakta. Pehle payment ko edit ya delete karen.');
       }
     }
 
@@ -853,18 +872,30 @@ class SaleRepository {
       final itemRows = await txn.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       final now = DateTime.now().millisecondsSinceEpoch;
 
+      // Line amounts discount / rounding se PEHLE ke hain; refund bill total ke mutabiq ho, is liye har line
+      // total/subtotal se scale hoti hai aur aakhri line baqi farq (rounding) utha leti hai.
+      final lineSum = itemRows.fold<double>(0, (sum, r) => sum + ((r['amount'] as num?)?.toDouble() ?? 0.0));
+      final scale = lineSum > 0.009 ? sale.total / lineSum : 1.0;
+      var returnedSoFar = 0.0;
+      var lineNo = 0;
       for (final r in itemRows) {
+        lineNo++;
         final si = SaleItem.fromMap(r);
         final pr = await txn.query('products', where: 'barcode=?', whereArgs: [si.barcode], limit: 1);
         final product = pr.isEmpty ? null : Product.fromMap(pr.first);
         await _increaseStock(txn, si.barcode, saleItemSmallestQty(si, product), now,
             type: MovementType.saleReversal, reference: invoice);
+        final isLast = lineNo == itemRows.length;
+        final retAmount = lineSum > 0.009
+            ? (isLast ? sale.total - returnedSoFar : si.amount * scale)
+            : si.amount;
+        returnedSoFar += retAmount;
         final ret = ReturnLine(
           reference: invoice,
           type: 'sale',
           barcode: si.barcode,
           qty: si.qty,
-          amount: si.amount,
+          amount: retAmount,
           createdAt: now,
         );
         final retId = await txn.insert('returns', ret.toMap());
@@ -948,12 +979,14 @@ class SaleRepository {
     required String customerName,
     bool overrideCreditLimit = false,
   }) async {
-    if (qty <= 0.0) throw ArgumentError('Qty 0 se zyada honi chahiye');
-    if (price < 0.0) throw ArgumentError('Rate negative nahi ho sakta');
+    if (!qty.isFinite || qty <= 0.0) throw ArgumentError('Qty finite aur 0 se zyada honi chahiye');
+    if (!price.isFinite || price < 0.0) throw ArgumentError('Rate finite aur negative nahi ho sakta');
 
     final name = customerName.trim();
     final isCredit = name.isNotEmpty;
-    final amount = qty * price;
+    // Bill total poore rupee par (nearest Rs), jaise saveSale() / DiscountCalculator.
+    final amount = (qty * price).roundToDouble();
+    if (!amount.isFinite) throw ArgumentError('Sale total finite hona chahiye');
 
     if (isCredit && !overrideCreditLimit) {
       final customers = await CustomerRepository.instance.listAll();
