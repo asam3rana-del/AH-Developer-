@@ -33,7 +33,7 @@ Future<Database> _memDb() async {
     defaultUnitIndex INTEGER NOT NULL DEFAULT -1, quickSaleDefaultUnitIndex INTEGER NOT NULL DEFAULT -1)''');
   await x('''CREATE TABLE users (username TEXT PRIMARY KEY NOT NULL, displayName TEXT NOT NULL,
     role TEXT NOT NULL, passwordHash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
-    phone TEXT NOT NULL DEFAULT '')''');
+    phone TEXT NOT NULL DEFAULT '', permissions TEXT NOT NULL DEFAULT '')''');
   await x('''CREATE TABLE audit (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
     action TEXT NOT NULL, reference TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '',
     createdAt INTEGER NOT NULL)''');

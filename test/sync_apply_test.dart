@@ -33,7 +33,7 @@ Future<Database> _memDb() async {
     defaultUnitIndex INTEGER NOT NULL DEFAULT -1, quickSaleDefaultUnitIndex INTEGER NOT NULL DEFAULT -1)''');
   await x('''CREATE TABLE users (username TEXT PRIMARY KEY NOT NULL, displayName TEXT NOT NULL,
     role TEXT NOT NULL, passwordHash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
-    phone TEXT NOT NULL DEFAULT '')''');
+    phone TEXT NOT NULL DEFAULT '', permissions TEXT NOT NULL DEFAULT '')''');
   await x('''CREATE TABLE audit (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
     action TEXT NOT NULL, reference TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '',
     createdAt INTEGER NOT NULL)''');
@@ -311,6 +311,24 @@ void main() {
       expect(r['role'], 'cashier');
       expect(r['active'], 1);
       expect(r['passwordHash'], startsWith('hash('));
+      expect(r['permissions'], '');
+    });
+
+    test('access rules (permissions): cloud se aayen to lagen; purani row mein na hon to local na mitayen', () async {
+      await _apply(db, PullResult(users: [
+        {'username': 'sara', 'displayName': 'Sara', 'permissions': '{"stock_audit":true}'},
+      ]));
+      expect((await db.query('users')).single['permissions'], '{"stock_audit":true}');
+      // purane app version ki row: 'permissions' key hi nahi
+      await _apply(db, PullResult(users: [
+        {'username': 'sara', 'displayName': 'Sara K', 'role': 'cashier'},
+      ]));
+      expect((await db.query('users')).single['permissions'], '{"stock_audit":true}');
+      // admin ne sab reset kiya: khali string cloud se aaye to local bhi khali
+      await _apply(db, PullResult(users: [
+        {'username': 'sara', 'displayName': 'Sara K', 'permissions': ''},
+      ]));
+      expect((await db.query('users')).single['permissions'], '');
     });
 
     test('maujood user: password hash nahi chhoota; active bool; delete', () async {
