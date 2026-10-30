@@ -296,7 +296,7 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
               Expanded(
                 child: Text(g.customerName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _p.textDark)),
               ),
-              Text('${g.sales.length} ${Loc.t('sales', 'سیلز')} · ${_rs(g.total)}', style: TextStyle(fontSize: 12, color: _p.textMuted)),
+              Text('${g.activeCount} ${Loc.t('sales', 'سیلز')} · ${_rs(g.total)}', style: TextStyle(fontSize: 12, color: _p.textMuted)),
             ]),
             if (_admin)
               Padding(

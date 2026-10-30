@@ -43,7 +43,9 @@ class SaleGroup {
   const SaleGroup(this.customerName, this.sales);
 
   int get lastActiveAt => sales.map((s) => s.createdAt).fold(0, (a, b) => a > b ? a : b);
-  double get total => sales.fold(0.0, (a, s) => a + s.total);
+  /// Returned bills ke bina (upar ke "Total Sales" card jaisa) — header ka count / total returned bill ko nahi ginta.
+  int get activeCount => sales.where((s) => !s.isReturned).length;
+  double get total => sales.fold(0.0, (a, s) => s.isReturned ? a : a + s.total);
   double profit(Map<String, double> profits) => sales.fold(0.0, (a, s) => a + (profits[s.invoice] ?? 0.0));
 }
 

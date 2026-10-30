@@ -26,6 +26,18 @@ void main() {
     expect(s.totalReturned, 60);
   });
 
+  test('group header count and total skip returned bills', () {
+    final mixed = [
+      sale('W1', 'Walk-in', 250, 10),
+      sale('W2', 'Walk-in', 140, 20),
+      sale('W3', 'Walk-in', 1925, 30, status: 'returned'),
+    ];
+    final g = groupSalesByCustomer(mixed).single;
+    expect(g.sales.length, 3); // returned bill list mein phir bhi dikhta hai
+    expect(g.activeCount, 2);
+    expect(g.total, 390);
+  });
+
   test('customer profit = sum of bill profits, returned/unknown = 0', () {
     final g = groupSalesByCustomer(sales);
     final profits = {'A1': 20.0, 'A2': 50.0, 'B1': 90.0};

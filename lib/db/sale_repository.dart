@@ -172,14 +172,16 @@ class SaleRepository {
 
   /// Mirrors invoice generation in `saveSale()`: MMyy + last 8 digits of the
   /// current time in milliseconds + `-<deviceTag>`.
-  String nextInvoiceNumber(int saleDateMillis) {
+  ///
+  /// [nowMillis] / [deviceTag] sirf tests ke liye (do devices ka ek hi millisecond simulate karne ke liye).
+  String nextInvoiceNumber(int saleDateMillis, {int? nowMillis, String? deviceTag}) {
     final date = DateTime.fromMillisecondsSinceEpoch(saleDateMillis);
     final mmYY = '${date.month.toString().padLeft(2, '0')}${(date.year % 100).toString().padLeft(2, '0')}';
-    final suffix = DateTime.now().millisecondsSinceEpoch.toString();
+    final suffix = (nowMillis ?? DateTime.now().millisecondsSinceEpoch).toString();
     // Device tag (purchase `nextBillNo()` jaisa): invoice hi primary key aur cloud doc id hai, aur akele
     // 8-digit ms suffix har ~27.7 ghante baad dohrate hain — do devices ka bill sync par ek dusre ko
     // overwrite kar sakta tha.
-    return '${mmYY + suffix.substring(suffix.length - 8)}-${DeviceTag.current}';
+    return '${mmYY + suffix.substring(suffix.length - 8)}-${deviceTag ?? DeviceTag.current}';
   }
 
   // ------------------------------------------------------------ Admin guard
