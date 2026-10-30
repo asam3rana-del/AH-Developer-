@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function staff() {
+      return request.auth != null && request.auth.token.active == true
+        && request.auth.token.staffId is string && request.auth.token.branchId is string
+        && request.auth.token.role in ['admin','manager','cashier'];
+    }
+    function ownBranch(b) { return staff() && b == request.auth.token.branchId; }
+    function adminManager() { return staff() && request.auth.token.role in ['admin','manager']; }
+    function adminOnly() { return staff() && request.auth.token.role == 'admin'; }
+    match /staff_accounts/{id} { allow read, write: if false; }
+    match /_auth_rate_limits/{id} { allow read, write: if false; }
+    match /branch_members/{id} { allow read, write: if false; }
+    match /{collection}/{docId} {
+      function synced() {
+        return collection in ['customers','suppliers','products','users','sales','purchases',
+          'payments','expenses','cash_transactions','cash_register','units','categories',
+          'zakat_years','zakat_payments','returns','stock_movements','app_settings',
+          'shell_customers','shell_transactions','shop_empty_shell_log','workers',
+          'worker_attendance','worker_advances','worker_salary_payments','shop_rents',
+          'shop_rent_ledger','utility_bills','utility_bill_payments'];
+      }
+      allow read: if synced() && ownBranch(resource.data.branchId);
+      // Cashier direct writes intentionally denied until the POS operation is server-side.
+      allow create: if synced() && ownBranch(request.resource.data.branchId) && adminManager();
+      allow update: if synced() && ownBranch(resource.data.branchId)
+        && ownBranch(request.resource.data.branchId) && adminManager();
+      allow delete: if synced() && ownBranch(resource.data.branchId) && adminOnly();
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

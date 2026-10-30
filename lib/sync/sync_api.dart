@@ -7,6 +7,7 @@ import 'package:sqflite/sqflite.dart';
 import '../db/app_database.dart';
 import '../db/maintenance_sync.dart';
 import '../models/misc_entities.dart';
+import '../services/staff_auth.dart';
 import '../utils/qty_math.dart';
 import '../utils/loc.dart';
 import 'branch_config_store.dart';
@@ -80,6 +81,17 @@ class SyncApi implements SyncBackend {
       return null;
     }
     final auth = FirebaseAuth.instanceFor(app: app);
+    if (await StaffAuth.isEnabled()) {
+      // Secure mode: kabhi anonymous sign-in nahi. Verified staff session (claims) chahiye.
+      if (!await StaffAuth.hasVerifiedSession()) {
+        connectIssue = Loc.t(
+          'Secure cloud login is ON but this device is not signed in to the cloud — log in again with your password while online.',
+          'سیکیور کلاؤڈ لاگ اِن آن ہے مگر یہ ڈیوائس کلاؤڈ میں سائن اِن نہیں — انٹرنیٹ کے ساتھ پاس ورڈ سے دوبارہ لاگ اِن کریں۔',
+        );
+        return null;
+      }
+      return FirebaseFirestore.instanceFor(app: app);
+    }
     if (auth.currentUser == null) {
       try {
         await auth.signInAnonymously().timeout(const Duration(seconds: 20));

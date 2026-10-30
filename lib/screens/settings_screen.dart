@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
+import '../services/staff_auth.dart';
 import '../services/app_lock.dart';
 import '../services/biometric.dart';
 import '../services/printer_service.dart';
@@ -425,6 +426,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(Loc.t('Needs Cloud Sync Setup; staff phone in Manage Users', 'Cloud Sync Setup ضروری؛ اسٹاف کا فون Manage Users میں')),
             ),
           ]),
+        _card(Loc.t('Secure Cloud Login (staff)', 'سیکیور کلاؤڈ لاگ اِن (اسٹاف)'), Icons.verified_user, [
+          FutureBuilder<bool>(
+            future: StaffAuth.isEnabled(),
+            builder: (context, snap) => SwitchListTile(
+              value: snap.data ?? false,
+              onChanged: (v) async {
+                await StaffAuth.setEnabled(v);
+                if (mounted) setState(() {});
+              },
+              title: Text(Loc.t('Sign in to cloud with staff account', 'اسٹاف اکاؤنٹ سے کلاؤڈ میں سائن اِن')),
+              subtitle: Text(Loc.t(
+                  'OFF = current behaviour. ON needs the staff backend + App Check set up (see docs/STAFF_AUTH_BACKEND_SETUP.md); sync never falls back to anonymous.',
+                  'آف = موجودہ طریقہ۔ آن کے لیے اسٹاف بیک اینڈ + App Check سیٹ اپ ضروری ہے؛ سنک کبھی anonymous پر واپس نہیں جاتا۔')),
+            ),
+          ),
+        ]),
         _card(Loc.t('My Login', 'میرا لاگ اِن'), Icons.person, [
           _tf(TextEditingController(text: Session.username ?? ''), Loc.t('Current Username', 'موجودہ یوزر نیم'), enabled: false),
           _tf(_newUsername, Loc.t('New Username', 'نیا یوزر نیم')),

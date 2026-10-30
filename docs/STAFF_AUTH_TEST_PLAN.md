@@ -1,0 +1,11 @@
+# Staff authentication test plan
+- Active admin/manager/cashier each receive only their assigned immutable staff ID, branch and role claims.
+- Unknown username and wrong password return identical unauthenticated errors.
+- Inactive accounts and plaintext legacy credentials are rejected.
+- Malformed PBKDF2 strings fail closed without crashing.
+- Account/IP throttles engage at configured limits.
+- App Check rejects untrusted requests after enforcement is enabled.
+- `getMyStaffContext` rejects anonymous and claimless sessions.
+- Firestore emulator denies cross-branch access and client access to staff/rate-limit documents.
+- Manager cannot delete; cashier cannot directly write; admin can delete only within own branch.
+- Test token revocation/deactivation: custom claims remain until token refresh/expiry unless sessions are explicitly revoked.

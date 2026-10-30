@@ -22,6 +22,8 @@ dependencies:
   # Cloud sync (mirrors SyncApi.kt / SyncRepository.kt — Firestore backend)
   firebase_core: ^3.1.0
   cloud_firestore: ^5.0.1
+  cloud_functions: ^5.1.0     # Staff cloud login: callable `staffLogin` (opt-in)
+  firebase_app_check: ^0.3.0  # staffLogin enforceAppCheck (opt-in)
   firebase_auth: ^5.1.0       # SyncApi: anonymous sign-in (Firestore rules request.auth != null)
   connectivity_plus: ^6.0.3   # NetworkMonitor: internet wapas aane par sync trigger
   workmanager: ^0.5.2         # Android: band app par bhi 12 PM / 9 PM backup checkpoint (BackupCheckpointWorker)

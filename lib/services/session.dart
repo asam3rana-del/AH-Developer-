@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/misc_entities.dart';
+import 'staff_auth.dart';
 
 /// Mirrors the Android "session" SharedPreferences {username, role}.
 class Session {
@@ -53,5 +54,6 @@ class Session {
     await p.remove('session_displayName');
     await p.remove('session_role');
     await p.remove('session_permissions');
+    await StaffAuth.signOutIfEnabled();
   }
 }

@@ -52,19 +52,21 @@ echo "=== app build.gradle (verify proguard) ==="
 grep -n "proguard\|signingConfig" "$GRADLE"
 grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build.gradle"; exit 1; }
 
-# --- Fixed signing key: har build par wahi key, taake APK purani app ke upar update ho sake. ---
-# Secret KEYSTORE_BASE64 (GitHub repo secret) se keystore banti hai. Na ho to debug key (update nahi hoga).
-if [ -n "$KEYSTORE_BASE64" ]; then
-  [ -n "$KEYSTORE_PASSWORD" ] || { echo "ERROR: KEYSTORE_PASSWORD secret set nahi (GitHub repo secret banayein)"; exit 1; }
-  echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload.jks
-  sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword System.getenv('KEYSTORE_PASSWORD')\n\1        keyAlias 'ahkey'\n\1        keyPassword System.getenv('KEY_PASSWORD') ?: System.getenv('KEYSTORE_PASSWORD')\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
-  sed -i -E 's/signingConfigs\.debug/signingConfigs.release/' "$GRADLE"
-  echo "=== app build.gradle (verify signing) ==="
-  grep -n "signingConfig\|upload.jks" "$GRADLE"
-  grep -q "signingConfigs.release" "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
-else
-  echo "WARNING: KEYSTORE_BASE64 secret nahi mila, debug key use hogi (update install nahi hoga)"
-fi
+# --- Production signing is mandatory: never publish a release APK signed with the debug key. ---
+: "${KEYSTORE_BASE64:=}"
+: "${KEYSTORE_PASSWORD:=}"
+: "${KEY_PASSWORD:=}"
+[ -n "$KEYSTORE_BASE64" ] || { echo "ERROR: KEYSTORE_BASE64 secret missing; refusing an update-incompatible debug-signed release."; exit 1; }
+[ -n "$KEYSTORE_PASSWORD" ] || { echo "ERROR: KEYSTORE_PASSWORD secret missing."; exit 1; }
+[ -n "$KEY_PASSWORD" ] || { echo "ERROR: KEY_PASSWORD secret missing."; exit 1; }
+printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/upload.jks || { echo "ERROR: KEYSTORE_BASE64 is not valid base64."; exit 1; }
+[ -s android/app/upload.jks ] || { echo "ERROR: decoded keystore is empty."; exit 1; }
+keytool -list -keystore android/app/upload.jks -storepass "$KEYSTORE_PASSWORD" -alias ahkey >/dev/null 2>&1 || { echo "ERROR: keystore is invalid or alias 'ahkey' / store password is incorrect."; exit 1; }
+sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword System.getenv('KEYSTORE_PASSWORD')\n\1        keyAlias 'ahkey'\n\1        keyPassword System.getenv('KEY_PASSWORD')\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
+sed -i -E 's/signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/signingConfig signingConfigs.release/' "$GRADLE"
+echo "=== app build.gradle (verify signing) ==="
+grep -n "signingConfig\|upload.jks" "$GRADLE"
+grep -q "signingConfigs.release" "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
 
 # --- Security: Android auto-backup band (DeviceTag/sync prefs doosre phone par copy na hon). ---
 if ! grep -q 'android:allowBackup' "$MANIFEST"; then

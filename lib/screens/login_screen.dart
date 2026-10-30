@@ -10,6 +10,7 @@ import '../services/app_lock.dart';
 import '../services/biometric.dart';
 import '../services/otp_login.dart';
 import '../services/session.dart';
+import '../services/staff_auth.dart';
 import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
 import 'dashboard_screen.dart';
@@ -210,6 +211,14 @@ class _LoginScreenState extends State<LoginScreen> {
       return setState(() { _busy = false; _error = msg; });
     }
     _failCount = 0;
+    // Secure staff cloud login (opt-in). Local login kabhi block nahi hota; cloud nakaam ho to sirf sync ruki rehti hai.
+    if (await StaffAuth.isEnabled()) {
+      final cloudOk = await StaffAuth.signIn(user!.username, typed);
+      if (!cloudOk && mounted) {
+        _toast(Loc.t('Cloud sync login failed: ${StaffAuth.lastError} (working offline)',
+            'کلاؤڈ لاگ اِن ناکام: ${StaffAuth.lastError} (آف لائن چل رہا ہے)'));
+      }
+    }
     await _repo.setSetting('last_username', user!.username);
     final method = await _repo.getSetting('login_method') ?? 'password';
     if (method == 'both') {

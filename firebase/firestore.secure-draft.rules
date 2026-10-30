@@ -1,0 +1,88 @@
+rules_version = '2';
+
+// SECURITY MIGRATION DRAFT — DO NOT DEPLOY YET.
+// Requires a trusted backend to issue Firebase custom claims after staff
+// authentication. Required claims: staffId, branchId, role, active=true.
+// Anonymous auth and locally-only username/password sessions do NOT satisfy this.
+// The current client sync writes related stock/customer balances separately;
+// cashier writes are intentionally denied until those operations move to a
+// trusted callable/HTTPS backend with atomic validation.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function staffClaimsValid() {
+      return signedIn()
+        && request.auth.token.get('active', false) == true
+        && request.auth.token.get('staffId', '') is string
+        && request.auth.token.get('staffId', '') != ''
+        && request.auth.token.get('branchId', '') is string
+        && request.auth.token.get('branchId', '') != ''
+        && request.auth.token.get('role', '') in ['admin', 'manager', 'cashier']
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function role() { return request.auth.token.get('role', ''); }
+    function isAdmin() { return staffClaimsValid() && role() == 'admin'; }
+    function isManager() { return staffClaimsValid() && role() == 'manager'; }
+    function isAdminOrManager() { return isAdmin() || isManager(); }
+    function sameBranch(data) {
+      return staffClaimsValid()
+        && data.branchId is string
+        && data.branchId == request.auth.token.branchId;
+    }
+    function branchUnchanged() {
+      return !resource.data.keys().hasAny(['branchId'])
+        || request.resource.data.branchId == resource.data.branchId;
+    }
+    function knownSyncedCollection(c) {
+      return c in [
+        'customers', 'suppliers', 'products', 'sales', 'purchases',
+        'payments', 'expenses', 'cash_transactions', 'cash_register',
+        'units', 'categories', 'zakat_years', 'zakat_payments', 'returns',
+        'stock_movements', 'app_settings', 'shell_customers',
+        'shell_transactions', 'shop_empty_shell_log', 'workers',
+        'worker_attendance', 'worker_advances', 'worker_salary_payments',
+        'shop_rents', 'shop_rent_ledger', 'utility_bills',
+        'utility_bill_payments'
+      ];
+    }
+    function cashierReadable(c) {
+      return c in ['customers', 'products', 'sales', 'payments', 'units',
+                   'categories', 'stock_movements', 'shell_customers',
+                   'shell_transactions', 'shop_empty_shell_log'];
+    }
+
+    // Membership and role are claims issued by trusted server code, not client docs.
+    // The old branch_members/{uid} mapping is not an authorization source here.
+    match /branch_members/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Staff directory/credentials must be managed only by trusted backend code.
+    match /users/{docId} {
+      allow read, write: if false;
+    }
+
+    match /{collection}/{docId} {
+      allow read: if knownSyncedCollection(collection)
+        && sameBranch(resource.data)
+        && (isAdminOrManager() || cashierReadable(collection));
+
+      // Admin/manager writes are branch-scoped. Cashier writes remain denied
+      // until sale/payment/stock/customer balance updates are server-mediated.
+      allow create: if knownSyncedCollection(collection)
+        && sameBranch(request.resource.data)
+        && isAdminOrManager();
+      allow update: if knownSyncedCollection(collection)
+        && sameBranch(resource.data)
+        && sameBranch(request.resource.data)
+        && branchUnchanged()
+        && isAdminOrManager();
+      allow delete: if knownSyncedCollection(collection)
+        && sameBranch(resource.data)
+        && isAdmin();
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

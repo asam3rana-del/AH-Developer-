@@ -23,3 +23,7 @@ Zip mein exactly ek wrapper folder (`AH-Developer--main/`) hona chahiye; repo ro
 
 ## Checks (local)
 `flutter analyze && flutter test`, aur `bash tools/check_root.sh` (root par faltu cheezein pakadta hai).
+
+
+## Staff authentication backend
+See `docs/STAFF_AUTH_BACKEND_SETUP.md` and `docs/STAFF_AUTH_TEST_PLAN.md`. Backend foundation only; Flutter login/sync migration and cashier server-side sale endpoint are not yet wired. Do not deploy claims rules to production yet.
