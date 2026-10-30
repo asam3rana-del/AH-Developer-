@@ -34,7 +34,7 @@ String adjustmentType(AdjustmentKind kind) =>
 ///  * piece-based item (smallest unit Piece/Bottle...) mein 1.5 jaisi fraction nahi (Product.isValidSmallestQty);
 ///  * kam karne par itna stock hona chahiye (Kotlin DAO `decrease` guard).
 String? validateAdjustment(Product p, AdjustmentKind kind, double? qty) {
-  if (qty == null || qty <= 0) return 'Darust miqdaar likhen';
+  if (qty == null || !qty.isFinite || qty <= 0) return 'Darust miqdaar likhen'; // NaN / Infinity bhi rad
   if (!p.isValidSmallestQty(qty)) {
     return 'Miqdaar poori ${p.smallestUnitName()} mein honi chahiye (fraction nahi)';
   }

@@ -61,12 +61,15 @@ List<Product> filterStockTakeProducts(List<Product> all, String query) {
 }
 
 /// Kitne items ki gintee likhi ja chuki (sirf wo jo number hain) — Kotlin updateSummary().
-int countedItems(Map<String, String> entered) => entered.values.where((t) => double.tryParse(t.trim()) != null).length;
+int countedItems(Map<String, String> entered) =>
+    entered.values.where((t) => double.tryParse(t.trim()) != null).length; // NaN/Infinity validateCount rokta hai
 
 /// null = theek. Kotlin negative gintee bhi maan leta tha; yahan negative rad aur piece-based item mein fraction rad
 /// (Product.isValidSmallestQty), taake stock negative ya 1.5 pcs na ho jaye.
 String? validateCount(Product p, double? counted) {
   if (counted == null) return null; // khali = gina hi nahi
+  // double.tryParse('NaN') / ('Infinity') number ban jate hain — stock kharab na ho.
+  if (!counted.isFinite) return '${p.name}: gintee ka number darust nahi';
   if (counted < 0) return '${p.name}: gintee manfi nahi ho sakti';
   if (!p.isValidSmallestQty(counted)) {
     return '${p.name}: gintee poori ${p.smallestUnitName()} mein honi chahiye (fraction nahi)';
@@ -153,6 +156,11 @@ class StockTakingRepository {
       throw const StockTakingException('Stock Taking sirf Admin/Manager kar sakta hai');
     }
     if (variances.isEmpty) throw const StockTakingException('Koi farq nahi');
+    // Repository level par bhi: UI ke bypass ho jane par bhi NaN / Infinity / manfi gintee save nahi hoti.
+    for (final v in variances) {
+      final bad = validateCount(v.product, v.counted);
+      if (bad != null) throw StockTakingException(bad);
+    }
     final db = await AppDatabase.instance.database;
     final sessionId = stockTakeSessionId(DateTime.now());
     final cleanNote = note.trim();

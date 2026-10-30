@@ -24,6 +24,8 @@ void main() {
     test('null / 0 / negative qty rad', () {
       expect(validateAdjustment(p, AdjustmentKind.damage, null), isNotNull);
       expect(validateAdjustment(p, AdjustmentKind.damage, 0), isNotNull);
+      expect(validateAdjustment(p, AdjustmentKind.correctionAdd, double.nan), isNotNull);
+      expect(validateAdjustment(p, AdjustmentKind.correctionAdd, double.infinity), isNotNull);
       expect(validateAdjustment(p, AdjustmentKind.correctionAdd, -1), isNotNull);
     });
 

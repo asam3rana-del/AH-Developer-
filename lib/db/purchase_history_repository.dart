@@ -114,7 +114,7 @@ ReturnRequest parseReturnRequest(List<ReturnableLine> lines, Map<int, String> in
     final text = (inputs[l.itemId] ?? '').trim();
     if (text.isEmpty) continue;
     final qty = double.tryParse(text);
-    if (qty == null || qty < 0) return ReturnRequest(const {}, 'Enter a valid quantity for "${l.name}"');
+    if (qty == null || !qty.isFinite || qty < 0) return ReturnRequest(const {}, 'Enter a valid quantity for "${l.name}"');
     if (qty == 0) continue;
     if (qty > l.qty + 0.0001) {
       return ReturnRequest(const {}, 'Return qty for "${l.name}" can\'t exceed purchased qty (${fmt(l.qty)})');
@@ -341,6 +341,8 @@ class PurchaseHistoryRepository {
 
       final backfillBarcodes = <String>{};
       for (final e in requested.entries) {
+        // NaN / Infinity UI se bypass ho kar aaye to bhi stock/cost/balance kharab na ho.
+        if (!e.value.isFinite) throw StateError('Return ki miqdaar darust nahi');
         if (e.value <= 0) continue;
         final ir = await txn.query('purchase_items', where: 'id = ?', whereArgs: [e.key], limit: 1);
         if (ir.isEmpty) continue;
@@ -354,7 +356,7 @@ class PurchaseHistoryRepository {
         final amount = returnedLineAmount(lineQty: item.qty, lineAmount: item.amount, unitCost: item.unitCost, returnQty: qty);
 
         if (product != null && smallest > 0) {
-          if (smallest > product.stock) {
+          if (!hasEnoughStock(product.stock, smallest)) {
             throw InsufficientStockException(
                 '"${product.name}" ka stock is purchase ke baad already kam ho chuka hai (sale ya doosri entry se) — itni miqdaar wapas karna cost ko galat kar dega.');
           }

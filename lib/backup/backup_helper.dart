@@ -42,6 +42,8 @@ class BackupHelper {
   static const folderName = 'IBTISAAM POS Backups';
   static const backupExtension = 'ibbackup';
   static const _lastBackupKey = 'backup_throttle_last_backup_at_millis';
+  static const _pendingDownloadsKey = 'backup_downloads_pending';
+  static const _maxPendingDownloads = 10;
 
   // Kotlin `SQLITE_HEADER`: "SQLite format 3\u0000"
   static const List<int> _sqliteHeader = [
@@ -115,7 +117,7 @@ class BackupHelper {
 
   // ---------------- backup ----------------
 
-  /// Live DB ka WAL checkpoint kar ke encrypted copy banata hai. Null => fail (dekhein [lastError]).
+  /// Live DB ka consistent snapshot (VACUUM INTO) le kar encrypt + verify karta hai. Null => fail (dekhein [lastError]).
   static Future<File?> backupNow() async {
     if (_busy) {
       lastError = 'Doosra backup / restore chal raha hai';
@@ -139,23 +141,62 @@ class BackupHelper {
       return null;
     }
 
-    // Kotlin FIX: WAL ka data main .db mein aaye, warna taaza entries backup se reh jati hain.
-    try {
-      await AppDatabase.instance.checkpointWal();
-    } catch (_) {}
-
     final stamp = DateFormat('yyyy-MM-dd_HH-mm').format(DateTime.now());
     final tag = await deviceTag();
     final fileName = 'IBTISAAM_${tag}_backup_$stamp.$backupExtension';
+    // Password pehle: Keystore kharab ho to yahin ruk jao (naya password nahi banta).
     final password = await BackupPasswordStore.getOrCreate();
     final dest = File(p.join((await backupFolder()).path, fileName));
-    await BackupCrypto.encryptFile(dbFile, dest, password);
+
+    final snapshot = File('${dest.path}.snapshot_tmp');
+    final verifyTmp = File('${dest.path}.verify_tmp');
+    try {
+      // 1) Consistent snapshot (VACUUM INTO) — chalti writes ke beech adhoori copy nahi banti.
+      await _makeSnapshot(dbFile, snapshot);
+
+      // 2) Snapshot khud theek hai? (header + quick_check) — kharab DB ka backup na banao.
+      if (!await _isValidSqliteDb(snapshot) || !await _quickCheckOk(snapshot.path)) {
+        lastError = 'Live database ka snapshot integrity check mein fail — backup nahi banaya';
+        return null;
+      }
+
+      // 3) Encrypt, phir wapas decrypt kar ke snapshot se bytes-barabar compare (verify).
+      await BackupCrypto.encryptFile(snapshot, dest, password);
+      await BackupCrypto.decryptFile(dest, verifyTmp, password);
+      if (!await _sameBytes(snapshot, verifyTmp)) {
+        await _deleteQuietly(dest);
+        lastError = 'Backup verify fail (decrypt ke baad data match nahi hua) — backup hata diya gaya';
+        return null;
+      }
+    } catch (e) {
+      await _deleteQuietly(dest);
+      lastError = e is BackupCryptoException ? e.message : e.toString();
+      return null;
+    } finally {
+      await _deleteQuietly(snapshot);
+      await _deleteQuietly(verifyTmp);
+    }
+
     // Kotlin copyToDownloads: public Downloads/<folderName> mein extra copy (best-effort, fail par backup theek rehta hai).
-    await DownloadsCopy.copy(dest, folder: folderName, fileName: fileName);
+    // Background isolate mein channel nahi hota => copy fail; us file ko "pending" likh lete hain,
+    // app agli dafa screen par aaye to [flushPendingDownloadsCopies] copy kar deta hai.
+    final copied = await DownloadsCopy.copy(dest, folder: folderName, fileName: fileName);
+    if (!copied && Platform.isAndroid) await _addPendingDownloads(dest.path);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
     return dest;
+  }
+
+  /// Restore/import ke andar safety backup: lock (`_busy`) pehle se hamare paas hai, isliye usay
+  /// chhode baghair seedha backup banata hai — scheduler beech mein doosra backup/restore shuru nahi kar sakta.
+  static Future<File?> _safetyBackup() async {
+    try {
+      return await _backupNowUnlocked();
+    } catch (e) {
+      lastError = e.toString();
+      return null;
+    }
   }
 
   /// Pichla backup [minGapMinutes] se kam pehle hua ho to skip (null) — app-close trigger ke liye.
@@ -176,6 +217,46 @@ class BackupHelper {
       lastError = e.toString();
       return false;
     }
+  }
+
+  // ---------------- Downloads copy (uninstall se bachao) ----------------
+
+  static Future<void> _addPendingDownloads(String path) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload(); // foreground / background isolate dono ki list mile
+      final list = prefs.getStringList(_pendingDownloadsKey) ?? <String>[];
+      if (!list.contains(path)) list.add(path);
+      // Sirf sab se naye rakhein — warna channel hamesha fail ho to list barhti rahe.
+      final trimmed = list.length > _maxPendingDownloads ? list.sublist(list.length - _maxPendingDownloads) : list;
+      await prefs.setStringList(_pendingDownloadsKey, trimmed);
+    } catch (_) {}
+  }
+
+  /// Jin backups ki public Downloads copy background mein nahi ban saki, unki copy ab banata hai.
+  /// SIRF foreground (app screen par) se bulayein — channel yahin hota hai. Kitni copy huin wo wapas.
+  static Future<int> flushPendingDownloadsCopies() async {
+    if (!Platform.isAndroid) return 0;
+    var done = 0;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final list = prefs.getStringList(_pendingDownloadsKey) ?? <String>[];
+      if (list.isEmpty) return 0;
+      final remaining = <String>[];
+      for (final path in list) {
+        final f = File(path);
+        if (!await f.exists()) continue; // file hat chuki — list se nikal do
+        final ok = await DownloadsCopy.copy(f, folder: folderName, fileName: p.basename(path));
+        if (ok) {
+          done++;
+        } else {
+          remaining.add(path);
+        }
+      }
+      await prefs.setStringList(_pendingDownloadsKey, remaining);
+    } catch (_) {}
+    return done;
   }
 
   // ---------------- restore ----------------
@@ -328,9 +409,7 @@ class BackupHelper {
 
       // Live DB maujood ho to pehle uska encrypted safety backup (na bane to restore ruk jaye).
       if (await dbFile.exists()) {
-        _busy = false; // backupNow() apna lock khud leta hai
-        final safety = await backupNow();
-        _busy = true;
+        final safety = await _safetyBackup(); // _busy true hi rehta hai
         if (safety == null) {
           lastError = 'Restore se pehle safety backup nahi ban saka: ${lastError ?? ''}'.trim();
           await _deleteQuietly(temp);
@@ -362,9 +441,7 @@ class BackupHelper {
   static Future<bool> _importKotlinBackup(File temp, File dbFile) async {
     try {
       if (await dbFile.exists()) {
-        _busy = false; // backupNow() apna lock khud leta hai
-        final safety = await backupNow();
-        _busy = true;
+        final safety = await _safetyBackup(); // _busy true hi rehta hai
         if (safety == null) {
           lastError = 'Import se pehle safety backup nahi ban saka: ${lastError ?? ''}'.trim();
           await _deleteQuietly(temp);
@@ -441,6 +518,49 @@ class BackupHelper {
         await db?.close();
       } catch (_) {}
     }
+  }
+
+  /// Live DB ka consistent snapshot [out] mein. Pehle `VACUUM INTO` (SQLite 3.27+); purane Android
+  /// SQLite par na chale to WAL checkpoint + file copy (purana tareeqa) par wapas.
+  static Future<void> _makeSnapshot(File dbFile, File out) async {
+    await _deleteQuietly(out);
+    try {
+      final db = await AppDatabase.instance.database;
+      final lit = out.path.replaceAll("'", "''");
+      await db.execute("VACUUM INTO '$lit'");
+      return;
+    } catch (_) {
+      await _deleteQuietly(out); // adhoori file na rahe
+    }
+    try {
+      await AppDatabase.instance.checkpointWal();
+    } catch (_) {}
+    await dbFile.copy(out.path);
+  }
+
+  static Future<bool> _quickCheckOk(String path) async {
+    Database? db;
+    try {
+      db = await openDatabase(path, readOnly: true, singleInstance: false);
+      final check = await db.rawQuery('PRAGMA quick_check');
+      return check.isNotEmpty && check.first.values.first.toString().toLowerCase() == 'ok';
+    } catch (_) {
+      return false;
+    } finally {
+      try {
+        await db?.close();
+      } catch (_) {}
+    }
+  }
+
+  static Future<bool> _sameBytes(File a, File b) async {
+    if (await a.length() != await b.length()) return false;
+    final x = await a.readAsBytes();
+    final y = await b.readAsBytes();
+    for (var i = 0; i < x.length; i++) {
+      if (x[i] != y[i]) return false;
+    }
+    return true;
   }
 
   static Future<void> _deleteQuietly(File f) async {

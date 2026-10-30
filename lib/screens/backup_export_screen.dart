@@ -150,6 +150,7 @@ class _BackupBodyState extends State<_BackupBody> {
 
   Future<void> _backupNow() async {
     if (!_isAdmin) return;
+    if (!await _confirmPasswordWritten()) return;
     setState(() => _busy = true);
     final f = await BackupHelper.backupNow();
     if (!mounted) return;
@@ -162,9 +163,60 @@ class _BackupBodyState extends State<_BackupBody> {
     await _loadBackups();
   }
 
+  /// Pehle backup se pehle password ek dafa dikha kar "maine likh liya" confirm karwata hai.
+  /// true => backup aage barhe.
+  Future<bool> _confirmPasswordWritten() async {
+    if (await BackupPasswordStore.isAcknowledged()) return true;
+    String pass;
+    try {
+      pass = await BackupPasswordStore.getOrCreate();
+    } on BackupPasswordUnavailableException catch (e) {
+      _toast(e.message);
+      return false;
+    }
+    if (!mounted) return false;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Write down your backup password', 'بیک اپ پاسورڈ لکھ لیں')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            Loc.t(
+              'Your backups are locked with this password. If you reinstall the app or change phone, you cannot open them without it.',
+              'آپ کے بیک اپ اسی پاسورڈ سے لاک ہیں۔ ایپ دوبارہ انسٹال کرنے یا فون بدلنے پر اس کے بغیر کھل نہیں سکیں گے۔',
+            ),
+            style: TextStyle(fontSize: 12.5, color: _p.textMuted),
+          ),
+          const SizedBox(height: 12),
+          SelectableText(
+            pass,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 17, fontWeight: FontWeight.bold),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(Loc.t("I've written it down", 'میں نے لکھ لیا')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return false;
+    await BackupPasswordStore.markAcknowledged();
+    return true;
+  }
+
   Future<void> _showPassword() async {
     if (!_isAdmin) return;
-    final current = await BackupPasswordStore.getOrCreate();
+    String current;
+    try {
+      current = await BackupPasswordStore.getOrCreate();
+    } on BackupPasswordUnavailableException {
+      // Keystore kharab: purana password dikha nahi sakte, magar owner naya khud set kar sakta hai.
+      current = '';
+    }
     if (!mounted) return;
     final ctrl = TextEditingController();
     var reveal = false;
@@ -185,7 +237,9 @@ class _BackupBodyState extends State<_BackupBody> {
             Row(children: [
               Expanded(
                 child: SelectableText(
-                  reveal ? current : '•' * current.length,
+                  current.isEmpty
+                      ? Loc.t('Unavailable on this phone — set a new password below', 'اس فون پر دستیاب نہیں — نیچے نیا پاسورڈ سیٹ کریں')
+                      : (reveal ? current : '•' * current.length),
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -305,7 +359,7 @@ class _BackupBodyState extends State<_BackupBody> {
 
   Future<String?> _askPassword() async {
     final ctrl = TextEditingController();
-    final stored = await BackupPasswordStore.getOrCreate();
+    final stored = await BackupPasswordStore.peek(); // kabhi naya password nahi banata
     if (!mounted) return null;
     var reveal = false;
     final r = await showDialog<String>(
@@ -326,13 +380,14 @@ class _BackupBodyState extends State<_BackupBody> {
                 ),
               ),
             ),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton(
-                onPressed: () => setD(() => ctrl.text = stored),
-                child: Text(Loc.t("Use this device's password", 'اس ڈیوائس کا پاسورڈ استعمال کریں')),
+            if (stored != null)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton(
+                  onPressed: () => setD(() => ctrl.text = stored),
+                  child: Text(Loc.t("Use this device's password", 'اس ڈیوائس کا پاسورڈ استعمال کریں')),
+                ),
               ),
-            ),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),

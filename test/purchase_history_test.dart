@@ -48,6 +48,8 @@ void main() {
 
     test('nothing entered => error', () {
       expect(parseReturnRequest(lines, {1: '', 2: ' '}).error, isNotNull);
+      expect(parseReturnRequest(lines, {1: 'NaN'}).error, isNotNull);
+      expect(parseReturnRequest(lines, {1: 'Infinity'}).error, isNotNull);
     });
 
     test('more than purchased => error', () {

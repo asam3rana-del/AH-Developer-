@@ -7,6 +7,19 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 ///
 /// Ye password device-local store hota hai. Doosre phone par restore ke liye owner ko
 /// password khud likh kar rakhna hoga — restore screen wahan password poochti hai.
+/// Keystore se password parha nahi ja saka (reinstall / phone change / OS update ke baad stale Keystore).
+/// Is waqt naya password NAHI banta — warna purane saare backups khulne se rah jate.
+class BackupPasswordUnavailableException implements Exception {
+  final String message;
+  const BackupPasswordUnavailableException([
+    this.message = 'Backup password phone ke Keystore se parha nahi ja saka. '
+        'Naya password nahi banaya gaya taake purane backups na bigdein. '
+        'Backup password screen se apna likha hua password dobara set karein.',
+  ]);
+  @override
+  String toString() => message;
+}
+
 class BackupPasswordStore {
   BackupPasswordStore._();
 
@@ -18,17 +31,46 @@ class BackupPasswordStore {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
 
-  /// Maujuda password, warna naya random 16-char bana kar store karta hai.
+  static const _keyAck = 'backup_password_ack';
+
+  /// Maujuda password. Naya random password SIRF tab banta hai jab Keystore sahi chal raha ho
+  /// aur password waqai maujood na ho (pehli dafa). Read fail ho to [BackupPasswordUnavailableException].
   static Future<String> getOrCreate() async {
+    String? existing;
     try {
-      final existing = await _storage.read(key: _keyPassword);
-      if (existing != null && existing.isNotEmpty) return existing;
+      existing = await _storage.read(key: _keyPassword);
     } catch (_) {
-      // Keystore kharab / restore ke baad stale — neeche naya password ban jayega (Kotlin jaisa).
+      throw const BackupPasswordUnavailableException();
     }
+    if (existing != null && existing.isNotEmpty) return existing;
     final pass = generateRandomPassword();
     await _storage.write(key: _keyPassword, value: pass);
     return pass;
+  }
+
+  /// Sirf parhta hai (kabhi naya nahi banata). Maujood na ho ya read fail ho => null.
+  static Future<String?> peek() async {
+    try {
+      final v = await _storage.read(key: _keyPassword);
+      return (v == null || v.isEmpty) ? null : v;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Kya owner ne password dekh kar "maine likh liya" confirm kar diya hai?
+  static Future<bool> isAcknowledged() async {
+    try {
+      return await _storage.read(key: _keyAck) == '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> markAcknowledged() async {
+    try {
+      await _storage.write(key: _keyAck, value: '1');
+    } catch (_) {}
   }
 
   static Future<void> setPassword(String newPassword) async {
@@ -36,6 +78,7 @@ class BackupPasswordStore {
       throw ArgumentError('Backup password must be at least $minLength characters.');
     }
     await _storage.write(key: _keyPassword, value: newPassword);
+    await markAcknowledged(); // owner ne khud likha hai
   }
 
   static String generateRandomPassword([int length = 16]) {
