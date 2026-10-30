@@ -428,13 +428,22 @@ Future<void> applyUsers(DatabaseExecutor db, List<SyncDoc> rows, {required Passw
     final role = _s(row['role']) ?? 'cashier';
     final phone = _s(row['phone']) ?? '';
     final active = row['active'] is bool ? row['active'] as bool : true;
+    // Purane app version ki row mein 'permissions' nahi hoti: tab local rules na mitayen.
+    final hasPermissions = row.containsKey('permissions');
+    final permissions = _s(row['permissions']) ?? '';
 
     final existing = await _findBy(db, 'users', 'username', username);
     if (existing != null) {
       // passwordHash kabhi cloud se nahi aata/badalta.
       await db.update(
         'users',
-        {'displayName': displayName, 'role': role, 'phone': phone, 'active': active ? 1 : 0},
+        {
+          'displayName': displayName,
+          'role': role,
+          'phone': phone,
+          'active': active ? 1 : 0,
+          if (hasPermissions) 'permissions': permissions,
+        },
         where: 'username = ?',
         whereArgs: [username],
       );
@@ -450,6 +459,7 @@ Future<void> applyUsers(DatabaseExecutor db, List<SyncDoc> rows, {required Passw
           'passwordHash': await hashPassword(_randomSecret()),
           'active': active ? 1 : 0,
           'phone': phone,
+          'permissions': permissions,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );

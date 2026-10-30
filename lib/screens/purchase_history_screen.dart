@@ -13,6 +13,7 @@ import '../models/purchase.dart';
 import '../utils/loc.dart';
 import '../widgets/role_guard.dart';
 import 'purchase_screen.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors PurchaseHistoryActivity.kt.
 ///
@@ -31,7 +32,7 @@ class PurchaseHistoryScreen extends StatelessWidget {
   const PurchaseHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const RoleGuard(allowed: {'admin'}, child: _PurchaseHistoryBody());
+  Widget build(BuildContext context) => const PermissionGuard(permission: 'purchase_history', child: _PurchaseHistoryBody());
 }
 
 class _PurchaseHistoryBody extends StatefulWidget {

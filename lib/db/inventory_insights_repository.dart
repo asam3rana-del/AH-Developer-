@@ -1,7 +1,7 @@
 import '../models/product.dart';
 import '../models/stock_movement.dart';
-import '../services/session.dart';
 import 'app_database.dart';
+import '../services/permissions.dart';
 
 /// Ports the data side of InventoryInsightsActivity.kt — 4 reports: Reorder, Damage/Loss, Margin, Movers.
 ///
@@ -137,7 +137,7 @@ class InventoryInsightsRepository {
   static final InventoryInsightsRepository instance = InventoryInsightsRepository._();
 
   void _guard() {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('inventory_insights')) {
       throw const InventoryInsightsException('Inventory Insights sirf Admin/Manager dekh sakta hai');
     }
   }

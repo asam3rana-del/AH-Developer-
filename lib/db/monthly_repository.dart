@@ -1,8 +1,8 @@
 import 'package:intl/intl.dart';
 
 import '../models/product.dart';
-import '../services/session.dart';
 import 'app_database.dart';
+import '../services/permissions.dart';
 
 /// Ports the data side of MonthlySalesPurchaseActivity.kt.
 ///
@@ -154,7 +154,7 @@ class MonthlyRepository {
   static final MonthlyRepository instance = MonthlyRepository._();
 
   void _guard() {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('monthly')) {
       throw StateError('Sirf Admin/Manager is screen ko access kar sakta hai');
     }
   }

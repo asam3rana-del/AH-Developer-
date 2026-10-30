@@ -19,7 +19,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 33;
+  static const _dbVersion = 34;
 
   Database? _db;
 
@@ -255,7 +255,8 @@ class AppDatabase {
         role TEXT NOT NULL,
         passwordHash TEXT NOT NULL,
         active INTEGER NOT NULL DEFAULT 1,
-        phone TEXT NOT NULL DEFAULT ''
+        phone TEXT NOT NULL DEFAULT '',
+        permissions TEXT NOT NULL DEFAULT ''
       )
     ''');
 
@@ -549,6 +550,10 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'sale_items', 'pendingQty', 'REAL NOT NULL DEFAULT 0');
       await _addColumnIfMissing(db, 'sale_items', 'pendingEst', 'REAL NOT NULL DEFAULT 0');
       await _addColumnIfMissing(db, 'sale_items', 'backfillLog', "TEXT NOT NULL DEFAULT ''");
+    }
+    if (oldVersion < 34) {
+      // v34: per-user access rules (JSON overrides, khali = role ke default). Users ke saath sync hota hai.
+      await _addColumnIfMissing(db, 'users', 'permissions', "TEXT NOT NULL DEFAULT ''");
     }
   }
 

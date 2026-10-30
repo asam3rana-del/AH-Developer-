@@ -6,6 +6,9 @@ import '../db/cash_repository.dart';
 import '../models/misc_entities.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
+import 'cash_register_screen.dart';
+import '../services/permissions.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors CashActivity.kt — record a Cash In / Cash Out, see today's totals
 /// and the latest 50 cash movements. All roles (same as Kotlin).
@@ -158,6 +161,13 @@ class _CashScreenState extends State<CashScreen> {
                 style: TextStyle(color: p.headerSubtitleColor, fontSize: 11)),
           ]),
         ),
+        if (Permissions.can('cash_register'))
+          IconButton(
+            tooltip: Loc.t('Cash Register (daily till open & close)', 'کیش رجسٹر (روزانہ کھولیں / بند کریں)'),
+            icon: const Icon(Icons.point_of_sale, color: Colors.white),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const PermissionGuard(permission: 'cash_register', child: CashRegisterScreen()))),
+          ),
       ]),
     );
   }

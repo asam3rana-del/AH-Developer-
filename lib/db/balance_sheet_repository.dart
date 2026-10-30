@@ -1,7 +1,7 @@
 import '../models/product.dart';
-import '../services/session.dart';
 import 'app_database.dart';
 import 'party_repository.dart';
+import '../services/permissions.dart';
 
 // PartyLedger / trueBalance / countBalanceDrift ab party_repository.dart mein hain (ek hi copy);
 // purane imports (aur test/balance_sheet_test.dart) chalte rahein isliye yahan se re-export.
@@ -116,7 +116,7 @@ class BalanceSheetRepository {
   static final BalanceSheetRepository instance = BalanceSheetRepository._();
 
   Future<BalanceSheetData> load() async {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('balance_sheet')) {
       throw StateError('Sirf Admin/Manager is screen ko access kar sakta hai');
     }
     final db = await AppDatabase.instance.database;

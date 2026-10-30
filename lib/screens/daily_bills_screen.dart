@@ -13,7 +13,7 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart' show formatQty;
 import '../widgets/premium_header.dart';
-import '../widgets/role_guard.dart';
+import '../widgets/permission_guard.dart';
 
 /// "Aaj ke Bills" — ek din ki saari alag alag (Quick Sale) sales har customer ke ek bill ki tarah,
 /// saath mein pichla balance aur aaj ka balance. Sales/stock/balance ko koi tabdeeli nahi: sirf dikhana,
@@ -23,7 +23,7 @@ class DailyBillsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const RoleGuard(allowed: {'admin', 'manager'}, child: _DailyBillsBody());
+      const PermissionGuard(permission: 'daily_bills', child: _DailyBillsBody());
 }
 
 class _DailyBillsBody extends StatefulWidget {

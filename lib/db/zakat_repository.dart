@@ -4,7 +4,6 @@ import 'package:sqflite/sqflite.dart' show Transaction;
 
 import '../models/product.dart';
 import '../models/zakat.dart';
-import '../services/session.dart';
 import '../utils/hijri.dart';
 import 'app_database.dart';
 import 'balance_sheet_repository.dart' show stockValueAtCost;
@@ -12,6 +11,7 @@ import 'party_dashboard_repository.dart' show PartyDashboardRepository, partyTot
 import 'expense_repository.dart';
 import 'user_repository.dart';
 import '../sync/sync_queue_helper.dart';
+import '../services/permissions.dart';
 
 /// Ports ZakatActivity.kt + ZakatDao: Ramadan-to-Ramadan Zakat year,
 /// (cash + bank + stock at cost + receivables - payables) x 2.5%, payments
@@ -134,7 +134,7 @@ class ZakatRepository {
   static final ZakatRepository instance = ZakatRepository._();
 
   static void _requireAccess() {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('zakat')) {
       throw StateError('Sirf Admin/Manager is screen ko access kar sakta hai');
     }
   }

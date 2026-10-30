@@ -31,6 +31,9 @@ import 'shop_rent_screen.dart';
 import 'user_management_screen.dart';
 import 'utility_bills_screen.dart';
 import 'workers_screen.dart';
+import 'zakat_screen.dart';
+import '../services/permissions.dart';
+import '../widgets/permission_guard.dart';
 
 /// Receipt footer / address / currency / tax fields Kotlin mein user ke kehne par hata di gayi thin — yahan bhi nahi
 /// (stored receipt_footer value print par ab bhi parha jata hai, jaisa Kotlin mein).
@@ -65,6 +68,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _load();
+    Permissions.refresh().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -339,7 +345,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return [
       row(Icons.people_outline, 'Parties', 'پارٹیز', const PartyDashboardScreen()),
       row(Icons.list_alt, 'Items', 'آئٹمز', const ItemsScreen()),
-      if (Session.isAdminOrManager) row(Icons.trending_up, 'Reports', 'رپورٹس', const ReportsScreen()),
+      if (Permissions.canAnyReport()) row(Icons.trending_up, 'Reports', 'رپورٹس', const ReportsScreen()),
       row(Icons.receipt_outlined, 'Sale', 'سیل', const SaleScreen()),
       if (Session.isAdmin)
         row(Icons.shopping_cart_outlined, 'Purchase', 'خریداری',
@@ -355,6 +361,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         row(Icons.receipt_long_outlined, 'Utility Bills', 'یوٹیلیٹی بلز',
             const RoleGuard(allowed: {'admin', 'manager'}, child: UtilityBillsScreen()), color: p.navyInk),
       row(Icons.account_balance_outlined, 'Cash & Bank', 'کیش اور بینک', const CashScreen(), color: p.navyInk),
+      if (Permissions.can('zakat'))
+        row(Icons.volunteer_activism_outlined, 'Zakat', 'زکوٰۃ',
+            const PermissionGuard(permission: 'zakat', child: ZakatScreen()), color: p.navyInk),
       row(Icons.inventory_2_outlined, 'Shell Ledger', 'شیل لیجر', const ShellLedgerScreen(), color: p.navyInk),
     ];
   }

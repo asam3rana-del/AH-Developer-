@@ -3,7 +3,7 @@ import 'app_database.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
 import '../models/party.dart';
-import '../services/session.dart';
+import '../services/permissions.dart';
 
 /// Ports the data side of PartyReportsActivity.kt (6 reports: Item, Ledger, Payment History,
 /// Statement, Sale/Purchase by Party, Profit&Loss / Purchase Summary).
@@ -246,7 +246,7 @@ class ReportPartyRow {
 
 /// Party Reports sirf admin/manager (screen RoleGuard + data layer).
 void _requireReportsRole() {
-  if (!Session.isAdminOrManager) throw StateError('Only Admin/Manager can view party reports');
+  if (!Permissions.can('party_reports')) throw StateError('Admin has not given access to party reports');
 }
 
 class PartyReportsRepository {

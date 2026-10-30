@@ -7,6 +7,7 @@ import 'product_repository.dart';
 import 'stock_ledger.dart';
 import '../sync/sync_queue_helper.dart';
 import '../sync/sync_worker.dart';
+import '../services/permissions.dart';
 
 /// Ports the data side of StockTakingActivity.kt (physical count vs system stock).
 ///
@@ -148,7 +149,7 @@ class StockTakingRepository {
   /// Kotlin `decreaseProductStockForce` jaisa: kam karne par SQL guard nahi (gintee >= 0 hai, is liye
   /// stock gintee se neeche nahi jata jab tak review ke baad bhi koi sale na ho).
   Future<String> commit(List<StockTakeVariance> variances, {String note = ''}) async {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('stock_taking')) {
       throw const StockTakingException('Stock Taking sirf Admin/Manager kar sakta hai');
     }
     if (variances.isEmpty) throw const StockTakingException('Koi farq nahi');

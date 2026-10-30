@@ -24,6 +24,7 @@ import 'reports_screen.dart';
 import 'sale_history_screen.dart';
 import 'sale_screen.dart';
 import 'settings_screen.dart';
+import '../services/permissions.dart';
 
 /// Mirrors PartyDashboardActivity.kt (+ PartyQuickAddMenu.kt ka "+" menu, chhota hissa).
 ///
@@ -307,7 +308,7 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
           _SheetItem(Icons.inventory_2_outlined, _blue, Loc.t('Products', 'پروڈکٹس'),
               Loc.t('Manage your inventory items', 'اپنے انوینٹری آئٹمز کا انتظام کریں'),
               () => _push(const RoleGuard(allowed: {'admin'}, child: ProductScreen()))),
-        if (Session.isAdminOrManager)
+        if (Permissions.canAnyReport())
           _SheetItem(Icons.trending_up, _purple, Loc.t('Reports', 'رپورٹس'),
               Loc.t('Sales, stock & financial overview', 'سیل، اسٹاک اور مالیاتی جائزہ'),
               () => _push(const ReportsScreen())),

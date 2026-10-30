@@ -3,6 +3,7 @@ import '../services/session.dart';
 import '../sync/sync_queue_helper.dart';
 import '../sync/sync_worker.dart';
 import 'app_database.dart';
+import '../services/permissions.dart';
 
 /// Bill Cost Repair (sirf Admin).
 ///
@@ -90,7 +91,7 @@ class BillCostRepairRepository {
   static final BillCostRepairRepository instance = BillCostRepairRepository._();
 
   void _requireAdmin() {
-    if (!Session.isAdmin) throw const BillCostRepairException('Sirf Admin ye action kar sakta hai');
+    if (!Permissions.can('fix_bill_cost')) throw const BillCostRepairException('Sirf Admin ye action kar sakta hai');
   }
 
   Future<CostRepairPlan> buildPlan() async {

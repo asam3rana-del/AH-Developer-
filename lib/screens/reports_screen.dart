@@ -4,9 +4,6 @@ import '../db/reports_repository.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import 'balance_sheet_screen.dart';
-import 'bill_cost_repair_screen.dart';
-import '../services/session.dart';
-import 'cash_register_screen.dart';
 import 'due_reminders_screen.dart';
 import 'history_screen.dart';
 import 'inventory_insights_screen.dart';
@@ -15,23 +12,25 @@ import 'daily_bills_screen.dart';
 import 'party_reports_screen.dart';
 import 'payments_screen.dart';
 import 'rate_comparison_screen.dart';
-import 'stock_adjustment_screen.dart';
 import 'stock_audit_screen.dart';
 import 'stock_movement_screen.dart';
 import 'stock_report_screen.dart';
-import 'stock_taking_screen.dart';
-import 'zakat_screen.dart';
 import '../widgets/role_guard.dart';
+import '../services/permissions.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors ReportsActivity.kt.
 ///
-/// Reports hub (sale / stock / financial rows) + neeche period filter (Today / This Week / This Month /
+/// Reports hub (sirf reports: sale & purchase / party / stock / financial) + neeche period filter (Today / This Week / This Month /
 /// All Time) ke saath summary cards (Purchases / Returns / Number of Sales; Total Sales, Profit aur Expenses
 /// alag card nahi — woh Profit & Loss statement mein hi hain), Profit & Loss statement, Top Products aur Daily Sales.
 ///
-/// Role: admin + manager (RoleGuard; ReportsRepository.load dobara check karta hai).
+/// Access: Permissions (role ke default + admin ke per-user override); ReportsRepository.load dobara check karta hai.
 ///
 /// Farq (Kotlin se):
+///  * Har row / section admin ke diye hue per-user access (Permissions) se dikhta hai; admin ko sab.
+///  * Action tools ab yahan nahi: Stock Adjustment / Stock Taking / Fix Bill Cost = Items screen, Cash Register = Cash & Bank,
+///    Zakat = Settings.
 ///  * Stock/Insights ki sab rows ab chalti hain (Reorder / Damage / Margin / Movers = ek row "Inventory Insights", andar 4 tab).
 ///  * "Today" ka end agla midnight (DST-safe); hafta Monday se (Kotlin mein locale ka firstDayOfWeek).
 ///  * Purchase History row manager ko dikhti hai magar screen admin-only hai (RoleGuard message).
@@ -40,7 +39,7 @@ class ReportsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const RoleGuard(allowed: {'admin', 'manager'}, child: _ReportsBody());
+      const PermissionGuard(anyOf: Permissions.reportKeys, child: _ReportsBody());
 }
 
 class _ReportsBody extends StatefulWidget {
@@ -57,6 +56,7 @@ class _ReportsBodyState extends State<_ReportsBody> {
   ReportData? _data;
   String? _error;
   int _loadSeq = 0;
+  bool _started = false;
 
   AppPalette get _p => ThemeManager.palette;
   String _rs(double v) => 'Rs ${v.round()}';
@@ -65,10 +65,24 @@ class _ReportsBodyState extends State<_ReportsBody> {
   @override
   void initState() {
     super.initState();
-    _load();
+    if (_showSummary) _load();
+    // Admin ne dusre device par rules badle hon to sync ke baad yahan nazar aa jayen.
+    Permissions.refresh().then((_) {
+      if (!mounted) return;
+      setState(() {});
+      if (_showSummary && !_started) _load();
+    });
   }
 
+  bool _can(String key) => Permissions.can(key);
+  bool _anyOf(List<String> keys) => Permissions.canAny(keys);
+  bool get _showSummary => Permissions.can('reports_summary');
+
+  /// Jin screens ka apna guard nahi (sab roles ke liye khuli hain) un ke liye hub se guard lagta hai.
+  void _openG(String key, Widget screen) => _open(PermissionGuard(permission: key, child: screen));
+
   Future<void> _load() async {
+    _started = true;
     final seq = ++_loadSeq;
     setState(() {
       _data = null;
@@ -115,78 +129,86 @@ class _ReportsBodyState extends State<_ReportsBody> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 30),
           children: [
             _header(p),
-            _section(p, Loc.t('Sale reports', 'سیل رپورٹس')),
-            _row(p, Loc.t('Sale History', 'سیل کی تاریخ'), Loc.t('View all sale transactions', 'تمام سیل لین دین دیکھیں'),
-                p.flatBlueFg, () => _open(const HistoryScreen(mode: HistoryMode.sales))),
-            _row(p, Loc.t('Purchase History', 'خریداری کی تاریخ'),
-                Loc.t('View all purchase transactions', 'تمام خریداری لین دین دیکھیں'), const Color(0xFF993C1D),
-                () => _open(const HistoryScreen(mode: HistoryMode.purchases))),
-            _row(p, Loc.t('Party Reports', 'پارٹی رپورٹس'),
-                Loc.t('Customer & supplier balances', 'کسٹمر اور سپلائر کا بیلنس'), p.flatBlueFg,
-                () => _open(const PartyReportsScreen())),
-            _row(p, Loc.t('Daily Bills', 'روزانہ بلز'),
-                Loc.t('Har customer ka din ka ek bill + balance', 'ہر کسٹمر کا دن کا ایک بل اور بیلنس'), p.flatTealFg,
-                () => _open(const DailyBillsScreen())),
-            _row(p, Loc.t('Payments Report', 'ادائیگیوں کی رپورٹ'),
-                Loc.t('Payments received vs made, by period', 'ادائیگیاں وصول اور ادا، مدت کے مطابق'), p.flatTealFg,
-                () => _open(const PaymentsScreen())),
-            _row(p, Loc.t('Sale vs Purchase — Month/Year', 'سیل بمقابلہ خریداری — مہینہ/سال'),
-                Loc.t('Total sale & purchase, broken down by month or year', 'کل سیل اور خریداری، مہینہ یا سال کے مطابق'),
-                p.flatBlueFg, () => _open(const MonthlyScreen())),
-            _row(p, Loc.t('Stock Report', 'اسٹاک رپورٹ'), Loc.t('Current inventory levels', 'موجودہ انوینٹری کی سطح'),
-                p.flatAmberFg, () => _open(const StockReportScreen())),
-            _row(p, Loc.t('Stock History', 'اسٹاک کی تاریخ'),
-                Loc.t('Every purchase, sale & adjustment per item', 'ہر آئٹم کی خریداری، سیل اور ایڈجسٹمنٹ'),
-                p.flatBlueFg, () => _open(const StockMovementScreen(mode: StockMovementMode.stock))),
-            _row(p, Loc.t('Cost History', 'لاگت کی تاریخ'),
-                Loc.t("How a product's cost changed over time", 'پروڈکٹ کی لاگت وقت کے ساتھ کیسے بدلی'),
-                p.flatTealFg, () => _open(const StockMovementScreen(mode: StockMovementMode.cost))),
-            _row(p, Loc.t('Stock Audit', 'اسٹاک آڈٹ'),
-                Loc.t("Find products where stock doesn't match its own history", 'وہ پروڈکٹس جن کا اسٹاک اپنی تاریخ سے میچ نہیں کرتا'),
-                p.red, () => _open(const StockAuditScreen())),
-            _row(p, Loc.t('Stock Adjustment', 'اسٹاک ایڈجسٹمنٹ'),
-                Loc.t('Log damage, loss, or a correction', 'نقصان یا درستگی درج کریں'), p.red,
-                () => _open(const StockAdjustmentScreen())),
-            if (Session.isAdmin)
-              _row(p, Loc.t('Fix Bill Cost', 'بل کی لاگت درست کریں'),
-                  Loc.t('Repair wrong cost on old bills (after unit change)', 'یونٹ بدلنے کے بعد پرانی بلز کی غلط لاگت درست کریں'), p.red,
-                  () => _open(const RoleGuard(allowed: {'admin'}, child: BillCostRepairScreen()))),
-            _row(p, Loc.t('Stock Taking', 'اسٹاک گنتی'), Loc.t('Physical count vs system stock', 'اصل گنتی بمقابلہ سسٹم اسٹاک'),
-                p.flatBlueFg, () => _open(const StockTakingScreen())),
+            if (_anyOf(const ['sale_history', 'purchase_history', 'daily_bills', 'monthly', 'rate_comparison']))
+              _section(p, Loc.t('Sale & purchase reports', 'سیل اور خریداری رپورٹس')),
+            if (_can('sale_history'))
+              _row(p, Loc.t('Sale History', 'سیل کی تاریخ'), Loc.t('View all sale transactions', 'تمام سیل لین دین دیکھیں'),
+                  p.flatBlueFg, () => _openG('sale_history', const HistoryScreen(mode: HistoryMode.sales))),
+            if (_can('purchase_history'))
+              _row(p, Loc.t('Purchase History', 'خریداری کی تاریخ'),
+                  Loc.t('View all purchase transactions', 'تمام خریداری لین دین دیکھیں'), const Color(0xFF993C1D),
+                  () => _open(const HistoryScreen(mode: HistoryMode.purchases))),
+            if (_can('daily_bills'))
+              _row(p, Loc.t('Daily Bills', 'روزانہ بلز'),
+                  Loc.t('Har customer ka din ka ek bill + balance', 'ہر کسٹمر کا دن کا ایک بل اور بیلنس'), p.flatTealFg,
+                  () => _open(const DailyBillsScreen())),
+            if (_can('monthly'))
+              _row(p, Loc.t('Sale vs Purchase — Month/Year', 'سیل بمقابلہ خریداری — مہینہ/سال'),
+                  Loc.t('Total sale & purchase, broken down by month or year', 'کل سیل اور خریداری، مہینہ یا سال کے مطابق'),
+                  p.flatBlueFg, () => _open(const MonthlyScreen())),
+            if (_can('rate_comparison'))
+              _row(p, Loc.t('Rate Comparison', 'ریٹ کا موازنہ'),
+                  Loc.t('Compare supplier rates per item', 'فی آئٹم سپلائرز کے ریٹ کا موازنہ'), p.flatTealFg,
+                  () => _openG('rate_comparison', const RateComparisonScreen())),
+            if (_anyOf(const ['party_reports', 'payments_report', 'due_reminders']))
+              _section(p, Loc.t('Party reports', 'پارٹی رپورٹس')),
+            if (_can('party_reports'))
+              _row(p, Loc.t('Party Reports', 'پارٹی رپورٹس'),
+                  Loc.t('Customer & supplier balances', 'کسٹمر اور سپلائر کا بیلنس'), p.flatBlueFg,
+                  () => _open(const PartyReportsScreen())),
+            if (_can('payments_report'))
+              _row(p, Loc.t('Payments Report', 'ادائیگیوں کی رپورٹ'),
+                  Loc.t('Payments received vs made, by period', 'ادائیگیاں وصول اور ادا، مدت کے مطابق'), p.flatTealFg,
+                  () => _openG('payments_report', const PaymentsScreen())),
+            if (_can('due_reminders'))
+              _row(p, Loc.t('Due Date Reminders', 'ادائیگی کی یاد دہانی'),
+                  Loc.t('Credit sales still owed, by due date', 'ادھار سیلز جو واجب الادا ہیں'), p.flatBlueFg,
+                  () => _open(const DueRemindersScreen())),
+            if (_anyOf(const ['stock_report', 'stock_history', 'cost_history', 'stock_audit', 'inventory_insights']))
+              _section(p, Loc.t('Stock reports', 'اسٹاک رپورٹس')),
+            if (_can('stock_report'))
+              _row(p, Loc.t('Stock Report', 'اسٹاک رپورٹ'), Loc.t('Current inventory levels', 'موجودہ انوینٹری کی سطح'),
+                  p.flatAmberFg, () => _openG('stock_report', const StockReportScreen())),
+            if (_can('stock_history'))
+              _row(p, Loc.t('Stock History', 'اسٹاک کی تاریخ'),
+                  Loc.t('Every purchase, sale & adjustment per item', 'ہر آئٹم کی خریداری، سیل اور ایڈجسٹمنٹ'),
+                  p.flatBlueFg, () => _open(const StockMovementScreen(mode: StockMovementMode.stock))),
+            if (_can('cost_history'))
+              _row(p, Loc.t('Cost History', 'لاگت کی تاریخ'),
+                  Loc.t("How a product's cost changed over time", 'پروڈکٹ کی لاگت وقت کے ساتھ کیسے بدلی'),
+                  p.flatTealFg, () => _open(const StockMovementScreen(mode: StockMovementMode.cost))),
+            if (_can('stock_audit'))
+              _row(p, Loc.t('Stock Audit', 'اسٹاک آڈٹ'),
+                  Loc.t("Find products where stock doesn't match its own history", 'وہ پروڈکٹس جن کا اسٹاک اپنی تاریخ سے میچ نہیں کرتا'),
+                  p.red, () => _open(const StockAuditScreen())),
             // Reorder / Damage / Margin / Movers ek hi screen ke 4 tab hain — pehle 4 alag rows thin (duplicate).
-            _row(p, Loc.t('Inventory Insights', 'انوینٹری تجزیہ'),
-                Loc.t('Reorder, Damage / Loss, Profit Margin & Fast / Slow Movers', 'دوبارہ آرڈر، نقصان، منافع اور تیز / سست چلنے والے'),
-                p.flatAmberFg, () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.reorder))),
-            _row(p, Loc.t('Rate Comparison', 'ریٹ کا موازنہ'),
-                Loc.t('Compare supplier rates per item', 'فی آئٹم سپلائرز کے ریٹ کا موازنہ'), p.flatTealFg,
-                () => _open(const RoleGuard(allowed: {'admin', 'manager'}, child: RateComparisonScreen()))),
-            _row(p, Loc.t('Cash Register', 'کیش رجسٹر'),
-                Loc.t('Daily till open & close', 'روزانہ رجسٹر کھولیں / بند کریں'), p.flatAmberFg,
-                () => _open(const CashRegisterScreen())),
-            _row(p, Loc.t('Due Date Reminders', 'ادائیگی کی یاد دہانی'),
-                Loc.t('Credit sales still owed, by due date', 'ادھار سیلز جو واجب الادا ہیں'), p.flatBlueFg,
-                () => _open(const DueRemindersScreen())),
-            _row(p, Loc.t('Balance Sheet', 'بیلنس شیٹ'), Loc.t('Assets, liabilities & capital', 'اثاثے، واجبات اور سرمایہ'),
-                p.flatTealFg,
-                () => _open(const RoleGuard(allowed: {'admin', 'manager'}, child: BalanceSheetScreen()))),
-            _row(p, Loc.t('Zakat', 'زکوٰۃ'), Loc.t("Track & pay this year's Zakat", 'اس سال کی زکوٰۃ ٹریک اور ادا کریں'),
-                p.flatAmberFg, () => _open(const RoleGuard(allowed: {'admin', 'manager'}, child: ZakatScreen()))),
-            const SizedBox(height: 4),
-            _filterBar(p),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6, 14, 0, 6),
-              child: Text(_periodLabel,
-                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: p.textMuted)),
-            ),
-            if (_error != null)
+            if (_can('inventory_insights'))
+              _row(p, Loc.t('Inventory Insights', 'انوینٹری تجزیہ'),
+                  Loc.t('Reorder, Damage / Loss, Profit Margin & Fast / Slow Movers', 'دوبارہ آرڈر، نقصان، منافع اور تیز / سست چلنے والے'),
+                  p.flatAmberFg, () => _open(const InventoryInsightsScreen(initialMode: InsightsMode.reorder))),
+            if (_can('balance_sheet')) ...[
+              _section(p, Loc.t('Financial reports', 'مالیاتی رپورٹس')),
+              _row(p, Loc.t('Balance Sheet', 'بیلنس شیٹ'), Loc.t('Assets, liabilities & capital', 'اثاثے، واجبات اور سرمایہ'),
+                  p.flatTealFg, () => _openG('balance_sheet', const BalanceSheetScreen())),
+            ],
+            if (_showSummary) ...[
+              const SizedBox(height: 4),
+              _filterBar(p),
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: p.red)),
-              )
-            else if (_data == null)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
-            else
-              ..._results(p, _data!),
+                padding: const EdgeInsets.fromLTRB(6, 14, 0, 6),
+                child: Text(_periodLabel,
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: p.textMuted)),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: p.red)),
+                )
+              else if (_data == null)
+                const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
+              else
+                ..._results(p, _data!),
+            ],
           ],
         ),
       ),

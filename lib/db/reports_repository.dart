@@ -1,5 +1,5 @@
-import '../services/session.dart';
 import 'app_database.dart';
+import '../services/permissions.dart';
 
 /// Ports the data side of ReportsActivity.kt (`loadReport`).
 ///
@@ -93,7 +93,7 @@ class ReportsRepository {
   static final ReportsRepository instance = ReportsRepository._();
 
   Future<ReportData> load(ReportRange r) async {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('reports_summary')) {
       throw StateError('Sirf Admin/Manager is screen ko access kar sakta hai');
     }
     final db = await AppDatabase.instance.database;

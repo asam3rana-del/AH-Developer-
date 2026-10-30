@@ -1,7 +1,7 @@
 import '../models/product.dart';
-import '../services/session.dart';
 import 'app_database.dart';
 import 'stock_ledger.dart';
+import '../services/permissions.dart';
 
 /// Ports the data side of StockAuditActivity.kt.
 ///
@@ -53,7 +53,7 @@ class StockAuditRepository {
   static final StockAuditRepository instance = StockAuditRepository._();
 
   void _requireAdminOrManager() {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('stock_audit')) {
       throw StateError('Stock Audit sirf Admin/Manager ke liye hai');
     }
   }

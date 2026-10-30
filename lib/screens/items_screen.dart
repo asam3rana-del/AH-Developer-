@@ -12,13 +12,18 @@ import '../sync/sync_queue_helper.dart' show ProductDeleteBlockedException;
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
+import 'bill_cost_repair_screen.dart';
 import 'bulk_default_unit_screen.dart';
 import 'bulk_missing_rates_screen.dart';
 import 'shop_rate_screen.dart';
 import 'bulk_rate_tool_screen.dart';
 import 'bulk_translate_screen.dart';
 import 'product_screen.dart';
+import 'stock_adjustment_screen.dart';
+import 'stock_taking_screen.dart';
 import '../theme/theme_manager.dart';
+import '../services/permissions.dart';
+import '../widgets/permission_guard.dart';
 
 enum _Tab { products, categories, units }
 
@@ -44,6 +49,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
   String _query = '';
   bool get _admin => Session.isAdmin;
   bool get _canSeeCost => Session.isAdminOrManager;
+  bool get _hasActions =>
+      _admin ||
+      Permissions.can('stock_adjustment') ||
+      Permissions.can('stock_taking') ||
+      Permissions.can('fix_bill_cost');
   String? _openCategory; // null = list; '' = "Items Not in Any Category"
   Timer? _debounce;
   final _search = TextEditingController();
@@ -52,6 +62,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
   void initState() {
     super.initState();
     _loadAll();
+    // Admin ne access badla ho to sync ke baad pills yahan nazar aa jayen.
+    Permissions.refresh().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -281,16 +295,25 @@ class _ItemsScreenState extends State<ItemsScreen> {
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
-            _pill(Loc.t('Rate List', 'ریٹ لسٹ'), Icons.description_outlined,
-                () => _push(const RoleGuard(allowed: {'admin'}, child: BulkMissingRatesScreen()))),
-            _pill(Loc.t('Shop Rate', 'دکاندار ریٹ'), Icons.storefront_outlined,
-                () => _push(const RoleGuard(allowed: {'admin'}, child: ShopRateScreen()))),
-            _pill(Loc.t('Bulk Rates', 'بلک ریٹ'), Icons.layers_outlined,
-                () => _push(const RoleGuard(allowed: {'admin'}, child: BulkRateToolScreen()))),
-            _pill(Loc.t('Translate', 'ترجمہ'), Icons.language,
-                () => _push(const RoleGuard(allowed: {'admin'}, child: BulkTranslateScreen()))),
-            _pill(Loc.t('Units', 'یونٹس'), Icons.straighten,
-                () => _push(const RoleGuard(allowed: {'admin'}, child: BulkDefaultUnitScreen()))),
+            if (_admin) ...[
+              _pill(Loc.t('Rate List', 'ریٹ لسٹ'), Icons.description_outlined,
+                  () => _push(const RoleGuard(allowed: {'admin'}, child: BulkMissingRatesScreen()))),
+              _pill(Loc.t('Shop Rate', 'دکاندار ریٹ'), Icons.storefront_outlined,
+                  () => _push(const RoleGuard(allowed: {'admin'}, child: ShopRateScreen()))),
+              _pill(Loc.t('Bulk Rates', 'بلک ریٹ'), Icons.layers_outlined,
+                  () => _push(const RoleGuard(allowed: {'admin'}, child: BulkRateToolScreen()))),
+              _pill(Loc.t('Translate', 'ترجمہ'), Icons.language,
+                  () => _push(const RoleGuard(allowed: {'admin'}, child: BulkTranslateScreen()))),
+              _pill(Loc.t('Units', 'یونٹس'), Icons.straighten,
+                  () => _push(const RoleGuard(allowed: {'admin'}, child: BulkDefaultUnitScreen()))),
+            ],
+            if (Permissions.can('stock_adjustment'))
+              _pill(Loc.t('Stock Adjust', 'اسٹاک ایڈجسٹمنٹ'), Icons.tune, () => _push(const StockAdjustmentScreen())),
+            if (Permissions.can('stock_taking'))
+              _pill(Loc.t('Stock Taking', 'اسٹاک گنتی'), Icons.fact_check_outlined, () => _push(const StockTakingScreen())),
+            if (Permissions.can('fix_bill_cost'))
+              _pill(Loc.t('Fix Bill Cost', 'بل کی لاگت درست کریں'), Icons.build_outlined,
+                  () => _push(const PermissionGuard(permission: 'fix_bill_cost', child: BillCostRepairScreen()))),
           ]),
         ),
       );
@@ -538,7 +561,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 title: Loc.t('Items', 'آئٹمز'),
                 subtitle: Loc.t('Products, Categories & Units', 'پروڈکٹس، کیٹیگریز اور یونٹس'),
               ),
-              if (_admin) _actionsBar(),
+              if (_hasActions) _actionsBar(),
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(6),

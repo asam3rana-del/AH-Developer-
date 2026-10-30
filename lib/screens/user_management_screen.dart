@@ -9,6 +9,7 @@ import '../utils/password_hasher.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import '../theme/theme_manager.dart';
+import '../services/permissions.dart';
 
 /// Mirrors UserManagementActivity.kt — Admin-only, pehle admin ka password verify.
 /// Lock: fingerprint pehle khud khulta hai, password hamesha fallback.
@@ -197,6 +198,78 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
     _reload();
   }
 
+  // ---------- access (per-user rules) ----------
+  Future<void> _editAccess(User u) async {
+    if (u.role == 'admin') {
+      return _toast(Loc.t('Admin always has full access', 'ایڈمن کے پاس ہمیشہ مکمل رسائی ہوتی ہے'));
+    }
+    final current = Permissions.parse(u.permissions);
+    final values = <String, bool>{
+      for (final d in Permissions.all) d.key: Permissions.resolve(u.role, current, d.key),
+    };
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        final children = <Widget>[];
+        String? group;
+        for (final d in Permissions.all) {
+          if (d.group != group) {
+            group = d.group;
+            children.add(Padding(
+              padding: const EdgeInsets.fromLTRB(4, 12, 0, 2),
+              child: Text(
+                d.group == Permissions.groupReports ? Loc.t('Reports', 'رپورٹس') : Loc.t('Tools', 'ٹولز'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ));
+          }
+          final isDefault = values[d.key] == Permissions.defaultFor(u.role, d.key);
+          children.add(SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text(Loc.t(d.en, d.ur)),
+            subtitle: isDefault
+                ? null
+                : Text(Loc.t('Custom', 'کسٹم'), style: TextStyle(color: ThemeManager.palette.blue, fontSize: 11)),
+            value: values[d.key] ?? false,
+            onChanged: (v) => setD(() => values[d.key] = v),
+          ));
+        }
+        return AlertDialog(
+          title: Text('${Loc.t('Access', 'رسائی')} — ${u.displayName}'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: children),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => setD(() {
+                for (final d in Permissions.all) {
+                  values[d.key] = Permissions.defaultFor(u.role, d.key);
+                }
+              }),
+              child: Text(Loc.t('Role defaults', 'رول کے مطابق')),
+            ),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Save', 'محفوظ کریں'))),
+          ],
+        );
+      }),
+    );
+    if (saved != true) return;
+    final overrides = <String, bool>{
+      for (final d in Permissions.all)
+        if ((values[d.key] ?? false) != Permissions.defaultFor(u.role, d.key)) d.key: values[d.key] ?? false,
+    };
+    final encoded = Permissions.encode(overrides);
+    await _repo.setPermissions(u.username, encoded);
+    await _repo.insertAudit(Session.username ?? 'admin', 'access_changed', u.username, encoded);
+    _toast(Loc.t('Access saved', 'رسائی محفوظ ہو گئی'));
+    _reload();
+  }
+
   // ---------- UI ----------
   Color _roleColor(String r) => r == 'admin' ? ThemeManager.palette.red : r == 'manager' ? ThemeManager.palette.blue : ThemeManager.palette.teal;
 
@@ -289,11 +362,14 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
                 const SizedBox(height: 6),
                 Wrap(spacing: 8, children: [
                   Chip(label: Text(u.role[0].toUpperCase() + u.role.substring(1)), labelStyle: TextStyle(color: _roleColor(u.role), fontSize: 11)),
+                  if (u.permissions.isNotEmpty)
+                    Chip(label: Text(Loc.t('Custom access', 'کسٹم رسائی')), labelStyle: TextStyle(color: ThemeManager.palette.blue, fontSize: 11)),
                   Chip(label: Text(u.active ? Loc.t('Active', 'فعال') : Loc.t('Inactive', 'غیر فعال')),
                       labelStyle: TextStyle(color: u.active ? ThemeManager.palette.teal : ThemeManager.palette.textMuted, fontSize: 11)),
                 ]),
                 Wrap(spacing: 8, children: [
                   TextButton.icon(onPressed: () => _resetPassword(u), icon: const Icon(Icons.key, size: 16), label: Text(Loc.t('Reset PW', 'پاس ورڈ ری سیٹ'))),
+                  TextButton.icon(onPressed: () => _editAccess(u), icon: const Icon(Icons.lock_open, size: 16), label: Text(Loc.t('Access', 'رسائی'))),
                   TextButton(onPressed: () => _toggleActive(u), child: Text(u.active ? Loc.t('Deactivate', 'غیر فعال') : Loc.t('Activate', 'فعال'))),
                   TextButton(onPressed: () => _delete(u), child: Text(Loc.t('Delete', 'حذف'), style: TextStyle(color: ThemeManager.palette.red))),
                 ]),

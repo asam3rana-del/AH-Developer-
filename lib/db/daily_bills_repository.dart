@@ -2,7 +2,7 @@ import 'app_database.dart';
 import 'customer_repository.dart';
 import 'party_reports_repository.dart';
 import 'rent_repository.dart';
-import '../services/session.dart';
+import '../services/permissions.dart';
 
 /// "Aaj ke Bills" (Daily Bill): ek din ki saari alag alag sales ek customer ke ek bill ki tarah,
 /// saath mein us din ka pichla balance aur din ke baad ka balance.
@@ -177,7 +177,7 @@ class DailyBillsRepository {
 
   /// Us din (local) jin customers ki sale ya payment hui, un ka hisaab. Zyada sale wale pehle.
   Future<List<DailyParty>> loadDay(DateTime day) async {
-    if (!Session.isAdminOrManager) throw StateError('Only Admin/Manager can view daily bills');
+    if (!Permissions.can('daily_bills')) throw StateError('Admin has not given access to daily bills');
     // Daily Rent: aaj tak ke jo rent bills nahi bane wo ab ban jate hain (sirf rent wale customers ke liye).
     // Rent mein koi masla aaye to baaki Daily Bills phir bhi dikhen; masla screen par bataya jata hai.
     try {

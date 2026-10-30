@@ -526,6 +526,7 @@ class SyncQueueHelper {
         'displayName': u['displayName'],
         'role': u['role'],
         'phone': u['phone'],
+        'permissions': u['permissions'] ?? '',
         'active': _b(u['active']),
       });
 

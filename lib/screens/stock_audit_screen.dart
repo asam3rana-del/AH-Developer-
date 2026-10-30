@@ -4,8 +4,8 @@ import '../db/stock_audit_repository.dart';
 import '../models/product.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
-import '../widgets/role_guard.dart';
 import 'stock_movement_screen.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors StockAuditActivity.kt — "stock apni history se match nahi karta" wale products ek saath.
 ///
@@ -21,8 +21,8 @@ class StockAuditScreen extends StatelessWidget {
   const StockAuditScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const RoleGuard(
-        allowed: {'admin', 'manager'},
+  Widget build(BuildContext context) => const PermissionGuard(
+        permission: 'stock_audit',
         child: _StockAuditBody(),
       );
 }

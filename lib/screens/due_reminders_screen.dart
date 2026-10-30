@@ -7,6 +7,7 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors DueRemindersActivity.kt.
 ///
@@ -25,7 +26,7 @@ class DueRemindersScreen extends StatelessWidget {
   const DueRemindersScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const RoleGuard(allowed: {'admin', 'manager'}, child: _DueRemindersBody());
+  Widget build(BuildContext context) => const PermissionGuard(permission: 'due_reminders', child: _DueRemindersBody());
 }
 
 class _DueRemindersBody extends StatefulWidget {

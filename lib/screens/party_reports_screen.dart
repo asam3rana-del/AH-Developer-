@@ -7,6 +7,7 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart' show formatQty;
 import '../widgets/role_guard.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors PartyReportsActivity.kt.
 ///
@@ -22,7 +23,7 @@ class PartyReportsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const RoleGuard(allowed: {'admin', 'manager'}, child: _PartyReportsBody());
+      const PermissionGuard(permission: 'party_reports', child: _PartyReportsBody());
 }
 
 class _PartyReportsBody extends StatefulWidget {

@@ -5,6 +5,7 @@ import '../models/product.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/role_guard.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors MonthlySalesPurchaseActivity.kt — "Sale vs Purchase — Month/Year".
 ///
@@ -20,7 +21,7 @@ class MonthlyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const RoleGuard(allowed: {'admin', 'manager'}, child: _MonthlyBody());
+      const PermissionGuard(permission: 'monthly', child: _MonthlyBody());
 }
 
 class _MonthlyBody extends StatefulWidget {

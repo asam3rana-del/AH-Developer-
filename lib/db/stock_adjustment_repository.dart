@@ -2,11 +2,11 @@
 import '../utils/qty_math.dart';
 import '../models/product.dart';
 import '../models/stock_movement.dart';
-import '../services/session.dart';
 import 'app_database.dart';
 import 'product_repository.dart';
 import 'stock_ledger.dart';
 import '../sync/sync_queue_helper.dart';
+import '../services/permissions.dart';
 
 /// Ports the data side of StockAdjustmentActivity.kt.
 ///
@@ -67,7 +67,7 @@ class StockAdjustmentRepository {
   /// Stock badlo + DAMAGE/ADJUSTMENT ledger row (cost = us waqt ka product.cost) + product sync_queue,
   /// ek transaction mein. Admin/Manager only (role repository mein bhi check hota hai).
   Future<void> save(String barcode, AdjustmentKind kind, double qty, {String note = ''}) async {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('stock_adjustment')) {
       throw const StockAdjustmentException('Stock Adjustment sirf Admin/Manager kar sakta hai');
     }
     final db = await AppDatabase.instance.database;

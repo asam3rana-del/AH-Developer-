@@ -5,7 +5,7 @@ import '../models/product.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/numeric_keypad.dart';
-import '../widgets/role_guard.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors StockTakingActivity.kt — physical inventory count: poori list mein dhoondo / scroll karo,
 /// har item ke saamne shelf par asal gintee likho, phir variance summary dekh kar confirm karo.
@@ -24,8 +24,8 @@ class StockTakingScreen extends StatelessWidget {
   const StockTakingScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const RoleGuard(
-        allowed: {'admin', 'manager'},
+  Widget build(BuildContext context) => const PermissionGuard(
+        permission: 'stock_taking',
         child: _StockTakingBody(),
       );
 }
