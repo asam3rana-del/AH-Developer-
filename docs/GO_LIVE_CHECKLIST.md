@@ -52,6 +52,31 @@ Ye audit (2026-10-30) ke nateeje hain. Sirf screen ka sahi khulna ya bill ka pri
 | Profit, reports, balance sheet | Profit & Loss aur Balance Sheet ke totals haath se milaye hue numbers se barabar | ⬜ |
 | Android / iOS / Windows release | Naye build par har platform ka install test | ⬜ |
 
+## 5. Production se pehle priority (audit 2026-10-30)
+Audit ka nateeja: "abhi production approval nahi" — iska matlab bugs milna nahi, balki saboot adhura hona hai (audit mein bhi Flutter nahi chala). Jab tak ye poora na ho, asli dukaan ke data ka alag backup rakhein.
+
+**P0 — Data safety aur Firebase**
+- ⬜ Har device par UID aur `branch_members/{uid}` mapping (`docs/CLOUD_SYNC_SETUP.md`)
+- ⬜ Unauthorized branch access aur failed sync ka test
+- ⬜ Backup bana kar doosri test installation par restore (data barabar)
+- ⬜ Sync queue mein pending / failed entries ka record dekhna
+
+**P1 — Accounting regression tests**
+| Cheez | Maujooda automatic test | Kami |
+|-------|-------------------------|------|
+| Sale → receipt → cash / customer balance → stock | ✅ `financial_regression_integration_test.dart` | profit ka cross-check |
+| Purchase → supplier payment → stock / payable / cash | ✅ `financial_regression_integration_test.dart` + naya `accounting_purchase_opening_test.dart` (weighted-average cost, supplier due, stock ledger, purchase → sale profit) | CI par chalna baaki |
+| Linked payment edit / delete, edit refusal, NaN / zero | ✅ `financial_regression_integration_test.dart`, `payment_logic_test.dart`, `split_payment_test.dart` | — |
+| Return, cancellation, edited bill | ✅ Naya `accounting_reconciliation_test.dart` (sale → return → stock / customer due / cash / profit / returns report / stock ledger) + `return_entry_test.dart`, `settle_return_test.dart`, `returned_bill_guard_test.dart`, `sale_edit_and_draft_test.dart` | CI par chalna baaki |
+| Opening balances, expenses, balance sheet | ✅ Naya `accounting_reconciliation_test.dart` (sale + expense → report net profit = balance sheet, receivables, stock value, balance drift 0) + `balance_sheet_test.dart`, `due_balance_cap_test.dart`; opening balance (customer + supplier → receivables / payables) ka test `accounting_purchase_opening_test.dart` mein | CI par chalna baaki |
+| Duplicate submission, do devices par concurrent transactions | ✅ Double-save alert ka test `accounting_reconciliation_test.dart` mein; sync ke liye `sync_*_test.dart` (queue / push / apply) | ⬜ asli do devices par ek saath sale (device test) |
+
+**P2 — Release aur recovery**
+- ⬜ Nayi CI build (Analyze + Test + 3 builds) — Build #485 `26dbc4d` pass; baad ki tabdeeliyan baaki
+- ⬜ Update ke baad purane database ki integrity (DB 33 → 34)
+- ⬜ Asli device par offline sale, reconnect aur sync conflict
+- ⬜ Restore ke baad sales, stock, ledgers aur reports ka muqabla
+
 ## Note
 - Month Close feature app se hata diya gaya hai (user ke kehne par). Unit screen wale changes Build #215 mein hain (pass). Baaki release checks (update test, backup-restore, do devices par ek saath sale) ab section 4 mein hain.
 - CI ki "Node.js 20 is deprecated" warnings workflow actions ki thin, app ki nahi. 2026-10-25: `actions/checkout` v5 aur `actions/upload-artifact` v7 par update kiye — verify ho gaya: Build #485 ke annotations mein Node.js warnings nahi hain.
