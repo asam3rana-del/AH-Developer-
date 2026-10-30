@@ -1,4 +1,5 @@
 import 'app_database.dart';
+import 'cash_repository.dart' show incomeReasonLike;
 import '../services/permissions.dart';
 
 /// Ports the data side of ReportsActivity.kt (`loadReport`).
@@ -35,20 +36,22 @@ ReportRange reportRangeFor(ReportPeriod period, DateTime now) {
   }
 }
 
-/// Profit & Loss card: Revenue - COGS = Gross; Gross - Expenses = Net.
+/// Profit & Loss card: Revenue - COGS = Gross; Gross + Other Income (jaise Rent Received) - Expenses = Net.
 class ProfitLoss {
   final double revenue;
   final double cogs;
   final double expenses;
-  const ProfitLoss(this.revenue, this.cogs, this.expenses);
+  final double otherIncome;
+  const ProfitLoss(this.revenue, this.cogs, this.expenses, [this.otherIncome = 0]);
 
   double get grossProfit => revenue - cogs;
-  double get netProfit => grossProfit - expenses;
+  double get netProfit => grossProfit + otherIncome - expenses;
   bool get isLoss => netProfit < 0;
 }
 
-ProfitLoss buildProfitLoss({required double sales, required double cogs, required double expenses}) =>
-    ProfitLoss(sales, cogs, expenses);
+ProfitLoss buildProfitLoss(
+        {required double sales, required double cogs, required double expenses, double otherIncome = 0}) =>
+    ProfitLoss(sales, cogs, expenses, otherIncome);
 
 class TopProductRow {
   final String product;
@@ -116,6 +119,11 @@ class ReportsRepository {
         "SELECT COALESCE(SUM(total),0) FROM purchases WHERE createdAt BETWEEN ? AND ? AND status!='returned'", args);
     final totalExpenses =
         await scalar('SELECT COALESCE(SUM(amount),0) FROM expenses WHERE createdAt BETWEEN ? AND ?', args);
+    // Income (Rent Received / Other Income): Cash IN rows jinka reason `Income: ...` se shuru hota hai.
+    final otherIncome = await scalar(
+        "SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type='IN' AND reason LIKE '$incomeReasonLike' "
+        'AND createdAt BETWEEN ? AND ?',
+        args);
     final saleCount = (await scalar(
             "SELECT COUNT(*) FROM sales WHERE createdAt BETWEEN ? AND ? AND status!='returned'", args))
         .toInt();
@@ -146,7 +154,7 @@ class ReportsRepository {
       saleReturns: saleReturns,
       purchaseReturns: purchaseReturns,
       saleCount: saleCount,
-      pl: buildProfitLoss(sales: totalSales, cogs: cogs, expenses: totalExpenses),
+      pl: buildProfitLoss(sales: totalSales, cogs: cogs, expenses: totalExpenses, otherIncome: otherIncome),
       topProducts: [
         for (final m in top) TopProductRow((m['product'] ?? '') as String, ((m['totalQty'] as num?) ?? 0).toDouble())
       ],

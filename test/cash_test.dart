@@ -22,6 +22,20 @@ void main() {
     expect(p.cashReason, 'Owner capital');
   });
 
+  test('Cash In under Rent Received is Income (reason prefix, no Expense)', () {
+    final p = planCashEntry(type: 'IN', category: CashCategories.rentReceived, misc: '', note: 'Shop 3 tenant');
+    expect(p.createsExpense, isFalse);
+    expect(p.cashReason, 'Income: Rent Received | Shop 3 tenant');
+    expect(p.cashReason.startsWith(incomeReasonPrefix), isTrue);
+    final q = planCashEntry(type: 'IN', category: CashCategories.otherIncome, misc: '', note: '');
+    expect(q.cashReason, 'Income: Other Income');
+  });
+
+  test('Income category on Cash Out is never an Expense', () {
+    final p = planCashEntry(type: 'OUT', category: CashCategories.rentReceived, misc: '', note: '');
+    expect(p.createsExpense, isFalse);
+  });
+
   test('Miscellaneous joins description and note', () {
     final p = planCashEntry(type: 'OUT', category: CashCategories.miscellaneous, misc: ' Broom ', note: 'urgent');
     expect(p.createsExpense, isTrue);

@@ -1,5 +1,6 @@
 import '../models/product.dart';
 import 'app_database.dart';
+import 'cash_repository.dart' show incomeReasonLike;
 import 'party_repository.dart';
 import '../services/permissions.dart';
 
@@ -91,6 +92,7 @@ BalanceSheetFigures buildBalanceSheet({
   required double sales,
   required double cogs,
   required double expenses,
+  double otherIncome = 0,
 }) {
   return BalanceSheetFigures(
     cashInHand: cashIn - cashOut,
@@ -100,7 +102,7 @@ BalanceSheetFigures buildBalanceSheet({
     advancePaidToSuppliers: advancePaidToSuppliers,
     payables: payables,
     advanceFromCustomers: advanceFromCustomers,
-    netProfit: (sales - cogs) - expenses,
+    netProfit: (sales - cogs) + otherIncome - expenses,
   );
 }
 
@@ -168,6 +170,8 @@ class BalanceSheetRepository {
       cogs: await scalar('SELECT COALESCE(SUM(si.cost),0) FROM sale_items si '
           "JOIN sales s ON si.invoice = s.invoice WHERE s.status != 'returned'"),
       expenses: await scalar('SELECT COALESCE(SUM(amount),0) FROM expenses'),
+      otherIncome: await scalar(
+          "SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type='IN' AND reason LIKE '$incomeReasonLike'"),
     );
 
     return BalanceSheetData(

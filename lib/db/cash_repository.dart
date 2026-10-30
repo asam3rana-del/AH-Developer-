@@ -31,7 +31,22 @@ class CashCategories {
     miscellaneous,
     nonExpense,
   ];
+
+  /// Income (Cash IN) categories — profit mein "Other Income" ban kar judti hain (kharcha nahi).
+  static const rentReceived = 'Rent Received';
+  static const otherIncome = 'Other Income';
+  static const income = <String>[rentReceived, otherIncome];
+
+  static bool isIncome(String category) => income.contains(category.trim());
+
+  /// Cash screen ki category list: pehle kharche (Cash Out), phir income (Cash In).
+  static const withIncome = <String>[...all, ...income];
 }
+
+/// Income wali cash IN row ka reason `Income: <category>` se shuru hota hai.
+/// Reports / Balance Sheet isi prefix se "Other Income" nikalte hain.
+const incomeReasonPrefix = 'Income: ';
+const incomeReasonLike = 'Income:%';
 
 /// What one tap on CASH IN / CASH OUT will write.
 class CashEntryPlan {
@@ -63,9 +78,12 @@ CashEntryPlan planCashEntry({
   final cat = category.trim();
   final m = misc.trim();
   final n = note.trim();
-  final isExpense = type == 'OUT' && cat.isNotEmpty && cat != CashCategories.nonExpense;
+  final isIncome = type == 'IN' && CashCategories.isIncome(cat);
+  final isExpense =
+      type == 'OUT' && cat.isNotEmpty && cat != CashCategories.nonExpense && !CashCategories.isIncome(cat);
 
   final reason = StringBuffer();
+  if (isIncome) reason.write('$incomeReasonPrefix$cat');
   if (isExpense) {
     reason.write(cat);
     if (cat == CashCategories.miscellaneous && m.isNotEmpty) {
@@ -126,6 +144,9 @@ class CashRepository {
     if (type != 'IN' && type != 'OUT') throw ArgumentError('type must be IN or OUT');
     if (method != 'cash' && method != 'bank') throw ArgumentError('method must be cash or bank');
     if (!amount.isFinite || amount <= 0) throw ArgumentError('Amount must be greater than 0');
+    if (type == 'OUT' && CashCategories.isIncome(category)) {
+      throw ArgumentError('Income category sirf Cash In ke liye hai');
+    }
 
     final plan = planCashEntry(type: type, category: category, misc: misc, note: note);
     final now = DateTime.now().millisecondsSinceEpoch;

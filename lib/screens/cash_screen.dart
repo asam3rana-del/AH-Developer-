@@ -257,12 +257,15 @@ class _CashScreenState extends State<CashScreen> {
         const SizedBox(height: 14),
         _dropdown(p, _method, const ['cash', 'bank'], (v) => setState(() => _method = v)),
         const SizedBox(height: 14),
-        Text(Loc.t('Expense Category', 'خرچہ کیٹیگری'),
+        Text(Loc.t('Category', 'کیٹیگری'),
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.textDark)),
         const SizedBox(height: 2),
-        Text(Loc.t('Used for Cash Out only', 'صرف کیش آؤٹ کے لیے'), style: TextStyle(fontSize: 11, color: p.textMuted)),
+        Text(
+            Loc.t('Expense categories: Cash Out • Rent Received / Other Income: Cash In',
+                'خرچے: کیش آؤٹ • کرایہ وصول / دیگر آمدنی: کیش اِن'),
+            style: TextStyle(fontSize: 11, color: p.textMuted)),
         const SizedBox(height: 10),
-        _dropdown(p, _category, CashCategories.all, (v) => setState(() => _category = v)),
+        _dropdown(p, _category, CashCategories.withIncome, (v) => setState(() => _category = v)),
         const SizedBox(height: 14),
         if (showToggle)
           Padding(

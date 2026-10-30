@@ -392,6 +392,9 @@ class _ReportsBodyState extends State<_ReportsBody> {
         divider(),
         line(Loc.t('Gross Profit', 'مجموعی منافع'), pl.grossProfit, p.flatBlueFg, bold: true),
         const SizedBox(height: 4),
+        if (pl.otherIncome != 0)
+          line(Loc.t('(+) Other Income (Rent Received etc.)', '(+) دیگر آمدنی (کرایہ وصول وغیرہ)'), pl.otherIncome,
+              p.flatTealFg),
         line(Loc.t('(-) Operating Expenses', '(-) آپریٹنگ اخراجات'), pl.expenses, p.red),
         divider(),
         line(pl.isLoss ? Loc.t('Net Loss', 'خالص نقصان') : Loc.t('Net Profit', 'خالص منافع'), pl.netProfit, netColor,
