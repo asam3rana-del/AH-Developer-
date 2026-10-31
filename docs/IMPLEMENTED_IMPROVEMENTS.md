@@ -48,3 +48,8 @@ No database migration, financial transaction, synchronization, or backup impleme
 - If `pubspec.lock` is still missing, CI prints a warning only (so builds are not blocked before the first commit).
 - **Manual step:** run `flutter pub get` with Flutter 3.24.0, commit `pubspec.lock`. After that, change the "missing" branch in `build.yml` from `::warning::` to `::error::` + `exit 1`.
 - Not validated: the Dart SDK could not be downloaded in the authoring environment, so the lockfile could not be generated and the workflow has not been run.
+
+## Update 3 — lockfile artifact
+
+- The Analyze + Test job uploads the lockfile it resolved as an artifact named `pubspec-lock`.
+- Download it from the Actions run page and commit `pubspec.lock` to the repository root.
