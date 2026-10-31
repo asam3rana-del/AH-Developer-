@@ -44,7 +44,8 @@ jobs:
         run: |
           flutter pub get
           if [ ! -f pubspec.lock ]; then
-            echo "::warning::pubspec.lock is not committed. Run 'flutter pub get' locally and commit it, then this check becomes a hard failure."
+            echo "::error::pubspec.lock is missing. Commit it to the repository root."
+            exit 1
           elif ! git diff --quiet -- pubspec.lock; then
             echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
             git diff -- pubspec.lock | head -50
@@ -112,7 +113,8 @@ jobs:
         run: |
           flutter pub get
           if [ ! -f pubspec.lock ]; then
-            echo "::warning::pubspec.lock is not committed. Run 'flutter pub get' locally and commit it, then this check becomes a hard failure."
+            echo "::error::pubspec.lock is missing. Commit it to the repository root."
+            exit 1
           elif ! git diff --quiet -- pubspec.lock; then
             echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
             git diff -- pubspec.lock | head -50
@@ -154,7 +156,8 @@ jobs:
         run: |
           flutter pub get
           if [ ! -f pubspec.lock ]; then
-            echo "::warning::pubspec.lock is not committed. Run 'flutter pub get' locally and commit it, then this check becomes a hard failure."
+            echo "::error::pubspec.lock is missing. Commit it to the repository root."
+            exit 1
           elif ! git diff --quiet -- pubspec.lock; then
             echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
             git diff -- pubspec.lock | head -50
@@ -203,7 +206,8 @@ jobs:
         run: |
           flutter pub get
           if [ ! -f pubspec.lock ]; then
-            echo "::warning::pubspec.lock is not committed. Run 'flutter pub get' locally and commit it, then this check becomes a hard failure."
+            echo "::error::pubspec.lock is missing. Commit it to the repository root."
+            exit 1
           elif ! git diff --quiet -- pubspec.lock; then
             echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
             git diff -- pubspec.lock | head -50
