@@ -1,0 +1,26 @@
+name: Migration tests
+
+on:
+  push:
+    branches: [main]
+    paths: ['lib/db/**', 'test_migration/**', '.github/workflows/migration-tests.yml']
+  workflow_dispatch:
+
+jobs:
+  migration:
+    name: Database migration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - run: flutter pub get
+
+      - name: flutter test test_migration (migration + financial + backup tests)
+        run: flutter test test_migration --reporter expanded
