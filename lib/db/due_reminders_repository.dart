@@ -996,4 +996,88 @@ class DueRemindersRepository {
       return true;
     });
   }
+
+  /// Party ke SAARE baqi (active, total > paid) bills ki date ek saath. Ek transaction, har bill sync queue mein.
+  /// Date [dueDateMillis] (sab ke liye ek) YA [days] (har bill ki apni date + days) — dono mein se ek do.
+  /// [onlyUndated]: sirf jin par date nahi (pehle se set dates na chhedein). Return: kitne bills badle.
+  Future<int> setDueDateForParty({
+    required bool isSale,
+    required int partyId,
+    int? dueDateMillis,
+    int? days,
+    bool onlyUndated = false,
+  }) async {
+    assert((dueDateMillis == null) != (days == null), 'dueDateMillis ya days, dono mein se ek');
+    final db = await AppDatabase.instance.database;
+    final table = isSale ? 'sales' : 'purchases';
+    final key = isSale ? 'invoice' : 'billNo';
+    final partyCol = isSale ? 'customerId' : 'supplierId';
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return db.transaction((txn) async {
+      final rows = await txn.rawQuery(
+        "SELECT $key AS id, createdAt, dueDate FROM $table "
+        "WHERE $partyCol = ? AND status = 'active' AND (total - paid) > 0.009",
+        [partyId],
+      );
+      var changed = 0;
+      for (final r in rows) {
+        final current = (r['dueDate'] as num?)?.toInt() ?? 0;
+        if (onlyUndated && current > 0) continue;
+        final target = dueDateMillis != null
+            ? startOfDayMillis(dueDateMillis)
+            : dueDateAfterDays((r['createdAt'] as num).toInt(), days!);
+        if (target == current) continue;
+        await txn.update(
+          table,
+          {'dueDate': target, 'updatedAt': now, 'dirty': 1},
+          where: '$key = ?',
+          whereArgs: [r['id']],
+        );
+        final id = r['id'] as String;
+        if (isSale) {
+          await SyncQueueHelper.enqueueSale(txn, id);
+        } else {
+          await SyncQueueHelper.enqueuePurchase(txn, id);
+        }
+        changed++;
+      }
+      return changed;
+    });
+  }
+
+  /// customerId => default due-days (sirf jin ka > 0). Due Reminders card par dikhane ke liye.
+  Future<Map<int, int>> customerDueDaysMap() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.rawQuery('SELECT id, dueDays FROM customers WHERE dueDays > 0');
+    return {for (final r in rows) (r['id'] as num).toInt(): (r['dueDays'] as num).toInt()};
+  }
+
+  /// Customer ki default muddat (din) badlo (0 = hata do). Sirf customers (suppliers mein ye column nahi).
+  Future<bool> setCustomerDueDays(int customerId, int days) async {
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final value = clampDueDays(days);
+    final ok = await db.transaction((txn) async {
+      final n = await txn.update(
+        'customers',
+        {'dueDays': value, 'updatedAt': now, 'dirty': 1},
+        where: 'id = ?',
+        whereArgs: [customerId],
+      );
+      if (n == 0) return false;
+      await SyncQueueHelper.enqueueCustomer(txn, customerId);
+      return true;
+    });
+    if (ok) await CustomerRepository.instance.refresh();
+    return ok;
+  }
+}
+
+/// Muddat (din) ki hadd: 0 .. 365 (Party screen ke edit dialog jaisi).
+int clampDueDays(int days) => days.clamp(0, 365);
+
+/// Bill ki date (createdAt) + [days] din, din ki shuruaat par (DST se bachne ke liye calendar arithmetic).
+int dueDateAfterDays(int billCreatedAtMillis, int days) {
+  final d = DateTime.fromMillisecondsSinceEpoch(billCreatedAtMillis);
+  return DateTime(d.year, d.month, d.day + clampDueDays(days)).millisecondsSinceEpoch;
 }

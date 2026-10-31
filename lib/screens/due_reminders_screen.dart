@@ -41,6 +41,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   bool _purchases = false;
   bool _loading = true;
   List<DueBill> _bills = const [];
+  Map<int, int> _defaultDays = const {}; // customerId => default due-days (sirf Sales tab)
   final _search = TextEditingController();
   String _query = '';
 
@@ -77,9 +78,11 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   Future<void> _load({bool showSpinner = true}) async {
     if (showSpinner) setState(() => _loading = true);
     final list = _purchases ? await _repo.duePurchases() : await _repo.dueSales();
+    final defaults = _purchases ? const <int, int>{} : await _repo.customerDueDaysMap();
     if (!mounted) return;
     setState(() {
       _bills = list;
+      _defaultDays = defaults;
       _loading = false;
     });
   }
@@ -117,6 +120,138 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     );
     if (!mounted) return;
     if (!ok) _toast(Loc.t('This bill no longer exists', 'یہ بل اب موجود نہیں'));
+    await _load(showSpinner: false);
+  }
+
+  /// Party ke saare baqi bills ki date ek saath (quick chips) + customer ki default muddat (din) badalna.
+  Future<void> _bulkDates(DueParty g) async {
+    final partyId = g.partyId;
+    if (partyId == null) return;
+    var days = _purchases ? 0 : (_defaultDays[partyId] ?? 0);
+    var onlyUndated = g.undatedCount > 0 && g.undatedCount < g.billCount;
+    final daysCtrl = TextEditingController(text: days > 0 ? '$days' : '');
+    // Ek action chuna jata hai => sheet band => neeche apply hota hai.
+    final action = await showModalBottomSheet<({int? fixedFromNow, int? pickedMillis, bool byBillDate, bool pick})>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _p.cardWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          Widget chip(String label, VoidCallback onTap) => ActionChip(
+                label: Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: _primary)),
+                backgroundColor: _p.flatPurpleBg,
+                side: BorderSide.none,
+                onPressed: onTap,
+              );
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(g.partyName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _p.textDark)),
+                  const SizedBox(height: 2),
+                  Text(
+                      '${g.billCount} ${Loc.t('bills', 'بل')} • ${_rs(g.total)} ${Loc.t('due', 'واجب الادا')}',
+                      style: TextStyle(fontSize: 12, color: _p.textMuted)),
+                  const SizedBox(height: 14),
+                  Text(Loc.t('Set due date for all bills', 'سب بلوں کی تاریخ طے کریں'),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _p.textDark)),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 8, runSpacing: 6, children: [
+                    for (final n in const [7, 15, 30])
+                      chip(Loc.t('Today + $n days', 'آج + $n دن'),
+                          () => Navigator.pop(ctx, (fixedFromNow: n, pickedMillis: null, byBillDate: false, pick: false))),
+                    chip(Loc.t('Pick a date…', 'تاریخ چنیں…'),
+                        () => Navigator.pop(ctx, (fixedFromNow: null, pickedMillis: null, byBillDate: false, pick: true))),
+                    if (days > 0)
+                      chip(Loc.t('Bill date + $days days', 'بل کی تاریخ + $days دن'),
+                          () => Navigator.pop(ctx, (fixedFromNow: null, pickedMillis: null, byBillDate: true, pick: false))),
+                  ]),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: onlyUndated,
+                    onChanged: g.undatedCount == 0 ? null : (v) => setLocal(() => onlyUndated = v),
+                    title: Text(Loc.t('Only bills without a date', 'صرف وہ بل جن پر تاریخ نہیں'),
+                        style: TextStyle(fontSize: 13, color: _p.textDark)),
+                  ),
+                  if (!_purchases) ...[
+                    const Divider(height: 22),
+                    Text(Loc.t('Default payment term (days)', 'ڈیفالٹ ادائیگی کی مدت (دن)'),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _p.textDark)),
+                    const SizedBox(height: 2),
+                    Text(Loc.t('New credit bills of this customer get date = bill date + these days.',
+                        'اس کسٹمر کے نئے ادھار بل کی تاریخ = بل کی تاریخ + یہ دن۔'),
+                        style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(
+                        child: TextField(
+                          controller: daysCtrl,
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(color: _p.textDark),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: Loc.t('0 = not set', '0 = طے نہیں'),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton(
+                        onPressed: () async {
+                          final v = clampDueDays(int.tryParse(daysCtrl.text.trim()) ?? 0);
+                          final ok = await _repo.setCustomerDueDays(partyId, v);
+                          if (!ctx.mounted) return;
+                          setLocal(() => days = ok ? v : days);
+                          if (!mounted) return;
+                          _toast(ok
+                              ? Loc.t('Default term saved: $v days', 'ڈیفالٹ مدت محفوظ: $v دن')
+                              : Loc.t('Customer not found', 'کسٹمر نہیں ملا'));
+                          await _load(showSpinner: false);
+                        },
+                        child: Text(Loc.t('Save term', 'مدت محفوظ کریں')),
+                      ),
+                    ]),
+                  ],
+                ]),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    daysCtrl.dispose();
+    if (action == null || !mounted) return;
+
+    int? millis;
+    int? byDays;
+    if (action.pick) {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: g.earliestDue > 0 ? DateTime.fromMillisecondsSinceEpoch(g.earliestDue) : DateTime.now(),
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2100),
+      );
+      if (picked == null || !mounted) return;
+      millis = DateTime(picked.year, picked.month, picked.day).millisecondsSinceEpoch;
+    } else if (action.byBillDate) {
+      byDays = days;
+    } else {
+      final n = DateTime.now();
+      millis = DateTime(n.year, n.month, n.day + action.fixedFromNow!).millisecondsSinceEpoch;
+    }
+    final changed = await _repo.setDueDateForParty(
+      isSale: !_purchases,
+      partyId: partyId,
+      dueDateMillis: millis,
+      days: byDays,
+      onlyUndated: onlyUndated,
+    );
+    if (!mounted) return;
+    _toast(Loc.t('Date set on $changed bill(s)', '$changed بل پر تاریخ طے ہو گئی'));
     await _load(showSpinner: false);
   }
 
@@ -419,6 +554,11 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     } else {
       dateLine = multi ? Loc.t('Tap to set dates', 'تاریخیں طے کرنے کے لیے دبائیں') : Loc.t('Tap to set a due date', 'تاریخ طے کرنے کے لیے دبائیں');
     }
+    final defDays = g.partyId == null ? 0 : (_defaultDays[g.partyId!] ?? 0);
+    if (!g.isAdvance && !onlyBalance && defDays > 0) {
+      dateLine += '${dateLine.isEmpty ? '' : ' • '}${Loc.t('Term', 'مدت')}: $defDays ${Loc.t('days', 'دن')}';
+    }
+    final canBulk = !g.isAdvance && !onlyBalance && g.partyId != null;
 
     VoidCallback? onTap;
     if (multi) {
@@ -463,6 +603,13 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                 ]),
               ),
               if (multi) Icon(Icons.chevron_right, color: _p.textMuted),
+              if (canBulk) ...[
+                Tooltip(
+                  message: Loc.t('Set dates for all bills', 'سب بلوں کی تاریخ'),
+                  child: _circleButton(Icons.event_available, _amber, _p.flatAmberBg, () => _bulkDates(g)),
+                ),
+                const SizedBox(width: 10),
+              ],
               if (hasPhone) ...[
                 if (canRemind) ...[
                   _circleButton(Icons.send, const Color(0xFF25D366), const Color(0xFFDDF6E8), () => _whatsApp(g)),

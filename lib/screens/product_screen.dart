@@ -368,7 +368,7 @@ class _ProductScreenState extends State<ProductScreen> {
     if (existing != null) {
       final plan = LadderRatePlan.build(existing, product);
       if (plan != null) {
-        final choice = await _confirmLadderRates(plan);
+        final choice = await _confirmLadderRates(plan, existing, product);
         if (choice == null || !mounted) return;
         if (choice) product = plan.apply(product);
       }
@@ -431,14 +431,18 @@ class _ProductScreenState extends State<ProductScreen> {
 
   /// Unit ladder badalne par rates ka dialog. true = naye unit ke hisaab se rescale, false = jaisa likha waisa
   /// (cost phir bhi purane qaide se rescale hoti hai), null = wapas jao.
-  Future<bool?> _confirmLadderRates(LadderRatePlan plan) {
+  Future<bool?> _confirmLadderRates(LadderRatePlan plan, Product existing, Product draft) {
     String n(double v) => _trimNum(v);
+    // Stock wahi rehta hai, sirf naye unit mein likha jata hai (purana -> naya breakdown).
+    final r = rescaleStockForLadderChange(existing, draft);
+    final stockBefore = existing.formatStockBreakdown();
+    final stockAfter = draft.copyWith(stock: r.stock).formatStockBreakdown();
     final Widget content;
     if (!plan.convertible) {
       content = Text(Loc.t(
         'Sab se chhoti unit badal gayi hai, is liye cost aur rates apne aap nahi badal sakte.\n\n'
             'Save se pehle Purchase rate aur sab Sale rates naye primary unit ke hisaab se khud check karen, '
-            'warna profit galat aayega.',
+            'warna profit galat aayega.\n\nPurane bills ki cost/profit nahi badlegi.',
         'سب سے چھوٹی یونٹ بدل گئی ہے، اس لیے لاگت اور ریٹس خود بخود نہیں بدل سکتے۔\n\n'
             'محفوظ کرنے سے پہلے خریداری ریٹ اور تمام سیل ریٹس نئی پرائمری یونٹ کے مطابق خود چیک کریں، '
             'ورنہ منافع غلط آئے گا۔',
@@ -462,10 +466,17 @@ class _ProductScreenState extends State<ProductScreen> {
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
+            if (stockBefore != stockAfter) ...[
+              const SizedBox(height: 6),
+              Text(
+                '${Loc.t('Stock', 'اسٹاک')}: $stockBefore → $stockAfter',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(Loc.t(
-              'Jo rate aap ne is form mein khud badli hai wo nahi chhedi gayi.',
-              'جو ریٹ آپ نے اس فارم میں خود بدلا ہے اسے نہیں چھیڑا گیا۔',
+              'Purane bills ki cost/profit nahi badlegi. Jo rate aap ne is form mein khud badli hai wo nahi chhedi gayi.',
+              'پرانے بلوں کی لاگت/منافع نہیں بدلے گا۔ جو ریٹ آپ نے اس فارم میں خود بدلا ہے اسے نہیں چھیڑا گیا۔',
             )),
           ],
         ),

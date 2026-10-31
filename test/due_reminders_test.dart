@@ -215,4 +215,21 @@ void main() {
       expect(dueMatches(g, '9999'), false);
     });
   });
+
+  group('quick due date helpers', () {
+    test('clampDueDays: 0..365', () {
+      expect(clampDueDays(-5), 0);
+      expect(clampDueDays(30), 30);
+      expect(clampDueDays(999), 365);
+    });
+    test('dueDateAfterDays: bill ki date + din, din ki shuruaat par', () {
+      final created = DateTime(2026, 3, 15, 14, 30).millisecondsSinceEpoch;
+      expect(dueDateAfterDays(created, 15), DateTime(2026, 3, 30).millisecondsSinceEpoch);
+      expect(dueDateAfterDays(created, 30), DateTime(2026, 4, 14).millisecondsSinceEpoch);
+      expect(dueDateAfterDays(created, 0), DateTime(2026, 3, 15).millisecondsSinceEpoch);
+      // mahine / saal paar
+      final dec = DateTime(2026, 12, 20, 9).millisecondsSinceEpoch;
+      expect(dueDateAfterDays(dec, 15), DateTime(2027, 1, 4).millisecondsSinceEpoch);
+    });
+  });
 }

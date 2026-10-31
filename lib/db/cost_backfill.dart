@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/product.dart';
 import '../models/purchase.dart';
 import '../sync/sync_queue_helper.dart';
+import 'stock_report_repository.dart' show costPerSmallestUnit;
 
 /// costPending: minus stock (ya product cost 0) par bani sale line ki asal cost purchase aane par bharna.
 ///
@@ -15,6 +16,9 @@ import '../sync/sync_queue_helper.dart';
 ///
 /// Purchase save/edit/delete/return/item-edit — sab yahin se guzarte hain taake profit aage peeche theek rahe.
 const double kPendingEpsilon = 1e-6;
+
+/// backfillLog mein 'b' ki jagah jab cost product ki maujooda cost se bhari jaye (purchase bill nahi).
+const String kProductCostTag = 'product-cost';
 
 /// Ek pending line (planning ke liye; DB se alag taake test aasan ho).
 class PendingLine {
@@ -235,6 +239,38 @@ class CostBackfill {
       if (smallest <= kPendingEpsilon) continue;
       await apply(ex, billNo: billNo, barcode: barcode, smallestQty: smallest, ratePerSmallest: it.amount / smallest);
     }
+  }
+
+  /// Product ki MAUJUDA cost (per smallest unit) se pending hissa bharna — jab product ki cost baad mein likhi
+  /// gayi ho (purchase aaye bina). [ids] diye hon to sirf wo sale_items lines. Jin products ki cost 0 hai unhe
+  /// chhod deta hai. Log mein tag [kProductCostTag] (purchase bill ki tarah nahi, is liye purchase delete se
+  /// wapas pending nahi hota). Wapas: kitni lines badli.
+  static Future<int> fillFromProductCost(DatabaseExecutor ex, {Set<int>? ids}) async {
+    final rows = await ex.rawQuery(
+      'SELECT si.id AS id, si.invoice AS invoice, si.barcode AS barcode, si.cost AS cost, '
+      'si.pendingQty AS pendingQty, si.pendingEst AS pendingEst, si.backfillLog AS backfillLog '
+      'FROM sale_items si JOIN sales s ON s.invoice = si.invoice '
+      "WHERE si.pendingQty > ? AND s.status = 'active' ORDER BY s.createdAt ASC, si.id ASC",
+      [kPendingEpsilon],
+    );
+    final productCache = <String, Product?>{};
+    final plan = <BackfillResult>[];
+    for (final r in rows) {
+      final id = (r['id'] as num).toInt();
+      if (ids != null && !ids.contains(id)) continue;
+      final barcode = r['barcode'] as String;
+      if (!productCache.containsKey(barcode)) {
+        final pr = await ex.query('products', where: 'barcode = ?', whereArgs: [barcode], limit: 1);
+        productCache[barcode] = pr.isEmpty ? null : Product.fromMap(pr.first);
+      }
+      final p = productCache[barcode];
+      if (p == null || p.cost <= 0) continue;
+      final line = _line(r);
+      plan.addAll(planBackfill([line],
+          billNo: kProductCostTag, smallestQty: line.pendingQty, ratePerSmallest: costPerSmallestUnit(p)));
+    }
+    await _write(ex, plan);
+    return plan.length;
   }
 
   /// Sale save par: [needed] smallest units bechne hain, [stockBefore] stock tha, [costPerSmallest] product ki cost.

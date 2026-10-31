@@ -13,6 +13,7 @@ import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import 'bill_cost_repair_screen.dart';
+import 'pending_cost_screen.dart';
 import 'bulk_default_unit_screen.dart';
 import 'bulk_missing_rates_screen.dart';
 import 'shop_rate_screen.dart';
@@ -314,6 +315,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
             if (Permissions.can('fix_bill_cost'))
               _pill(Loc.t('Fix Bill Cost', 'بل کی لاگت درست کریں'), Icons.build_outlined,
                   () => _push(const PermissionGuard(permission: 'fix_bill_cost', child: BillCostRepairScreen()))),
+            if (Permissions.can('fix_bill_cost'))
+              _pill(Loc.t('Pending Cost', 'باقی لاگت'), Icons.hourglass_bottom,
+                  () => _push(const PermissionGuard(permission: 'fix_bill_cost', child: PendingCostScreen()))),
           ]),
         ),
       );
