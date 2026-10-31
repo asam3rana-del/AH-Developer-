@@ -46,3 +46,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run build.yml --ref main
+      - name: Trigger Migration tests (non-gating)
+        if: steps.unzip.outputs.did == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run migration-tests.yml --ref main || echo "migration-tests.yml not found - skipped"
