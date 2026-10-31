@@ -26,8 +26,7 @@ env:
   FLUTTER_VERSION: ${{ inputs.flutter_version || '3.24.0' }}
 
 jobs:
-  # Analyze + test: har push par chalta hai. Builds se alag hai (fail ho to bhi APK/iOS build chalte hain),
-  # lekin result GitHub Actions mein dekhein.
+  # Analyze + test is the required release gate. Every platform build depends on this job.
   analyze-test:
     name: Analyze + Test
     runs-on: ubuntu-latest
@@ -41,22 +40,42 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - run: flutter pub get
+      - name: flutter pub get (lockfile check)
+        run: |
+          flutter pub get
+          if [ ! -f pubspec.lock ]; then
+            echo "::warning::pubspec.lock is not committed. Run 'flutter pub get' locally and commit it, then this check becomes a hard failure."
+          elif ! git diff --quiet -- pubspec.lock; then
+            echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
+            git diff -- pubspec.lock | head -50
+            exit 1
+          fi
+
+      # CI ne jo pubspec.lock banayi, wo download ke liye rakh do (repo mein commit karne ke liye).
+      - name: Upload generated pubspec.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: pubspec-lock
+          path: pubspec.lock
+          if-no-files-found: warn
 
       # Sirf errors/warnings fail karte hain; info-level lints nahi.
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      # test/ folder na ho (ya khali ho) to build fail na ho.
-      - name: flutter test
+      # Release gate: missing tests are a configuration error, not a silent skip.
+      - name: Verify test suite exists
         run: |
-          if [ -d test ] && [ -n "$(find test -name '*_test.dart' | head -1)" ]; then
-            flutter test
-          else
-            echo "test/ folder ya *_test.dart nahi mili - tests skip."
+          if [ ! -d test ] || [ -z "$(find test -name '*_test.dart' -print -quit)" ]; then
+            echo "::error::No Dart tests found. Release builds are blocked until the test suite is restored."
+            exit 1
           fi
+
+      - name: flutter test
+        run: flutter test --reporter expanded
 
   build-ios:
     name: Build iOS (unsigned)
+    needs: analyze-test
     runs-on: macos-15
     timeout-minutes: 60
     steps:
@@ -89,7 +108,16 @@ jobs:
           perl -0pi -e 's/(flutter_additional_ios_build_settings\(target\)\n)/$1    target.build_configurations.each do |c|\n      c.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      c.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n      c.build_settings["EXPANDED_CODE_SIGN_IDENTITY"] = ""\n    end\n/' ios/Podfile
           grep -n "CODE_SIGN" ios/Podfile
 
-      - run: flutter pub get
+      - name: flutter pub get (lockfile check)
+        run: |
+          flutter pub get
+          if [ ! -f pubspec.lock ]; then
+            echo "::warning::pubspec.lock is not committed. Run 'flutter pub get' locally and commit it, then this check becomes a hard failure."
+          elif ! git diff --quiet -- pubspec.lock; then
+            echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
+            git diff -- pubspec.lock | head -50
+            exit 1
+          fi
 
       # Unsigned build — good enough to confirm it compiles for iOS.
       # To install on a real iPad you need a signed IPA: open ios/Runner.xcworkspace
@@ -104,6 +132,7 @@ jobs:
 
   build-android:
     name: Build Android APK
+    needs: analyze-test
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -121,7 +150,16 @@ jobs:
       - name: Bump Kotlin plugin
         run: sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
 
-      - run: flutter pub get
+      - name: flutter pub get (lockfile check)
+        run: |
+          flutter pub get
+          if [ ! -f pubspec.lock ]; then
+            echo "::warning::pubspec.lock is not committed. Run 'flutter pub get' locally and commit it, then this check becomes a hard failure."
+          elif ! git diff --quiet -- pubspec.lock; then
+            echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
+            git diff -- pubspec.lock | head -50
+            exit 1
+          fi
 
       - name: Android fixes + fixed signing key
         run: bash tools/android_fix.sh
@@ -144,6 +182,7 @@ jobs:
 
   build-windows:
     name: Build Windows (exe)
+    needs: analyze-test
     # windows-latest ab Visual Studio 2026 wala hai; Flutter 3.24.0 use nahi pehchanta
     # ("Generator Visual Studio 16 2019 could not find any instance"). windows-2022 mein VS 2022 hai.
     runs-on: windows-2022
@@ -160,7 +199,16 @@ jobs:
       # Repo mein windows/ folder nahi hota, isliye generate karte hain (iOS / Android jaisa).
       - run: flutter create --platforms=windows --project-name ah_developer_kiryana_store .
 
-      - run: flutter pub get
+      - name: flutter pub get (lockfile check)
+        run: |
+          flutter pub get
+          if [ ! -f pubspec.lock ]; then
+            echo "::warning::pubspec.lock is not committed. Run 'flutter pub get' locally and commit it, then this check becomes a hard failure."
+          elif ! git diff --quiet -- pubspec.lock; then
+            echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
+            git diff -- pubspec.lock | head -50
+            exit 1
+          fi
 
       # Window title: Hanna Solutions.
       - name: Set Windows window title
