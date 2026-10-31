@@ -140,13 +140,14 @@ void main() {
   Future<Map<String, List<String>>> rowsOf(dynamic db, {Set<String> skipColumns = const {}}) async {
     final out = <String, List<String>>{};
     for (final t in dataTables) {
-      final rows = await db.rawQuery('SELECT * FROM $t ORDER BY rowid');
+      final List rows = await db.rawQuery('SELECT * FROM $t ORDER BY rowid');
       out[t] = [
         for (final r in rows)
-          jsonEncode(Map.fromEntries(
-              (r.entries.where((e) => !skipColumns.contains('$t.${e.key}')).toList()
-                    ..sort((a, b) => a.key.compareTo(b.key)))
-                  .map((e) => MapEntry(e.key, e.value)))),
+          () {
+            final m = Map<String, Object?>.from(r as Map);
+            final keys = m.keys.where((k) => !skipColumns.contains('$t.$k')).toList()..sort();
+            return jsonEncode({for (final k in keys) k: m[k]});
+          }(),
       ];
     }
     return out;
