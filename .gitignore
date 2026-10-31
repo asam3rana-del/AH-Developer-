@@ -10,3 +10,4 @@
 .flutter-plugins
 .flutter-plugins-dependencies
 build/
+firebase/rules-tests/node_modules/
