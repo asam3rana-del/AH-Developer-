@@ -41,12 +41,13 @@ jobs:
           cache: true
 
       - name: flutter pub get (lockfile check)
+        shell: bash
         run: |
           flutter pub get
           if [ ! -f pubspec.lock ]; then
             echo "::error::pubspec.lock is missing. Commit it to the repository root."
             exit 1
-          elif ! git diff --quiet -- pubspec.lock; then
+          elif ! git diff --quiet --ignore-cr-at-eol -- pubspec.lock; then
             echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
             git diff -- pubspec.lock | head -50
             exit 1
@@ -110,12 +111,13 @@ jobs:
           grep -n "CODE_SIGN" ios/Podfile
 
       - name: flutter pub get (lockfile check)
+        shell: bash
         run: |
           flutter pub get
           if [ ! -f pubspec.lock ]; then
             echo "::error::pubspec.lock is missing. Commit it to the repository root."
             exit 1
-          elif ! git diff --quiet -- pubspec.lock; then
+          elif ! git diff --quiet --ignore-cr-at-eol -- pubspec.lock; then
             echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
             git diff -- pubspec.lock | head -50
             exit 1
@@ -153,12 +155,13 @@ jobs:
         run: sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
 
       - name: flutter pub get (lockfile check)
+        shell: bash
         run: |
           flutter pub get
           if [ ! -f pubspec.lock ]; then
             echo "::error::pubspec.lock is missing. Commit it to the repository root."
             exit 1
-          elif ! git diff --quiet -- pubspec.lock; then
+          elif ! git diff --quiet --ignore-cr-at-eol -- pubspec.lock; then
             echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
             git diff -- pubspec.lock | head -50
             exit 1
@@ -203,12 +206,13 @@ jobs:
       - run: flutter create --platforms=windows --project-name ah_developer_kiryana_store .
 
       - name: flutter pub get (lockfile check)
+        shell: bash
         run: |
           flutter pub get
           if [ ! -f pubspec.lock ]; then
             echo "::error::pubspec.lock is missing. Commit it to the repository root."
             exit 1
-          elif ! git diff --quiet -- pubspec.lock; then
+          elif ! git diff --quiet --ignore-cr-at-eol -- pubspec.lock; then
             echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
             git diff -- pubspec.lock | head -50
             exit 1
