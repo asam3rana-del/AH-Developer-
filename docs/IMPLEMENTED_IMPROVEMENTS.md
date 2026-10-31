@@ -85,3 +85,9 @@ No database migration, financial transaction, synchronization, or backup impleme
 - After run #2 of "Migration tests" passed 18/18, `db_migration_test.dart`, `financial_gaps_test.dart` and `backup_restore_drill_test.dart` moved from `test_migration/` to `test/`, so `flutter test` in the release gate (build.yml) runs them before any platform build.
 - The separate `migration-tests.yml` workflow and its trigger step in `import-zip.yml` were removed.
 - If the old `test_migration/` folder or `migration-tests.yml` still exist in the repository, delete them (a zip import never deletes files).
+
+## Update 10 — duplicate-save guard (P1 sale/purchase "no duplicate invoice save"), app code change, NOT YET RUN
+
+- Finding: in `sale_screen.dart` and `purchase_screen.dart`, `_saving` becomes true only after the duplicate-check query (and confirm dialogs). A quick double tap, or F9/Ctrl+S plus a tap, could start two saves of the same bill and create two invoices.
+- Fix: `_save()` now has a synchronous `_saveEntered` re-entry guard (set before the first await, released in `finally`). The credit-limit retry calls `_saveImpl` directly so it is not blocked by the guard.
+- Not changed: Quick Sale submit path, and there is still no database-level idempotency key (an invoice number is generated per save). Verified only by CI compile/analyze; no UI test exists for the double tap.

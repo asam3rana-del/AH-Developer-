@@ -85,6 +85,9 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   final List<SaleLine> _lines = [];
   bool _saving = false;
+  // Synchronous re-entry guard: _saving only turns true AFTER the duplicate-check query, so a quick
+  // double tap / F9 + click could start two saves. Set before the first await.
+  bool _saveEntered = false;
   final _scrollCtrl = ScrollController();
 
   /// "Rs" mode: the Quantity box holds a rupee amount and the quantity is
@@ -900,6 +903,16 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   // ------------------------------------------------------------------ save
 
   Future<void> _save({bool overrideCreditLimit = false, bool skipDuplicateCheck = false}) async {
+    if (_saveEntered || _saving) return;
+    _saveEntered = true;
+    try {
+      await _saveImpl(overrideCreditLimit: overrideCreditLimit, skipDuplicateCheck: skipDuplicateCheck);
+    } finally {
+      _saveEntered = false;
+    }
+  }
+
+  Future<void> _saveImpl({bool overrideCreditLimit = false, bool skipDuplicateCheck = false}) async {
     if (_lines.isEmpty) {
       _toast('Kam az kam ek item add karen');
       return;
@@ -987,7 +1000,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() => _saving = false);
       if (await _confirmCreditLimit(e) == true && mounted) {
-        await _save(overrideCreditLimit: true, skipDuplicateCheck: true);
+        await _saveImpl(overrideCreditLimit: true, skipDuplicateCheck: true);
       }
       return;
     } on SaleStockException catch (e) {

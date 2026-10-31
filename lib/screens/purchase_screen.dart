@@ -111,6 +111,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   Timer? _draftTimer;
 
   bool _saving = false;
+  // Synchronous re-entry guard (see sale_screen.dart): _saving turns true only after several awaits.
+  bool _saveEntered = false;
   bool _loading = false;
 
   /// Bill save ho chuka => draft / adhoora-item dobara DISK par na likho. Pehle dispose() (DONE par screen band hote
@@ -1103,6 +1105,16 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   }
 
   Future<void> _save() async {
+    if (_saveEntered || _saving) return;
+    _saveEntered = true;
+    try {
+      await _saveImpl();
+    } finally {
+      _saveEntered = false;
+    }
+  }
+
+  Future<void> _saveImpl() async {
     final party = _supplierCtrl.text.trim();
     if (party.isEmpty) {
       _toast('Supplier name is required');
