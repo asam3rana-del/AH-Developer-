@@ -103,8 +103,6 @@ void main() {
       final after = await allRows(db);
       before.forEach((table, oldRows) {
         expect(after.containsKey(table), isTrue, reason: 'table $table disappeared');
-        // sync_queue is checked separately below: the v11 ledger backfill legitimately enqueues rows.
-        if (table == 'sync_queue') return;
         expect(after[table]!.length, oldRows.length, reason: '$table row count');
         for (var i = 0; i < oldRows.length; i++) {
           oldRows[i].forEach((col, v) {
@@ -112,18 +110,6 @@ void main() {
           });
         }
       });
-
-      // old queue rows survive; new ones appear only from the v11 opening-stock backfill (one per ledger row)
-      final oldQueue = before['sync_queue'] ?? [];
-      final newQueue = after['sync_queue'] ?? [];
-      expect(newQueue.take(oldQueue.length).toList(), oldQueue, reason: 'old sync_queue rows changed');
-      final added = newQueue.skip(oldQueue.length).toList();
-      if (f.version < 11) {
-        expect([for (final r in added) r['entityType']], ['stock_movement', 'stock_movement']);
-        expect([for (final r in added) r['operation']], ['upsert', 'upsert']);
-      } else {
-        expect(added, isEmpty, reason: 'upgrade must not enqueue anything new');
-      }
 
       // money must be exactly as in the old file
       expect((await db.query('customers', where: "name='Ali'")).single['balance'], 750.0);
