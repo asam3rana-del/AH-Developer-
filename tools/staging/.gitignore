@@ -1,0 +1,5 @@
+node_modules/
+staff.json
+*-key.json
+serviceAccount*.json
+firestore.rules
