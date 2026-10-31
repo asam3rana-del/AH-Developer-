@@ -555,6 +555,10 @@ class AppDatabase {
       // v34: per-user access rules (JSON overrides, khali = role ke default). Users ke saath sync hota hai.
       await _addColumnIfMissing(db, 'users', 'permissions', "TEXT NOT NULL DEFAULT ''");
     }
+    // products.searchTag was added to _onCreate WITHOUT a migration step, so a database created by the
+    // earliest builds (schema v1) never got the column. Found by the real-file migration test
+    // (test/db_migration_fixtures_test.dart, legacy_v1.db). Idempotent: does nothing when the column exists.
+    await _addColumnIfMissing(db, 'products', 'searchTag', "TEXT NOT NULL DEFAULT ''");
   }
 
   /// v30: Recycle Bin — delete hone wale record ka poora snapshot (JSON). Sirf is device par; sync nahi hota.
