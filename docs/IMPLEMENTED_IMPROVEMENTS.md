@@ -59,3 +59,19 @@ No database migration, financial transaction, synchronization, or backup impleme
 - `test_migration/db_migration_test.dart`: fresh install check; upgrades from v20, v29, v31, v33 to v34 (schema must equal a fresh install, no seeded row changed, integrity_check ok, foreign_key_check empty); repeated-upgrade safety.
 - Old schemas are produced by rewinding a fresh DB using the migration code, not from real old database files. Starting versions below 20 are not covered.
 - Runs in its own workflow `.github/workflows/migration-tests.yml` (not part of the release gate). After it is green, move the test into `test/`.
+
+## Update 5 — Windows fix
+
+- The lockfile check step is bash; Windows runners default to PowerShell, so Build #514 failed on Windows. All four lock steps now declare `shell: bash` and ignore CR/LF differences.
+
+## Update 6 — financial gap tests (P1 #5), NOT YET RUN
+
+- `test_migration/financial_gaps_test.dart`: sale edit, sale delete, sale return then delete (no double reversal), double return refused, purchase edit, purchase delete. Each checks stock, party balance, cash book and stock ledger together.
+- Runs in the same non-gating `migration-tests.yml` workflow (`flutter test test_migration`). Move into `test/` once green.
+- Not covered yet: duplicate-submission idempotency (the app only warns via `findDuplicateSale`, it does not block), expense and opening-balance edits, payment reassignment.
+
+## Update 7 — backup/restore drill (P1 #7), NOT YET RUN
+
+- `test_migration/backup_restore_drill_test.dart` (real AppDatabase + real BackupHelper; only path_provider and flutter_secure_storage are faked): encrypted backup; backup -> modify -> restore returns exactly the original rows (integrity + FK check ok); wrong password, missing password, corrupted file and a non-database file all fail and leave the live database untouched.
+- Observation (not changed): backup file names have minute resolution, so a safety backup taken during a restore within the same minute as the picked backup can overwrite that same file in the app backup folder. The test restores from a copy for this reason.
+- Not covered: restoring an older-schema backup (migration after restore), clean-install restore on a different device.
