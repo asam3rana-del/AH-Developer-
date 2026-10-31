@@ -1,1 +1,1 @@
-{ "emulators": { "firestore": { "port": 8080 } }, "firestore": { "rules": "../firestore.staff-claims.rules" } }
+{ "emulators": { "firestore": { "port": 8080 } }, "firestore": { "rules": "staff-claims.rules" } }

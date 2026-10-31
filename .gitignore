@@ -11,3 +11,4 @@
 .flutter-plugins-dependencies
 build/
 firebase/rules-tests/node_modules/
+firebase/rules-tests/staff-claims.rules
