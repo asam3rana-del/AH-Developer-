@@ -45,7 +45,7 @@ No database migration, financial transaction, synchronization, or backup impleme
 ## Update 2 — lockfile check in CI (P0)
 
 - All four `flutter pub get` steps now run a lockfile check: if `pubspec.lock` exists and `pub get` changes it, CI fails.
-- If `pubspec.lock` is still missing, CI prints a warning only (so builds are not blocked before the first commit).
+- If `pubspec.lock` is missing, CI now fails (lockfile was committed on 31 Oct 2026).
 - **Manual step:** run `flutter pub get` with Flutter 3.24.0, commit `pubspec.lock`. After that, change the "missing" branch in `build.yml` from `::warning::` to `::error::` + `exit 1`.
 - Not validated: the Dart SDK could not be downloaded in the authoring environment, so the lockfile could not be generated and the workflow has not been run.
 
@@ -53,3 +53,9 @@ No database migration, financial transaction, synchronization, or backup impleme
 
 - The Analyze + Test job uploads the lockfile it resolved as an artifact named `pubspec-lock`.
 - Download it from the Actions run page and commit `pubspec.lock` to the repository root.
+
+## Update 4 — database migration tests (P0 #4), NOT YET RUN
+
+- `test_migration/db_migration_test.dart`: fresh install check; upgrades from v20, v29, v31, v33 to v34 (schema must equal a fresh install, no seeded row changed, integrity_check ok, foreign_key_check empty); repeated-upgrade safety.
+- Old schemas are produced by rewinding a fresh DB using the migration code, not from real old database files. Starting versions below 20 are not covered.
+- Runs in its own workflow `.github/workflows/migration-tests.yml` (not part of the release gate). After it is green, move the test into `test/`.
