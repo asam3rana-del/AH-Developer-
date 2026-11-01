@@ -17,11 +17,17 @@ both pass their local credit check against the same stale balance and together p
 - Composite index `credit_reservations (branchId, customerId, expiresAt)` added to `firebase/firestore.indexes.json`.
 
 ## Deploy (staging project first)
-1. `cd functions && npm install && npm run build`, then deploy functions to the STAGING project.
-2. Deploy `firebase/firestore.indexes.json` (the reservation query fails until the index is built).
-3. Turn the Settings switch ON on two test devices, same branch, a customer with a credit limit.
-4. Test: both devices online, balance just under the limit, save a credit bill on both at nearly the same time ->
-   the second one must show the "Credit Limit Exceeded" dialog. Then go offline -> sale must still save.
+**Prerequisite:** Cloud Functions need the **Blaze plan**; staging (`ah-staging-a1b2c`) is on Spark today
+(`docs/STAGING_FIREBASE.md`). Enable Blaze on STAGING only and set a budget alert first. Anonymous sign-in must be
+enabled there (the app's sync uses it).
+1. Termux setup as in `docs/STAGING_FIREBASE.md` (Node, firebase-tools login, staging service-account key).
+2. `bash tools/staging/deploy_credit_check.sh` - builds `functions/`, deploys only `reserveCredit` and the Firestore
+   indexes to the staging project (project id is fixed in the script). Wait until the new index shows "Enabled".
+3. `cd tools/staging && npm install && node test_credit_check.mjs --api-key <staging web API key>` - simulates two
+   devices against the deployed function (allowed / blocked / retry not double-counted / unknown customer / bad amount),
+   then cleans up its own test data. All lines must say PASS.
+4. Real-device test: switch ON in Settings on two staging devices, same customer, balance just under the limit, save a
+   credit bill on both at nearly the same time -> the second shows "Credit Limit Exceeded". Then go offline -> sale still saves.
 
 ## Known limits (be honest with the shop owner)
 - **Offline is fail-open.** No internet / not signed in / 4 s timeout / any server error => the sale continues on the local
