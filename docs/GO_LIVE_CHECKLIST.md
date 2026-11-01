@@ -49,7 +49,7 @@ Ye audit (2026-10-30) ke nateeje hain. Sirf screen ka sahi khulna ya bill ka pri
 | Cash, expenses, payments | Cash / bank ledger ka har entry par balance sahi | ⬜ |
 | Stock, units, cost | Unit conversion, minus stock, cost backfill ke edge cases (Stock Audit mein koi mismatch nahi) | ⬜ |
 | Customer / supplier balances | Opening balance + payments + returns ka cross-check (Party Reports ke saath) | ⬜ |
-| Profit, reports, balance sheet | Profit & Loss aur Balance Sheet ke totals haath se milaye hue numbers se barabar | ⬜ |
+| Profit, reports, balance sheet | Profit & Loss aur Balance Sheet ke totals haath se milaye hue numbers se barabar | 🟡 Automatic: `reports_reconciliation_test.dart` (ek poora mahina) likha gaya, CI par chalna baaki; haath ka milan baaki |
 | Android / iOS / Windows release | Naye build par har platform ka install test | ⬜ |
 
 ## 5. Production se pehle priority (audit 2026-10-30)

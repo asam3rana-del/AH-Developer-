@@ -154,3 +154,9 @@ No database migration, financial transaction, synchronization, or backup impleme
 - Workers reviewed (earned / advance / salary / delete): no bug found.
 - **Phone checklist:** `docs/PHONE_TEST_CHECKLIST.md` — step-by-step real-device tests (update, backup/restore, two-phone sale, offline sync, return, purchase, rent/workers, bill cost).
 - Not run here (no Flutter in this environment): check the next Build run (Analyze + Test).
+
+## Update 19 — reports / profit reconciliation test, `test_migration/reports_reconciliation_test.dart` (P1 "Profit, reports, balance sheet"), NOT YET RUN
+
+- One mixed month: opening balances (customer + supplier), credit purchase (weighted cost 60), two sales (one with a discount), customer payment, supplier payment, expense, and a full return of one bill.
+- The same truth is checked three ways: Profit & Loss report (sales 500, cost 300, expenses 50, net 150, returns 270), Balance Sheet (net profit equal to the report, stock value 15 x 60, receivables 300, payables 450, no drift, assets = liabilities + capital, cash + bank = every cash row) and the raw tables (stock ledger = product stock, stored party balances).
+- Runs in the non-gating "Migration tests" workflow. Move into `test/` once green.
