@@ -26,6 +26,15 @@ void main() {
     expect(s.totalReturned, 60);
   });
 
+  test('summary: partial returns on active bills count toward Total Returned', () {
+    final s = summarizeSales([
+      SaleWithCustomer(invoice: 'P1', customerName: 'Ali', total: 300, paymentMethod: 'cash', createdAt: 1, status: 'active', partialReturned: 100),
+      sale('W1', 'Walk-in', 60, 20, status: 'returned'),
+    ]);
+    expect(s.totalSales, 300);
+    expect(s.totalReturned, 160);
+  });
+
   test('group header count and total skip returned bills', () {
     final mixed = [
       sale('W1', 'Walk-in', 250, 10),

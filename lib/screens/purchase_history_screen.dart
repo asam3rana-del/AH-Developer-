@@ -11,6 +11,7 @@ import '../utils/bill_text.dart';
 import 'bill_preview_screen.dart';
 import '../models/purchase.dart';
 import '../utils/loc.dart';
+import '../widgets/return_qty_dialog.dart';
 import '../widgets/role_guard.dart';
 import 'purchase_screen.dart';
 import '../widgets/permission_guard.dart';
@@ -222,7 +223,14 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
     if (!mounted) return;
     final requested = await showDialog<Map<int, double>>(
       context: context,
-      builder: (ctx) => _ReturnDialog(lines: lines, palette: _p),
+      builder: (ctx) => ReturnQtyDialog(
+        lines: lines,
+        palette: _p,
+        description: 'Enter how many units of each item are being returned. Stock and supplier balance will be adjusted only for those quantities.',
+        descriptionUr: 'ہر آئٹم کی کتنی مقدار واپس ہو رہی ہے درج کریں۔ صرف انہی مقداروں کے مطابق اسٹاک اور سپلائر بیلنس ایڈجسٹ ہو گا۔',
+        qtyLabel: 'Purchased',
+        qtyLabelUr: 'خریدی گئی مقدار',
+      ),
     );
     if (requested == null) return;
     try {
@@ -462,87 +470,4 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
   }
 
   String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
-}
-
-/// Kotlin openReturnPurchaseDialog(): har line par "Return qty (khali = skip)". Validation pure
-/// `parseReturnRequest` se.
-class _ReturnDialog extends StatefulWidget {
-  final List<ReturnableLine> lines;
-  final AppPalette palette;
-  const _ReturnDialog({required this.lines, required this.palette});
-
-  @override
-  State<_ReturnDialog> createState() => _ReturnDialogState();
-}
-
-class _ReturnDialogState extends State<_ReturnDialog> {
-  late final Map<int, TextEditingController> _ctrls = {for (final l in widget.lines) l.itemId: TextEditingController()};
-  String? _error;
-
-  @override
-  void dispose() {
-    for (final c in _ctrls.values) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  String _qty(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
-
-  void _submit() {
-    final req = parseReturnRequest(widget.lines, {for (final e in _ctrls.entries) e.key: e.value.text});
-    if (req.error != null) {
-      setState(() => _error = req.error);
-      return;
-    }
-    Navigator.pop(context, req.quantities);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = widget.palette;
-    return AlertDialog(
-      title: Text(Loc.t('Return items', 'آئٹمز واپس کریں')),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            Loc.t('Enter how many units of each item are being returned. Stock and supplier balance will be adjusted only for those quantities.',
-                'ہر آئٹم کی کتنی مقدار واپس ہو رہی ہے درج کریں۔ صرف انہی مقداروں کے مطابق اسٹاک اور سپلائر بیلنس ایڈجسٹ ہو گا۔'),
-            style: TextStyle(fontSize: 13, color: p.textMuted),
-          ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: ListView(shrinkWrap: true, children: [
-              for (final l in widget.lines)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(l.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.textDark)),
-                    Text(Loc.t('Purchased: ${_qty(l.qty)} ${l.unit}', 'خریدی گئی مقدار: ${_qty(l.qty)} ${l.unit}'),
-                        style: TextStyle(fontSize: 12, color: p.textMuted)),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _ctrls[l.itemId],
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        hintText: Loc.t('Return qty (leave blank to skip)', 'واپسی مقدار (چھوڑنے کے لیے خالی رکھیں)'),
-                      ),
-                    ),
-                  ]),
-                ),
-            ]),
-          ),
-          if (_error != null)
-            Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error!, style: TextStyle(color: p.red, fontSize: 12.5))),
-        ]),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
-        FilledButton(onPressed: _submit, child: Text(Loc.t('Return', 'واپسی'))),
-      ],
-    );
-  }
 }

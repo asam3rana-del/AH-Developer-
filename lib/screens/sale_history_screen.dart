@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../db/sale_history_repository.dart';
+import '../db/purchase_history_repository.dart' show ReturnableLine;
 import '../db/sale_repository.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
@@ -9,6 +10,7 @@ import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
 import '../utils/loc.dart';
+import '../widgets/return_qty_dialog.dart';
 import 'sale_screen.dart';
 
 /// Mirrors SaleHistoryActivity.kt.
@@ -131,16 +133,28 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
   }
 
   Future<void> _return(SaleWithCustomer s) async {
-    final ok = await _confirm(
-      Loc.t('Return sale', 'سیل واپس'),
-      Loc.t('Return this sale? Stock will be added back and any outstanding customer balance from it will be reversed.',
-          'یہ سیل واپس کریں؟ اسٹاک واپس جمع ہو گا اور گاہک کا بقایا الٹ دیا جائے گا۔'),
-      Loc.t('Return', 'واپس'),
+    final items = await _repo.itemsForInvoice(s.invoice);
+    if (items.isEmpty || !mounted) return;
+    final lines = [
+      for (final i in items)
+        if (i.id != null) ReturnableLine(itemId: i.id!, name: i.product, unit: i.unit, qty: i.qty),
+    ];
+    if (lines.isEmpty) return;
+    final requested = await showDialog<Map<int, double>>(
+      context: context,
+      builder: (ctx) => ReturnQtyDialog(
+        lines: lines,
+        palette: _p,
+        description: 'Enter how many units of each item the customer is returning. Stock and customer balance will be adjusted only for those quantities. Returning every item in full returns the whole sale.',
+        descriptionUr: 'ہر آئٹم کی کتنی مقدار گاہک واپس کر رہا ہے درج کریں۔ صرف انہی مقداروں کے مطابق اسٹاک اور گاہک کا بیلنس ایڈجسٹ ہو گا۔ تمام آئٹمز پوری واپس ہوں تو پوری سیل واپس ہو جاتی ہے۔',
+        qtyLabel: 'Sold',
+        qtyLabelUr: 'بیچی گئی مقدار',
+      ),
     );
-    if (!ok) return;
+    if (requested == null) return;
     try {
-      await SaleRepository.instance.returnSale(s.invoice);
-      _toast(Loc.t('Sale returned', 'سیل واپس ہو گئی'));
+      await SaleRepository.instance.returnSaleItems(s.invoice, requested);
+      _toast(Loc.t('Items returned', 'آئٹمز واپس ہو گئے'));
     } catch (e) {
       _toast('$e');
     }
@@ -420,6 +434,7 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
         sumRow('${Loc.t('Items', 'آئٹمز')}: ${items.length}', _rs(itemsTotal)),
         if (discount > 0.5) sumRow(Loc.t('Discount', 'رعایت'), '- ${_rs(discount)}'),
         sumRow(Loc.t('Total', 'کل'), _rs(s.total), bold: true, color: s.isReturned ? _p.red : _p.teal),
+        if (!s.isReturned && s.partialReturned > 0.009) sumRow(Loc.t('Returned', 'واپس'), '- ${_rs(s.partialReturned)}', color: _p.red),
         if (!s.isReturned && s.paid > 0.009) sumRow(Loc.t('Paid', 'ادا شدہ'), _rs(s.paid)),
         if (!s.isReturned && due > 0.5) sumRow(Loc.t('Due', 'باقی'), _rs(due), bold: true, color: _p.red),
       ]),

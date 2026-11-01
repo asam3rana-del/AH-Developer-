@@ -984,6 +984,178 @@ class SaleRepository {
     }
   }
 
+  /// Partial sale return (admin). [requested] = sale_items.id -> return qty. Mirrors the purchase side
+  /// (`PurchaseHistoryRepository.returnItems`): sirf wahi qty stock mein wapas aati hai, har wapas line ka
+  /// `returns` row banta hai, bill ka total/paid kam hota hai, customer ka balance sirf farq se badalta hai
+  /// aur jo paisa ab bill se zyada reh gaya wo dated cash-OUT reversal se wapas hota hai. Sab lines ki poori
+  /// qty ho to purani poori-bill [returnSale] chalti hai (status 'returned').
+  Future<void> returnSaleItems(String invoice, Map<int, double> requested) async {
+    _requireAdmin();
+    final db = await AppDatabase.instance.database;
+
+    // Poori bill? (har line ki poori qty) => purana returnSale (exact total + status 'returned').
+    final pre = await db.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
+    if (pre.isNotEmpty) {
+      var all = true;
+      for (final r in pre) {
+        final id = r['id'] as int?;
+        final qty = (r['qty'] as num?)?.toDouble() ?? 0.0;
+        final want = id == null ? null : requested[id];
+        if (want == null || !want.isFinite || want < qty - 0.0001) {
+          all = false;
+          break;
+        }
+      }
+      if (all) return returnSale(invoice);
+    }
+
+    double returnedTotal = 0;
+    await db.transaction((txn) async {
+      final rows = await txn.query('sales', where: 'invoice=?', whereArgs: [invoice], limit: 1);
+      if (rows.isEmpty) throw ArgumentError('Ye bill nahi mila');
+      final sale = Sale.fromMap(rows.first);
+      if (sale.status == 'returned') throw ArgumentError('Ye sale pehle hi return ho chuki hai');
+      final itemRows = await txn.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      // Line amounts discount / rounding se PEHLE ke hain; refund bill total ke mutabiq (full return jaisa).
+      final lineSum = itemRows.fold<double>(0, (sum, r) => sum + ((r['amount'] as num?)?.toDouble() ?? 0.0));
+      final scale = lineSum > 0.009 ? sale.total / lineSum : 1.0;
+      var partSum = 0.0;
+
+      for (final r in itemRows) {
+        final si = SaleItem.fromMap(r);
+        final want = si.id == null ? null : requested[si.id!];
+        if (want == null) continue;
+        // NaN / Infinity UI se bypass ho kar aaye to bhi stock / balance kharab na ho.
+        if (!want.isFinite) throw ArgumentError('Return ki miqdaar darust nahi');
+        if (want <= 0) continue;
+        final qty = want > si.qty ? si.qty : want;
+        if (qty <= 0) continue;
+        final frac = si.qty > 0 ? qty / si.qty : 1.0;
+
+        final pr = await txn.query('products', where: 'barcode=?', whereArgs: [si.barcode], limit: 1);
+        final product = pr.isEmpty ? null : Product.fromMap(pr.first);
+        final smallest = saleItemSmallestQty(si, product) * frac;
+        if (smallest > 0) {
+          await _increaseStock(txn, si.barcode, smallest, now,
+              type: MovementType.saleReversal, reference: invoice);
+        }
+
+        final part = si.amount * frac;
+        final retAmount = lineSum > 0.009 ? part * scale : part;
+        final ret = ReturnLine(
+          reference: invoice,
+          type: 'sale',
+          barcode: si.barcode,
+          qty: qty,
+          amount: retAmount,
+          createdAt: now,
+        );
+        final retId = await txn.insert('returns', ret.toMap());
+        await _enqueueSync(txn, 'return', retId.toString(), 'create', ret.toMap());
+
+        final remainingQty = si.qty - qty;
+        if (remainingQty <= 0.0001) {
+          await txn.delete('sale_items', where: 'id=?', whereArgs: [si.id]);
+        } else {
+          await txn.update(
+            'sale_items',
+            {
+              'qty': remainingQty,
+              'amount': si.amount - part,
+              'cost': si.cost * (1 - frac),
+              ...scaledPendingColumns(
+                pendingQty: si.pendingQty,
+                pendingEst: si.pendingEst,
+                backfillLog: si.backfillLog,
+                ratio: 1 - frac,
+              ),
+            },
+            where: 'id=?',
+            whereArgs: [si.id],
+          );
+        }
+        returnedTotal += retAmount;
+        partSum += part;
+      }
+      if (returnedTotal <= 0.009) {
+        returnedTotal = 0;
+        return;
+      }
+
+      final keep = lineSum > 0.009 ? ((lineSum - partSum) / lineSum).clamp(0.0, 1.0).toDouble() : 1.0;
+      final newTotal = (sale.total - returnedTotal) < 0 ? 0.0 : (sale.total - returnedTotal);
+      final newPaid = sale.paid.clamp(0.0, newTotal).toDouble();
+
+      // Jo paisa ab bill se zyada hai wo wapas (dated cash-OUT): pehle bill ki apni cash rows, phir bill-linked payments.
+      final refund = sale.paid - newPaid;
+      if (refund > 0.009) {
+        final own = await txn.rawQuery(
+            'SELECT COALESCE(SUM(amount),0) AS s FROM cash_transactions WHERE reference = ?', [invoice]);
+        final ownTotal = own.isEmpty ? 0.0 : ((own.first['s'] as num?)?.toDouble() ?? 0.0);
+        final fromOwn = refund < ownTotal ? refund : ownTotal;
+        await _reverseCash(txn, invoice, fromOwn, 'OUT', 'Sale Return', now);
+        var left = refund - fromOwn;
+        if (left > 0.009) {
+          final linked = await txn.query('payments',
+              where: 'billReference = ? AND reference != ?', whereArgs: [invoice, invoice]);
+          for (final p in linked) {
+            if (left <= 0.009) break;
+            final amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
+            final cut = left < amt ? left : amt;
+            if (cut <= 0.009) continue;
+            await _reverseCash(txn, (p['reference'] as String?) ?? '', cut, 'OUT', 'Sale Return', now);
+            if (amt - cut <= 0.009) {
+              await SyncQueueHelper.deletePaymentRow(txn, Map<String, Object?>.from(p));
+            } else {
+              await txn.update('payments', {'amount': amt - cut, 'updatedAt': now, 'dirty': 1}, where: 'id = ?', whereArgs: [p['id']]);
+              final fresh = (await txn.query('payments', where: 'id = ?', whereArgs: [p['id']], limit: 1)).first;
+              await _enqueueSync(txn, 'payment', '${p['id']}', 'update', Map<String, Object?>.from(fresh));
+            }
+            left -= cut;
+          }
+        }
+      }
+
+      // Customer: sirf baqaya ka farq (poori return mein poora baqaya ulta hota hai).
+      final delta = (newTotal - newPaid) - (sale.total - sale.paid);
+      if (sale.customerId != null && delta.abs() > 0.009) {
+        await _adjustCustomerBalance(txn, sale.customerId!, delta, now);
+      }
+
+      await txn.update(
+        'sales',
+        {
+          'subtotal': sale.subtotal * keep,
+          'discount': sale.discount * keep,
+          'tax': sale.tax * keep,
+          'total': newTotal,
+          'paid': newPaid,
+          'updatedAt': now,
+          'dirty': 1,
+        },
+        where: 'invoice=?',
+        whereArgs: [invoice],
+      );
+      final remainingCount = (await txn.rawQuery('SELECT COUNT(*) AS c FROM sale_items WHERE invoice=?', [invoice]))
+              .first['c'] as int? ??
+          0;
+      await _enqueueSync(txn, 'sale', invoice, 'update', {
+        'invoice': invoice,
+        'customerId': sale.customerId,
+        'total': newTotal,
+        'paid': newPaid,
+        'itemCount': remainingCount,
+      });
+    });
+
+    await ProductRepository.instance.refresh();
+    await CustomerRepository.instance.refresh();
+    await _notify();
+    if (returnedTotal > 0) await _logAudit('sale_return_partial', invoice, 'returned=$returnedTotal');
+  }
+
   // --------------------------------------------------------- Customer's rate
 
   /// Last rate charged to [customerId] for [barcode] (most recent, returned

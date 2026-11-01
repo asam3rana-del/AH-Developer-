@@ -24,6 +24,9 @@ class SaleWithCustomer {
   final int createdAt;
   final String status;
 
+  /// Partial return ki raqam (active bill par `returns` table se). Poori return shuda bill par 0 (total hi return hai).
+  final double partialReturned;
+
   const SaleWithCustomer({
     required this.invoice,
     required this.customerName,
@@ -32,6 +35,7 @@ class SaleWithCustomer {
     required this.paymentMethod,
     required this.createdAt,
     required this.status,
+    this.partialReturned = 0,
   });
 
   bool get isReturned => status == 'returned';
@@ -77,6 +81,7 @@ SaleHistorySummary summarizeSales(List<SaleWithCustomer> sales) {
       returned += s.total;
     } else {
       sold += s.total;
+      returned += s.partialReturned;
     }
   }
   return SaleHistorySummary(sold, returned);
@@ -99,7 +104,8 @@ class SaleHistoryRepository {
     final rows = await db.rawQuery('''
       SELECT invoice,
              COALESCE((SELECT name FROM customers WHERE customers.id = sales.customerId), 'Walk-in') AS customerName,
-             total, paid, paymentMethod, createdAt, status
+             total, paid, paymentMethod, createdAt, status,
+             COALESCE((SELECT SUM(amount) FROM returns WHERE returns.reference = sales.invoice AND returns.type = 'sale'), 0) AS partialReturned
       FROM sales ORDER BY createdAt DESC
     ''');
     return rows
@@ -111,6 +117,7 @@ class SaleHistoryRepository {
               paymentMethod: (r['paymentMethod'] as String?) ?? '',
               createdAt: (r['createdAt'] as num).toInt(),
               status: (r['status'] as String?) ?? 'active',
+              partialReturned: ((r['status'] as String?) ?? 'active') == 'returned' ? 0 : ((r['partialReturned'] as num?)?.toDouble() ?? 0),
             ))
         .toList();
   }
