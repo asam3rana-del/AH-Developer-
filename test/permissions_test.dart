@@ -14,8 +14,18 @@ void main() {
     expect(Permissions.defaultFor('cashier', 'stock_audit'), isFalse);
     expect(Permissions.defaultFor('manager', 'purchase_history'), isFalse);
     expect(Permissions.defaultFor('manager', 'fix_bill_cost'), isFalse);
-    expect(Permissions.defaultFor('cashier', 'cash_register'), isTrue);
+    // Cash & Bank ab cashier ko default mein nahi dikhta (admin Access se kisi cashier ko de sakta hai).
+    expect(Permissions.defaultFor('cashier', 'cash_register'), isFalse);
+    expect(Permissions.defaultFor('manager', 'cash_register'), isTrue);
     expect(Permissions.defaultFor('admin', 'fix_bill_cost'), isTrue);
+  });
+
+  test('admin can still grant Cash & Bank to a specific cashier', () {
+    Session.role = 'cashier';
+    Session.permissions = '';
+    expect(Permissions.can('cash_register'), isFalse);
+    Session.permissions = Permissions.encode({'cash_register': true});
+    expect(Permissions.can('cash_register'), isTrue);
   });
 
   test('admin overrides can grant a cashier and deny a manager', () {

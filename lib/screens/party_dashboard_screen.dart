@@ -9,6 +9,7 @@ import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/party_quick_add_menu.dart';
+import '../widgets/permission_guard.dart';
 import '../widgets/role_guard.dart';
 import '../db/due_reminders_repository.dart' show PartyDueStatus;
 import 'amanat_loan_screen.dart';
@@ -312,8 +313,10 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
           _SheetItem(Icons.trending_up, _purple, Loc.t('Reports', 'رپورٹس'),
               Loc.t('Sales, stock & financial overview', 'سیل، اسٹاک اور مالیاتی جائزہ'),
               () => _push(const ReportsScreen())),
-        _SheetItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Cash In/Out', 'کیش ان/آؤٹ'),
-            Loc.t('Record cash movements', 'کیش کی آمد و رفت درج کریں'), () => _push(const CashScreen())),
+        if (Permissions.can('cash_register'))
+          _SheetItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Cash In/Out', 'کیش ان/آؤٹ'),
+              Loc.t('Record cash movements', 'کیش کی آمد و رفت درج کریں'),
+              () => _push(const PermissionGuard(permission: 'cash_register', child: CashScreen()))),
         _SheetItem(Icons.search, _green, Loc.t('Item Rate Search', 'آئٹم ریٹ سرچ'),
             Loc.t("Look up any item's price", 'کسی بھی آئٹم کی قیمت دیکھیں'), () => _push(const ItemSearchScreen())),
         _SheetItem(Icons.settings_outlined, _orange, Loc.t('Settings', 'سیٹنگز'),

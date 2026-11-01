@@ -363,7 +363,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (Session.isAdminOrManager)
         row(Icons.receipt_long_outlined, 'Utility Bills', 'یوٹیلیٹی بلز',
             const RoleGuard(allowed: {'admin', 'manager'}, child: UtilityBillsScreen()), color: p.navyInk),
-      row(Icons.account_balance_outlined, 'Cash & Bank', 'کیش اور بینک', const CashScreen(), color: p.navyInk),
+      if (Permissions.can('cash_register'))
+        row(Icons.account_balance_outlined, 'Cash & Bank', 'کیش اور بینک',
+            const PermissionGuard(permission: 'cash_register', child: CashScreen()), color: p.navyInk),
       if (Permissions.can('zakat'))
         row(Icons.volunteer_activism_outlined, 'Zakat', 'زکوٰۃ',
             const PermissionGuard(permission: 'zakat', child: ZakatScreen()), color: p.navyInk),
@@ -433,10 +435,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             future: StaffAuth.isEnabled(),
             builder: (context, snap) => SwitchListTile(
               value: snap.data ?? false,
-              onChanged: (v) async {
-                await StaffAuth.setEnabled(v);
-                if (mounted) setState(() {});
-              },
+              onChanged: !Session.isAdmin
+                  ? null
+                  : (v) async {
+                      await StaffAuth.setEnabled(v);
+                      if (mounted) setState(() {});
+                    },
               title: Text(Loc.t('Sign in to cloud with staff account', 'اسٹاف اکاؤنٹ سے کلاؤڈ میں سائن اِن')),
               subtitle: Text(Loc.t(
                   'OFF = current behaviour. ON needs the staff backend + App Check set up (see docs/STAFF_AUTH_BACKEND_SETUP.md); sync never falls back to anonymous.',
@@ -467,10 +471,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             future: const CreditGuard().isEnabled(),
             builder: (context, snap) => SwitchListTile(
               value: snap.data ?? false,
-              onChanged: (v) async {
-                await const CreditGuard().setEnabled(v);
-                if (mounted) setState(() {});
-              },
+              onChanged: !Session.isAdmin
+                  ? null
+                  : (v) async {
+                      await const CreditGuard().setEnabled(v);
+                      if (mounted) setState(() {});
+                    },
               title: Text(Loc.t('Check credit limit with the server (online)', 'کریڈٹ لیمٹ سرور سے چیک کریں (آن لائن)')),
               subtitle: Text(Loc.t(
                   'OFF = current behaviour. ON needs the reserveCredit function deployed (docs/SERVER_CREDIT_CHECK.md). Offline sales still go through and use only the local check.',

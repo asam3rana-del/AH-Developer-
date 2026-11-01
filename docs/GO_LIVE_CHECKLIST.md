@@ -84,7 +84,7 @@ Audit ka nateeja: "abhi production approval nahi" — iska matlab bugs milna nah
 | "Only admin/manager can Save Anyway" (default OFF) | 🟡 Code shamil; `test/credit_override_policy_test.dart` CI par chalna baaki | — |
 | Rate Search: cost/margin bade aur chhote dono unit mein | 🟡 Code shamil; device nazar-e-saani baaki | — |
 | CI (upload `7a93bec`) | ✅ Build #564, Migration tests #13, Firebase rules test #4 pass | GitHub Actions |
-| Asli phone test | ⬜ `docs/DEVICE_TEST_SHEET.md` ke mutabiq | — |
+| Asli phone test | 🟡 Kuch items pass (sync, update ke upar install, partial return, Day Book, cashier role); baqi `docs/DEVICE_TEST_SHEET.md` mein ⬜ | `docs/DEVICE_TEST_SHEET.md` |
 
 ## Note
 - Month Close feature app se hata diya gaya hai (user ke kehne par). Unit screen wale changes Build #215 mein hain (pass). Baaki release checks (update test, backup-restore, do devices par ek saath sale) ab section 4 mein hain.

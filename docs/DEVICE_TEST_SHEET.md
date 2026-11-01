@@ -4,29 +4,33 @@ Maqsad: GO_LIVE_CHECKLIST ke ⬜ items asli device par parkhna. Har test ke aage
 screenshot + kya kiya likh kar bhej dein. **Shuru karne se pehle:** Backup lo (Dashboard > Backup) aur file kisi dusri jagah rakho.
 Test asli dukaan ke data par na karein: alag test installation ya test customer/item banayein ("TEST Ali", "TEST Rice").
 
+**Natija (2026-11-01):** ✅ = OK (test ho gaya) · ⬜ = abhi baaki. Jahan sirf hissa test hua wahan likha hai kya baaki hai.
+
 ## A. Hisaab (ek hi phone)
-1. **Sale + return** — TEST Ali (balance 0) ko TEST Rice ka Rs 500 ka udhaar bill. Phir Rs 100 ka return.
-   Hona chahiye: customer balance **400**, stock return wale qty se wapas barha, History mein dono entries.
-2. **Purchase + payment** — TEST Supplier se Rs 1000 ki purchase, Rs 400 payment.
-   Hona chahiye: supplier payable **600**, item stock purchase qty se barha.
-3. **Expense** — Rs 200 expense (cash). Hona chahiye: cash in hand **200 kam**, Day book mein entry.
-4. **Unit** — bade/chhote unit wale item ki 1 chhoti unit (jaise 1 box) ki sale. Hona chahiye: stock bade unit ka 1/factor kam;
-   Rate Search mein Last Cost / Profit Margin bade aur chhote dono unit mein dikhe (naya).
-5. **Credit limit** — TEST Ali ki limit 1000, balance 800: Rs 300 ka udhaar bill. Hona chahiye: "Credit Limit Exceeded" dialog.
-   Settings > "Credit limit override" ON karo, cashier se login: dialog mein sirf OK (Save Anyway nahi). Admin/manager se Save Anyway chalta hai.
-6. **Reports milan** — aaj ka Profit & Loss aur Balance Sheet apne haath ke hisaab se milao (upar ke test numbers se).
+1. ✅ **Sale + return** — OK: cash bill par partial aur poori return (stock, Returns Report, Day Book milte hain).
+   ⬜ Baaki: TEST Ali ko Rs 500 ka **udhaar** bill, Rs 100 return, customer balance **400**.
+2. ⬜ **Purchase + payment** — TEST Supplier se Rs 1000 ki purchase, Rs 400 payment. Hona chahiye: supplier payable **600**, item stock purchase qty se barha.
+3. ⬜ **Expense** — Rs 200 expense (cash). Hona chahiye: cash in hand **200 kam**, Day book mein entry.
+4. ✅ **Unit** — OK: box ki sale + return chali, Rate Search mein bade aur chhote (box) dono unit ki cost aur margin dikhte hain.
+5. 🟡 **Credit limit** — ✅ "Credit Limit Exceeded" dialog aata hai (Hafiz Pan Shop par dekha).
+   ⬜ Baaki: admin se Settings > "Credit limit override" ON, phir cashier se: dialog mein sirf OK (Save Anyway nahi); admin/manager se Save Anyway chalta hai.
+6. ⬜ **Reports milan** — aaj ka Profit & Loss aur Balance Sheet apne haath ke hisaab se milao.
+7. ✅ **Discount wali bill ka partial return** — OK: Rs 200 bill, discount 50 (total 150), 1 box return => Rs 75 wapas; stock, bill, Returns Report aur Total Sales/Returned sab milte hain.
+8. ✅ **Day Book** — OK (partial/poori return ke baad Cash In/Out/Net sahi, doosri chat mein pass).
+9. ⬜ **Purchase partial return** — stock, cost, supplier balance sirf wapas hui miqdaar se badle; Day Book Cash In ka asar.
 
 ## B. Do devices (sync)
-7. Dono par ek hi customer/item; dono se **lagbhag ek saath** sale. Hona chahiye: sync ke baad dono par stock aur balance **ek jaise**.
-8. Ek phone **aeroplane mode** mein sale kare, phir net on. Hona chahiye: sync ke baad dusre phone par wahi bill, koi double nahi.
-9. Settings mein sync status: pending / failed entries ka number dekho (failed 0 hona chahiye).
+10. ✅ Dono par ek hi customer/item; ek saath sale — OK (sync ke baad stock/balance ek jaise).
+11. ✅ Aeroplane mode mein sale, phir net on — OK (dusre phone par wahi bill, koi double nahi).
+12. ✅ Sync status — OK (aap ke mutabiq sync sab theek chal raha hai).
 
 ## C. Safety
-10. **Roles** — cashier login: reports/cost nahi khulte. Admin Manage Users > Access se ek item do: cashier ko khulta hai (dusre device par bhi).
-11. **Backup/restore** — Backup lo, dusri test installation par restore. Hona chahiye: customers, stock, cash totals wahi.
-12. **Update** — purani app ke **upar** nayi APK install (uninstall nahi). Hona chahiye: purana data salamat, app khule.
+13. 🟡 **Roles** — ✅ cashier: Sale History mein Return/Edit/Delete aur profit nahi, Reports/cost nahi khulte, "Credit limit override" ka switch band.
+    ⬜ Baaki: Cash & Bank cashier ko nahi dikhna chahiye (naya build); admin Manage Users > Access se ek item de, cashier ko khule (dusre device par bhi).
+14. ⬜ **Backup/restore** — Backup lo, dusri test installation par restore. Hona chahiye: customers, stock, cash totals wahi.
+15. ✅ **Update** — OK: purani app ke upar nayi APK install hui, purana data salamat.
 
 ## D. Release
-13. Naye Build ki APK install; Android par sab sahi. (iOS/Windows jab zaroorat ho.)
+16. ✅ Android APK install aur chal rahi hai. ⬜ iOS/Windows jab zaroorat ho.
 
-Natija likhne ka tareeqa: `1 ✅`, `5 ❌ dialog nahi aaya`, ... bhej dein.
+Natija likhne ka tareeqa: `5 ✅`, `9 ❌ stock galat`, ... bhej dein.

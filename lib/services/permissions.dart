@@ -46,7 +46,7 @@ class Permissions {
     PermDef('stock_adjustment', groupTools, 'Stock Adjustment', 'اسٹاک ایڈجسٹمنٹ', _am),
     PermDef('stock_taking', groupTools, 'Stock Taking', 'اسٹاک گنتی', _am),
     PermDef('fix_bill_cost', groupTools, 'Fix Bill Cost', 'بل کی لاگت درست کریں', _a),
-    PermDef('cash_register', groupTools, 'Cash Register', 'کیش رجسٹر', _all),
+    PermDef('cash_register', groupTools, 'Cash Register', 'کیش رجسٹر', _am),
     PermDef('zakat', groupTools, 'Zakat', 'زکوٰۃ', _am),
   ];
 
