@@ -124,6 +124,10 @@ DayBookData buildDayBook({
   required List<Expense> expenses,
   required List<CashTransaction> cashTx,
   required Map<String, double> linkedPaidByBill,
+  // Partial return ke baad bill ka `paid` kam ho jata hai, lekin paisa asal mein us din aaya tha aur wapsi
+  // alag dated `return:<bill>` cash row hai. Dobara na ginne ke liye wo wapsi bill ke paid mein wapas jodi jati hai.
+  Map<String, double> saleRefundedByBill = const {},
+  Map<String, double> purchaseRefundedByBill = const {},
 }) {
   final cash = cashTx.where(isStandaloneCash).toList();
   final entries = <DayBookEntry>[];
@@ -186,8 +190,8 @@ DayBookData buildDayBook({
   final totalSales = liveSales.fold<double>(0, (a, s) => a + s.total);
   final totalPurchases = livePurchases.fold<double>(0, (a, p) => a + p.total);
   final totalExpenses = expenses.fold<double>(0, (a, e) => a + e.amount);
-  final salesPaidOwn = liveSales.fold<double>(0, (a, s) => a + ownPaid(s.paid, linkedPaidByBill[s.invoice]));
-  final purchasesPaidOwn = livePurchases.fold<double>(0, (a, p) => a + ownPaid(p.paid, linkedPaidByBill[p.billNo]));
+  final salesPaidOwn = liveSales.fold<double>(0, (a, s) => a + ownPaid(s.paid, linkedPaidByBill[s.invoice]) + (saleRefundedByBill[s.invoice] ?? 0.0));
+  final purchasesPaidOwn = livePurchases.fold<double>(0, (a, p) => a + ownPaid(p.paid, linkedPaidByBill[p.billNo]) + (purchaseRefundedByBill[p.billNo] ?? 0.0));
   final cashIn = cash.where((c) => c.type == 'IN').fold<double>(0, (a, c) => a + c.amount) + salesPaidOwn;
   final cashOut = cash.where((c) => c.type == 'OUT').fold<double>(0, (a, c) => a + c.amount) + purchasesPaidOwn;
 
@@ -241,7 +245,21 @@ class DayBookRepository {
     final linkedRows = await db.rawQuery(
         "SELECT billReference AS ref, SUM(amount) AS total FROM payments WHERE billReference != '' GROUP BY billReference");
 
+    // Partial return ki wapsi: 'return:<bill>' rows (sale = OUT, purchase = IN), kisi bhi din ki.
+    final refundRows = await db.rawQuery(
+        "SELECT reference AS ref, type AS type, SUM(amount) AS total FROM cash_transactions WHERE reference LIKE 'return:%' GROUP BY reference, type");
+    final saleRefunded = <String, double>{};
+    final purchaseRefunded = <String, double>{};
+    for (final r in refundRows) {
+      final bill = ((r['ref'] as String?) ?? '').substring('return:'.length);
+      final amt = (r['total'] as num?)?.toDouble() ?? 0.0;
+      if (r['type'] == 'OUT') saleRefunded[bill] = (saleRefunded[bill] ?? 0.0) + amt;
+      if (r['type'] == 'IN') purchaseRefunded[bill] = (purchaseRefunded[bill] ?? 0.0) + amt;
+    }
+
     return buildDayBook(
+      saleRefundedByBill: saleRefunded,
+      purchaseRefundedByBill: purchaseRefunded,
       sales: saleRows
           .map((r) => DayBookSaleRow(
                 invoice: r['invoice'] as String,

@@ -77,6 +77,33 @@ void main() {
     expect(d.summary.cashOut, 70);
   });
 
+  test('partial sale return: refund is a cash OUT, original cash-in stays (no double count)', () {
+    // 700 ka bill, 280 wapas: paid ab 420, lekin 700 us din aaya tha; 280 ki wapsi alag OUT row.
+    final d = buildDayBook(
+      sales: [sale('INV-1', 420, 420)],
+      purchases: const [],
+      expenses: const [],
+      cashTx: [cash('OUT', 280, ref: 'return:INV-1')],
+      linkedPaidByBill: const {},
+      saleRefundedByBill: const {'INV-1': 280},
+    );
+    expect(d.summary.cashIn, 700);
+    expect(d.summary.cashOut, 280);
+  });
+
+  test('partial purchase return: refund is a cash IN, original cash-out stays', () {
+    final d = buildDayBook(
+      sales: const [],
+      purchases: [purchase('B-1', 300, 300)],
+      expenses: const [],
+      cashTx: [cash('IN', 200, ref: 'return:B-1')],
+      linkedPaidByBill: const {},
+      purchaseRefundedByBill: const {'B-1': 200},
+    );
+    expect(d.summary.cashOut, 500);
+    expect(d.summary.cashIn, 200);
+  });
+
   test('entries are newest first', () {
     final d = build(
       sales: [sale('A', 1, 1, at: 100)],
