@@ -112,7 +112,7 @@ void main() {
     await db.insert('purchase_items', {
       'billNo': 'PB-1', 'barcode': 'P1', 'qty': 5.0, 'unitCost': 900.0, 'amount': 4500.0,
     });
-    await db.insert('expenses', {'category': 'Rent', 'description': 'Shop', 'amount': 20000.0, 'createdAt': 1700000000000});
+    await db.insert('expenses', {'category': 'Rent', 'description': 'Live-only rent', 'amount': 20000.0, 'createdAt': 1700000000000});
     await db.insert('cash_transactions', {'type': 'IN', 'method': 'Cash', 'amount': 1250.0, 'createdAt': 1700000000000});
     await db.insert('users', {'username': 'owner', 'displayName': 'Owner', 'role': 'admin', 'passwordHash': 'x'});
   }
@@ -157,7 +157,9 @@ void main() {
     expect((await db.query('customers', where: "name='Ali'")).single['balance'], 750.0);
     expect((await db.query('customers', where: "name='Bilal'")).single['balance'], -120.5);
     expect((await db.query('suppliers')).single['balance'], 3000.0);
-    expect(await db.query('expenses', where: "description = 'Shop'"), isEmpty, reason: 'rows of the previous live data are gone');
+    expect(await db.query('expenses', where: "description = 'Live-only rent'"), isEmpty, reason: 'rows of the previous live data are gone');
+    // The legacy fixtures carry their own expense ('Rent' / 'Shop'), so it must be present after the restore.
+    expect(await db.query('expenses', where: "description = 'Shop'"), hasLength(1), reason: 'expense of the old file');
   }
 
   test('older-schema backup v10 is restored and then migrated to the current schema with its data intact', () async {
