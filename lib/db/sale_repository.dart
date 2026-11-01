@@ -8,6 +8,7 @@ import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../models/party.dart' show Customer;
 import '../models/sale.dart';
+import '../services/credit_guard.dart';
 import '../services/session.dart';
 import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
@@ -95,6 +96,24 @@ class SaleCreditLimitException implements Exception {
   @override
   String toString() =>
       '$customerName ki credit limit ${creditLimit.toStringAsFixed(0)} hai, is bill ke baad balance ${projectedBalance.toStringAsFixed(0)} ho jayega';
+}
+
+/// Server-side (cross-device) credit pre-check. No-op unless "Server credit-limit check" is ON and the
+/// device is online; any failure => proceed on the local check (fail-open, see CreditGuard).
+Future<void> _serverCreditCheck({
+  required Customer customer,
+  required double amount,
+  required String reservationId,
+}) async {
+  if (amount <= 0.009) return;
+  final r = await CreditGuard.instance.reserve(
+    customerId: SyncQueueHelper.customerEntityId(customer.toMap()),
+    amount: amount,
+    reservationId: reservationId,
+  );
+  if (r.status == CreditCheckStatus.blocked) {
+    throw SaleCreditLimitException(customer.name, r.creditLimit ?? customer.creditLimit, r.projected ?? 0.0);
+  }
 }
 
 /// Mirrors QuickSaleSaveResult.
@@ -515,6 +534,15 @@ class SaleRepository {
 
     final invoice = editInvoice ?? nextInvoiceNumber(saleDateMillis);
     final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Cross-device check (opt-in, fail-open). Runs before anything is written; the local transaction check
+    // below still runs afterwards.
+    if (customer != null && customer.creditLimit > 0.0 && !overrideCreditLimit) {
+      var net = due;
+      if (original != null && original.customerId == customer.id) net -= (original.total - original.paid);
+      await _serverCreditCheck(
+          customer: customer, amount: net, reservationId: 'sale:$invoice:${DeviceTag.current}');
+    }
 
     await db.transaction((txn) async {
       // Same-device concurrent saves are serialized and validated against the
@@ -1003,6 +1031,19 @@ class SaleRepository {
 
     final db = await AppDatabase.instance.database;
     var resultInvoice = '';
+
+    if (isCredit && !overrideCreditLimit) {
+      final cr = await db.query('customers', where: 'LOWER(name) = ?', whereArgs: [name.toLowerCase()], limit: 1);
+      if (cr.isNotEmpty) {
+        final c = Customer.fromMap(cr.first);
+        if (c.creditLimit > 0.0) {
+          await _serverCreditCheck(
+              customer: c,
+              amount: amount,
+              reservationId: 'qs:${DeviceTag.current}:${DateTime.now().microsecondsSinceEpoch}');
+        }
+      }
+    }
 
     await db.transaction((txn) async {
       if (isCredit && !overrideCreditLimit) {

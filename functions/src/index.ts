@@ -74,3 +74,67 @@ export const getMyStaffContext = onCall({enforceAppCheck: true}, async request =
     throw new HttpsError("permission-denied", "Valid staff claims required.");
   return {staffId: c.staffId, branchId: c.branchId, role: c.role};
 });
+
+// ---------------------------------------------------------------------------
+// Cross-device credit-limit pre-check (opt-in from the app; see docs/SERVER_CREDIT_CHECK.md)
+//
+// The app is offline-first: a sale is always saved locally and its balance change is pushed later as an
+// increment. Two ONLINE devices can therefore both pass their local credit check against the same stale
+// balance. This callable closes that gap by holding short-lived "reservations" on the server:
+//   projected = openingBalance + balance + stuckBalance + (other devices' open reservations) + this amount
+// It does NOT stop an OFFLINE device (it cannot reach the server) - the app fails open in that case.
+// ---------------------------------------------------------------------------
+const RESERVATION_TTL_MS = 5 * 60 * 1000;
+const ID_FIELD = /^[A-Za-z0-9:_.\-]{1,200}$/;
+
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Branch comes from the server, never from the request body.
+async function branchOf(auth: {uid: string; token: Record<string, unknown>}): Promise<string> {
+  const claim = auth.token.branchId;
+  if (typeof claim === "string" && claim) return claim;
+  const m = await db.collection("branch_members").doc(auth.uid).get();
+  const b = m.data()?.branchId;
+  if (typeof b !== "string" || !b) throw new HttpsError("permission-denied", "Device is not provisioned for a branch.");
+  return b;
+}
+
+export const reserveCredit = onCall({enforceAppCheck: false, maxInstances: 20}, async request => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign-in required.");
+  const customerId = request.data?.customerId;
+  const reservationId = request.data?.reservationId;
+  const amount = request.data?.amount;
+  if (typeof customerId !== "string" || !ID_FIELD.test(customerId) ||
+      typeof reservationId !== "string" || !ID_FIELD.test(reservationId) ||
+      typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0 || amount > 1e9)
+    throw new HttpsError("invalid-argument", "customerId, reservationId and a positive amount are required.");
+  const branchId = await branchOf({uid: request.auth.uid, token: request.auth.token as Record<string, unknown>});
+
+  const customerRef = db.collection("customers").doc(customerId);
+  const resRef = db.collection("credit_reservations").doc(`${branchId}__${reservationId}`.slice(0, 400));
+  return db.runTransaction(async tx => {
+    const [cSnap, rSnap] = await Promise.all([tx.get(customerRef), tx.get(resRef)]);
+    const c = cSnap.data();
+    // Unknown customer / other branch: nothing to enforce here (the app's own local check still ran).
+    if (!cSnap.exists || !c || c.branchId !== branchId) return {allowed: true, enforced: false};
+    const limit = num(c.creditLimit);
+    if (limit <= 0) return {allowed: true, enforced: false};
+
+    const nowMs = Date.now();
+    // Same reservationId again (retry of the same save) must not count twice.
+    const others = await tx.get(db.collection("credit_reservations")
+      .where("branchId", "==", branchId).where("customerId", "==", customerId).where("expiresAt", ">", nowMs));
+    let reservedByOthers = 0;
+    others.forEach(d => { if (d.id !== resRef.id) reservedByOthers += num(d.data().amount); });
+
+    const projected = num(c.openingBalance) + num(c.balance) + num(c.stuckBalance) + reservedByOthers + amount;
+    if (projected > limit + 0.009) return {allowed: false, enforced: true, creditLimit: limit, projected};
+
+    tx.set(resRef, {branchId, customerId, amount, createdAt: nowMs, expiresAt: nowMs + RESERVATION_TTL_MS,
+                    uid: request.auth!.uid});
+    return {allowed: true, enforced: true, creditLimit: limit, projected};
+  });
+});

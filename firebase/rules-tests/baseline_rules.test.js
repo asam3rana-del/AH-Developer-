@@ -64,3 +64,13 @@ test('clients cannot modify branch membership or unknown collections', async () 
   await assertFails(deleteDoc(doc(db, 'branch_members/uid-b1')));
   await assertFails(setDoc(doc(db, 'unlisted/x'), { branchId: 'b1' }));
 });
+
+test('credit reservations are server-only (Admin SDK); clients cannot read or write them', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'credit_reservations/b1__r1'), { branchId: 'b1', customerId: 'c1', amount: 10 });
+  });
+  const db = dbFor('uid-b1');
+  await assertFails(getDoc(doc(db, 'credit_reservations/b1__r1')));
+  await assertFails(setDoc(doc(db, 'credit_reservations/b1__r2'), { branchId: 'b1', customerId: 'c1', amount: 10 }));
+  await assertFails(deleteDoc(doc(db, 'credit_reservations/b1__r1')));
+});

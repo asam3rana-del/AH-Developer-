@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
+import '../services/credit_guard.dart';
 import '../services/staff_auth.dart';
 import '../services/app_lock.dart';
 import '../services/biometric.dart';
@@ -439,6 +440,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(Loc.t(
                   'OFF = current behaviour. ON needs the staff backend + App Check set up (see docs/STAFF_AUTH_BACKEND_SETUP.md); sync never falls back to anonymous.',
                   'آف = موجودہ طریقہ۔ آن کے لیے اسٹاف بیک اینڈ + App Check سیٹ اپ ضروری ہے؛ سنک کبھی anonymous پر واپس نہیں جاتا۔')),
+            ),
+          ),
+        ]),
+        _card(Loc.t('Server credit-limit check', 'سرور کریڈٹ لیمٹ چیک'), Icons.shield, [
+          FutureBuilder<bool>(
+            future: const CreditGuard().isEnabled(),
+            builder: (context, snap) => SwitchListTile(
+              value: snap.data ?? false,
+              onChanged: (v) async {
+                await const CreditGuard().setEnabled(v);
+                if (mounted) setState(() {});
+              },
+              title: Text(Loc.t('Check credit limit with the server (online)', 'کریڈٹ لیمٹ سرور سے چیک کریں (آن لائن)')),
+              subtitle: Text(Loc.t(
+                  'OFF = current behaviour. ON needs the reserveCredit function deployed (docs/SERVER_CREDIT_CHECK.md). Offline sales still go through and use only the local check.',
+                  'آف = موجودہ طریقہ۔ آن کے لیے reserveCredit فنکشن ڈیپلائے ہونا ضروری ہے۔ آف لائن سیل پھر بھی ہوتی ہے اور صرف مقامی چیک چلتا ہے۔')),
             ),
           ),
         ]),

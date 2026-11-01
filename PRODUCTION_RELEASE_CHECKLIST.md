@@ -18,7 +18,7 @@
 
 ## Follow-up hardening in this package
 
-- Sale and quick-sale credit-limit checks now read the customer ledger inside the same SQLite transaction as the sale write. This protects against competing saves on the same device/database connection. It does NOT provide cross-device atomic credit enforcement; that requires a server-authoritative sale/credit operation before multi-device credit limits can be guaranteed.
+- Sale and quick-sale credit-limit checks now read the customer ledger inside the same SQLite transaction as the sale write. This protects against competing saves on the same device/database connection. It does NOT provide cross-device atomic credit enforcement on its own. An OPT-IN server pre-check (`reserveCredit` + Settings switch, default OFF) narrows the gap for ONLINE devices only; offline devices still rely on the local check. See `docs/SERVER_CREDIT_CHECK.md` (not yet staging-tested).
 - Added Firestore emulator regression tests for the currently active `firebase/firestore.rules` baseline, alongside the existing tests for the separate staff-claims draft. The workflow tests both rule files and does not deploy either one.
 - The staff-claims rules remain a draft. Do not deploy them to production until the Flutter authentication migration, cashier server-side sale endpoint, and full staging test plan are complete.
 
