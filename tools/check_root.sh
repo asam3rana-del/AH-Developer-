@@ -10,8 +10,8 @@ BAD=0
 # Root par sirf yeh allowed hain (Flutter ke generated folders bhi).
 ALLOWED=".git .github .gitignore .gitattributes .metadata .dart_tool .idea build \
 android ios windows assets analysis_options.yaml pubspec.yaml pubspec.lock \
-ANDROID_CHANGELOG.md PORTING_PLAN.md PORT_STATUS.md README.md LICENSE \
-docs firebase lib test tools"
+ANDROID_CHANGELOG.md PORTING_PLAN.md PORT_STATUS.md PRODUCTION_RELEASE_CHECKLIST.md README.md LICENSE \
+docs firebase functions lib test test_migration tools"
 
 for d in main config androidTest db screens models sync services widgets utils theme backup; do
   if [ -d "$d" ]; then

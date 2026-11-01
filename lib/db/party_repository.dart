@@ -478,6 +478,14 @@ class PartyRepository {
     return l.isEmpty ? 0.0 : trueBalance(l.first);
   }
 
+  /// Recompute a customer's running balance using the caller's active SQLite
+  /// transaction. Use this for business rules (such as credit limits) that
+  /// must observe the same database snapshot as the write they protect.
+  Future<double> liveCustomerBalanceIn(DatabaseExecutor executor, int customerId) async {
+    final ledgers = await _loadLedgers(executor, customers: true, onlyPartyId: customerId);
+    return ledgers.isEmpty ? 0.0 : trueBalance(ledgers.first);
+  }
+
   Future<double> liveSupplierBalance(int supplierId) async {
     final l = await _loadLedgers(await AppDatabase.instance.database, customers: false, onlyPartyId: supplierId);
     return l.isEmpty ? 0.0 : trueBalance(l.first);

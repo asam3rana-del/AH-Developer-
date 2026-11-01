@@ -6,6 +6,7 @@ import '../utils/qty_math.dart';
 import '../models/held_bill.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
+import '../models/party.dart' show Customer;
 import '../models/sale.dart';
 import '../services/session.dart';
 import '../utils/split_payment.dart';
@@ -510,24 +511,33 @@ class SaleRepository {
       }
     }
 
-    // Credit limit (0 = no limit set). Only a KNOWN customer can exceed it.
-    if (customer != null && customer.creditLimit > 0.0 && !overrideCreditLimit) {
-      // LIVE ledger balance (stored `balance` doosre device ke sync se purana ho sakta hai).
-      final liveRunning = await PartyRepository.instance.liveCustomerBalance(customer.id!);
-      var projected = partyClosing(opening: customer.openingBalance, running: liveRunning, stuck: customer.stuckBalance) + due;
-      // Editing: this bill's OWN old due is already inside `balance`.
-      if (original != null && original.customerId == customer.id) {
-        projected -= (original.total - original.paid);
-      }
-      if (projected > customer.creditLimit + 0.009) {
-        throw SaleCreditLimitException(customer.name, customer.creditLimit, projected);
-      }
-    }
+    // Credit-limit validation is performed against the transaction snapshot below.
 
     final invoice = editInvoice ?? nextInvoiceNumber(saleDateMillis);
     final now = DateTime.now().millisecondsSinceEpoch;
 
     await db.transaction((txn) async {
+      // Same-device concurrent saves are serialized and validated against the
+      // ledger snapshot used by this write. Cross-device enforcement still
+      // requires a server-authoritative transaction when cloud writes are enabled.
+      if (customer?.id != null && !overrideCreditLimit) {
+        final freshRows = await txn.query('customers', where: 'id = ?', whereArgs: [customer!.id], limit: 1);
+        if (freshRows.isNotEmpty) {
+          final freshCustomer = Customer.fromMap(freshRows.first);
+          if (freshCustomer.creditLimit > 0.0) {
+            final liveRunning = await PartyRepository.instance.liveCustomerBalanceIn(txn, freshCustomer.id!);
+            var projected = partyClosing(opening: freshCustomer.openingBalance, running: liveRunning,
+                stuck: freshCustomer.stuckBalance) + due;
+            if (original != null && original.customerId == freshCustomer.id) {
+              projected -= (original.total - original.paid);
+            }
+            if (projected > freshCustomer.creditLimit + 0.009) {
+              throw SaleCreditLimitException(freshCustomer.name, freshCustomer.creditLimit, projected);
+            }
+          }
+        }
+      }
+
       final diff = original != null ? saleEditDiff(lines, originalItems) : null;
       bool needsStock(int index) => diff == null || diff.changedLineIndices.contains(index);
 
@@ -991,23 +1001,26 @@ class SaleRepository {
     final amount = (qty * price).roundToDouble();
     if (!amount.isFinite) throw ArgumentError('Sale total finite hona chahiye');
 
-    if (isCredit && !overrideCreditLimit) {
-      final customers = await CustomerRepository.instance.listAll();
-      final existing = customers.where((c) => c.name.toLowerCase() == name.toLowerCase()).firstOrNull;
-      if (existing != null && existing.creditLimit > 0.0) {
-        final liveRunning = await PartyRepository.instance.liveCustomerBalance(existing.id!);
-        final projected =
-            partyClosing(opening: existing.openingBalance, running: liveRunning, stuck: existing.stuckBalance) + amount;
-        if (projected > existing.creditLimit + 0.009) {
-          throw SaleCreditLimitException(existing.name, existing.creditLimit, projected);
-        }
-      }
-    }
-
     final db = await AppDatabase.instance.database;
     var resultInvoice = '';
 
     await db.transaction((txn) async {
+      if (isCredit && !overrideCreditLimit) {
+        final customerRows = await txn.query('customers', where: 'LOWER(name) = ?',
+            whereArgs: [name.toLowerCase()], limit: 1);
+        if (customerRows.isNotEmpty) {
+          final existing = Customer.fromMap(customerRows.first);
+          if (existing.creditLimit > 0.0) {
+            final liveRunning = await PartyRepository.instance.liveCustomerBalanceIn(txn, existing.id!);
+            final projected = partyClosing(opening: existing.openingBalance, running: liveRunning,
+                stuck: existing.stuckBalance) + amount;
+            if (projected > existing.creditLimit + 0.009) {
+              throw SaleCreditLimitException(existing.name, existing.creditLimit, projected);
+            }
+          }
+        }
+      }
+
       final rows = await txn.query('products', where: 'barcode=?', whereArgs: [product.barcode], limit: 1);
       if (rows.isEmpty) throw SaleStockException('Stock badal gaya hai, dobara try karen');
       final current = Product.fromMap(rows.first);

@@ -43,10 +43,10 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  Future<int> addCustomer(String name) => db.insert('customers', {
+  Future<int> addCustomer(String name, {double creditLimit = 0}) => db.insert('customers', {
         'name': name,
         'phone': '',
-        'creditLimit': 0.0,
+        'creditLimit': creditLimit,
         'openingBalance': 0.0,
         'balance': 0.0,
         'stuckBalance': 0.0,
@@ -80,6 +80,27 @@ void main() {
       );
 
   double num_(Map<String, Object?> row, String key) => (row[key] as num).toDouble();
+
+  test('credit limit is enforced before sale stock and ledger are changed', () async {
+    await addCustomer('Ali', creditLimit: 150);
+    await addProduct();
+
+    await expectLater(
+      SaleRepository.instance.saveSale(
+        lines: [line(2, 100)],
+        customerName: 'Ali',
+        discountInput: 0,
+        paidInput: 0,
+        saleType: 'retail',
+        saleDateMillis: now,
+      ),
+      throwsA(isA<SaleCreditLimitException>()),
+    );
+
+    expect(await db.query('sales'), isEmpty);
+    expect(num_((await db.query('products', where: 'barcode=?', whereArgs: ['rice'])).single, 'stock'), 10);
+    expect(num_((await db.query('customers', where: 'name=?', whereArgs: ['Ali'])).single, 'balance'), 0);
+  });
 
   test('edit below the amount already received through linked payments is refused, nothing changes', () async {
     final customerId = await addCustomer('Ali');

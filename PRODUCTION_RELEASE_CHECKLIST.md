@@ -16,6 +16,12 @@
 5. Run the full test suite, staging sync tests on two devices, duplicate/retry tests, backup-and-restore tests, and accounting reconciliation before importing live shop data.
 6. Keep the previous accounting system and a verified export/backup until the new system has completed a parallel-run period and opening balances, stock, customer/supplier balances, cash, profit, and balance sheet reconcile.
 
+## Follow-up hardening in this package
+
+- Sale and quick-sale credit-limit checks now read the customer ledger inside the same SQLite transaction as the sale write. This protects against competing saves on the same device/database connection. It does NOT provide cross-device atomic credit enforcement; that requires a server-authoritative sale/credit operation before multi-device credit limits can be guaranteed.
+- Added Firestore emulator regression tests for the currently active `firebase/firestore.rules` baseline, alongside the existing tests for the separate staff-claims draft. The workflow tests both rule files and does not deploy either one.
+- The staff-claims rules remain a draft. Do not deploy them to production until the Flutter authentication migration, cashier server-side sale endpoint, and full staging test plan are complete.
+
 ## Validation performed for this patch
 
 - `bash -n tools/android_fix.sh`
