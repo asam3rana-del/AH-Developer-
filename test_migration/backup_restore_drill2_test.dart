@@ -11,8 +11,7 @@ import 'package:ah_developer_kiryana_store/backup/backup_password_store.dart';
 import 'package:ah_developer_kiryana_store/db/app_database.dart';
 
 /// Backup / restore drill, part 2 (improvement plan, P1 #7): restoring an OLDER-schema database (real legacy fixtures)
-/// and a clean-install restore on a "different device". NOT YET RUN - lives outside test/ so a failure cannot
-/// block release builds.
+/// and a clean-install restore on a "different device". GREEN (Migration tests #10) - now part of the release gate in test/ (copy kept in test_migration/).
 ///
 /// Real AppDatabase + real BackupHelper (VACUUM INTO snapshot, AES-GCM encrypt + verify, restore). Only the
 /// platform plugins are faked: path_provider (temp folder) and flutter_secure_storage (in-memory map).

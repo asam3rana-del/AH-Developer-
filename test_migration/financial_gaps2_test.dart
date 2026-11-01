@@ -16,7 +16,7 @@ import 'package:ah_developer_kiryana_store/services/session.dart';
 
 /// Financial regression GAP tests, part 2 (improvement plan P1 #5): expense save/delete, opening balance, payment
 /// re-assignment between bills. Same setup as financial_gaps_test.dart.
-/// NOT YET RUN - lives outside test/ so a failure cannot block release builds.
+/// GREEN (Migration tests #10) - now part of the release gate in test/ (copy kept in test_migration/).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();

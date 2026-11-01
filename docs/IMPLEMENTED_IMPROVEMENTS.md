@@ -131,9 +131,17 @@ No database migration, financial transaction, synchronization, or backup impleme
 | Firebase security | rules tests and staging ready; Cloud Functions and app login need Blaze; production unchanged |
 | Business intelligence | not started |
 
-## Update 16 — backup/restore drill part 2, `test_migration/backup_restore_drill2_test.dart` (P1 #7), NOT YET RUN
+## Update 16 — backup/restore drill part 2, `test_migration/backup_restore_drill2_test.dart` (P1 #7), GREEN since Update 17
 
 - Restoring OLDER-schema databases (real fixtures `legacy_v10.db`, `legacy_v25.db`, `legacy_v32.db`): restore succeeds, the file then migrates to the current schema (integrity ok, no FK violations) and the old rows (products, customer balances, supplier balance) are intact; rows of the previous live data are gone.
 - `legacy_v1.db`: either restored and migrated, or refused with a clear error and the live database untouched (the restore check requires the 11 tables in `BackupHelper._requiredTables`; whether the very first schema has them is what this test shows).
 - A backup from a NEWER app version (user_version above the app's) is refused with the "naye version" message and the live database is untouched.
 - Clean install on another device: no database file and an empty secure store; restoring the encrypted backup with its password returns the exact original rows.
+
+## Update 17 — Migration tests green; 3 more suites moved into the release gate
+
+- "Migration tests" run #10 passed (all test_migration tests). Run #9 had 4 failures in `backup_restore_drill2_test.dart`:
+  - v10 / v25 / v32 restore tests: the test bug was that the legacy fixtures also contain an expense "Shop", so "previous live rows are gone" could never pass. The live seed row is now "Live-only rent"; the test also checks that the fixture's own "Shop" row is present.
+  - "backup from a NEWER app version is refused": real app bug. `KotlinBackupImporter.isRoomDatabase` treated any `user_version` above the app's as a Kotlin (Room) backup, so a newer Flutter backup was imported (replacing live data) instead of refused. Now only `room_master_table` or the Kotlin-only columns (`sales.saleUid`, `purchases.purchaseUid`) identify a Kotlin backup.
+- `backup_restore_drill2_test.dart`, `financial_gaps2_test.dart` and `two_device_sync_test.dart` are now also in `test/`, so `flutter test` in build.yml runs them on every build. Copies stay in `test_migration/` (a zip import cannot delete files).
+- Not run here (no Flutter in the authoring environment): the first Build run shows whether the moved tests also pass inside the full `flutter test` run.

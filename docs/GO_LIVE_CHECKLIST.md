@@ -39,9 +39,9 @@ Ye audit (2026-10-30) ke nateeje hain. Sirf screen ka sahi khulna ya bill ka pri
 |-------|---------------------|-------|
 | Naya CI build | Build #485 (`26dbc4d`) pass hai. Is ke baad ki tabdeeliyan (Per-user access rules, DB v34, docs) ke liye nayi build chalani hai | ⬜ |
 | Tests (85 test files) | Is mahol mein Flutter SDK nahi, to naye code ke tests yahan nahi chale; CI par `flutter test` pass hona chahiye | ⬜ |
-| Update test | Purani app ke upar nayi app install karke purana data (DB 33 → 34 migration) salamat | ⬜ |
-| Backup / restore | Backup lo → data mita do / naya device → restore → totals wahi | ⬜ |
-| Do devices par ek saath sale | Dono par ek waqt sale karke stock aur balance dono mein ek jaisa | ⬜ |
+| Update test | Purani app ke upar nayi app install karke purana data (DB 33 → 34 migration) salamat | 🟡 Automatic: 12 asli purane DB (v1…v32) → v34 migration test CI par pass (Migration tests #10); asli phone par update baaki |
+| Backup / restore | Backup lo → data mita do / naya device → restore → totals wahi | 🟡 Automatic: backup→restore wahi rows, ghalat/missing password, kharab file, naye version ka backup refuse, clean-install restore, purane schema ka restore — sab pass (Migration tests #10); asli phone par drill baaki |
+| Do devices par ek saath sale | Dono par ek waqt sale karke stock aur balance dono mein ek jaisa | 🟡 Automatic: two-device offline sync tests pass (Migration tests #10); asli 2 phones par baaki |
 | Firebase production | Har device ka `branch_members/{uid}` bana ho (dekhein `docs/CLOUD_SYNC_SETUP.md`), real backend par sync test | ⬜ |
 | Login / roles / access | Cashier reports nahi khol sakta; Access mein diya gaya item khulta hai; admin ka diya hua access dusre device par bhi lagta hai | ⬜ |
 | Sales, sale history, returns | Sale → return → history: totals, stock, customer balance milen | ⬜ |
@@ -58,7 +58,7 @@ Audit ka nateeja: "abhi production approval nahi" — iska matlab bugs milna nah
 **P0 — Data safety aur Firebase**
 - ⬜ Har device par UID aur `branch_members/{uid}` mapping (`docs/CLOUD_SYNC_SETUP.md`)
 - ⬜ Unauthorized branch access aur failed sync ka test
-- ⬜ Backup bana kar doosri test installation par restore (data barabar)
+- 🟡 Backup bana kar doosri test installation par restore (data barabar) — automatic test pass, asli device par baaki
 - ⬜ Sync queue mein pending / failed entries ka record dekhna
 
 **P1 — Accounting regression tests**
@@ -73,7 +73,7 @@ Audit ka nateeja: "abhi production approval nahi" — iska matlab bugs milna nah
 
 **P2 — Release aur recovery**
 - ⬜ Nayi CI build (Analyze + Test + 3 builds) — Build #485 `26dbc4d` pass; baad ki tabdeeliyan baaki
-- ⬜ Update ke baad purane database ki integrity (DB 33 → 34)
+- 🟡 Update ke baad purane database ki integrity (DB 33 → 34) — automatic migration tests pass, asli phone par baaki
 - ⬜ Asli device par offline sale, reconnect aur sync conflict
 - ⬜ Restore ke baad sales, stock, ledgers aur reports ka muqabla
 
@@ -81,3 +81,8 @@ Audit ka nateeja: "abhi production approval nahi" — iska matlab bugs milna nah
 - Month Close feature app se hata diya gaya hai (user ke kehne par). Unit screen wale changes Build #215 mein hain (pass). Baaki release checks (update test, backup-restore, do devices par ek saath sale) ab section 4 mein hain.
 - CI ki "Node.js 20 is deprecated" warnings workflow actions ki thin, app ki nahi. 2026-10-25: `actions/checkout` v5 aur `actions/upload-artifact` v7 par update kiye — verify ho gaya: Build #485 ke annotations mein Node.js warnings nahi hain.
 - Build #485 ke annotations (sirf notice, fail nahi): `ubuntu-latest` label jald Ubuntu 26 par migrate hoga, aur macOS arm64 jobs capacity ki wajah se der se chal sakti hain (iOS job 23m 56s lagi). Flutter version pinned hai, is liye Ubuntu migrate hone se pehle workflow mein `ubuntu-24.04` pin karna behtar hoga.
+
+## Update 2026-11-01
+- "Migration tests" #10 pass: migration (12 purane DB), financial gaps, backup/restore drill 1+2, two-device sync. Teen suites ab `test/` mein bhi hain (release gate).
+- 🟡 = automatic test pass, asli device par check baaki. Sync History (Settings) pehle se maujood hai: pending/stuck entries wahin dikhti hain, Retry Now bhi.
+- Is dauran ek asli bug mila aur theek hua: naye app version ka backup restore karne par woh Kotlin backup samajh kar import ho jata tha (live data badal sakta tha); ab saaf refuse hota hai.

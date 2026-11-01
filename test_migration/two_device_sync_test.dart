@@ -17,7 +17,7 @@ import 'package:ah_developer_kiryana_store/sync/sync_types.dart';
 /// sync checkpoint, talking to ONE in-memory "cloud". Everything except Firestore itself is the real code:
 /// SyncRepository.syncNow (push loop, retry rules, pull, checkpoint), SyncQueueDao, the push decisions
 /// (planIncrement / stampPayload / shouldApplyUpsert) and applyServerChangesToDb (pending deltas on top of cloud).
-/// NOT YET RUN - lives outside test/ so a failure cannot block release builds.
+/// GREEN (Migration tests #10) - now part of the release gate in test/ (copy kept in test_migration/).
 Future<String> _fakeHash(String p) async => 'hash($p)';
 
 const _sync = 'updatedAt INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 1';
