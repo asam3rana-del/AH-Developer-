@@ -130,3 +130,10 @@ No database migration, financial transaction, synchronization, or backup impleme
 | Backup / restore | 6 tests pass; older-schema backup and clean-install restore still to do |
 | Firebase security | rules tests and staging ready; Cloud Functions and app login need Blaze; production unchanged |
 | Business intelligence | not started |
+
+## Update 16 — backup/restore drill part 2, `test_migration/backup_restore_drill2_test.dart` (P1 #7), NOT YET RUN
+
+- Restoring OLDER-schema databases (real fixtures `legacy_v10.db`, `legacy_v25.db`, `legacy_v32.db`): restore succeeds, the file then migrates to the current schema (integrity ok, no FK violations) and the old rows (products, customer balances, supplier balance) are intact; rows of the previous live data are gone.
+- `legacy_v1.db`: either restored and migrated, or refused with a clear error and the live database untouched (the restore check requires the 11 tables in `BackupHelper._requiredTables`; whether the very first schema has them is what this test shows).
+- A backup from a NEWER app version (user_version above the app's) is refused with the "naye version" message and the live database is untouched.
+- Clean install on another device: no database file and an empty secure store; restoring the encrypted backup with its password returns the exact original rows.
