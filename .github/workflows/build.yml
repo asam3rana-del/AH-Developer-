@@ -142,6 +142,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Gradle 8.9 / AGP 8.7.3 ke liye JDK 17 pakka (runner ka default Java badal jaye to "Gradle version incompatible with Java" error aata hai).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
