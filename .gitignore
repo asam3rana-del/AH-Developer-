@@ -12,3 +12,6 @@
 build/
 firebase/rules-tests/node_modules/
 firebase/rules-tests/staff-claims.rules
+firebase/credit-check-test/node_modules/
+firebase/credit-check-test/fn/
+firebase/credit-check-test/firestore.rules

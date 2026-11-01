@@ -1,0 +1,15 @@
+{
+  "name": "ah-credit-check-function-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pretest": "rm -rf fn && mkdir fn && cp -r ../../functions/src ../../functions/package.json ../../functions/tsconfig.json fn/ && cp ../firestore.rules ./firestore.rules && npm --prefix fn install --no-audit --no-fund && npm --prefix fn run build",
+    "test": "firebase emulators:exec --only auth,functions,firestore --project demo-ah-credit \"node --test\""
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  },
+  "devDependencies": {
+    "firebase-tools": "13.29.1"
+  }
+}

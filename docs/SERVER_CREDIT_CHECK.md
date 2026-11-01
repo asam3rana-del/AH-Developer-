@@ -16,6 +16,18 @@ both pass their local credit check against the same stale balance and together p
   written. Settings > "Server credit-limit check" switch (default OFF = behaviour unchanged).
 - Composite index `credit_reservations (branchId, customerId, expiresAt)` added to `firebase/firestore.indexes.json`.
 
+## Test WITHOUT billing / card: Firebase emulators (GitHub Actions)
+`firebase/credit-check-test/` runs the real `reserveCredit` code in the local Auth + Functions + Firestore emulators
+(project `demo-ah-credit`, nothing is deployed, no Blaze, no card). Cases: two devices race (A allowed, B blocked),
+same reservation retried, opening/stuck balance, expired reservation ignored, no limit, unknown / other-branch
+customer, not signed in (401), no branch (403), bad input (400).
+- Locally: `cd firebase/credit-check-test && npm install && npm test`.
+- On GitHub: create `.github/workflows/credit-check-function-test.yml` directly in GitHub (the zip importer skips
+  `.github`) with the content in `docs/credit-check-function-test.workflow.yml`, then Actions > "Credit check function test" > Run workflow.
+This proves the function's logic. It does NOT prove a real deployment (IAM, region, App Check, the composite index), so the
+staging steps below are still needed before relying on it. Until a function is deployed, the app's switch can stay OFF (or ON:
+it then fails open exactly like offline).
+
 ## Deploy (staging project first)
 **Prerequisite:** Cloud Functions need the **Blaze plan**; staging (`ah-staging-a1b2c`) is on Spark today
 (`docs/STAGING_FIREBASE.md`). Enable Blaze on STAGING only and set a budget alert first. Anonymous sign-in must be

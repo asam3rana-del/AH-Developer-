@@ -1,0 +1,22 @@
+name: Credit check function test
+# Manual only. Runs functions/src reserveCredit in the local Firebase emulators (project demo-ah-credit).
+# Deploys nothing and needs no secrets.
+on: workflow_dispatch
+jobs:
+  credit-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Install
+        working-directory: firebase/credit-check-test
+        run: npm install --no-audit --no-fund
+      - name: Run reserveCredit against the emulators
+        working-directory: firebase/credit-check-test
+        run: npm test
