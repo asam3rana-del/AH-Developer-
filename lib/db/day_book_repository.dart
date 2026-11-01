@@ -190,8 +190,11 @@ DayBookData buildDayBook({
   final totalSales = liveSales.fold<double>(0, (a, s) => a + s.total);
   final totalPurchases = livePurchases.fold<double>(0, (a, p) => a + p.total);
   final totalExpenses = expenses.fold<double>(0, (a, e) => a + e.amount);
-  final salesPaidOwn = liveSales.fold<double>(0, (a, s) => a + ownPaid(s.paid, linkedPaidByBill[s.invoice]) + (saleRefundedByBill[s.invoice] ?? 0.0));
-  final purchasesPaidOwn = livePurchases.fold<double>(0, (a, p) => a + ownPaid(p.paid, linkedPaidByBill[p.billNo]) + (purchaseRefundedByBill[p.billNo] ?? 0.0));
+  final salesPaidOwn = liveSales.fold<double>(0, (a, s) => a + ownPaid(s.paid, linkedPaidByBill[s.invoice]) + (saleRefundedByBill[s.invoice] ?? 0.0)) +
+      // Poori return hui bill: paisa us din aaya tha (wapsi alag OUT row), is liye wahi wapsi cash-in mein wapas.
+      sales.where((s) => s.status == 'returned').fold<double>(0, (a, s) => a + (saleRefundedByBill[s.invoice] ?? 0.0));
+  final purchasesPaidOwn = livePurchases.fold<double>(0, (a, p) => a + ownPaid(p.paid, linkedPaidByBill[p.billNo]) + (purchaseRefundedByBill[p.billNo] ?? 0.0)) +
+      purchases.where((p) => p.status == 'returned').fold<double>(0, (a, p) => a + (purchaseRefundedByBill[p.billNo] ?? 0.0));
   final cashIn = cash.where((c) => c.type == 'IN').fold<double>(0, (a, c) => a + c.amount) + salesPaidOwn;
   final cashOut = cash.where((c) => c.type == 'OUT').fold<double>(0, (a, c) => a + c.amount) + purchasesPaidOwn;
 

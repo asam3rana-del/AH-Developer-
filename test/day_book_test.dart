@@ -104,6 +104,34 @@ void main() {
     expect(d.summary.cashIn, 200);
   });
 
+  test('fully returned sale (after partial returns): cash-in keeps what was received, refunds are cash OUT', () {
+    // 700 ka bill: 280 + 140 partial, aakhri 280 poori return => status returned. Aaya 700, gaya 700.
+    final d = buildDayBook(
+      sales: [sale('INV-1', 280, 280, status: 'returned')],
+      purchases: const [],
+      expenses: const [],
+      cashTx: [cash('OUT', 280, ref: 'return:INV-1'), cash('OUT', 140, ref: 'return:INV-1'), cash('OUT', 280, ref: 'return:INV-1')],
+      linkedPaidByBill: const {},
+      saleRefundedByBill: const {'INV-1': 700},
+    );
+    expect(d.summary.cashIn, 700);
+    expect(d.summary.cashOut, 700);
+    expect(d.summary.totalSales, 0);
+  });
+
+  test('fully returned purchase: cash-out keeps what was paid, refund is cash IN', () {
+    final d = buildDayBook(
+      sales: const [],
+      purchases: [purchase('B-1', 500, 500, status: 'returned')],
+      expenses: const [],
+      cashTx: [cash('IN', 500, ref: 'return:B-1')],
+      linkedPaidByBill: const {},
+      purchaseRefundedByBill: const {'B-1': 500},
+    );
+    expect(d.summary.cashOut, 500);
+    expect(d.summary.cashIn, 500);
+  });
+
   test('entries are newest first', () {
     final d = build(
       sales: [sale('A', 1, 1, at: 100)],
