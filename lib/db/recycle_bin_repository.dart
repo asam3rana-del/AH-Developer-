@@ -104,6 +104,7 @@ class RecycleBinRepository {
   static const kindSupplier = 'supplier';
   static const kindProduct = 'product';
   static const kindWorker = 'worker';
+  static const kindShopRent = 'shop_rent';
 
   /// Delete hooks yahan snapshot likhte hain (apni delete transaction ke andar).
   static Future<void> record(
@@ -200,6 +201,9 @@ class RecycleBinRepository {
               break;
             case kindWorker:
               await _restoreWorker(txn, data);
+              break;
+            case kindShopRent:
+              await _restoreShopRent(txn, data);
               break;
             default:
               throw RecycleBinException('Is qism (${entry.kind}) ka restore abhi mumkin nahi');
@@ -481,6 +485,25 @@ class RecycleBinRepository {
     await SyncQueueHelper.enqueueWorker(txn, id);
     for (final a in att) {
       await SyncQueueHelper.enqueueWorkerAttendance(txn, id, a['day'] as String);
+    }
+  }
+
+  // ---- shop rent (dukaan + terms + charges)
+
+  Future<void> _restoreShopRent(Transaction txn, Map<String, List<Map<String, Object?>>> d) async {
+    final rows = _rows(d, 'shop_rents');
+    if (rows.isEmpty) throw const RecycleBinException('Dukaan ka data nahi mila');
+    await _assertAbsent(txn, 'shop_rents', 'id', rows.first['id'], 'Ye dukaan');
+    await _insertAll(txn, 'shop_rents', rows);
+    final id = (rows.first['id'] as num?)?.toInt();
+    if (id == null) return;
+    await _insertAll(txn, 'shop_rent_terms', _rows(d, 'shop_rent_terms'));
+    final ledger = _rows(d, 'shop_rent_ledger');
+    await _insertAll(txn, 'shop_rent_ledger', ledger);
+    await SyncQueueHelper.enqueueShopRent(txn, id);
+    for (final l in ledger) {
+      final lid = (l['id'] as num?)?.toInt();
+      if (lid != null) await SyncQueueHelper.enqueueShopRentEntry(txn, lid);
     }
   }
 }

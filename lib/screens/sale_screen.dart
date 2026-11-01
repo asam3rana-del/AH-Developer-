@@ -34,6 +34,7 @@ import '../widgets/premium_widgets.dart';
 import '../widgets/role_guard.dart';
 import 'sale_quick_sale.dart';
 import '../theme/theme_manager.dart';
+import '../db/unit_cost.dart';
 
 class SaleScreen extends StatefulWidget {
   /// null = new sale. An invoice number re-opens that SAVED bill for
@@ -736,7 +737,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     }
 
     final factor = product.smallestUnitFactor();
-    final costPerSmallest = factor > 0 ? product.cost / factor : product.cost;
+    final costPerSmallest = costPerSmallestOf(product.cost, factor);
     final costForThisLine = costPerSmallest * neededSmallest;
 
     final newLine = SaleLine(

@@ -145,3 +145,12 @@ No database migration, financial transaction, synchronization, or backup impleme
   - "backup from a NEWER app version is refused": real app bug. `KotlinBackupImporter.isRoomDatabase` treated any `user_version` above the app's as a Kotlin (Room) backup, so a newer Flutter backup was imported (replacing live data) instead of refused. Now only `room_master_table` or the Kotlin-only columns (`sales.saleUid`, `purchases.purchaseUid`) identify a Kotlin backup.
 - `backup_restore_drill2_test.dart`, `financial_gaps2_test.dart` and `two_device_sync_test.dart` are now also in `test/`, so `flutter test` in build.yml runs them on every build. Copies stay in `test_migration/` (a zip import cannot delete files).
 - Not run here (no Flutter in the authoring environment): the first Build run shows whether the moved tests also pass inside the full `flutter test` run.
+
+## Update 18 — cost-per-smallest-unit in one place, rent/workers review, phone checklist, NOT YET RUN
+
+- **Cost safety:** `cost / smallestUnitFactor` was written by hand in 13 places (sale, quick sale, purchase, reverse purchase, stock taking, balance sheet, backup export, bill cost repair, damage loss...). All now call `costPerSmallestOf(cost, factor)` in `lib/db/unit_cost.dart`. Behaviour is unchanged for normal data; a NaN / infinite / negative cost now gives 0 instead of reaching a bill. Test: `test/unit_cost_test.dart`.
+- **Rent bug fixed:** after "waive month" a later `changeRent` re-charged the waived month. Waived (0) charges are now skipped. Test in `test/shop_rent_test.dart`.
+- **Recycle Bin now covers Shop Rents:** `deleteShop` stores the shop + terms + charges in the bin; Restore brings them back and re-syncs (`kindShopRent`, new "Shop Rents" filter). Test in `test/recycle_bin_test.dart`. (Earlier the docs said shop rents were covered but only workers were.)
+- Workers reviewed (earned / advance / salary / delete): no bug found.
+- **Phone checklist:** `docs/PHONE_TEST_CHECKLIST.md` — step-by-step real-device tests (update, backup/restore, two-phone sale, offline sync, return, purchase, rent/workers, bill cost).
+- Not run here (no Flutter in this environment): check the next Build run (Analyze + Test).

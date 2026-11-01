@@ -3,6 +3,7 @@ import 'app_database.dart';
 import 'cash_repository.dart' show incomeReasonLike;
 import 'party_repository.dart';
 import '../services/permissions.dart';
+import 'unit_cost.dart';
 
 // PartyLedger / trueBalance / countBalanceDrift ab party_repository.dart mein hain (ek hi copy);
 // purane imports (aur test/balance_sheet_test.dart) chalte rahein isliye yahan se re-export.
@@ -22,9 +23,7 @@ export 'party_repository.dart' show PartyLedger, trueBalance, countBalanceDrift;
 double stockValueAtCost(Iterable<Product> products) {
   double total = 0;
   for (final p in products) {
-    final factor = p.smallestUnitFactor();
-    final costPerSmallest = factor > 0 ? p.cost / factor : p.cost;
-    total += p.stock * costPerSmallest;
+    total += p.stock * costPerSmallestOf(p.cost, p.smallestUnitFactor());
   }
   return total;
 }

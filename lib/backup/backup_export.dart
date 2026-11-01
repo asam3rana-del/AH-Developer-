@@ -14,6 +14,7 @@ import '../db/party_dashboard_repository.dart' as pd;
 import '../db/party_repository.dart' as pr;
 import '../models/product.dart';
 import '../utils/pdf_urdu.dart';
+import '../db/unit_cost.dart';
 
 /// Mirrors BackupExportActivity.kt (data + CSV + PDF hissa; screen `backup_export_screen.dart` mein).
 /// Sales, Purchases, Day Book, Customers/Suppliers (+ledgers), Products/Stock, Expenses, Cash/Bank
@@ -192,9 +193,7 @@ class BackupExport {
     // Kotlin FIX: stock smallest unit mein, cost primary unit ka — is liye factor se taqseem.
     var stockValue = 0.0;
     for (final pr in products) {
-      final factor = pr.smallestUnitFactor();
-      final costPerSmallest = factor > 0 ? pr.cost / factor : pr.cost;
-      stockValue += pr.stock * costPerSmallest;
+      stockValue += pr.stock * costPerSmallestOf(pr.cost, pr.smallestUnitFactor());
     }
 
     Future<double> sum(String sql, [List<Object?>? a]) async => _d((await db.rawQuery(sql, a)).first.values.first);

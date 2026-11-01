@@ -4,6 +4,7 @@ import '../sync/sync_queue_helper.dart';
 import '../sync/sync_worker.dart';
 import 'app_database.dart';
 import '../services/permissions.dart';
+import 'unit_cost.dart';
 
 /// Bill Cost Repair (sirf Admin).
 ///
@@ -32,8 +33,7 @@ bool isSuspiciousLineCost(double cost, double amount) {
 /// [storedFactor] = line par save hui conversionFactor (smallest per entered unit); 0 ho to product ki ladder se.
 double repairedLineCost(Product p, double qty, String unit, double storedFactor) {
   final smallestQty = storedFactor > 0 ? qty * storedFactor : p.toSmallestUnits(qty, unit);
-  final factor = p.smallestUnitFactor();
-  final perSmallest = factor > 0 ? p.cost / factor : p.cost;
+  final perSmallest = costPerSmallestOf(p.cost, p.smallestUnitFactor());
   final raw = smallestQty * perSmallest;
   return (raw * 100).roundToDouble() / 100;
 }

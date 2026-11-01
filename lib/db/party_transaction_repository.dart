@@ -16,6 +16,7 @@ import 'customer_repository.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
 import '../sync/sync_queue_helper.dart';
+import 'unit_cost.dart';
 
 /// Ports the data/logic half of PartyTransactionActivity.kt.
 ///
@@ -165,7 +166,7 @@ double reversePurchaseLineCost({
   required double smallestQtyToRemove,
 }) {
   if (smallestQtyToRemove <= 0) return productCost;
-  final costPerSmallest = factor > 0 ? productCost / factor : productCost;
+  final costPerSmallest = costPerSmallestOf(productCost, factor);
   final newStock = productStock - smallestQtyToRemove;
   final valueBefore = productStock * costPerSmallest;
   final valueAfter = (valueBefore - itemAmount) < 0 ? 0.0 : (valueBefore - itemAmount);
@@ -183,7 +184,7 @@ double addPurchaseLineCost({
   required double lineAmount,
 }) {
   if (addedSmallestQty <= 0) return productCost;
-  final oldPer = factor > 0 ? productCost / factor : productCost;
+  final oldPer = costPerSmallestOf(productCost, factor);
   final ratePer = lineAmount / addedSmallestQty;
   final newPer = productStock <= 0
       ? ratePer

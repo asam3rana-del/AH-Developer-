@@ -5,6 +5,7 @@ import '../services/session.dart';
 import '../sync/sync_queue_helper.dart';
 import 'app_database.dart';
 import 'expense_repository.dart';
+import 'recycle_bin_repository.dart';
 
 /// Shop Rents: jo dukaneen hum kiraye par lete hain (har ek ka malik alag, mahana rent dena, kabhi advance).
 ///
@@ -515,6 +516,23 @@ class ShopRentRepository {
       final shopRow = await txn.query('shop_rents', where: 'id = ?', whereArgs: [id], limit: 1);
       final shopEid = shopRow.isEmpty ? null : SyncQueueHelper.shopRentEntityId(shopRow.first);
       final entryEids = <String>[];
+      final termRows = await txn.query('shop_rent_terms', where: 'shopId = ?', whereArgs: [id]);
+      final ledgerRows = await txn.query('shop_rent_ledger', where: 'shopId = ?', whereArgs: [id]);
+      if (shopRow.isNotEmpty) {
+        await RecycleBinRepository.record(
+          txn,
+          kind: RecycleBinRepository.kindShopRent,
+          refKey: '$id',
+          title: (shopRow.first['shopName'] as String?) ?? '',
+          subtitle: (shopRow.first['landlord'] as String?) ?? '',
+          amount: 0,
+          rows: {
+            'shop_rents': [Map<String, Object?>.from(shopRow.first)],
+            'shop_rent_terms': [for (final t in termRows) Map<String, Object?>.from(t)],
+            'shop_rent_ledger': [for (final l in ledgerRows) Map<String, Object?>.from(l)],
+          },
+        );
+      }
       for (final l in await txn.query('shop_rent_ledger', columns: ['id'], where: 'shopId = ?', whereArgs: [id])) {
         final eid = await SyncQueueHelper.shopRentEntryEntityIdFor(txn, (l['id'] as num).toInt());
         if (eid != null) entryEids.add(eid);
@@ -547,6 +565,8 @@ class ShopRentRepository {
             "SELECT COUNT(*) AS n FROM shop_rent_ledger WHERE shopId = ? AND ym = ? AND kind IN ('payment','applied')",
             [shopId, ym]);
         if (((used.first['n'] as num?) ?? 0) > 0) continue;
+        // Maaf (waive) kiya hua mahina (amount 0) naye rent se dobara charge nahi hona chahiye.
+        if (((c['amount'] as num?) ?? 0) <= _eps) continue;
         await txn.update(
             'shop_rent_ledger', {'amount': rentForMonth(terms, ym), 'updatedAt': DateTime.now().millisecondsSinceEpoch},
             where: 'id = ?', whereArgs: [c['id']]);

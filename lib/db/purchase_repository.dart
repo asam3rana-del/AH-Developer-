@@ -20,6 +20,7 @@ import 'sale_repository.dart' show subtractLinkedPaid;
 import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
+import 'unit_cost.dart';
 
 /// One line the user has added to the purchase before saving — mirrors
 /// `data class PurchaseLine` in PurchaseRepository.kt.
@@ -668,8 +669,7 @@ class PurchaseRepository {
     // Stock is purchase se kam reh gaya (baad ki sale): stock beech mein minus jane do, cost ki value alag
     // rakho; akhri check savePurchase mein hota hai (nayi qty add hone ke baad).
     if (!hasEnoughStock(product.stock, smallest) || pendingValue.containsKey(it.barcode)) {
-      final factor = product.smallestUnitFactor();
-      final costPer = factor > 0 ? product.cost / factor : product.cost;
+      final costPer = costPerSmallestOf(product.cost, product.smallestUnitFactor());
       final current = pendingValue[it.barcode] ?? (product.stock * costPer);
       final value = (current - it.amount) < 0 ? 0.0 : (current - it.amount);
       pendingValue[it.barcode] = value;

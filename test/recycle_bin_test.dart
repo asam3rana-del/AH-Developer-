@@ -14,6 +14,7 @@ import 'package:ah_developer_kiryana_store/db/product_repository.dart';
 import 'package:ah_developer_kiryana_store/db/purchase_history_repository.dart';
 import 'package:ah_developer_kiryana_store/db/purchase_repository.dart';
 import 'package:ah_developer_kiryana_store/db/recycle_bin_repository.dart';
+import 'package:ah_developer_kiryana_store/db/shop_rent_repository.dart';
 import 'package:ah_developer_kiryana_store/db/sale_repository.dart';
 import 'package:ah_developer_kiryana_store/db/stock_ledger.dart';
 import 'package:ah_developer_kiryana_store/db/worker_repository.dart';
@@ -304,6 +305,30 @@ void main() {
       expect((await db.query('workers')).single['id'], workerId);
       expect(await countOf('worker_attendance'), 1);
       expect(await restoreFlagged('worker'), isTrue);
+    });
+
+    test('shop rent: dukaan, terms aur charges samet wapas', () async {
+      final shopId = await ShopRentRepository.instance.addShop(
+        shopName: 'Shop Z',
+        landlord: 'Imran',
+        monthlyRent: 12000,
+        startMonth: DateTime(2026, 10, 1),
+        now: DateTime(2026, 10, 10),
+      );
+      expect(await countOf('shop_rent_ledger'), 1); // Oct ka charge
+
+      await ShopRentRepository.instance.deleteShop(shopId);
+      expect(await countOf('shop_rents'), 0);
+      expect(await countOf('shop_rent_terms'), 0);
+      expect(await countOf('shop_rent_ledger'), 0);
+
+      final entries = await bin.list();
+      expect(entries.single.kind, RecycleBinRepository.kindShopRent);
+      await bin.restore(entries.single.id);
+      expect((await db.query('shop_rents')).single['id'], shopId);
+      expect(await countOf('shop_rent_terms'), 1);
+      expect(await countOf('shop_rent_ledger'), 1);
+      expect(await restoreFlagged('shop_rent'), isTrue);
     });
 
     test('restore dobara: wahi record pehle se ho to saaf paigham', () async {

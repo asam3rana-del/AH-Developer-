@@ -30,6 +30,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     RecycleBinRepository.kindSupplier: ('Suppliers', 'سپلائرز', Icons.local_shipping_outlined),
     RecycleBinRepository.kindProduct: ('Items', 'آئٹمز', Icons.inventory_2_outlined),
     RecycleBinRepository.kindWorker: ('Workers', 'ورکرز', Icons.badge_outlined),
+    RecycleBinRepository.kindShopRent: ('Shop Rents', 'دکان کرایہ', Icons.storefront_outlined),
   };
 
   @override

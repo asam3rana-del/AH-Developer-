@@ -8,6 +8,7 @@ import 'stock_ledger.dart';
 import '../sync/sync_queue_helper.dart';
 import '../sync/sync_worker.dart';
 import '../services/permissions.dart';
+import 'unit_cost.dart';
 
 /// Ports the data side of StockTakingActivity.kt (physical count vs system stock).
 ///
@@ -46,9 +47,7 @@ String formatStockTakeQty(double v) => v == v.truncateToDouble() ? v.toInt().toS
 /// Kotlin valueImpact(): delta smallest unit mein, cost primary unit ka rate — is liye cost ko
 /// smallestUnitFactor se taqseem karte hain (warna carton/dozen wale items ka asar factor guna ziyada aata).
 double stockTakeValueImpact(Product p, double delta) {
-  final factor = p.smallestUnitFactor();
-  final costPerSmallest = factor > 0 ? p.cost / factor : p.cost;
-  return delta * costPerSmallest;
+  return delta * costPerSmallestOf(p.cost, p.smallestUnitFactor());
 }
 
 /// Kotlin renderList(): khali query = poori list, warna naam/searchTag (matchesQuery), category, barcode.

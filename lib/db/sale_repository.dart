@@ -22,6 +22,7 @@ import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
 import '../utils/stock_policy.dart';
 import 'watch_util.dart';
+import 'unit_cost.dart';
 
 /// One line the user has added to the sale bill before saving — mirrors
 /// `SaleLine` (domain) used by SaleActivity.kt's `lines` list. The unit
@@ -663,7 +664,7 @@ class SaleRepository {
             final p = CostBackfill.pendingForSale(
               needed: needed,
               stockBefore: before,
-              costPerSmallest: fac > 0 ? prod.cost / fac : prod.cost,
+              costPerSmallest: costPerSmallestOf(prod.cost, fac),
               lineCost: line.cost,
             );
             pendingQty = p.pendingQty;
@@ -1038,7 +1039,7 @@ class SaleRepository {
       }
 
       final factor = current.smallestUnitFactor();
-      final costPerSmallest = factor > 0 ? current.cost / factor : current.cost;
+      final costPerSmallest = costPerSmallestOf(current.cost, factor);
       final lineCost = smallest * costPerSmallest;
       // costPending: stock se na dhaka hissa (ya cost 0) — purchase aane par asal cost bhari jayegi.
       final quickPending = CostBackfill.pendingForSale(
