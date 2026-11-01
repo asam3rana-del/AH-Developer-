@@ -91,6 +91,17 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
       .map((t) => '${t.unit} Rs ${_fmtRate(p.fromPrimaryUnitRate(primaryRate, t.unit))}')
       .join('  •  ');
 
+  /// Cost / margin ko sale rate ki tarah har unit mein (bara pehle): "Ctn Rs 4858.00  •  box Rs 161.93".
+  /// Purchase sirf bare unit mein hoti hai, is liye chhote unit ka rate primary rate se nikalta hai.
+  /// Ek hi unit wala item: purana "Rs x / unit" format.
+  String _costTierLine(Product p, double primaryRate, {String prefix = ''}) {
+    final ladder = p.unitLadder();
+    if (ladder.length <= 1) return '${prefix}Rs ${primaryRate.toStringAsFixed(2)} / ${p.unit}';
+    return ladder.reversed
+        .map((t) => '${t.unit} $prefix' 'Rs ${p.fromPrimaryUnitRate(primaryRate, t.unit).toStringAsFixed(2)}')
+        .join('  •  ');
+  }
+
   // ---------- UI pieces ----------
   Widget _card({required Widget child, Color? border, Color? fill, VoidCallback? onTap}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
@@ -244,7 +255,7 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
   }
 
   Widget _rateRow({required String party, required String qtyLabel, required double rate, required String unit,
-      required int createdAt, required Color color, required bool isLatest, required Product p}) {
+      required int createdAt, required Color color, required bool isLatest, required Product p, String? extraLine}) {
     final date = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.fromMillisecondsSinceEpoch(createdAt));
     return _card(
       border: isLatest ? color : ThemeManager.palette.border,
@@ -255,6 +266,8 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
         ]),
         const SizedBox(height: 2),
         Text('$qtyLabel  •  $date', style: TextStyle(fontSize: 11.5, color: ThemeManager.palette.textMuted)),
+        if (extraLine != null && extraLine.isNotEmpty)
+          Text(extraLine, style: TextStyle(fontSize: 11.5, color: color)),
         if (isLatest)
           Text(Loc.t('LATEST', 'تازہ ترین'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
       ]),
@@ -283,18 +296,30 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
     return p.toPrimaryUnitRate(r.unitCost, r.unit.trim().isEmpty ? p.unit : r.unit);
   }
 
+  /// "box Rs 161.93" — purchase record ke apne unit ke ilawa baaki units mein cost (khali agar ek hi unit).
+  String _smallUnitCostLine(Product p, ItemPurchaseRecord r) {
+    final ladder = p.unitLadder();
+    if (ladder.length <= 1) return '';
+    final own = r.unit.trim().isEmpty ? p.unit : r.unit;
+    final primary = p.toPrimaryUnitRate(r.unitCost, own);
+    return ladder.reversed
+        .where((t) => t.unit != own)
+        .map((t) => '${t.unit} Rs ${p.fromPrimaryUnitRate(primary, t.unit).toStringAsFixed(2)}')
+        .join('  •  ');
+  }
+
   Widget _costSection(_ItemDetail d) {
     final p = d.product;
     // Cost summary: Last cost aur maujooda sale rate par munafa (primary unit mein).
     final lastCost = _lastCost(p, d.purchases);
     final extra = <Widget>[];
     if (lastCost != null) {
-      extra.add(_statRow(Loc.t('Last Cost', 'آخری لاگت'), 'Rs ${lastCost.toStringAsFixed(2)} / ${p.unit}', ThemeManager.palette.orange));
+      extra.add(_statRow(Loc.t('Last Cost', 'آخری لاگت'), _costTierLine(p, lastCost), ThemeManager.palette.orange));
       if (lastCost > 0 && p.salePrice > 0) {
         final margin = p.salePrice - lastCost;
         final pct = margin / lastCost * 100;
         extra.add(_statRow(Loc.t('Profit Margin', 'منافع'),
-            '${margin >= 0 ? '+' : ''}Rs ${margin.toStringAsFixed(2)} / ${p.unit}  (${pct.toStringAsFixed(1)}%)',
+            '${p.unitLadder().length <= 1 ? '${margin >= 0 ? '+' : ''}Rs ${margin.toStringAsFixed(2)} / ${p.unit}' : _costTierLine(p, margin, prefix: margin >= 0 ? '+' : '')}  (${pct.toStringAsFixed(1)}%)',
             margin >= 0 ? ThemeManager.palette.teal : const Color(0xFFD9534F)));
       }
     }
@@ -310,6 +335,8 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
           color: ThemeManager.palette.orange,
           isLatest: i == 0,
           p: p,
+          // Purchase bare unit mein aati hai: chhote unit ka hisaab bhi dikhao (jis unit mein aayi wo dobara nahi).
+          extraLine: _smallUnitCostLine(p, d.purchases[i]),
         ),
     ];
 
