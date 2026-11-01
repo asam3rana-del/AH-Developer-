@@ -91,3 +91,42 @@ No database migration, financial transaction, synchronization, or backup impleme
 - Finding: in `sale_screen.dart` and `purchase_screen.dart`, `_saving` becomes true only after the duplicate-check query (and confirm dialogs). A quick double tap, or F9/Ctrl+S plus a tap, could start two saves of the same bill and create two invoices.
 - Fix: `_save()` now has a synchronous `_saveEntered` re-entry guard (set before the first await, released in `finally`). The credit-limit retry calls `_saveImpl` directly so it is not blocked by the guard.
 - Not changed: Quick Sale submit path, and there is still no database-level idempotency key (an invoice number is generated per save). Verified only by CI compile/analyze; no UI test exists for the double tap.
+
+## Update 11 — migration fixtures test fixed (1 Nov 2026)
+
+- Failure: `db_migration_fixtures_test.dart` expected the old file's `sync_queue` row count to be unchanged (0), but the v11 opening-stock ledger backfill (`StockLedger.backfillOpening`) legitimately enqueues one `stock_movement` upsert per backfilled ledger row (2 rows for the demo fixtures). Not an app bug; the test expectation was stale.
+- Fix: `sync_queue` is compared separately: old queue rows must be unchanged, fixtures older than v11 must add exactly two `stock_movement` upserts, newer fixtures must add none.
+- The test exists twice (`test/` and `test_migration/`, the latter run by the "Migration tests" workflow). Both copies were fixed. Update 9 says `test_migration/` and `migration-tests.yml` were removed; in this repository they still exist and are used (the folder holds the newer, not-yet-gating tests below).
+- Open design question (not changed): upgrade-created opening-stock rows are synced. If two devices each upgrade the same pre-v11 file, both would push their own opening rows and ledger sums could double. Only affects files older than v11.
+
+## Update 12 — Firebase rules security tests and staging project (P0 #1, partly)
+
+- `firebase/rules-tests/` runs 16 tests in the local Firestore emulator against `firebase/firestore.staff-claims.rules` (no login or anonymous token denied, inactive or invalid role denied, other branch denied, cashier direct write denied, manager cannot delete or move a record to another branch, admin limited to own branch, `staff_accounts` and `branch_members` closed to clients, unknown collections denied). Result: all 16 pass (workflow "Firebase rules test", manual trigger only).
+- GitHub workflow files are NOT imported by the zip importer (it excludes `.github`), so `.github/workflows/firebase-rules-test.yml` has to be created by hand in GitHub.
+- Staging Firebase project `ah-staging-a1b2c` (Spark plan) created; rules and indexes deployed there; one admin account provisioned in `staff_accounts`. See `docs/STAGING_FIREBASE.md`. Production project untouched.
+- Still not done: `staffLogin` / `getMyStaffContext` Cloud Functions need the Blaze plan on staging (decision pending, not enabled); app-side login and App Check; the live project still uses the anonymous `branch_members` rules, so role enforcement on the server is still missing.
+
+## Update 13 — financial gaps part 2, `test_migration/financial_gaps2_test.dart` (P1 #5)
+
+- Expense: one `expenses` row plus one cash OUT row of the same amount, delete removes both; zero, negative and unknown-method entries are refused and write nothing.
+- Opening balance: a sale adds to it, sale edit and sale delete keep it exactly once, a payment reduces it and deleting the payment restores it.
+- Payment re-assignment: moving a bill-linked payment from bill A to bill B restores A's `paid`, raises B's, leaves the party balance and cash book unchanged; a payment larger than the target bill can take is refused and changes nothing; deleting a bill-linked payment restores both bill and balance.
+- All 7 tests pass (Migration tests workflow). Lives in `test_migration/`, not yet moved into the release gate.
+
+## Update 14 — multi-device sync tests, `test_migration/two_device_sync_test.dart` (P1 #6)
+
+- Two simulated phones, each with its own local database and checkpoint, against one in-memory cloud. Real code: `SyncRepository.syncNow`, `SyncQueueDao`, `planIncrement` / `stampPayload` / `shouldApplyUpsert`, `assemblePullResult`, `applyServerChangesToDb`. Only the Firestore transaction itself is replaced by a small fake that repeats the decisions in `SyncApi.push`.
+- Covered (all pass): two phones billing the same customer offline (balance = opening + both bills everywhere); two phones selling the same product (stock = cloud minus both); offline phone keeps its bill with `retryCount` 0 and it is counted once after reconnecting; cloud applied a push but the reply was lost (retry skipped by `opId`, no double); repeated syncs change nothing while the pull overlap window re-delivers documents; a phone with an unsent bill pulls the other phone's bill first (cloud + own pending).
+- Not covered: sales, payments and expenses as documents across two phones, delete versus edit conflicts, clock skew between phones, real Firestore transactions (needs the emulator).
+
+## Update 15 — test status summary (1 Nov 2026)
+
+| Plan item | Status |
+|---|---|
+| CI release gate, `pubspec.lock` | done |
+| Database migration safety | done for real legacy files v1 to v32 -> v34; a real customer file is still to be added |
+| Financial regression | done (sale, purchase, expense, opening balance, payment reassignment) |
+| Multi-device sync | done for customer balance and product stock (see Update 14) |
+| Backup / restore | 6 tests pass; older-schema backup and clean-install restore still to do |
+| Firebase security | rules tests and staging ready; Cloud Functions and app login need Blaze; production unchanged |
+| Business intelligence | not started |
