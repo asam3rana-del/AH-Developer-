@@ -23,7 +23,7 @@ Future<String> _fakeHash(String p) async => 'hash($p)';
 const _sync = 'updatedAt INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 1';
 
 Future<Database> _memDb() async {
-  final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
+  final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath, options: OpenDatabaseOptions(singleInstance: false));
   Future<void> x(String sql) => db.execute(sql);
   await x('''CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
     phone TEXT NOT NULL DEFAULT '', creditLimit REAL NOT NULL DEFAULT 0, openingBalance REAL NOT NULL DEFAULT 0,
