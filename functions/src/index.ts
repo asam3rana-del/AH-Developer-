@@ -116,7 +116,7 @@ export const reserveCredit = onCall({enforceAppCheck: false, maxInstances: 20}, 
   const customerRef = db.collection("customers").doc(customerId);
   const resRef = db.collection("credit_reservations").doc(`${branchId}__${reservationId}`.slice(0, 400));
   return db.runTransaction(async tx => {
-    const [cSnap, rSnap] = await Promise.all([tx.get(customerRef), tx.get(resRef)]);
+    const cSnap = await tx.get(customerRef);
     const c = cSnap.data();
     // Unknown customer / other branch: nothing to enforce here (the app's own local check still ran).
     if (!cSnap.exists || !c || c.branchId !== branchId) return {allowed: true, enforced: false};
