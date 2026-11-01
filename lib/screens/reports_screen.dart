@@ -12,6 +12,7 @@ import 'daily_bills_screen.dart';
 import 'party_reports_screen.dart';
 import 'payments_screen.dart';
 import 'rate_comparison_screen.dart';
+import 'returns_report_screen.dart';
 import 'stock_audit_screen.dart';
 import 'stock_movement_screen.dart';
 import 'stock_report_screen.dart';
@@ -138,6 +139,10 @@ class _ReportsBodyState extends State<_ReportsBody> {
               _row(p, Loc.t('Purchase History', 'خریداری کی تاریخ'),
                   Loc.t('View all purchase transactions', 'تمام خریداری لین دین دیکھیں'), const Color(0xFF993C1D),
                   () => _open(const HistoryScreen(mode: HistoryMode.purchases))),
+            if (_anyOf(const ['sale_history', 'purchase_history']))
+              _row(p, Loc.t('Returns Report', 'واپسی رپورٹ'),
+                  Loc.t('Sale & purchase returns, item by item', 'سیل اور خریداری کی واپسیاں، آئٹم وار'), p.flatPinkFg,
+                  () => _open(const ReturnsReportScreen())),
             if (_can('daily_bills'))
               _row(p, Loc.t('Daily Bills', 'روزانہ بلز'),
                   Loc.t('Har customer ka din ka ek bill + balance', 'ہر کسٹمر کا دن کا ایک بل اور بیلنس'), p.flatTealFg,

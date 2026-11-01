@@ -6,6 +6,8 @@ import 'package:sqflite/sqflite.dart' show Database;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:ah_developer_kiryana_store/db/app_database.dart';
+import 'package:ah_developer_kiryana_store/db/reports_repository.dart' show ReportRange;
+import 'package:ah_developer_kiryana_store/db/returns_report_repository.dart';
 import 'package:ah_developer_kiryana_store/db/sale_repository.dart';
 import 'package:ah_developer_kiryana_store/db/stock_ledger.dart';
 import 'package:ah_developer_kiryana_store/models/product.dart';
@@ -164,5 +166,28 @@ void main() {
     );
     Session.role = 'cashier';
     await expectLater(SaleRepository.instance.returnSaleItems(invoice, {1: 1}), throwsA(anything));
+  });
+
+  test('Returns Report lists a partial sale return with customer, item and amount', () async {
+    await addCustomer('Ali');
+    await addProduct();
+    final invoice = await SaleRepository.instance.saveSale(
+      lines: [line(4, 100)],
+      customerName: 'Ali',
+      discountInput: 0,
+      paidInput: 400,
+      saleType: 'retail',
+      saleDateMillis: now,
+    );
+    final itemId = n((await db.query('sale_items', where: 'invoice=?', whereArgs: [invoice])).single, 'id').toInt();
+    await SaleRepository.instance.returnSaleItems(invoice, {itemId: 1});
+
+    final rows = await ReturnsReportRepository.instance.load('sale', const ReportRange(0, 9999999999999));
+    expect(rows.length, 1);
+    expect(rows.single.partyName, 'Ali');
+    expect(rows.single.itemName, 'Rice');
+    expect(rows.single.qty, closeTo(1, 0.001));
+    expect(returnsTotal(rows), closeTo(100, 0.001));
+    expect(await ReturnsReportRepository.instance.load('purchase', const ReportRange(0, 9999999999999)), isEmpty);
   });
 }
