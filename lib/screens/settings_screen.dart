@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
 import '../services/credit_guard.dart';
+import '../services/credit_override_policy.dart';
 import '../services/staff_auth.dart';
 import '../services/app_lock.dart';
 import '../services/biometric.dart';
@@ -440,6 +441,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(Loc.t(
                   'OFF = current behaviour. ON needs the staff backend + App Check set up (see docs/STAFF_AUTH_BACKEND_SETUP.md); sync never falls back to anonymous.',
                   'آف = موجودہ طریقہ۔ آن کے لیے اسٹاف بیک اینڈ + App Check سیٹ اپ ضروری ہے؛ سنک کبھی anonymous پر واپس نہیں جاتا۔')),
+            ),
+          ),
+        ]),
+        _card(Loc.t('Credit limit override', 'کریڈٹ لیمٹ اجازت'), Icons.lock, [
+          FutureBuilder<bool>(
+            future: CreditOverridePolicy.managersOnly(),
+            builder: (context, snap) => SwitchListTile(
+              value: snap.data ?? false,
+              onChanged: Session.isAdmin
+                  ? (v) async {
+                      await CreditOverridePolicy.setManagersOnly(v);
+                      if (mounted) setState(() {});
+                    }
+                  : null,
+              title: Text(Loc.t('Only admin/manager can "Save Anyway"', 'صرف ایڈمن/منیجر "پھر بھی محفوظ کریں" کر سکتا ہے')),
+              subtitle: Text(Loc.t(
+                  'OFF = any user can save a bill over the credit limit after confirming (current behaviour). ON = cashier cannot. Only admin can change this.',
+                  'آف = کوئی بھی صارف تصدیق کے بعد لیمٹ سے اوپر بل محفوظ کر سکتا ہے (موجودہ طریقہ)۔ آن = کیشیئر نہیں کر سکتا۔ صرف ایڈمن بدل سکتا ہے۔')),
             ),
           ),
         ]),

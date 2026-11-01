@@ -9,6 +9,7 @@ import '../models/product.dart';
 import '../models/party.dart' show Customer;
 import '../models/sale.dart';
 import '../services/credit_guard.dart';
+import '../services/credit_override_policy.dart';
 import '../services/session.dart';
 import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
@@ -535,6 +536,10 @@ class SaleRepository {
     final invoice = editInvoice ?? nextInvoiceNumber(saleDateMillis);
     final now = DateTime.now().millisecondsSinceEpoch;
 
+    if (overrideCreditLimit && !await CreditOverridePolicy.currentUserMayOverride()) {
+      throw ArgumentError('Credit limit se upar ka bill save karne ke liye admin ya manager ki ijazat zaroori hai.');
+    }
+
     // Cross-device check (opt-in, fail-open). Runs before anything is written; the local transaction check
     // below still runs afterwards.
     if (customer != null && customer.creditLimit > 0.0 && !overrideCreditLimit) {
@@ -1031,6 +1036,10 @@ class SaleRepository {
 
     final db = await AppDatabase.instance.database;
     var resultInvoice = '';
+
+    if (overrideCreditLimit && !await CreditOverridePolicy.currentUserMayOverride()) {
+      throw ArgumentError('Credit limit se upar ka bill save karne ke liye admin ya manager ki ijazat zaroori hai.');
+    }
 
     if (isCredit && !overrideCreditLimit) {
       final cr = await db.query('customers', where: 'LOWER(name) = ?', whereArgs: [name.toLowerCase()], limit: 1);

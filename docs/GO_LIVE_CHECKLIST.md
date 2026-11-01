@@ -77,6 +77,15 @@ Audit ka nateeja: "abhi production approval nahi" — iska matlab bugs milna nah
 - ⬜ Asli device par offline sale, reconnect aur sync conflict
 - ⬜ Restore ke baad sales, stock, ledgers aur reports ka muqabla
 
+## Update 2026-11-01
+| Cheez | Halat | Saboot |
+|-------|-------|--------|
+| Credit limit server pre-check (`reserveCredit`, opt-in, default OFF) | 🟡 Code + emulator test pass; real deploy baaki (staging par Blaze chahiye) | Credit check function test #2 (emulator); `docs/SERVER_CREDIT_CHECK.md` |
+| "Only admin/manager can Save Anyway" (default OFF) | 🟡 Code shamil; `test/credit_override_policy_test.dart` CI par chalna baaki | — |
+| Rate Search: cost/margin bade aur chhote dono unit mein | 🟡 Code shamil; device nazar-e-saani baaki | — |
+| CI (upload `7a93bec`) | ✅ Build #564, Migration tests #13, Firebase rules test #4 pass | GitHub Actions |
+| Asli phone test | ⬜ `docs/DEVICE_TEST_SHEET.md` ke mutabiq | — |
+
 ## Note
 - Month Close feature app se hata diya gaya hai (user ke kehne par). Unit screen wale changes Build #215 mein hain (pass). Baaki release checks (update test, backup-restore, do devices par ek saath sale) ab section 4 mein hain.
 - CI ki "Node.js 20 is deprecated" warnings workflow actions ki thin, app ki nahi. 2026-10-25: `actions/checkout` v5 aur `actions/upload-artifact` v7 par update kiye — verify ho gaya: Build #485 ke annotations mein Node.js warnings nahi hain.

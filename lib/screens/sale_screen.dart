@@ -17,6 +17,7 @@ import '../models/product.dart';
 import '../models/sale.dart';
 import '../services/sale_draft.dart';
 import '../services/sale_hold_recall.dart';
+import '../services/credit_override_policy.dart';
 import '../services/session.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
@@ -1154,7 +1155,23 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   /// "Save Anyway?" prompt — a shopkeeper can knowingly let a trusted customer
   /// go over their limit, so this asks instead of hard-blocking.
-  Future<bool?> _confirmCreditLimit(SaleCreditLimitException e) {
+  Future<bool?> _confirmCreditLimit(SaleCreditLimitException e) async {
+    if (!await CreditOverridePolicy.currentUserMayOverride()) {
+      if (!mounted) return false;
+      return showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(Loc.t('Credit Limit Exceeded', 'کریڈٹ لیمٹ سے تجاوز')),
+          content: Text(
+            '${e.customerName} ki credit limit Rs.${formatQty(e.creditLimit)} hai. '
+            'Ye bill save karne ke baad balance Rs.${formatQty(e.projectedBalance)} ho jayega.\n\n'
+            'Is bill ko sirf admin ya manager "Save Anyway" kar sakta hai.',
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('OK'))],
+        ),
+      );
+    }
+    if (!mounted) return false;
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

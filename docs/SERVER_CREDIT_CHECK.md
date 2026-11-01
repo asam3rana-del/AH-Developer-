@@ -49,8 +49,8 @@ enabled there (the app's sync uses it).
 - A reservation is not released when the sale syncs, so for up to 5 minutes the same bill can be counted twice (server
   balance + reservation). This can cause an occasional false "limit exceeded" right after a sale; "Save Anyway" works.
 - A reservation is not released if the local save fails afterwards (stock error etc.); it simply expires.
-- "Save Anyway" still lets the cashier override, exactly as before. Restricting the override to admin/manager is a
-  business decision that is not made here.
+- "Save Anyway" works exactly as before by default. Settings > "Credit limit override" (admin only) can restrict it to
+  admin/manager (`lib/services/credit_override_policy.dart`, default OFF; also enforced in `SaleRepository`).
 - `enforceAppCheck` is OFF for `reserveCredit` (App Check is opt-in in this project). Sign-in is still required.
 - Not compiled against the real SDKs and not run on staging in the authoring environment (no network): run
   `flutter analyze`, `flutter test` (`test/credit_guard_test.dart`), the rules test and the staging steps above.
