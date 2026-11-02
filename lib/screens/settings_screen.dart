@@ -353,7 +353,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (Session.isAdmin)
         row(Icons.shopping_cart_outlined, 'Purchase', 'خریداری',
             const RoleGuard(allowed: {'admin'}, child: PurchaseScreen())),
-      row(Icons.business_center_outlined, 'Expense', 'اخراجات', const ExpenseScreen(), color: p.navyInk),
+      if (Permissions.can('expense'))
+        row(Icons.business_center_outlined, 'Expense', 'اخراجات',
+            const PermissionGuard(permission: 'expense', child: ExpenseScreen()), color: p.navyInk),
       if (Session.isAdminOrManager)
         row(Icons.storefront_outlined, 'Shop Rents', 'دکانوں کا کرایہ',
             const RoleGuard(allowed: {'admin', 'manager'}, child: ShopRentScreen()), color: p.navyInk),
@@ -369,7 +371,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (Permissions.can('zakat'))
         row(Icons.volunteer_activism_outlined, 'Zakat', 'زکوٰۃ',
             const PermissionGuard(permission: 'zakat', child: ZakatScreen()), color: p.navyInk),
-      row(Icons.inventory_2_outlined, 'Shell Ledger', 'شیل لیجر', const ShellLedgerScreen(), color: p.navyInk),
+      if (Permissions.can('shell_ledger'))
+        row(Icons.inventory_2_outlined, 'Shell Ledger', 'شیل لیجر',
+            const PermissionGuard(permission: 'shell_ledger', child: ShellLedgerScreen()), color: p.navyInk),
     ];
   }
 

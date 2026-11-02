@@ -48,6 +48,8 @@ class Permissions {
     PermDef('fix_bill_cost', groupTools, 'Fix Bill Cost', 'بل کی لاگت درست کریں', _a),
     PermDef('cash_register', groupTools, 'Cash Register', 'کیش رجسٹر', _am),
     PermDef('zakat', groupTools, 'Zakat', 'زکوٰۃ', _am),
+    PermDef('expense', groupTools, 'Expense', 'اخراجات', _all),
+    PermDef('shell_ledger', groupTools, 'Shell Ledger', 'شیل لیجر', _all),
   ];
 
   /// Reports hub ki rows (Reports page khulne ke liye inmein se koi ek chahiye).
