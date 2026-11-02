@@ -698,7 +698,7 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [x] `build.yml`: Flutter version ab ek hi jagah (`env.FLUTTER_VERSION`, abhi 3.24.0, Run workflow mein `flutter_version` input se naya version aazma sakte hain); pub cache (`cache: true`); `concurrency` (purani run cancel); har job par `timeout-minutes`; sirf `.md`/`docs/` badalne par push build nahi.
 - [x] Actions: `actions/checkout` v4 -> v5, `actions/upload-artifact` v4 -> v7 (Node 20 deprecation warnings ke liye).
 - [x] `README.md` naye sire se (Hanna Solutions, build/secrets/zip-import/checks).
-- [x] Packages: `pubspec.lock` repo mein nahi, is liye har build par caret ranges ke andar sab se naye packages aate hain — pubspec mein version badalne ki zaroorat nahi thi. Flutter 3.24 -> naya stable (3.47.x) abhi NAHI kiya: Kotlin/AGP/Gradle/compileSdk fixes (`tools/android_fix.sh`) naye template par toot sakte hain; pehle manual Run workflow se aazmayen.
+- [x] Packages: (purani baat, ab badal chuki) pehle `pubspec.lock` repo mein nahi thi aur har build par naye packages aate the. **Ab `pubspec.lock` repo ke root mein maujood hai** aur CI (`build.yml`) har job par `flutter pub get` ke baad check karti hai ke wo maujood aur pubspec.yaml se mutabiq hai (warna build fail). Pubspec mein version badalne ke baad `flutter pub get` chala kar naya lockfile commit karna hai. Flutter 3.24 -> naya stable (3.47.x) abhi NAHI kiya: Kotlin/AGP/Gradle/compileSdk fixes (`tools/android_fix.sh`) naye template par toot sakte hain; pehle manual Run workflow se aazmayen.
 - Note: `.github/` import-zip se paste nahi hota — `build.yml` aur `import-zip.yml` GitHub par haath se update karni hongi.
 
 ## UI / dark mode polish (2026-10-25)
