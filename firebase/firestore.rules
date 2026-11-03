@@ -65,8 +65,7 @@ service cloud.firestore {
                              'shell_customers', 'shell_transactions', 'shop_empty_shell_log',
                              'workers', 'worker_attendance', 'worker_advances',
                              'worker_salary_payments', 'shop_rents', 'shop_rent_ledger',
-                             'utility_bills', 'utility_bill_payments',
-                             'due_followups'];
+                             'utility_bills', 'utility_bill_payments'];
     }
 
     // Server-side record of which branch each staff UID belongs to.
@@ -74,6 +73,30 @@ service cloud.firestore {
     match /branch_members/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
       allow write: if false;
+    }
+
+    // Due Reminders follow-up log (collection due_followups): same branch rules as every
+    // synced collection, plus field validation. due_followups is deliberately NOT in
+    // isSyncedCollection() above — Firestore ORs matching rules, so leaving it there would
+    // let the generic rule below bypass validFollowup().
+    function validFollowup() {
+      let d = request.resource.data;
+      return hasBranchId()
+          && d.method in ['whatsapp', 'call', 'visit', 'sms', 'note']
+          && d.outcome in ['sent', 'paid', 'promised', 'partial',
+                           'no_answer', 'refused', 'dispute', 'note']
+          && (!('amount' in d) || (d.amount is number && d.amount >= 0))
+          && (!('promiseDate' in d) || d.promiseDate is number)
+          && (!('nextFollowUp' in d) || d.nextFollowUp is number)
+          && (!('note' in d) || d.note == null || (d.note is string && d.note.size() <= 500));
+    }
+
+    match /due_followups/{docId} {
+      allow read: if isMyBranch(resource.data.branchId);
+      allow create: if isMyBranch(request.resource.data.branchId) && validFollowup();
+      allow update: if isMyBranch(resource.data.branchId)
+                     && branchIdUnchanged() && validFollowup();
+      allow delete: if isMyBranch(resource.data.branchId);
     }
 
     match /{collection}/{docId} {

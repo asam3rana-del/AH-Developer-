@@ -77,11 +77,22 @@ test('credit reservations are server-only (Admin SDK); clients cannot read or wr
 
 test('due_followups follow the same branch rules (own branch only)', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), 'due_followups/other'), { branchId: 'b2', outcome: 'note' });
+    await setDoc(doc(ctx.firestore(), 'due_followups/other'), { branchId: 'b2', method: 'note', outcome: 'note' });
   });
   const db = dbFor('uid-b1');
-  await assertSucceeds(setDoc(doc(db, 'due_followups/f1'), { branchId: 'b1', partyServerId: 'customer:T-1', outcome: 'promised' }));
+  await assertSucceeds(setDoc(doc(db, 'due_followups/f1'), { branchId: 'b1', partyServerId: 'customer:T-1', method: 'call', outcome: 'promised', amount: 500 }));
   await assertSucceeds(getDoc(doc(db, 'due_followups/f1')));
   await assertFails(getDoc(doc(db, 'due_followups/other')));
-  await assertFails(setDoc(doc(db, 'due_followups/wrong'), { branchId: 'b2', outcome: 'note' }));
+  await assertFails(setDoc(doc(db, 'due_followups/wrong'), { branchId: 'b2', method: 'note', outcome: 'note' }));
+});
+
+test('due_followups: invalid fields are rejected, branchId cannot change', async () => {
+  const db = dbFor('uid-b1');
+  await assertFails(setDoc(doc(db, 'due_followups/bad1'), { branchId: 'b1', method: 'call', outcome: 'bogus' }));
+  await assertFails(setDoc(doc(db, 'due_followups/bad2'), { branchId: 'b1', method: 'pigeon', outcome: 'note' }));
+  await assertFails(setDoc(doc(db, 'due_followups/bad3'), { branchId: 'b1', method: 'call', outcome: 'paid', amount: -5 }));
+  await assertSucceeds(setDoc(doc(db, 'due_followups/ok'), { branchId: 'b1', method: 'whatsapp', outcome: 'sent' }));
+  await assertSucceeds(updateDoc(doc(db, 'due_followups/ok'), { outcome: 'paid', amount: 250 }));
+  await assertFails(updateDoc(doc(db, 'due_followups/ok'), { branchId: 'b2' }));
+  await assertSucceeds(deleteDoc(doc(db, 'due_followups/ok')));
 });
