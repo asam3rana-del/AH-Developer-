@@ -469,6 +469,8 @@ class SyncQueueHelper {
       'dueDate': sale['dueDate'],
       'itemCount': items.length,
       'items': itemMaps,
+      // Purana delete (tombstone) wala billNo dobara use ho to bill zinda ho jaye, agle pull mein delete na ho.
+      '_deleted': false,
     });
   }
 
@@ -504,6 +506,8 @@ class SyncQueueHelper {
       'supplierInvoiceNo': p['supplierInvoiceNo'],
       'itemCount': items.length,
       'items': itemMaps,
+      // Purana delete (tombstone) wala billNo dobara use ho to bill zinda ho jaye, agle pull mein delete na ho.
+      '_deleted': false,
     });
   }
 
