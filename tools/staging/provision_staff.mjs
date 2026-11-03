@@ -15,9 +15,16 @@ if (!file) { console.error('usage: node provision_staff.mjs staff.json [--apply]
 const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 if (!keyPath) { console.error('Set GOOGLE_APPLICATION_CREDENTIALS to the staging service-account key file.'); process.exit(1); }
 const projectId = JSON.parse(readFileSync(keyPath, 'utf8')).project_id;
+// Production (first admin only!): needs BOTH --production and --confirm-project=<exact project id of the key>.
 if (!/staging/i.test(projectId)) {
-  console.error(`Refusing: key belongs to project "${projectId}", which is not a staging project.`);
-  process.exit(1);
+  const ok = args.includes('--production') && args.includes(`--confirm-project=${projectId}`);
+  if (!ok) {
+    console.error(`Refusing: key belongs to project "${projectId}", which is not a staging project.\n` +
+      `For the FIRST admin of a production project add: --production --confirm-project=${projectId}\n` +
+      `(after that, admins create/reset other staff from the app via the adminSetStaffAccount function).`);
+    process.exit(1);
+  }
+  console.warn(`WARNING: writing to NON-staging project "${projectId}".`);
 }
 
 const ROLES = ['admin', 'manager', 'cashier'];

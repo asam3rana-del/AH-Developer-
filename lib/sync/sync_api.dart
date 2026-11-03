@@ -134,6 +134,10 @@ class SyncApi implements SyncBackend {
   ///  * baaki (`upsert`...) — last-write-wins merge, branchId hamesha maujooda.
   @override
   Future<bool> push(SyncQueueEntry entry) async {
+    // Secure mode + cashier: seedha Firestore likhna band (rules deny); entry server callable se lagti hai.
+    if (await StaffAuth.isEnabled() && await StaffAuth.currentRole() == 'cashier') {
+      return _pushViaServer(entry);
+    }
     final fs = await firestoreFor();
     // Branch/cloud/sign-in nahi mil saka (aksar internet nahi => anonymous sign-in fail): ye is entry ki
     // ghalti nahi — retryCount na barhao, push rok do (pull saaf wajah batayega).
@@ -321,6 +325,37 @@ class SyncApi implements SyncBackend {
       );
       if (denied) throw SyncPermissionDeniedException(msg);
       throw SyncPushException(msg);
+    }
+  }
+
+  /// Cashier ki entry `pushSyncOp` se (docs/STAFF_AUTH_BACKEND_SETUP.md). Wahi operations jo `push` seedha karta
+  /// hai, magar branch / role / allowed fields server tay karta hai.
+  Future<bool> _pushViaServer(SyncQueueEntry entry) async {
+    final localDb = await openDb();
+    final ref = '${entry.entityType}:${entry.entityId}';
+    try {
+      final inc = isIncrementOp(entry.operation);
+      final payload = entry.operation == 'delete' ? <String, Object?>{} : decodePayload(entry.payloadJson);
+      final seed = (inc || entry.operation == 'set_stock')
+          ? await loadSeedFields(localDb, entityType: entry.entityType, entityId: entry.entityId)
+          : <String, Object?>{};
+      await StaffAuth.pushOp(
+        entityType: entry.entityType,
+        entityId: entry.entityId,
+        operation: entry.operation,
+        payload: payload,
+        opId: inc ? buildOpId(DeviceTag.current, entry.id, entry.createdAt) : null,
+        seedFields: seed,
+      );
+      return true;
+    } on StaffPushException catch (e) {
+      if (e.kind == StaffPushFailure.offline) throw SyncOfflineException(e.message);
+      await logMaintenanceAudit(localDb, username: 'sync', action: 'sync_push_failed', reference: ref, details: e.message);
+      if (e.kind == StaffPushFailure.denied) throw SyncPermissionDeniedException(e.message);
+      throw SyncPushException(e.message);
+    } on FormatException catch (e) {
+      await logMaintenanceAudit(localDb, username: 'sync', action: 'sync_push_failed', reference: ref, details: e.message);
+      throw SyncPushException(e.message);
     }
   }
 

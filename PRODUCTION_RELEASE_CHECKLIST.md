@@ -21,10 +21,10 @@ Ye 4 phase ka kaam-ka-nakshah hai. "Kaun" = kaun kar sakta hai: **Code** (repo m
 ### Phase 1 — Security (P0)
 | Kaam | Halat | Kaun | Agla qadam |
 |------|-------|------|------------|
-| Trusted staff authentication | 🟡 Code aur docs maujood (`docs/STAFF_AUTH_BACKEND_SETUP.md`, opt-in switch, default OFF) | Aap + Code | Cloud Functions backend deploy aur staging par test; tab tak live rules sirf branch-level hain |
-| Server-side role permissions | ⬜ Rules draft (`firestore.secure-draft.rules`, `firestore.staff-claims.rules`) tayyar, live nahi | Aap + Code | Staff authentication live hone ke baad hi publish (warna cashier sync band ho jayega) |
-| Firestore unauthorized access tests | ✅ Naya `firebase/rules-tests/branch_isolation.test.js`: har synced collection par signed-out / unprovisioned / doosri branch ke member ka matrix (parho, banao, badlo, mitao, branch badalna), `branch_members` aur server-only collections band | Code | GitHub Actions mein "Firebase rules test" chala kar pass dekhna (emulator par abhi chalaya nahi) |
-| Branch isolation verification | 🟡 Emulator tests upar; live project par dono devices theek (2026-11-03) | Aap | Ek naya/unprovisioned device (bina `branch_members` document) sync kare to `permission-denied` aaye (ye sahi hai) |
+| Trusted staff authentication | 🟡 Code mukammal (opt-in switch default OFF): password login, OTP/fingerprint ke baad cloud password, password change/reset sync (`changeMyPassword`, `adminSetStaffAccount`), first admin script. `flutter analyze`/test aur emulator par abhi chalaya nahi | Aap + Code | `flutter analyze` + CI Build pass dekhna; functions staging par deploy, App Check, `docs/STAFF_AUTH_TEST_PLAN.md` ke mutabiq test; tab tak live rules sirf branch-level hain |
+| Server-side role permissions | 🟡 Cashier ki sync entries ab server callable `pushSyncOp` se (role matrix, branch check, protected fields; unit tests likhe, abhi chalaye nahi). Rules draft live nahi | Aap + Code | Functions staging par deploy + `docs/STAFF_AUTH_TEST_PLAN.md`; claims rules publish karne se pehle cashier ki reads (`users`, suppliers, purchases, payroll) band karni hain aur pull ko denied collection skip karna hai (`docs/STAFF_AUTH_BACKEND_SETUP.md`) |
+| Firestore unauthorized access tests | ✅ `firebase/rules-tests/branch_isolation.test.js`: har synced collection par signed-out / unprovisioned / doosri branch ke member ka matrix, `branch_members` aur server-only collections band. 2026-11-03: GitHub Actions "Firebase rules test" #9 pass (#8 ek test-code bug se fail hua tha: loop mein `ctx.firestore()` baar baar; theek kiya) | Code | — |
+| Branch isolation verification | ✅ Emulator tests pass; live project par dono devices theek; 2026-11-03: user ne tasdeeq ki ke bina `branch_members` ke device ko `permission-denied` aata hai (sahi) | Aap | — |
 
 ### Phase 2 — Accounting (P1)  — yahan asli dukaan ke numbers chahiye
 | Kaam | Halat | Kaun |
@@ -42,7 +42,7 @@ Ye 4 phase ka kaam-ka-nakshah hai. "Kaun" = kaun kar sakta hai: **Code** (repo m
 | Firebase staging tests | ⬜ Staging project (`ah-staging-a1b2c`) par rules + indexes deploy karke `docs/STAGING_FIREBASE.md` ke mutabiq | Aap |
 | Failed sync queue verification | 🟡 Settings → Sync History mein failed entries nazar aati hain (2026-11-03: ek purane customer ka push fail dikha, `branchId` theek karne ka tareeqa `docs/CLOUD_SYNC_SETUP.md` mein) | Aap |
 | Two-device conflict testing | 🟡 Ek saath sale pass (sheet items 10-12); ek hi record ko do devices par badalna baaki | Aap |
-| Latest v36 device migration | 🟡 DB version ab 36; purani app ke upar nayi APK install test (sheet item 15 v34 par hua tha) dobara karna | Aap |
+| Latest v36 device migration | 🟡 2026-11-03: nayi APK purani app ke upar install ho gayi (user ne bataya). Baaki: purana data (sales, customers, balances) salamat hai ya nahi, sheet item 15 ki tarah dekhna | Aap |
 | Backup / restore drill | ✅ Dusre phone par restore pass (sheet item 14); latest build par dobara karna behtar | Aap |
 
 ### Phase 4 — Commercial release (P2)

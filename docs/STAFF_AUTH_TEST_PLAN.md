@@ -9,3 +9,11 @@
 - Firestore emulator denies cross-branch access and client access to staff/rate-limit documents.
 - Manager cannot delete; cashier cannot directly write; admin can delete only within own branch.
 - Test token revocation/deactivation: custom claims remain until token refresh/expiry unless sessions are explicitly revoked.
+- `changeMyPassword`: wrong old password rejected (and throttled after 8 tries); new password < 6 chars rejected; after success old password fails `staffLogin`, new one works, other devices' refresh tokens are revoked.
+- `adminSetStaffAccount`: manager/cashier rejected; admin cannot touch another branch's account; new account needs a password; admin cannot demote/deactivate self; deactivation/role/password change revokes that user's refresh tokens.
+- App: OTP / fingerprint login with cloud login ON asks for the cloud password once; Skip keeps the app usable offline; password login never asks twice; logout clears the cloud session; \"Forgot password\" does not change the cloud password.
+- First admin: `provision_staff.mjs` refuses a non-staging key without `--production --confirm-project=<exact id>`.
+- `pushSyncOp` (cashier): upsert sale / payment / customer works; delete, set_stock, product upsert, supplier / purchase / settings / user writes -> permission-denied; increment_stock and increment_balance apply once (same opId twice = skipped); a document of ANOTHER branch with the same id -> permission-denied; customer upsert cannot change balance / creditLimit of an existing customer.
+- `pushSyncOp` (manager): can edit products, cannot touch `users`; (admin): all.
+- App: cashier signed in (cloud login ON) -> make a sale offline, go online -> Sync History shows the entries pushed (no direct Firestore write); manager still syncs directly.
+- Unit tests: GitHub Actions \"Functions logic test\" (or `cd functions && npm install && npm run test:logic`).

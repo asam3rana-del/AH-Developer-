@@ -4,6 +4,7 @@ import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
 import '../services/biometric.dart';
 import '../services/session.dart';
+import '../services/staff_auth.dart';
 import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
 import '../widgets/premium_header.dart';
@@ -124,6 +125,7 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
       active: existing?.active ?? true,
       phone: _phone.text.trim(),
     ));
+    await _syncCloudAccount(username, _role, existing?.active ?? true, password: pass);
     _toast(Loc.t('User saved', 'یوزر محفوظ ہو گیا'));
     _username.clear(); _displayName.clear(); _phone.clear(); _password.clear();
     _reload();
@@ -150,6 +152,7 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
       username: u.username, displayName: u.displayName, role: u.role,
       passwordHash: await PasswordHasher.hash(c.text), active: u.active, phone: u.phone,
     ));
+    await _syncCloudAccount(u.username, u.role, u.active, password: c.text);
     // Hash device-local rehta hai; sirf audit mein likhte hain.
     await _repo.insertAudit(Session.username ?? 'admin', 'password_reset', u.username, 'Password reset locally by admin');
     _toast(Loc.t('Password reset (on this device)', 'پاس ورڈ ری سیٹ ہو گیا (اس ڈیوائس پر)'));
@@ -168,6 +171,17 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
         ),
       )) == true;
 
+  /// Secure cloud login ON ho to server ke staff_accounts bhi badlo (server admin + branch khud check karta hai).
+  /// Local save pehle ho chuka hota hai; cloud nakaam ho to sirf bata dete hain.
+  Future<void> _syncCloudAccount(String username, String role, bool active, {String? password}) async {
+    if (!await StaffAuth.isEnabled()) return;
+    final ok = await StaffAuth.adminSetAccount(username: username, role: role, active: active, password: password);
+    if (!ok) {
+      _toast(Loc.t('Saved on this device, but cloud account not updated: ${StaffAuth.lastError}',
+          'اس ڈیوائس پر محفوظ ہو گیا، مگر کلاؤڈ اکاؤنٹ اپڈیٹ نہیں ہوا: ${StaffAuth.lastError}'));
+    }
+  }
+
   Future<void> _toggleActive(User u) async {
     if (u.username == Session.username || _isLastActiveAdmin(u)) {
       return _toast(Loc.t('You cannot deactivate yourself or the last active admin', 'آپ خود کو یا آخری ایکٹو ایڈمن کو غیر فعال نہیں کر سکتے'));
@@ -183,6 +197,7 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
       username: u.username, displayName: u.displayName, role: u.role,
       passwordHash: u.passwordHash, active: !u.active, phone: u.phone,
     ));
+    await _syncCloudAccount(u.username, u.role, !u.active);
     _toast(!u.active ? Loc.t('User activated', 'یوزر فعال ہو گیا') : Loc.t('User deactivated', 'یوزر غیر فعال ہو گیا'));
     _reload();
   }
@@ -194,6 +209,7 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
     final ok = await _confirm(Loc.t('Delete User?', 'یوزر حذف کریں؟'), '${u.displayName} (${u.username})', Loc.t('Delete', 'حذف'));
     if (!ok) return;
     await _repo.delete(u.username);
+    await _syncCloudAccount(u.username, u.role, false); // cloud mein delete nahi, sirf band (login na ho sake)
     _toast(Loc.t('User deleted', 'یوزر حذف ہو گیا'));
     _reload();
   }

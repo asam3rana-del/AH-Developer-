@@ -302,6 +302,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _newPassword.clear();
     setState(() {});
     _toast(Loc.t('Login updated', 'لاگ اِن اپڈیٹ ہو گیا'));
+    // Secure cloud login ON: cloud password alag hai — purana cloud password server par check hota hai.
+    if (newPass.isNotEmpty && await StaffAuth.isEnabled()) {
+      if (finalName != user.username) {
+        _toast(Loc.t('Cloud username/password not changed (username changed). Ask your admin to update the cloud account.',
+            'کلاؤڈ یوزر نیم/پاس ورڈ نہیں بدلا (یوزر نیم بدلا ہے)۔ ایڈمن سے کلاؤڈ اکاؤنٹ اپڈیٹ کروائیں۔'));
+      } else {
+        final old = await _askCloudPassword();
+        if (old != null && old.isNotEmpty) {
+          final ok = await StaffAuth.changeMyPassword(user.username, old, newPass);
+          _toast(ok
+              ? Loc.t('Cloud password changed', 'کلاؤڈ پاس ورڈ بدل گیا')
+              : Loc.t('Cloud password NOT changed: ${StaffAuth.lastError}', 'کلاؤڈ پاس ورڈ نہیں بدلا: ${StaffAuth.lastError}'));
+        } else {
+          _toast(Loc.t('Cloud password not changed (still the old one)', 'کلاؤڈ پاس ورڈ نہیں بدلا (پرانا ہی ہے)'));
+        }
+      }
+    }
+  }
+
+  Future<String?> _askCloudPassword() async {
+    if (!mounted) return null;
+    final field = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Change cloud password', 'کلاؤڈ پاس ورڈ بدلیں')),
+        content: TextField(
+          controller: field,
+          obscureText: true,
+          decoration: InputDecoration(hintText: Loc.t('Current cloud password', 'موجودہ کلاؤڈ پاس ورڈ')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Skip', 'چھوڑیں'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, field.text), child: Text(Loc.t('Change', 'بدلیں'))),
+        ],
+      ),
+    );
   }
 
   Future<void> _logout() async {

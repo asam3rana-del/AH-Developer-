@@ -42,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _showPass = false;
   bool _fingerprintOnly = false;
   bool _otpMode = false;
+  bool _cloudAttempted = false;
   String? _verificationId;
   String? _error;
 
@@ -212,7 +213,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     _failCount = 0;
     // Secure staff cloud login (opt-in). Local login kabhi block nahi hota; cloud nakaam ho to sirf sync ruki rehti hai.
+    _cloudAttempted = false;
     if (await StaffAuth.isEnabled()) {
+      _cloudAttempted = true; // password se already koshish ho gayi: _completeLogin dobara na poochhe
       final cloudOk = await StaffAuth.signIn(user!.username, typed);
       if (!cloudOk && mounted) {
         _toast(Loc.t('Cloud sync login failed: ${StaffAuth.lastError} (working offline)',
@@ -281,8 +284,48 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _completeLogin(User user) async {
+    await _ensureCloudSession(user);
     await Session.start(user);
     _goMain();
+  }
+
+  /// Secure cloud login ON ho aur is user ka verified cloud session na ho (OTP / fingerprint / \"none\" login:
+  /// in mein password hota hi nahi), to cloud password ek dafa poochho. Skip karne par app offline chalti hai,
+  /// sync \"not signed in\" rehti hai. Server kabhi sirf OTP / fingerprint ki bunyad par cloud access nahi deta.
+  Future<void> _ensureCloudSession(User user) async {
+    if (_cloudAttempted || !await StaffAuth.isEnabled()) return;
+    if (await StaffAuth.hasSessionFor(user.username)) return;
+    if (!mounted) return;
+    final field = TextEditingController();
+    final typed = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Cloud sign-in', 'کلاؤڈ سائن اِن')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(Loc.t('Enter ${user.displayName}\'s cloud password to sync. Skip to work offline.',
+              'سنک کے لیے ${user.displayName} کا کلاؤڈ پاس ورڈ لکھیں۔ آف لائن کام کے لیے Skip دبائیں۔')),
+          const SizedBox(height: 10),
+          TextField(
+            controller: field,
+            obscureText: true,
+            decoration: InputDecoration(hintText: Loc.t('Cloud password', 'کلاؤڈ پاس ورڈ')),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Skip', 'چھوڑیں'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, field.text), child: Text(Loc.t('Sign in', 'سائن اِن'))),
+        ],
+      ),
+    );
+    // field.dispose() jaan boojh kar nahi (dialog animation abhi controller use kar rahi hoti hai).
+    if (typed == null || typed.isEmpty) {
+      _toast(Loc.t('Working offline (cloud not signed in)', 'آف لائن چل رہا ہے (کلاؤڈ سائن اِن نہیں)'));
+      return;
+    }
+    if (!await StaffAuth.signIn(user.username, typed)) {
+      _toast(Loc.t('Cloud sign-in failed: ${StaffAuth.lastError} (working offline)',
+          'کلاؤڈ سائن اِن ناکام: ${StaffAuth.lastError} (آف لائن چل رہا ہے)'));
+    }
   }
 
   /// "Both" mode: password ke baad fingerprint bhi verify.
