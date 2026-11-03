@@ -423,8 +423,46 @@ class SyncApi implements SyncBackend {
       return MapEntry(collection, byId.values.toList());
     }
 
-    final loaded = await Future.wait(pullCollections.map(load));
+    // Secure mode: cashier ko rules sirf till wali collections padhne deti hain (users / suppliers / purchases /
+    // payroll nahi). Wahan permission-denied poori pull nahi todta — wo collection khali. Baaqi sab (manager / admin,
+    // ya secure mode OFF) mein permission-denied pehle jaisa saaf ghalti rehta hai.
+    final skipDenied = await _cashierSkipsDenied(fs);
+    Future<MapEntry<String, List<SyncDoc>>> loadSafe(String collection) async {
+      try {
+        return await load(collection);
+      } on FirebaseException catch (e) {
+        if (skipDenied && e.code == 'permission-denied') return MapEntry(collection, <SyncDoc>[]);
+        rethrow;
+      }
+    }
+
+    final loaded = await Future.wait(pullCollections.map(loadSafe));
     return assemblePullResult(Map.fromEntries(loaded), since);
+  }
+
+  bool? _cashierCache;
+  int _cashierCacheAt = 0;
+
+  /// Kya ye device cashier hai? (cashier ko rules `users` / suppliers / purchases / payroll padhne nahi dete, to
+  /// pull mein wahan permission-denied ko khali samjho.) Secure mode ON: token ka role. Warna device ka
+  /// `branch_members/{uid}.role == 'cashier'` (docs/DEVICE_ROLES_SETUP.md); 10 minute cache (1 extra read).
+  Future<bool> _cashierSkipsDenied(FirebaseFirestore fs) async {
+    if (await StaffAuth.isEnabled()) return await StaffAuth.currentRole() == 'cashier';
+    final now = nowMs();
+    final cached = _cashierCache;
+    if (cached != null && now - _cashierCacheAt < 10 * 60 * 1000) return cached;
+    try {
+      final app = await CloudConfigStore.firebaseApp();
+      final uid = app == null ? null : FirebaseAuth.instanceFor(app: app).currentUser?.uid;
+      if (uid == null) return false;
+      final snap = await fs.collection('branch_members').doc(uid).get(const GetOptions(source: Source.server));
+      final isCashier = snap.data()?['role'] == 'cashier';
+      _cashierCache = isCashier;
+      _cashierCacheAt = now;
+      return isCashier;
+    } catch (_) {
+      return false; // jawab na mile to purana saaf behaviour: permission-denied ghalti hi rahe
+    }
   }
 
   // ---------- APPLY ----------

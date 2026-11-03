@@ -27,6 +27,7 @@ Har device ka `branch_members/{uid}` document pehle se hai (branch ke liye). Us 
 - Rules sale ke amounts, prices ya balance ke sahi hone ki jaanch nahi kar sakte: chhedkhani kiya hua cashier app apni branch mein ghalat amount likh sakta hai. Doosri branch, delete, rates, settings, users ye sab band hain.
 - Cashier products ka `cost` padh sakta hai (document mein hota hai).
 - Cashier ki product upsert (rate / naam badalna) aur naya product banana band hai; agar app kabhi aisi entry bheje to wo Sync History mein "permission denied" ban kar atak jati hai. Agar customer ki creditLimit kisi doosre device par badli ho aur cashier ka purana copy usay wapas likhne ki koshish kare, wo entry bhi rok di jati hai (yehi chahiye).
+- Cashier device ka pull `users` / suppliers / purchases / payroll ko permission-denied ke bajaye khali samajh kar aage badh jata hai (app apna `branch_members/{uid}.role` 10 minute mein ek baar padhti hai). Manager / admin / bina role wale device par permission-denied pehle jaisa saaf ghalti rehta hai.
 - Naye cashier device par `users` pull nahi hote (denied), is liye pehle ek baar admin / manager wahan login karein.
 - Agar chahein ke role na likha ho to bhi cashier samjha jaye (zyada strict), `myRole()` mein `'admin'` ko `'cashier'` karein (phir malik ke devices par `role = admin` likhna zaroori).
 - Staff login (password se cloud sign-in) wala raasta, jo Cloud Functions chahta hai, ab bhi alag option hai; jab card ho tab.
