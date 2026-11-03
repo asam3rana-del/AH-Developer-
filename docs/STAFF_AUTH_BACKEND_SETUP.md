@@ -1,5 +1,8 @@
 # Staff authentication backend — staged foundation
 
+> **Card nahi hai?** Cloud Functions ko Firebase Blaze (card) chahiye. Bina card ke role-based security ke liye `docs/DEVICE_ROLES_SETUP.md` dekhein (Firestore rules + device ka role, free Spark plan par).
+
+
 ## Critical status
 This is a backend foundation, not a completed app migration. The Flutter login still validates local SQLite credentials and `SyncApi.firestoreFor()` still uses anonymous Firebase Auth. **Do not deploy `firebase/firestore.staff-claims.rules` to the live project**: it will deny current anonymous sync and will deny all cashier writes.
 
@@ -54,7 +57,9 @@ What the server enforces (`functions/src/syncLogic.ts`, unit tested in `function
 
 Honest limits: each queue entry is still its own operation (sale, stock delta, balance delta are separate calls, exactly like before; idempotent so retries are safe) - the server does NOT validate that a sale's lines match its stock/balance deltas or its prices, so a modified cashier client could still write wrong amounts inside its own branch. That needs a true sale-aggregate function and is a later step. The branch code in Cloud Sync Setup must equal the staff account's `branchId` (the server stamps the claim's branch; a device pulling another code would not see those documents).
 
-**Before publishing `firestore.staff-claims.rules`:** (1) the claims rules currently let EVERY role read `users` (incl. password hashes), suppliers, purchases and payroll in the branch - restrict cashier reads (see `firestore.secure-draft.rules` `cashierReadable`) AND make the pull skip a collection that is permission-denied, otherwise a cashier's pull fails; (2) test with the Emulator Suite on staging; (3) keep rollback rules ready.
+**Cashier reads (done):** `firestore.staff-claims.rules` lets a cashier read only the till collections (customers, products, sales, payments, expenses, cash_transactions, cash_register, units, categories, returns, stock_movements, app_settings, shell_*, due_followups). `users` (password hashes), suppliers, purchases, payroll, rent, utility bills and zakat are closed to cashier; manager/admin read everything in their branch. The app's pull skips a collection that is permission-denied ONLY for a cashier in secure mode (`SyncApi.pull`), so the cashier's sync keeps working. Consequences: a NEW cashier device cannot pull `users`, so an admin/manager must log in on it once first (or the staff account must already exist locally); products still carry `cost`, so a modified cashier client could read it (server-side stripping would need a separate cashier view).
+
+**Before publishing `firestore.staff-claims.rules`:** (1) run the rules tests in CI (\"Firebase rules test\") - the new cashier-read tests included; (2) every staff member needs a cloud account (`provision_staff.mjs` / `adminSetStaffAccount`) and `pushSyncOp` + `changeMyPassword` + `adminSetStaffAccount` must be deployed and tested on STAGING; (3) keep the rollback rules ready.
 
 ## Rollback
 Keep live rules unchanged. Back up Firestore and local databases. Use a separate staging project and a tested rollback plan.
