@@ -64,6 +64,14 @@ Future<void> relinkOrphanedParties(DatabaseExecutor db) async {
       'UPDATE purchases SET supplierId = (SELECT s.id FROM suppliers s WHERE s.serverId = purchases.supplierServerId) '
       "WHERE supplierId IS NULL AND supplierServerId IS NOT NULL AND supplierServerId != '' "
       'AND EXISTS (SELECT 1 FROM suppliers s WHERE s.serverId = purchases.supplierServerId)');
+  // Due Reminders follow-ups: party us waqt nahi thi (partyId 0) => ab jod do. (Table check: chhote test schemas.)
+  final hasFollowups = await db.rawQuery("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'due_followups'");
+  if (hasFollowups.isNotEmpty) {
+    await db.execute(
+        'UPDATE due_followups SET partyId = (SELECT c.id FROM customers c WHERE c.serverId = due_followups.partyServerId) '
+        "WHERE partyId = 0 AND partyServerId IS NOT NULL AND partyServerId != '' "
+        'AND EXISTS (SELECT 1 FROM customers c WHERE c.serverId = due_followups.partyServerId)');
+  }
 }
 
 /// Abhi tak queue mein baithe (bheje na gaye) local deltas — pull ke server snapshot ke UPAR lagte hain,

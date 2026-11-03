@@ -65,7 +65,8 @@ service cloud.firestore {
                              'shell_customers', 'shell_transactions', 'shop_empty_shell_log',
                              'workers', 'worker_attendance', 'worker_advances',
                              'worker_salary_payments', 'shop_rents', 'shop_rent_ledger',
-                             'utility_bills', 'utility_bill_payments'];
+                             'utility_bills', 'utility_bill_payments',
+                             'due_followups'];
     }
 
     // Server-side record of which branch each staff UID belongs to.

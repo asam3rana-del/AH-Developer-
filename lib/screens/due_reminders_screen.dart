@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../db/due_followup_repository.dart';
 import '../db/due_reminders_repository.dart';
+import '../models/due_followup.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import '../widgets/permission_guard.dart';
+import 'followup_sheets.dart';
 
 /// Mirrors DueRemindersActivity.kt.
 ///
@@ -45,6 +48,15 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   final _search = TextEditingController();
   String _query = '';
 
+  // Follow-up log (sirf Sales tab): party id => entries (nayi pehle), filter, mahine ka khulasa.
+  Map<int, List<DueFollowUp>> _followUps = const {};
+  FollowUpMonthStats? _monthStats;
+  FollowUpFilter _filter = FollowUpFilter.all;
+
+  // WhatsApp / call ke baad app wapas aane par "kya hua?" poochne ke liye (khud ban'ne wali entry ki id).
+  int? _pendingFollowUpId;
+  bool _askingResult = false;
+
   final _dateFmt = DateFormat('d MMM yyyy');
 
   AppPalette get _p => ThemeManager.palette;
@@ -72,17 +84,53 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   // Kotlin onResume: kahin aur payment hone se bill list se nikal sakti hai.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _load(showSpinner: false);
+    if (state == AppLifecycleState.resumed) {
+      _load(showSpinner: false);
+      _askPendingResult();
+    }
+  }
+
+  /// WhatsApp / dialer se wapas aane par us entry ka nateeja poochho (sheet band karne par entry "sent" hi rehti hai).
+  Future<void> _askPendingResult() async {
+    final id = _pendingFollowUpId;
+    if (id == null || _askingResult || !mounted) return;
+    _pendingFollowUpId = null;
+    _askingResult = true;
+    try {
+      final e = await DueFollowUpRepository.instance.byId(id);
+      if (e == null || !mounted) return;
+      double due = 0;
+      for (final g in groupDueByParty(_bills)) {
+        if (g.partyId == e.partyId && !g.isAdvance) due = g.total;
+      }
+      await showFollowUpSheet(context,
+          partyId: e.partyId, partyName: e.partyName, existing: e, method: e.method, suggestedAmount: due);
+      if (mounted) await _load(showSpinner: false);
+    } finally {
+      _askingResult = false;
+    }
   }
 
   Future<void> _load({bool showSpinner = true}) async {
     if (showSpinner) setState(() => _loading = true);
     final list = _purchases ? await _repo.duePurchases() : await _repo.dueSales();
     final defaults = _purchases ? const <int, int>{} : await _repo.customerDueDaysMap();
+    // Follow-up data fail ho jaye to bhi list dikhe (follow-up sirf upar ki madad hai).
+    var followUps = const <int, List<DueFollowUp>>{};
+    FollowUpMonthStats? stats;
+    if (!_purchases) {
+      try {
+        followUps = await DueFollowUpRepository.instance.allByParty(backfillSync: true);
+        final n = DateTime.now();
+        stats = await DueFollowUpRepository.instance.monthStats(n.year, n.month);
+      } catch (_) {}
+    }
     if (!mounted) return;
     setState(() {
       _bills = list;
       _defaultDays = defaults;
+      _followUps = followUps;
+      _monthStats = stats;
       _loading = false;
     });
   }
@@ -92,6 +140,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     final purchases = tab == 1;
     if (_purchases == purchases) return;
     _purchases = purchases;
+    _filter = FollowUpFilter.all;
     _load();
   }
 
@@ -255,13 +304,63 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     await _load(showSpinner: false);
   }
 
-  Future<void> _whatsApp(DueParty g) async {
-    try {
-      // Ek bill => us bill ka message; kai bills / previous balance => ek hi message poore total ke saath.
+  FollowUpState _stateOf(DueParty g) {
+    final id = g.partyId;
+    if (_purchases || id == null || g.isAdvance) return followUpState(const <DueFollowUp>[]);
+    return followUpState(_followUps[id] ?? const <DueFollowUp>[]);
+  }
+
+  /// Aaj pehle hi WhatsApp gaya ho to dobara bhejne se pehle poochho.
+  Future<bool> _confirmResend(DueParty g) async {
+    final id = g.partyId;
+    if (_purchases || id == null) return true;
+    final list = _followUps[id] ?? const <DueFollowUp>[];
+    final today = startOfDayMillis(DateTime.now().millisecondsSinceEpoch);
+    final sentToday = list.any((e) => e.method == FollowUpMethod.whatsapp && e.createdAt >= today);
+    if (!sentToday) return true;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Already sent today', 'آج پہلے ہی بھیجا جا چکا ہے')),
+        content: Text(Loc.t('${g.partyName} already got a WhatsApp reminder today. Send again?',
+            '${g.partyName} کو آج پہلے ہی واٹس ایپ یاد دہانی بھیجی جا چکی ہے۔ دوبارہ بھیجیں؟')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('No', 'نہیں'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Send again', 'دوبارہ بھیجیں'))),
+        ],
+      ),
+    );
+    return yes == true;
+  }
+
+  /// Reminder ka matn: pehli baar wahi purana naram message; baad mein (ya wada toota ho to) shiddat badhti hai.
+  Uri _reminderUri(DueParty g) {
+    final id = g.partyId;
+    if (_purchases || id == null) {
       final single = g.bills.length == 1 && !g.bills.first.isBalance ? g.bills.first : null;
-      final uri = single != null ? whatsAppUri(single) : whatsAppUri(g.toTotalBill());
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return single != null ? whatsAppUri(single) : whatsAppUri(g.toTotalBill());
+    }
+    return reminderUriFor(g, _followUps[id] ?? const <DueFollowUp>[]);
+  }
+
+  /// Bheji / ki hui koshish ki entry banao (nateeja baad mein poochha jata hai).
+  Future<void> _logAttempt(DueParty g, String method) async {
+    final id = g.partyId;
+    if (_purchases || id == null) return;
+    try {
+      _pendingFollowUpId = await DueFollowUpRepository.instance
+          .add(partyId: id, partyName: g.partyName, method: method, outcome: FollowUpOutcome.sent);
+    } catch (_) {
+      _pendingFollowUpId = null;
+    }
+  }
+
+  Future<void> _whatsApp(DueParty g) async {
+    if (!await _confirmResend(g)) return;
+    try {
+      final ok = await launchUrl(_reminderUri(g), mode: LaunchMode.externalApplication);
       if (!ok) throw Exception('launch failed');
+      await _logAttempt(g, FollowUpMethod.whatsapp);
     } catch (_) {
       if (mounted) _toast('WhatsApp nahi khul saka. Installed hai?');
     }
@@ -271,9 +370,17 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     try {
       final ok = await launchUrl(Uri(scheme: 'tel', path: g.partyPhone.trim()));
       if (!ok) throw Exception('launch failed');
+      await _logAttempt(g, FollowUpMethod.call);
     } catch (_) {
       if (mounted) _toast(Loc.t('Could not open the dialer', 'ڈائلر نہیں کھل سکا'));
     }
+  }
+
+  Future<void> _openTimeline(DueParty g) async {
+    final id = g.partyId;
+    if (id == null) return;
+    await showFollowUpTimeline(context, partyId: id, partyName: g.partyName, totalDue: g.total);
+    if (mounted) await _load(showSpinner: false);
   }
 
   /// Party ke saare bills ki list (har bill ki date alag badalne ke liye). Date badalne ke baad list dobara khulti hai.
@@ -351,10 +458,15 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   @override
   Widget build(BuildContext context) {
     // Search ke baad jo parties bachin, summary un ki (taake kisi ek customer ka total saaf nazar aaye).
-    final groups = groupDueByParty(_bills).where((g) => dueMatches(g, _query)).toList();
-    final shown = [for (final g in groups) ...g.bills];
+    final matched = groupDueByParty(_bills).where((g) => dueMatches(g, _query)).toList();
+    final states = {for (final g in matched) g.key: _stateOf(g)};
+    final filtered = _filter == FollowUpFilter.all || _purchases
+        ? matched
+        : matched.where((g) => !g.isAdvance && followUpMatches(_filter, states[g.key]!)).toList();
+    final groups = _purchases ? filtered : _orderByFollowUp(filtered, states);
+    final shown = [for (final g in matched) ...g.bills];
     final summary = summarizeDue(shown);
-    final overdueParties = groups.where((g) => g.hasOverdue()).length;
+    final overdueParties = matched.where((g) => g.hasOverdue()).length;
     // Walk-in / Cash Purchase (party nahi) Party Dashboard ke total mein nahi ginte — alag dikhate hain taake
     // "Total outstanding" Dashboard ke You'll get / You'll give se mel khaye.
     final noParty = shown.where((b) => b.partyId == null).fold<double>(0.0, (a, b) => a + b.due);
@@ -378,6 +490,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
               _tabs(),
               _searchBox(),
               _summaryCard(Icons.warning_amber_rounded, Loc.t('Overdue', 'میعاد گزری'), '$overdueParties', _red),
+              if (!_purchases && !_loading && _bills.isNotEmpty) ..._followUpSummary(matched, states),
               _summaryCard(Icons.account_balance_wallet_outlined, Loc.t('Total outstanding', 'کل بقایا'), _rs(partyTotal), _amber),
               if (noParty > 0.009)
                 _summaryCard(
@@ -401,21 +514,148 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                     style: TextStyle(fontSize: 13, color: _p.textMuted),
                   ),
                 )
-              else if (groups.isEmpty)
+              else if (matched.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 30),
                   child: Text(Loc.t('No match for "${_query.trim()}"', '"${_query.trim()}" نہیں ملا'),
                       textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _p.textMuted)),
                 )
-              else
-                ...[
-                  for (final g in groups) _partyCard(g),
-                ],
+              else ...[
+                if (!_purchases) _filterChips(matched, states),
+                if (groups.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 30),
+                    child: Text(Loc.t('No party in this filter', 'اس فلٹر میں کوئی پارٹی نہیں'),
+                        textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _p.textMuted)),
+                  ),
+                for (final g in groups) _partyCard(g, states[g.key]!),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Follow-up ki tarteeb: toota wada, aaj karna hai, aam, wada pe, dispute. Barabar par pehle wali tarteeb.
+  List<DueParty> _orderByFollowUp(List<DueParty> list, Map<String, FollowUpState> states) {
+    final idx = {for (var i = 0; i < list.length; i++) list[i].key: i};
+    final out = [...list];
+    out.sort((a, b) {
+      final r = followUpRank(states[a.key]!).compareTo(followUpRank(states[b.key]!));
+      return r != 0 ? r : idx[a.key]!.compareTo(idx[b.key]!);
+    });
+    return out;
+  }
+
+  String _filterLabel(FollowUpFilter f) {
+    switch (f) {
+      case FollowUpFilter.all:
+        return Loc.t('All', 'سب');
+      case FollowUpFilter.today:
+        return Loc.t('Do today', 'آج کرنا ہے');
+      case FollowUpFilter.brokenPromise:
+        return Loc.t('Promise broken', 'وعدہ ٹوٹا');
+      case FollowUpFilter.onPromise:
+        return Loc.t('On a promise', 'وعدے پر');
+      case FollowUpFilter.neverContacted:
+        return Loc.t('Not contacted', 'بات نہیں ہوئی');
+      case FollowUpFilter.dispute:
+        return Loc.t('Dispute', 'تنازع');
+    }
+  }
+
+  Widget _filterChips(List<DueParty> matched, Map<String, FollowUpState> states) {
+    int count(FollowUpFilter f) =>
+        matched.where((g) => !g.isAdvance && g.partyId != null && followUpMatches(f, states[g.key]!)).length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          for (final f in FollowUpFilter.values)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(f == FollowUpFilter.all ? _filterLabel(f) : '${_filterLabel(f)} (${count(f)})',
+                    style: const TextStyle(fontSize: 12.5)),
+                selected: _filter == f,
+                onSelected: (_) => setState(() => _filter = f),
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  /// "Aaj karna hai" aur mahine ka follow-up khulasa.
+  List<Widget> _followUpSummary(List<DueParty> matched, Map<String, FollowUpState> states) {
+    var actionParties = 0;
+    var actionAmount = 0.0;
+    var broken = 0;
+    for (final g in matched) {
+      if (g.isAdvance || g.partyId == null) continue;
+      final st = states[g.key]!;
+      if (st.needsActionToday) {
+        actionParties++;
+        actionAmount += g.total;
+      }
+      if (st.promiseBroken) broken++;
+    }
+    final m = _monthStats;
+    return [
+      _summaryCard(
+        Icons.today_outlined,
+        Loc.t('To follow up today', 'آج فالو اپ کرنا ہے'),
+        actionParties == 0 ? Loc.t('Nobody', 'کوئی نہیں') : '$actionParties • ${_rs(actionAmount)}',
+        actionParties == 0 ? _teal : _red,
+      ),
+      if (broken > 0) _summaryCard(Icons.error_outline, Loc.t('Broken promises', 'ٹوٹے ہوئے وعدے'), '$broken', _red),
+      if (m != null && m.total > 0)
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: _cardDeco(),
+          child: Text(
+            Loc.t(
+              'This month: ${m.total} follow-ups (${m.whatsapp} WhatsApp, ${m.calls} calls) • ${m.promises} promises • '
+                  '${m.paidOrPartial} payments noted${m.recorded > 0 ? ' (${_rs(m.recorded)})' : ''}',
+              'اس مہینے: ${m.total} فالو اپ (${m.whatsapp} واٹس ایپ، ${m.calls} کال) • ${m.promises} وعدے • '
+                  '${m.paidOrPartial} ادائیگیاں نوٹ${m.recorded > 0 ? ' (${_rs(m.recorded)})' : ''}',
+            ),
+            style: TextStyle(fontSize: 12, color: _p.textMuted),
+          ),
+        ),
+    ];
+  }
+
+  /// Card par "aakhri baat / wada / agla follow-up" ki ek line + us ka rang.
+  (String, Color)? _followUpLine(DueParty g, FollowUpState st) {
+    if (_purchases || g.isAdvance || g.partyId == null) return null;
+    final fmt = DateFormat('d MMM');
+    String day(int ms) => fmt.format(DateTime.fromMillisecondsSinceEpoch(ms));
+    if (st.never) return (Loc.t('No contact yet', 'ابھی تک بات نہیں ہوئی'), _p.textMuted);
+    final parts = <String>[];
+    final d = st.daysSinceContact(DateTime.now().millisecondsSinceEpoch) ?? 0;
+    final lastMethod = followUpMethodLabel(st.last!.method);
+    parts.add(d == 0
+        ? Loc.t('Last: today ($lastMethod)', 'آخری بات: آج ($lastMethod)')
+        : Loc.t('Last: $d d ago ($lastMethod)', 'آخری بات: $d دن پہلے ($lastMethod)'));
+    var color = _p.textMuted;
+    if (st.dispute) {
+      parts.add(Loc.t('Dispute', 'تنازع'));
+      color = _amber;
+    } else if (st.promise != null) {
+      final amt = st.promise!.amount > 0 ? ' ${_rs(st.promise!.amount)}' : '';
+      parts.add(st.promiseBroken
+          ? Loc.t('Promise broken: ${day(st.promise!.promiseDate)}$amt', 'وعدہ ٹوٹا: ${day(st.promise!.promiseDate)}$amt')
+          : Loc.t('Promise: ${day(st.promise!.promiseDate)}$amt', 'وعدہ: ${day(st.promise!.promiseDate)}$amt'));
+      color = st.promiseBroken ? _red : _teal;
+    } else if (st.nextFollowUp > 0) {
+      parts.add(Loc.t('Next: ${day(st.nextFollowUp)}', 'اگلا: ${day(st.nextFollowUp)}'));
+      if (st.followUpDue) color = _red;
+    }
+    return (parts.join(' • '), color);
   }
 
   Widget _searchBox() => Padding(
@@ -519,7 +759,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     }
   }
 
-  Widget _partyCard(DueParty g) {
+  Widget _partyCard(DueParty g, FollowUpState st) {
     final multi = g.bills.length > 1;
     final one = g.bills.first;
     final (badgeText, badgeColor) = _badge(dueBucket(g.earliestDue));
@@ -559,6 +799,8 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
       dateLine += '${dateLine.isEmpty ? '' : ' • '}${Loc.t('Term', 'مدت')}: $defDays ${Loc.t('days', 'دن')}';
     }
     final canBulk = !g.isAdvance && !onlyBalance && g.partyId != null;
+    final followUpLine = _followUpLine(g, st);
+    final canTrack = !_purchases && !g.isAdvance && g.partyId != null;
 
     VoidCallback? onTap;
     if (multi) {
@@ -584,6 +826,15 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                   Text(subtitle, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
                 ]),
               ),
+              if (st.promiseBroken) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: _red.withOpacity(0.14), borderRadius: BorderRadius.circular(8)),
+                  child: Text(Loc.t('PROMISE BROKEN', 'وعدہ ٹوٹا'),
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: _red)),
+                ),
+                const SizedBox(width: 6),
+              ],
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(8)),
@@ -600,9 +851,21 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                     const SizedBox(height: 2),
                     Text(dateLine, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
                   ],
+                  if (followUpLine != null) ...[
+                    const SizedBox(height: 2),
+                    Text(followUpLine.$1,
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: followUpLine.$2)),
+                  ],
                 ]),
               ),
               if (multi) Icon(Icons.chevron_right, color: _p.textMuted),
+              if (canTrack) ...[
+                Tooltip(
+                  message: Loc.t('Follow-up history / add note', 'فالو اپ ہسٹری / نوٹ'),
+                  child: _circleButton(Icons.history, _teal, _p.flatTealBg, () => _openTimeline(g)),
+                ),
+                const SizedBox(width: 10),
+              ],
               if (canBulk) ...[
                 Tooltip(
                   message: Loc.t('Set dates for all bills', 'سب بلوں کی تاریخ'),

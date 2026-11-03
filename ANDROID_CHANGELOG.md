@@ -1,5 +1,10 @@
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
 
+## Flutter side (2026-11-03) — Due Reminders follow-up sync + Firestore rules
+- [x] Follow-up log (`due_followups`, DB v35) ab sab devices par sync hota hai: DB v36 (`serverId`, `partyServerId`), push/pull/apply (`lib/sync/*`), repository ke har likhne par queue, purani v35 entries ek baar backfill.
+- [x] Firestore: `due_followups` teeno rules files (`firestore.rules`, `firestore.staff-claims.rules`, `firestore.secure-draft.rules`) + 2 indexes (`firestore.indexes.json`) + rules tests. Ab sync ki collections 29 (pull / push / branch cleanup list barabar).
+- [ ] **Pehle rules + indexes deploy karein, phir app build install karein.** Bina flutter analyze / flutter test ke likha gaya (is environment mein Flutter SDK nahi) — CI par `Analyze + Test`, `Migration tests`, `Firebase rules test` dekhein.
+
 ## Flutter side (2026-10-25) — Deep assessment + Amanat / Loan fixes
 - [x] Assessment (bina Flutter SDK, sirf static): sab 185 lib + 77 test files ke brackets/strings saaf; har `import` asal file par; SQL ke columns schema (v29) se mel; project ki classes ke `X.instance.method` / `X.static` / named-args call-sites sab maujood; sync ki 28 collections `pullCollections` = `firestore.rules` = `firestore.indexes.json`; CI actions (`checkout@v5`, `upload-artifact@v7`) maujood versions hain. Koi compile-level ghalti nahi mili.
 - [x] **Amanat / Loan: wapsi ki tarikh ki notification.** Pehle tarikh sirf screen par dikhti thi — aaj / guzri hui tarikh par koi yaad-dahani nahi aati thi. Ab roz 10 baje ke baad (din mein ek baar) ek notification: kitni parties, pehle 3 naam, kitni ki tarikh guzar chuki. Tap par Amanat / Loan screen. `lib/services/return_alert_service.dart` (naya), `returnDueNow` / `returnAlertBody` (pure, `due_reminders_repository.dart`), payload routing `due_alert_service.dart`, foreground `main.dart` + background `backup_background.dart` (WorkManager) dono se. Sirf admin/manager login par (background isolate mein session khud load hota hai); `DueAlertService.keyEnabled` off ho to ye bhi band.

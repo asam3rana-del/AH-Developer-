@@ -37,6 +37,7 @@ const Map<String, String> pushCollections = {
   'shop_rent_entry': 'shop_rent_ledger',
   'utility_bill': 'utility_bills',
   'utility_bill_payment': 'utility_bill_payments',
+  'due_followup': 'due_followups',
 };
 
 String? collectionFor(String entityType) => pushCollections[entityType];

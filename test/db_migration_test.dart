@@ -8,12 +8,12 @@ import 'package:ah_developer_kiryana_store/db/app_database.dart';
 
 /// Database migration tests (improvement plan, P0 #4).
 ///
-/// Method: a fresh install (v34, via AppDatabase._onCreate) is the reference. For each start version N we
+/// Method: a fresh install (v36, via AppDatabase._onCreate) is the reference. For each start version N we
 ///   1. seed business data into the fresh DB and record its full schema + rows,
 ///   2. close it and "rewind" the file to look like schema vN (drop everything added by migrations > N,
 ///      PRAGMA user_version = N),
 ///   3. re-open through AppDatabase, which runs the real _onUpgrade,
-///   4. require: user_version == 34, integrity_check ok, no FK violations, schema identical to a fresh
+///   4. require: user_version == 36, integrity_check ok, no FK violations, schema identical to a fresh
 ///      install, and every seeded row unchanged.
 ///
 /// Limits (be honest): rewinding is derived from the migration code, not from real old database files, so
@@ -40,6 +40,8 @@ void main() {
 
   // ---- what each migration step added (version -> things to remove when rewinding below it) ----
   final steps = <_Step>[
+    _Step(36, columns: {'due_followups': ['serverId', 'partyServerId']}),
+    _Step(35, tables: ['due_followups']),
     _Step(34, columns: {'users': ['permissions']}),
     _Step(33, columns: {'sale_items': ['pendingQty', 'pendingEst', 'backfillLog']}),
     _Step(32, columns: {'customers': ['returnLog']}),
@@ -165,7 +167,7 @@ void main() {
   test('fresh install: schema version, integrity, default seed rows', () async {
     final db = await AppDatabase.instance.database;
     await expectHealthy(db);
-    expect(AppDatabase.schemaVersion, 34);
+    expect(AppDatabase.schemaVersion, 36);
     expect((await db.query('categories')).map((r) => r['name']), contains('General'));
     expect((await db.query('units')).map((r) => r['name']), contains('pcs'));
   });

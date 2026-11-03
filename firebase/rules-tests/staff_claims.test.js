@@ -79,3 +79,20 @@ test('client touches staff_accounts / branch_members: deny', async () => {
 test('unknown collection: deny', async () => {
   await assertFails(setDoc(doc(as(claims('admin')), 'random/x'), { branchId: 'b1' }));
 });
+
+// Due Reminders follow-ups (collection due_followups): admin/manager write own branch, cashier read-only, delete admin-only.
+test('due_followups: manager writes own branch, other branch denied', async () => {
+  const db = as(claims('manager'));
+  await assertSucceeds(setDoc(doc(db, 'due_followups/f1'), { branchId: 'b1', partyServerId: 'customer:T-1', outcome: 'promised' }));
+  await assertFails(setDoc(doc(db, 'due_followups/f2'), { branchId: 'b2', outcome: 'promised' }));
+  await assertSucceeds(updateDoc(doc(db, 'due_followups/f1'), { outcome: 'paid', amount: 500 }));
+  await assertFails(updateDoc(doc(db, 'due_followups/f1'), { branchId: 'b2' }));
+});
+test('due_followups: cashier cannot write; delete is admin-only', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'due_followups/f9'), { branchId: 'b1', outcome: 'sent' });
+  });
+  await assertFails(setDoc(doc(as(claims('cashier')), 'due_followups/f3'), { branchId: 'b1', outcome: 'note' }));
+  await assertFails(deleteDoc(doc(as(claims('manager')), 'due_followups/f9')));
+  await assertSucceeds(deleteDoc(doc(as(claims('admin')), 'due_followups/f9')));
+});

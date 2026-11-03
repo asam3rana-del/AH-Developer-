@@ -42,6 +42,7 @@ class PullResult {
   final List<SyncDoc> shopRentEntries;
   final List<SyncDoc> utilityBills;
   final List<SyncDoc> utilityBillPayments;
+  final List<SyncDoc> dueFollowups;
 
   /// Agli pull ka checkpoint (ms).
   final int serverTime;
@@ -75,6 +76,7 @@ class PullResult {
     this.shopRentEntries = const [],
     this.utilityBills = const [],
     this.utilityBillPayments = const [],
+    this.dueFollowups = const [],
     int? serverTime,
   }) : serverTime = serverTime ?? DateTime.now().millisecondsSinceEpoch;
 }

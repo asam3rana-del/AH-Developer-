@@ -74,3 +74,14 @@ test('credit reservations are server-only (Admin SDK); clients cannot read or wr
   await assertFails(setDoc(doc(db, 'credit_reservations/b1__r2'), { branchId: 'b1', customerId: 'c1', amount: 10 }));
   await assertFails(deleteDoc(doc(db, 'credit_reservations/b1__r1')));
 });
+
+test('due_followups follow the same branch rules (own branch only)', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'due_followups/other'), { branchId: 'b2', outcome: 'note' });
+  });
+  const db = dbFor('uid-b1');
+  await assertSucceeds(setDoc(doc(db, 'due_followups/f1'), { branchId: 'b1', partyServerId: 'customer:T-1', outcome: 'promised' }));
+  await assertSucceeds(getDoc(doc(db, 'due_followups/f1')));
+  await assertFails(getDoc(doc(db, 'due_followups/other')));
+  await assertFails(setDoc(doc(db, 'due_followups/wrong'), { branchId: 'b2', outcome: 'note' }));
+});

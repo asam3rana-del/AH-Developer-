@@ -19,7 +19,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 34;
+  static const _dbVersion = 36;
 
   Database? _db;
 
@@ -340,7 +340,7 @@ class AppDatabase {
       )
     ''');
 
-    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql, ..._shopRentTablesSql, ..._utilityBillTablesSql]) {
+    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql, ..._shopRentTablesSql, ..._utilityBillTablesSql, ..._dueFollowupTablesSql]) {
       batch.execute(sql);
     }
 
@@ -555,6 +555,17 @@ class AppDatabase {
       // v34: per-user access rules (JSON overrides, khali = role ke default). Users ke saath sync hota hai.
       await _addColumnIfMissing(db, 'users', 'permissions', "TEXT NOT NULL DEFAULT ''");
     }
+    if (oldVersion < 35) {
+      // v35: Due Reminders follow-up log (kis customer se kab, kis tareeqe se baat hui, wada, agla follow-up).
+      for (final sql in _dueFollowupTablesSql) {
+        await db.execute(sql);
+      }
+    }
+    if (oldVersion < 36) {
+      // v36: Due Reminders follow-up sync — serverId / partyServerId (v35 mein bane table ke liye; naye table mein pehle se hain).
+      await _addColumnIfMissing(db, 'due_followups', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'due_followups', 'partyServerId', 'TEXT');
+    }
     // products.searchTag was added to _onCreate WITHOUT a migration step, so a database created by the
     // earliest builds (schema v1) never got the column. Found by the real-file migration test
     // (test/db_migration_fixtures_test.dart, legacy_v1.db). Idempotent: does nothing when the column exists.
@@ -580,6 +591,32 @@ class AppDatabase {
   /// payment. `dueDay` = mahine ki tarikh (1-31; chhote mahine mein aakhri din). `utility_bill_payments` mein ek bill
   /// ka ek mahina (`month` = YYYY-MM) sirf ek baar. `expenseId` = payment ke saath bani Expense (undo par wo bhi
   /// hat'ti hai). Dono tables sync hote hain (`serverId` + `updatedAt`); payment `expenseServerId` se Expense se judti hai.
+  /// Due Reminders follow-up log: customer se wasooli ki har koshish / baat ka record.
+  /// `outcome`: sent | paid | promised | partial | no_answer | refused | dispute | note.
+  /// `method`: whatsapp | call | visit | sms | note. `promiseDate` / `nextFollowUp` = din ki shuruaat (millis),
+  /// 0 = nahi. Sab devices par sync hota hai (v36: `serverId` + `partyServerId` + `updatedAt`); backup mein bhi shamil hai.
+  static const _dueFollowupTablesSql = <String>[
+    '''
+      CREATE TABLE IF NOT EXISTS due_followups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        partyId INTEGER NOT NULL,
+        partyName TEXT NOT NULL DEFAULT '',
+        method TEXT NOT NULL DEFAULT 'note',
+        outcome TEXT NOT NULL DEFAULT 'note',
+        amount REAL NOT NULL DEFAULT 0,
+        promiseDate INTEGER NOT NULL DEFAULT 0,
+        nextFollowUp INTEGER NOT NULL DEFAULT 0,
+        note TEXT NOT NULL DEFAULT '',
+        staff TEXT NOT NULL DEFAULT '',
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL DEFAULT 0,
+        serverId TEXT,
+        partyServerId TEXT
+      )
+    ''',
+    'CREATE INDEX IF NOT EXISTS index_due_followups_party ON due_followups (partyId, createdAt)',
+  ];
+
   static const _utilityBillTablesSql = <String>[
     '''
       CREATE TABLE IF NOT EXISTS utility_bills (

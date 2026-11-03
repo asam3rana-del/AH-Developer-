@@ -10,8 +10,9 @@ void main() {
   sqfliteFfiInit();
 
   group('collectionFor / ops', () {
-    test('20 Kotlin entity types + 4 Workers + 2 Shop Rents; anjaan => null', () {
-      expect(pushCollections.length, 28);
+    test('20 Kotlin entity types + 4 Workers + 2 Shop Rents + 2 Utility Bills + 1 Due Follow-ups; anjaan => null', () {
+      expect(pushCollections.length, 29);
+      expect(collectionFor('due_followup'), 'due_followups');
       expect(collectionFor('worker'), 'workers');
       expect(collectionFor('worker_attendance'), 'worker_attendance');
       expect(collectionFor('worker_advance'), 'worker_advances');

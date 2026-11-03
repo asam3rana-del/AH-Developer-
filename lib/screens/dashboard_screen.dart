@@ -3,11 +3,13 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
 
 import '../db/dashboard_repository.dart';
+import '../db/due_followup_repository.dart';
 import '../db/party_dashboard_repository.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../services/biometric.dart';
 import '../services/crash_handler.dart';
+import '../services/permissions.dart';
 import '../services/session.dart';
 import '../sync/settings_sync.dart';
 import '../theme/theme_manager.dart';
@@ -15,10 +17,12 @@ import '../utils/loc.dart';
 import '../widgets/menu_row.dart' show IconBadge;
 import '../widgets/party_quick_add_menu.dart' show showPartyPickerForPayment;
 import '../widgets/role_guard.dart';
+import '../widgets/todays_collection_card.dart';
 import 'amanat_loan_screen.dart';
 import 'backup_export_screen.dart';
 import 'daily_bills_screen.dart';
 import 'day_book_screen.dart';
+import 'due_reminders_screen.dart';
 import 'item_search_screen.dart';
 import 'items_screen.dart';
 import 'login_screen.dart';
@@ -36,7 +40,11 @@ class _Action {
   final Color bg, fg;
   final Widget Function()? open;
   final VoidCallback? onTap;
-  const _Action(this.en, this.ur, this.subEn, this.subUr, this.icon, this.bg, this.fg, {this.open, this.onTap});
+
+  /// > 0 => icon ke saath chhota laal number (jaise overdue parties ki ginti).
+  final int badge;
+  const _Action(this.en, this.ur, this.subEn, this.subUr, this.icon, this.bg, this.fg,
+      {this.open, this.onTap, this.badge = 0});
 }
 
 /// Mirrors MainActivity.kt — header (Settings / dark toggle / Quick Switch), live item-rate search,
@@ -81,6 +89,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   double _toGet = 0;
   double _toGive = 0;
+  CollectionFocus? _focus; // "Aaj ki Wasooli" card (sirf jin ke paas due_reminders access hai)
   int _pending = 0;
   String _shopName = '';
   bool _syncing = false;
@@ -154,6 +163,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ({double toGet, double toGive})? party;
     int? pending;
     String? shop;
+    CollectionFocus? focus;
+    // Wasooli card ka masla baqi dashboard ko na rokay: alag try, error toast nahi.
+    try {
+      if (Permissions.can('due_reminders')) focus = await DueFollowUpRepository.instance.todaysFocus();
+    } catch (_) {}
     try {
       party = await repo.partyTotalsNow();
     } catch (e) {
@@ -177,6 +191,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       if (pending != null) _pending = pending;
       if (shop != null) _shopName = shop;
+      _focus = focus;
     });
     if (error != null) _toast(error);
   }
@@ -452,6 +467,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _Action('Payment\nMade', 'ادائیگی\nادا', 'Money paid to a supplier', 'سپلائر کو رقم ادا', Icons.north_east, p.flatCoralBg,
             p.flatCoralFg,
             onTap: () => _quickPayment(forCustomer: false)),
+      if (Permissions.can('due_reminders'))
+        _Action('Due\nReminders', 'یاد\nدہانی', 'Collect pending payments', 'بقایا وصول کریں', Icons.notifications_active_outlined,
+            p.flatAmberBg, p.flatAmberFg,
+            open: () => const DueRemindersScreen(), badge: _focus?.overdueCount ?? 0),
       _Action('Customers &\nSuppliers', 'گاہک اور\nسپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people_outline, p.flatPinkBg,
           p.flatPinkFg,
           open: () => const PartyDashboardScreen()),
@@ -501,6 +520,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 if (_query.isNotEmpty) _searchResults(p),
                 const SizedBox(height: 22),
                 _partySearchCard(p),
+                if (_focus != null) ...[
+                  const SizedBox(height: 18),
+                  TodaysCollectionCard(
+                    focus: _focus!,
+                    onOpen: () => _push(const DueRemindersScreen()),
+                    onChanged: _refresh,
+                  ),
+                ],
                 const SizedBox(height: 26),
                 _sectionLabel(p, Loc.t('QUICK ACTIONS', 'فوری کام')),
                 _grid(_quickActions(p), cols, p),
@@ -928,7 +955,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            IconBadge(icon: a.icon, color: a.fg, bg: a.bg, size: 36, iconSize: 18),
+            Row(children: [
+              IconBadge(icon: a.icon, color: a.fg, bg: a.bg, size: 36, iconSize: 18),
+              const Spacer(),
+              if (a.badge > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: _partyRed, borderRadius: BorderRadius.circular(10)),
+                  child: Text('${a.badge}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+            ]),
             const SizedBox(height: 12),
             Text(
               Loc.t(a.en, a.ur),

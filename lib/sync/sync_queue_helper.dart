@@ -90,6 +90,10 @@ class SyncQueueHelper {
 
   static String utilityBillEntityId(Map<String, Object?> r) => _own('utility_bill:', r);
 
+  /// Due Reminders follow-up entry (har baat / reminder / wada ek alag doc). Party ka local id doosre device par
+  /// alag hota hai, is liye payload mein party ki `partyServerId` jati hai.
+  static String dueFollowupEntityId(Map<String, Object?> r) => _own('due_followup:', r);
+
   /// Bill ka ek mahina (bill + `YYYY-MM`) khud hi pehchan hai: do device ek hi mahine ki payment karein to cloud
   /// par ek hi doc bane (double payment na ho).
   static String utilityBillPaymentEntityId(String billSid, String month) => 'utility_bill_payment:$billSid|$month';
@@ -385,6 +389,23 @@ class SyncQueueHelper {
         'note': p['note'],
         'expenseServerId': expenseServerId,
         'paidAt': p['paidAt'],
+        '_deleted': false,
+      });
+
+  /// Follow-up: party local id ki jagah `partyServerId` (doosre device ke liye). `updatedAt` enqueue ke waqt ka
+  /// (baqi sab payloads jaisa) — pull par purani copy naye ko nahi dabati (apply `updatedAt` dekhta hai).
+  static Map<String, Object?> dueFollowupPayload(Map<String, Object?> f, String? partyServerId) => _stamp({
+        'serverId': dueFollowupEntityId(f),
+        'partyServerId': partyServerId,
+        'partyName': f['partyName'],
+        'method': f['method'],
+        'outcome': f['outcome'],
+        'amount': f['amount'],
+        'promiseDate': f['promiseDate'],
+        'nextFollowUp': f['nextFollowUp'],
+        'note': f['note'],
+        'staff': f['staff'],
+        'createdAt': f['createdAt'],
         '_deleted': false,
       });
 
@@ -910,6 +931,48 @@ class SyncQueueHelper {
     }
   }
 
+  /// Follow-up entry ko sync queue mein (naya ya badla hua). Party ki `serverId` customers row se nikalti hai
+  /// (party abhi push nahi hui to uski `customer:<tag>-<id>` id, wahi jo party ka apna push use karega).
+  static Future<void> enqueueDueFollowup(DatabaseExecutor ex, int id) async {
+    final f = await _row(ex, 'due_followups', 'id', id);
+    if (f == null) return;
+    final eid = dueFollowupEntityId(f);
+    await _stampServerId(ex, 'due_followups', f, eid);
+    String? partySid;
+    final pid = f['partyId'];
+    if (pid is int && pid > 0) {
+      final party = await _row(ex, 'customers', 'id', pid);
+      if (party != null) partySid = customerEntityId(party);
+    }
+    if (partySid == null) {
+      final stored = f['partyServerId'];
+      if (stored is String && stored.trim().isNotEmpty) partySid = stored;
+    }
+    if (partySid != null && f['partyServerId'] != partySid) {
+      await ex.update('due_followups', {'partyServerId': partySid}, where: 'id = ?', whereArgs: [id]);
+      f['partyServerId'] = partySid;
+    }
+    await enqueue(ex, 'due_followup', eid, 'upsert', dueFollowupPayload(f, partySid));
+  }
+
+  /// Follow-up ki sahi entity id — row delete hone se PEHLE nikalen. Row na mile to null.
+  static Future<String?> dueFollowupEntityIdFor(DatabaseExecutor ex, int id) async {
+    final f = await _row(ex, 'due_followups', 'id', id);
+    return f == null ? null : dueFollowupEntityId(f);
+  }
+
+  /// Saari follow-ups queue mein (Resync / pehli baar). [onlyUnsynced] = sirf jin par abhi serverId nahi.
+  static Future<void> enqueueAllDueFollowups(DatabaseExecutor ex, {bool onlyUnsynced = false}) async {
+    if (!await _hasTable(ex, 'due_followups')) return;
+    final where = onlyUnsynced ? "serverId IS NULL OR serverId = ''" : null;
+    for (final f in await ex.query('due_followups', where: where)) {
+      await enqueueDueFollowup(ex, f['id'] as int);
+    }
+  }
+
+  static Future<bool> _hasTable(DatabaseExecutor ex, String name) async =>
+      (await ex.rawQuery("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [name])).isNotEmpty;
+
   /// Kisi bhi entity ka delete (tombstone). Row delete hone se PEHLE uski entity id nikal len
   /// ([entityIdFor]) warna doosre device se aayi row ki asal serverId kho jati hai.
   static Future<void> enqueueDelete(DatabaseExecutor ex, String entityType, String entityId) =>
@@ -1132,6 +1195,8 @@ class SyncQueueHelper {
       await enqueueAllShopRents(txn);
       // Utility Bills: bill pehle, phir uski payments.
       await enqueueAllUtilityBills(txn);
+      // Due Reminders follow-ups (party customers mein upar aa chuki).
+      await enqueueAllDueFollowups(txn);
     });
   }
 
@@ -1242,6 +1307,9 @@ class SyncQueueHelper {
       case 'utility_bill_payment':
         final n = await _localId(ex, 'utility_bill_payments', id, 'utility_bill_payment');
         if (n != null) await enqueueUtilityBillPayment(ex, n);
+      case 'due_followup':
+        final n = await _localId(ex, 'due_followups', id, 'due_followup');
+        if (n != null) await enqueueDueFollowup(ex, n);
       case 'app_setting':
         final v = await _row(ex, 'app_settings', 'key', id);
         if (v != null) await enqueueAppSetting(ex, id, _s(v['value']));
@@ -1311,5 +1379,6 @@ class SyncQueueHelper {
     'shop_rent_entry': 'shop_rent_ledger',
     'utility_bill': 'utility_bills',
     'utility_bill_payment': 'utility_bill_payments',
+    'due_followup': 'due_followups',
   };
 }

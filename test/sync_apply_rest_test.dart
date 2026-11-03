@@ -593,8 +593,8 @@ void main() {
     });
   });
 
-  test('branchScopedCollections: 24 (16 + Workers + Shop Rents + Utility Bills), users/shell nahi', () {
-    expect(branchScopedCollections.length, 24);
+  test('branchScopedCollections: 25 (16 + Workers + Shop Rents + Utility Bills + Due Follow-ups), users/shell nahi', () {
+    expect(branchScopedCollections.length, 25);
     expect(branchScopedCollections.contains('workers'), isTrue);
     expect(branchScopedCollections.contains('users'), isFalse);
     expect(branchScopedCollections.contains('shell_customers'), isFalse);

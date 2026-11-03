@@ -181,7 +181,8 @@ class SyncRepository {
           changes.shopRents.length +
           changes.shopRentEntries.length +
           changes.utilityBills.length +
-          changes.utilityBillPayments.length,
+          changes.utilityBillPayments.length +
+          changes.dueFollowups.length,
     );
   }
 
