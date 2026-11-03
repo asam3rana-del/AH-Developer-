@@ -1,0 +1,18 @@
+name: Functions logic test
+# Manual only. Builds functions/ (TypeScript) and runs the pure unit tests of the server-mediated sync push
+# (role matrix, payload hygiene, last-write-wins, idempotent increments). Deploys nothing, needs no secrets.
+on: workflow_dispatch
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+      - name: Build + unit tests
+        working-directory: functions
+        run: npm run test:logic
