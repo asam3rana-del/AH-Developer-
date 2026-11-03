@@ -218,7 +218,7 @@ void main() {
     });
 
     test('reminderUriFor: pehli baar purana message; wada toota to naya', () {
-      final g = DueParty(partyId: 1, partyName: 'Ali', partyPhone: '0300 1234567', isSale: true, bills: [bill('INV-1', dueDate: day(10))]);
+      final g = DueParty(partyId: 1, partyName: 'Ali', partyPhone: '0300 1234567', isSale: true, bills: [bill('INV-1', dueDate: day(10), phone: '0300 1234567')]);
       final first = reminderUriFor(g, const [], nowMillis: now);
       expect(first.toString(), startsWith('https://wa.me/923001234567?text='));
       expect(Uri.decodeComponent(first.query), contains('Invoice INV-1'));
