@@ -92,8 +92,9 @@ test('branch_members: a user reads only their own membership and nobody writes i
 
 test('server-only / unlisted collections are closed to every client', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
+    const adminDb = ctx.firestore(); // call ONCE: a 2nd ctx.firestore() in the loop throws "already been started"
     for (const c of ['credit_reservations', 'staff_accounts', '_auth_rate_limits', 'unlisted']) {
-      await setDoc(doc(ctx.firestore(), `${c}/x`), { branchId: 'b1' });
+      await setDoc(doc(adminDb, `${c}/x`), { branchId: 'b1' });
     }
   });
   for (const c of ['credit_reservations', 'staff_accounts', '_auth_rate_limits', 'unlisted']) {
