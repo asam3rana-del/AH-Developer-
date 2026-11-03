@@ -45,7 +45,7 @@ Ye audit (2026-10-30) ke nateeje hain. Sirf screen ka sahi khulna ya bill ka pri
 | Update test | Purani app ke upar nayi app install karke purana data (DB 33 → 34 migration) salamat | ✅ Asli phone par pass (sheet item 15): purani app ke upar nayi APK, data salamat. Automatic: 12 purane DB → v34 migration test (Migration tests #10) |
 | Backup / restore | Backup lo → data mita do / naya device → restore → totals wahi | ✅ Asli phone par pass (sheet item 14): encrypted backup dusre phone par restore, data theek. Automatic tests bhi pass (Migration tests #10) |
 | Do devices par ek saath sale | Dono par ek waqt sale karke stock aur balance dono mein ek jaisa | ✅ Asli 2 devices par pass (sheet items 10-12): ek saath sale, aeroplane mode mein sale phir sync (koi double nahi), sync status theek |
-| Firebase production | Har device ka `branch_members/{uid}` bana ho (dekhein `docs/CLOUD_SYNC_SETUP.md`), real backend par sync test | 🟡 Sync dono devices par chal raha hai; production rules / `branch_members` ki alag verification baaki |
+| Firebase production | Har device ka `branch_members/{uid}` bana ho (dekhein `docs/CLOUD_SYNC_SETUP.md`), real backend par sync test | ✅ 2026-11-03: live project par `branch_members` wali secure rules (`firebase/firestore.rules`) publish, dono devices ka `branch_members/{uid}` bana, dono par sync theek (user ke check se) |
 | Login / roles / access | Cashier reports nahi khol sakta; Access mein diya gaya item khulta hai; admin ka diya hua access dusre device par bhi lagta hai | ✅ Pass (sheet item 13): Daily Bills Access dono devices par; cashier ko Reports, cost, profit, Cash & Bank nahi dikhte |
 | Sales, sale history, returns | Sale → return → history: totals, stock, customer balance milen | ✅ Pass (sheet items 1, 7, 8): cash/udhaar/discount bill par partial aur poori return |
 | Purchases aur supplier balances | Purchase → payment: supplier balance aur stock milen | ✅ Pass (sheet items 2, 9): payable 600, purchase partial return ke baad payable/stock/Day Book |
@@ -59,10 +59,10 @@ Ye audit (2026-10-30) ke nateeje hain. Sirf screen ka sahi khulna ya bill ka pri
 Audit ka nateeja: "abhi production approval nahi" — iska matlab bugs milna nahi, balki saboot adhura hona hai (audit mein bhi Flutter nahi chala). Jab tak ye poora na ho, asli dukaan ke data ka alag backup rakhein.
 
 **P0 — Data safety aur Firebase**
-- ⬜ Har device par UID aur `branch_members/{uid}` mapping (`docs/CLOUD_SYNC_SETUP.md`)
-- ⬜ Unauthorized branch access aur failed sync ka test
+- ✅ Har device par UID aur `branch_members/{uid}` mapping (2026-11-03: dono devices, user ke check se)
+- 🟡 Unauthorized branch access: naya automatic matrix `firebase/rules-tests/branch_isolation.test.js` (CI par chalna baaki). Failed sync: Sync History se dekha
 - ✅ Backup bana kar doosri device par restore (data barabar) — asli device par pass (sheet item 14)
-- ⬜ Sync queue mein pending / failed entries ka record dekhna
+- ✅ Sync queue ke failed entries ka record: Settings → Sync History (2026-11-03 par asli device par dekha)
 
 **P1 — Accounting regression tests**
 | Cheez | Maujooda automatic test | Kami |

@@ -1,0 +1,87 @@
+rules_version = '2';
+
+// OBSOLETE (2026-11-03) - DO NOT PUBLISH. Kept only as history/rollback reference.
+// This was the old Console rules copy with the branch hard-coded to "dusri-branch"
+// (no branch_members/{uid} lookup). That is weaker: the app signs in anonymously, so anyone
+// with the Firebase config could read/write the branch data.
+// LIVE rules are now firebase/firestore.rules (branch_members + canRead()). See docs/CLOUD_SYNC_SETUP.md.
+// Tests for this file: rules-tests/console_rules.test.js (kept so the file stays verified).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMyBranch(branchId) {
+      return branchId == "dusri-branch";
+    }
+
+    function hasBranchId() {
+      return request.resource.data.branchId is string
+          && request.resource.data.branchId.size() > 0;
+    }
+
+    function branchIdUnchanged() {
+      return !resource.data.keys().hasAny(['branchId'])
+          || request.resource.data.branchId == resource.data.branchId;
+    }
+
+    function isSyncedCollection(collection) {
+      return collection in ['customers', 'suppliers', 'products', 'users',
+                             'sales', 'purchases', 'payments', 'expenses',
+                             'cash_transactions', 'cash_register',
+                             'units', 'categories', 'zakat_years', 'zakat_payments',
+                             'returns', 'stock_movements', 'app_settings',
+                             'shell_customers', 'shell_transactions', 'shop_empty_shell_log',
+                             'workers', 'worker_attendance', 'worker_advances',
+                             'worker_salary_payments',
+                             'shop_rents', 'shop_rent_ledger',
+                             'utility_bills', 'utility_bill_payments'];
+    }
+
+    // due_followups is NOT in isSyncedCollection(): Firestore ORs matching rules, so the
+    // generic rule below would otherwise bypass validFollowup().
+    function validFollowup() {
+      let d = request.resource.data;
+      return hasBranchId()
+          && d.method in ['whatsapp', 'call', 'visit', 'sms', 'note']
+          && d.outcome in ['sent', 'paid', 'promised', 'partial',
+                           'no_answer', 'refused', 'dispute', 'note']
+          && (!('amount' in d) || (d.amount is number && d.amount >= 0))
+          && (!('promiseDate' in d) || d.promiseDate is number)
+          && (!('nextFollowUp' in d) || d.nextFollowUp is number)
+          && (!('note' in d) || d.note == null
+              || (d.note is string && d.note.size() <= 500));
+    }
+
+    match /due_followups/{docId} {
+      allow read: if isSignedIn()
+                   && (resource == null || isMyBranch(resource.data.branchId));
+      allow create: if isSignedIn()
+                     && isMyBranch(request.resource.data.branchId)
+                     && validFollowup();
+      allow update: if isSignedIn()
+                     && isMyBranch(resource.data.branchId)
+                     && branchIdUnchanged() && validFollowup();
+      allow delete: if isSignedIn()
+                     && isMyBranch(resource.data.branchId);
+    }
+
+    match /{collection}/{docId} {
+      allow read: if isSignedIn() && isSyncedCollection(collection)
+                   && (resource == null || isMyBranch(resource.data.branchId));
+      allow create: if isSignedIn() && isSyncedCollection(collection)
+                     && hasBranchId() && isMyBranch(request.resource.data.branchId);
+      allow update: if isSignedIn() && isSyncedCollection(collection)
+                     && hasBranchId() && branchIdUnchanged()
+                     && isMyBranch(resource.data.branchId);
+      allow delete: if isSignedIn() && isSyncedCollection(collection)
+                     && isMyBranch(resource.data.branchId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

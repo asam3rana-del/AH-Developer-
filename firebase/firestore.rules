@@ -38,6 +38,16 @@ service cloud.firestore {
           && branchId == myBranchId();
     }
 
+    // Reads of a document that does not exist yet (resource == null) must not error out:
+    // the sync push reads each doc inside a transaction before creating it, and
+    // resource.data.* on a missing doc makes the rule fail with PERMISSION_DENIED.
+    // A provisioned member may read "nothing"; an existing doc must be in their branch.
+    function canRead() {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/branch_members/$(request.auth.uid))
+          && (resource == null || resource.data.branchId == myBranchId());
+    }
+
     function hasBranchId() {
       return request.resource.data.branchId is string
           && request.resource.data.branchId.size() > 0;
@@ -92,7 +102,7 @@ service cloud.firestore {
     }
 
     match /due_followups/{docId} {
-      allow read: if isMyBranch(resource.data.branchId);
+      allow read: if canRead();
       allow create: if isMyBranch(request.resource.data.branchId) && validFollowup();
       allow update: if isMyBranch(resource.data.branchId)
                      && branchIdUnchanged() && validFollowup();
@@ -100,8 +110,7 @@ service cloud.firestore {
     }
 
     match /{collection}/{docId} {
-      allow read: if isSignedIn() && isSyncedCollection(collection)
-                   && isMyBranch(resource.data.branchId);
+      allow read: if isSyncedCollection(collection) && canRead();
       allow create: if isSignedIn() && isSyncedCollection(collection)
                      && hasBranchId() && isMyBranch(request.resource.data.branchId);
       allow update: if isSignedIn() && isSyncedCollection(collection)

@@ -41,6 +41,18 @@ dete) — Firebase console se banane hain. Agar ye na ho to sync "permission-den
 - Purane Firestore docs jin mein `branchId` field nahi, woh rules ke tahat update/delete nahi ho sakte.
 - Rules badalne se pehle purane rules kahin copy kar ke rakhein, taake zaroorat par wapas paste ho sakein.
 
+## Live rules ki halat (2026-11-03)
+- Live project `my-grocery-pos-8a444` par repo wali `firebase/firestore.rules` publish hai (`branch_members/{uid}` se branch check). Dono devices par sync theek.
+- `canRead()` zaroori hai: push se pehle app har document ko transaction mein parhti hai, aur naya document abhi maujood nahi hota (`resource == null`). Bina is guard ke naye document ka push `permission-denied` deta hai.
+- `due_followups` ki alag rule hai (`validFollowup()`: method / outcome / amount ki validation), aur ye `isSyncedCollection()` ki list mein **nahi** hai (warna validation bypass ho jati).
+- Firestore index: `due_followups` par `branchId` (Ascending) + `updatedAt` (Ascending) live project mein banana parta hai (repo ki `firestore.indexes.json` mein hai). Na ho to sync "requires an index" deta hai.
+
+## Agar sync `permission-denied` de (jaldi check)
+1. Settings → Cloud Sync Setup: Project ID `my-grocery-pos-8a444`, Branch Code `dusri-branch`, Device ID copy karein.
+2. Console → `branch_members`: document ID = ye Device ID (Copy-paste), field `branchId` (string) bilkul `dusri-branch` (koi space nahi).
+3. Settings → Sync History mein dekhein kaun sa document fail ho raha hai. Agar sirf ek purana document baar baar fail ho to Console mein us ka `branchId` dekhein: gayab ya alag ho to `dusri-branch` kar dein.
+4. App band karke dobara kholen, Sync Now.
+
 ## Production test (sab devices par)
 - [ ] Device A par sale/purchase banayein → Device B par aa jaye (aur ulta)
 - [ ] Dono devices par stock ka number ek jaisa

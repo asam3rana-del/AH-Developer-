@@ -39,6 +39,14 @@ test('provisioned UID can read only its own branch', async () => {
   await assertFails(getDoc(doc(db, 'sales/s2')));
 });
 
+test('provisioned UID can read a not-yet-existing doc (sync push reads before create); others cannot', async () => {
+  await assertSucceeds(getDoc(doc(dbFor('uid-b1'), 'sales/does-not-exist')));
+  await assertSucceeds(getDoc(doc(dbFor('uid-b1'), 'due_followups/does-not-exist')));
+  await assertFails(getDoc(doc(dbFor('unprovisioned'), 'sales/does-not-exist')));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'sales/does-not-exist')));
+  await assertFails(getDoc(doc(dbFor('uid-b1'), 'unlisted/does-not-exist')));
+});
+
 test('unprovisioned UID cannot access a branch', async () => {
   const db = dbFor('unprovisioned');
   await assertFails(getDoc(doc(db, 'sales/s1')));
