@@ -53,13 +53,55 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
     return slipHeaderBlock(shopName: shop.name, shopPhone: shop.phone) + dailyBillText(r, _day);
   }
 
+  bool _pdfBusy = false;
+
   /// Daily Bill ka PDF (shop header ke saath) share sheet se.
+  /// Bill sheet ke upar dialog dikhata hai (SnackBar sheet ke neeche chhup jata tha, is liye error nazar nahi aata tha).
   Future<void> _sharePdf(DailyParty r) async {
+    if (_pdfBusy) return; // dobara dabane se kai PDF ek saath na banein
+    _pdfBusy = true;
+    final nav = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(children: [
+            SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 3)),
+            SizedBox(width: 16),
+            Expanded(child: Text('PDF ban rahi hai...')),
+          ]),
+        ),
+      ),
+    );
+    Object? error;
+    StackTrace? stack;
     try {
       final shop = await loadShopHeader();
-      await SlipPdfService.share(dailyBillSlipData(r, _day, shopName: shop.name, shopPhone: shop.phone), fileBase: 'DailyBill_${r.name}');
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF: $e')));
+      await SlipPdfService.share(
+        dailyBillSlipData(r, _day, shopName: shop.name, shopPhone: shop.phone),
+        fileBase: 'DailyBill_${r.name}',
+      ).timeout(const Duration(seconds: 90));
+    } catch (e, st) {
+      error = e;
+      stack = st;
+      debugPrint('Daily bill PDF failed: $e\n$st');
+    } finally {
+      _pdfBusy = false;
+      if (nav.canPop()) nav.pop(); // progress dialog band
+    }
+    if (error != null && mounted) {
+      await showDialog<void>(
+        context: context,
+        useRootNavigator: true,
+        builder: (ctx) => AlertDialog(
+          title: const Text('PDF nahi bani'),
+          content: SingleChildScrollView(child: SelectableText('$error')),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
     }
   }
 
