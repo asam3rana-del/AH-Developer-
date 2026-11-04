@@ -12,6 +12,7 @@ import '../services/printer_service.dart';
 import '../services/session.dart';
 import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
+import '../utils/slip_text.dart';
 import '../theme/theme_manager.dart';
 
 /// Kotlin BillPreviewActivity: bill ka receipt-jaisa preview + PRINT (Bluetooth), WhatsApp par bhejein,
@@ -153,14 +154,16 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     }
     final digits = whatsAppDigits(phone);
     if (digits.isEmpty) return _toast(Loc.t('Invalid number', 'نمبر درست نہیں'));
-    final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(_doc.toText(netBalance: _partyId == null ? null : _net))}');
+    // Header (shop naam + phone) WhatsApp mein center dikhane ke liye monospace block mein.
+    final waText = wrapBillHeaderForWhatsApp(_doc.toText(netBalance: _partyId == null ? null : _net));
+    final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(waText)}');
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        await Clipboard.setData(ClipboardData(text: _doc.toText(netBalance: _partyId == null ? null : _net)));
+        await Clipboard.setData(ClipboardData(text: waText));
         _toast(Loc.t('WhatsApp not found — bill copied', 'واٹس ایپ نہیں ملا — بل کاپی ہو گیا'));
       }
     } catch (_) {
-      await Clipboard.setData(ClipboardData(text: _doc.toText(netBalance: _partyId == null ? null : _net)));
+      await Clipboard.setData(ClipboardData(text: waText));
       _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
     }
   }

@@ -14,10 +14,13 @@ import '../models/purchase.dart';
 import '../models/return_entry.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
+import '../services/whatsapp_sender.dart';
 import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
+import '../utils/slip_text.dart';
 import '../utils/sale_cart.dart' show formatQty;
+import '../widgets/party_avatar.dart';
 import '../widgets/role_guard.dart';
 import 'bill_preview_screen.dart';
 import 'payments_screen.dart' show showPaymentDialog;
@@ -316,24 +319,58 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     }
   }
 
-  Future<void> _copyReceipt(Payment pay) async {
-    final verb = widget.isCustomer ? Loc.t('Payment Received', 'ادائیگی وصول ہوئی') : Loc.t('Payment Made', 'ادائیگی ہوئی');
-    final lines = <String>[
-      verb,
-      '${Loc.t('Party', 'پارٹی')}: $_name',
-      '${Loc.t('Amount', 'رقم')}: ${_rs(pay.amount)}',
-      '${Loc.t('Date', 'تاریخ')}: ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(pay.createdAt))}',
-      '${Loc.t('Method', 'ذریعہ')}: ${pay.method.toUpperCase()}',
-      if (pay.billReference.isNotEmpty) '${Loc.t('Against Bill', 'بل نمبر')}: ${pay.billReference}',
-      if (pay.note.isNotEmpty) '${Loc.t('Note', 'نوٹ')}: ${pay.note}',
-    ];
+  /// WhatsApp (seedha party ke number par) ya koi bhi doosri app — slip ka text [text] ke saath.
+  Future<void> _sendSlip(String text) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.send, color: Color(0xFF25D366)),
+            title: Text(Loc.t('Send on WhatsApp', 'واٹس ایپ پر بھیجیں')),
+            subtitle: Text(_phone.trim().isEmpty ? Loc.t('Number will be asked', 'نمبر پوچھا جائے گا') : _phone),
+            onTap: () => Navigator.pop(ctx, 'wa'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.share),
+            title: Text(Loc.t('Share in another app', 'کسی اور ایپ میں شیئر کریں')),
+            onTap: () => Navigator.pop(ctx, 'share'),
+          ),
+        ]),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'wa') {
+      await sendOnWhatsApp(context, phone: _phone, text: text);
+      return;
+    }
     try {
-      await Share.share(lines.join('\n'));
+      await Share.share(text);
     } catch (_) {
       // Share sheet na khule (jaise kuch iPad/desktop) to clipboard par wapas.
-      await Clipboard.setData(ClipboardData(text: lines.join('\n')));
-      _toast(Loc.t('Receipt copied — paste it in WhatsApp/SMS', 'رسید کاپی ہو گئی — واٹس ایپ/ایس ایم ایس میں پیسٹ کریں'));
+      await Clipboard.setData(ClipboardData(text: text));
+      _toast(Loc.t('Copied — paste it in WhatsApp/SMS', 'کاپی ہو گیا — واٹس ایپ/ایس ایم ایس میں پیسٹ کریں'));
     }
+  }
+
+  Future<void> _copyReceipt(Payment pay) async {
+    final shop = await loadShopHeader();
+    final st = _stats;
+    final text = buildPaymentSlipText(
+      received: widget.isCustomer,
+      shopName: shop.name,
+      shopPhone: shop.phone,
+      partyName: _name,
+      amount: pay.amount,
+      date: DateTime.fromMillisecondsSinceEpoch(pay.createdAt),
+      method: pay.method,
+      billRef: pay.billReference,
+      note: pay.note,
+      slipNo: pay.reference,
+      balanceNow: st?.closing,
+    );
+    if (!mounted) return;
+    await _sendSlip(text);
   }
 
   Future<void> _copyStatement() async {
@@ -513,19 +550,17 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     final ref = e.sale?.invoice ?? e.purchase?.billNo ?? '';
     final paid = e.sale?.paid ?? e.purchase?.paid ?? 0.0;
     final due = e.status == 'returned' ? 0.0 : (e.amount - paid).clamp(0, double.infinity).toDouble();
-    final text = [
+    final shop = await loadShopHeader();
+    final text = slipHeaderBlock(shopName: shop.name, shopPhone: shop.phone) +
+        [
       _name,
       '${isSale ? Loc.t('Sale', 'سیل') : Loc.t('Purchase', 'خریداری')} $ref',
       '${Loc.t('Date', 'تاریخ')}: ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}',
       '${Loc.t('Total', 'کل')}: ${_rs2(e.amount)}',
       '${Loc.t('Balance', 'بقایا')}: ${_rs2(due)}',
     ].join('\n');
-    try {
-      await Share.share(text);
-    } catch (_) {
-      await Clipboard.setData(ClipboardData(text: text));
-      _toast(Loc.t('Details copied', 'تفصیل کاپی ہو گئی'));
-    }
+    if (!mounted) return;
+    await _sendSlip(text);
   }
 
   void _showPlusMenu() {
@@ -688,6 +723,14 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            PartyAvatar(
+              isCustomer: widget.isCustomer,
+              partyId: widget.partyId,
+              name: _name,
+              radius: 26,
+              onTap: () => showPartyPhotoSheet(context, isCustomer: widget.isCustomer, partyId: widget.partyId),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: p.textDark)),

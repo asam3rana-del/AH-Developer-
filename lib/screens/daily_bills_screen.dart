@@ -9,6 +9,9 @@ import '../db/daily_bills_repository.dart';
 import '../db/due_reminders_repository.dart' show whatsAppDigits;
 import '../db/rent_repository.dart';
 import '../models/party.dart';
+import '../services/whatsapp_sender.dart';
+import '../utils/slip_text.dart';
+import '../widgets/party_avatar.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart' show formatQty;
@@ -42,9 +45,15 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
   final _timeFmt = DateFormat('hh:mm a');
 
   AppPalette get _p => ThemeManager.palette;
+  /// Shop ka naam + phone center mein (monospace block), phir daily bill. WhatsApp aur Share dono mein.
+  Future<String> _billTextWithHeader(DailyParty r) async {
+    final shop = await loadShopHeader();
+    return slipHeaderBlock(shopName: shop.name, shopPhone: shop.phone) + dailyBillText(r, _day);
+  }
+
   /// Sale bill ki tarah: customer ka saved number khud lag jata hai (khali ho to hi poochta hai).
   Future<void> _whatsApp(DailyParty r) async {
-    final text = dailyBillText(r, _day);
+    final text = await _billTextWithHeader(r);
     var phone = '';
     try {
       final all = await CustomerRepository.instance.listAll();
@@ -267,6 +276,8 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
+                PartyAvatar(isCustomer: true, partyId: r.id, name: r.name, radius: 18),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(r.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _p.textDark)),
                 ),
@@ -342,7 +353,17 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
           controller: scroll,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
-            Text(r.name, style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: _p.textDark)),
+            Row(children: [
+              PartyAvatar(
+                isCustomer: true,
+                partyId: r.id,
+                name: r.name,
+                radius: 24,
+                onTap: () => showPartyPhotoSheet(ctx, isCustomer: true, partyId: r.id),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(r.name, style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: _p.textDark))),
+            ]),
             Text(_dateFmt.format(_day), style: TextStyle(color: _p.textMuted)),
             const SizedBox(height: 10),
             _kv(Loc.t('Previous balance', 'پچھلا بیلنس'), _rs(r.previousBalance), color: _balColor(r.previousBalance), bold: true),
@@ -421,7 +442,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
               Expanded(
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(backgroundColor: _p.flatTealFg, padding: const EdgeInsets.symmetric(vertical: 13)),
-                  onPressed: () => Share.share(dailyBillText(r, _day)),
+                  onPressed: () async => Share.share(await _billTextWithHeader(r)),
                   icon: const Icon(Icons.share),
                   label: Text(Loc.t('Share bill', 'بل شیئر کریں')),
                 ),
