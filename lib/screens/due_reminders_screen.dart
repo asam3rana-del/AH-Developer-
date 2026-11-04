@@ -9,6 +9,7 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
+import '../widgets/party_avatar.dart';
 import '../widgets/permission_guard.dart';
 import 'followup_sheets.dart';
 
@@ -819,6 +820,16 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
+              PartyAvatar(
+                isCustomer: !_purchases,
+                partyId: g.partyId,
+                name: g.partyName,
+                radius: 19,
+                onTap: g.partyId == null
+                    ? null
+                    : () => showPartyPhotoSheet(context, isCustomer: !_purchases, partyId: g.partyId!),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(g.partyName, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: _p.textDark)),

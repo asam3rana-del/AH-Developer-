@@ -89,6 +89,9 @@ class DueAlertService {
     final head = StringBuffer();
     if (f.actionCount > 0) {
       head.write('Aaj ${f.actionCount} parties par follow-up (${_rs(f.actionAmount)})');
+      if (f.dueTodayCount > 0) head.write(' • ${f.dueTodayCount} ki aaj due date (${_rs(f.dueTodayAmount)})');
+    } else if (f.dueTodayCount > 0) {
+      head.write('Aaj ${f.dueTodayCount} parties se ${_rs(f.dueTodayAmount)} lena hai');
     } else {
       head.write('${f.totalParties} parties ka ${_rs(f.totalDue)} baaki hai');
     }
@@ -124,7 +127,7 @@ class DueAlertService {
       final focus = await DueFollowUpRepository.instance.todaysFocus(nowMillis: t.millisecondsSinceEpoch);
       if (focus.isEmpty) return false;
       // Shaam ki yaad-dihani sirf tab jab abhi bhi aaj ka kaam baqi ho; subah wali na gayi ho to shaam use poora kar de.
-      if (!force && evening && morningDone && focus.actionCount == 0 && focus.brokenCount == 0) return false;
+      if (!force && evening && morningDone && focus.actionCount == 0 && focus.brokenCount == 0 && focus.dueTodayCount == 0) return false;
       final body = bodyFor(focus);
 
       await init();

@@ -22,6 +22,7 @@ import '../services/session.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
 import '../utils/discount_calculator.dart';
+import '../utils/due_days.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart';
@@ -72,6 +73,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   final _paidCtrl = TextEditingController();
   /// Udhaar bill par payment ki date (din ki shuruaat, millis). 0 = set nahi.
   int _dueDateMillis = 0;
+  int _shopDueDays = kFallbackDueDays; // dukaan ki default udhaar muddat (Settings), customer ki apni na ho tab
 
   DateTime _saleDate = DateTime.now();
   bool _isWholesale = false;
@@ -134,6 +136,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     StockPolicy.load();
+    _loadShopDueDays();
     WidgetsBinding.instance.addObserver(this);
     // Kotlin jaisa: qty / rate / discount / paid par focus aate hi purani value select.
     _selectAllOnFocus(_qtyFocus, _qtyCtrl);
@@ -1325,10 +1328,18 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     return 0;
   }
 
-  /// Haath se chuni date; na ho aur naya bill ho to customer ki default muddat (bill date + din).
+  Future<void> _loadShopDueDays() async {
+    try {
+      final raw = await UserRepository.instance.getSetting(kDueDaysSetting);
+      if (mounted) setState(() => _shopDueDays = parseShopDueDays(raw));
+    } catch (_) {}
+  }
+
+  /// Haath se chuni date; na ho aur naya bill ho to customer ki default muddat, wo bhi na ho to dukaan ki
+  /// default muddat (bill date + din). Is se udhaar bill kabhi "date nahi" ban kar reminders se bahar nahi rehta.
   int _effectiveDueMillis() {
     if (_dueDateMillis > 0) return _dueDateMillis;
-    final days = _isEdit ? 0 : _customerDueDays();
+    final days = _isEdit ? 0 : effectiveDueDays(customerDays: _customerDueDays(), shopDays: _shopDueDays);
     if (days <= 0) return 0;
     final base = DateTime(_saleDate.year, _saleDate.month, _saleDate.day);
     return base.add(Duration(days: days)).millisecondsSinceEpoch;
@@ -1370,8 +1381,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               : Loc.t('Set date', 'تاریخ چنیں')),
           onPressed: _pickDueDate,
         ),
-        for (final d in const [7, 15, 30])
-          ActionChip(label: Text('$d din'), onPressed: () => _setDueInDays(d)),
+        for (final d in const [1, 3, 7, 15, 30])
+          ActionChip(label: Text(d == 1 ? Loc.t('Tomorrow', 'کل') : '$d din'), onPressed: () => _setDueInDays(d)),
         if (_dueDateMillis > 0) ActionChip(label: const Text('✕'), onPressed: () => setState(() => _dueDateMillis = 0)),
       ]),
     );

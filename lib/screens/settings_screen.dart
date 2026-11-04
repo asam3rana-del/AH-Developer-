@@ -12,6 +12,7 @@ import '../services/usb_printer.dart';
 import '../utils/escpos.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
+import '../utils/due_days.dart';
 import '../utils/loc.dart';
 import '../utils/stock_policy.dart';
 import '../utils/password_hasher.dart';
@@ -57,6 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _shopName = TextEditingController();
   final _shopOwner = TextEditingController();
   final _shopPhone = TextEditingController();
+  final _dueDays = TextEditingController(); // default udhaar muddat (din)
   final _newUsername = TextEditingController();
   final _newPassword = TextEditingController();
   String _loginMethod = 'password';
@@ -79,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
-    for (final c in [_shopName, _shopOwner, _shopPhone, _newUsername, _newPassword]) {
+    for (final c in [_shopName, _shopOwner, _shopPhone, _dueDays, _newUsername, _newPassword]) {
       c.dispose();
     }
     super.dispose();
@@ -89,10 +91,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final shopName = await _repo.getSetting('shop_name') ?? '';
     final shopOwner = await _repo.getSetting('shop_owner') ?? '';
     final shopPhone = await _repo.getSetting('shop_phone') ?? '';
+    final dueDays = parseShopDueDays(await _repo.getSetting(kDueDaysSetting));
     if (!mounted) return; // screen band ho chuki => disposed controller na chhedo
     _shopName.text = shopName;
     _shopOwner.text = shopOwner;
     _shopPhone.text = shopPhone;
+    _dueDays.text = dueDays.toString();
     if (_shopName.text.trim().isNotEmpty) _headerShop = _shopName.text.trim();
     final pr = await PrinterService.instance.selected();
     _printerName = pr?.name ?? '';
@@ -113,6 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _repo.setSetting('shop_name', _shopName.text.trim());
     await _repo.setSetting('shop_owner', _shopOwner.text.trim());
     await _repo.setSetting('shop_phone', _shopPhone.text.trim());
+    await _repo.setSetting(kDueDaysSetting, parseShopDueDays(_dueDays.text).toString());
     if (_shopName.text.trim().isNotEmpty && mounted) setState(() => _headerShop = _shopName.text.trim());
     _toast(Loc.t('Settings saved', 'سیٹنگز محفوظ ہو گئیں'));
   }
@@ -363,10 +368,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
 
-  Widget _tf(TextEditingController c, String label, {bool obscure = false, bool enabled = true}) => Padding(
+  Widget _tf(TextEditingController c, String label, {bool obscure = false, bool enabled = true, bool number = false}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: TextField(
           controller: c, obscureText: obscure, enabled: enabled,
+          keyboardType: number ? TextInputType.number : null,
           decoration: InputDecoration(labelText: label, filled: true, fillColor: ThemeManager.palette.fieldFill,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
         ),
@@ -433,6 +439,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _tf(_shopName, Loc.t('Shop Name', 'دکان کا نام')),
             _tf(_shopOwner, Loc.t('Owner Name', 'مالک کا نام')),
             _tf(_shopPhone, Loc.t('Phone', 'فون')),
+            _tf(_dueDays, Loc.t('Default credit period (days, 0 = off)', 'ڈیفالٹ ادھار مدت (دن، 0 = بند)'), number: true),
             FilledButton(onPressed: _saveShop, child: Text(Loc.t('SAVE SETTINGS', 'محفوظ کریں'))),
           ]),
         if (admin)

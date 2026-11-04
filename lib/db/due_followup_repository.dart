@@ -158,7 +158,10 @@ class PartyFocus {
 
   /// Sab se purane overdue bill ke din (0 = overdue nahi / tareekh nahi).
   final int oldestOverdueDays;
-  const PartyFocus({required this.party, required this.state, required this.oldestOverdueDays});
+
+  /// Kisi bill ki tareekh aaj hai (aur party late nahi) — "Aaj lena hai".
+  final bool dueToday;
+  const PartyFocus({required this.party, required this.state, required this.oldestOverdueDays, this.dueToday = false});
 
   double get total => party.total;
 }
@@ -173,8 +176,13 @@ class CollectionFocus {
   final int overdueCount;
   final double overdueAmount;
 
-  /// Toote hue wade.
+  /// Toote hue wade (aur un parties ka kul baqi).
   final int brokenCount;
+  final double brokenAmount;
+
+  /// "Aaj lena hai": kisi bill ki tareekh aaj hai ya wada aaj ka hai (late / toota wada wali nahi, wo alag ginti hain).
+  final int dueTodayCount;
+  final double dueTodayAmount;
 
   /// Sab baqi (advance ke ilawa, kisi party wali sales) ka jod aur parties.
   final int totalParties;
@@ -192,6 +200,9 @@ class CollectionFocus {
     required this.totalParties,
     required this.totalDue,
     required this.top,
+    this.brokenAmount = 0,
+    this.dueTodayCount = 0,
+    this.dueTodayAmount = 0,
   });
 
   static const empty = CollectionFocus(
@@ -216,6 +227,10 @@ int _oldestOverdueDays(DueParty p, int today) {
   return d < 0 ? 0 : d.round();
 }
 
+/// Party ke kisi asli bill ki tareekh aaj ki hai.
+bool _hasDueToday(DueParty p, int today) =>
+    p.bills.any((b) => !b.isBalance && !b.isAdvance && b.dueDate > 0 && startOfDayMillis(b.dueDate) == today);
+
 /// Parties + follow-up entries => aaj ka khulasa. PURE (test ke liye).
 CollectionFocus buildCollectionFocus(
   Iterable<DueParty> parties,
@@ -225,8 +240,8 @@ CollectionFocus buildCollectionFocus(
 }) {
   final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
   final today = startOfDayMillis(now);
-  var actionCount = 0, overdueCount = 0, brokenCount = 0, totalParties = 0;
-  var actionAmount = 0.0, overdueAmount = 0.0, totalDue = 0.0;
+  var actionCount = 0, overdueCount = 0, brokenCount = 0, totalParties = 0, dueTodayCount = 0;
+  var actionAmount = 0.0, overdueAmount = 0.0, totalDue = 0.0, brokenAmount = 0.0, dueTodayAmount = 0.0;
   final cand = <PartyFocus>[];
   for (final p in parties) {
     if (p.isAdvance || p.total <= 0.009) continue;
@@ -235,7 +250,10 @@ CollectionFocus buildCollectionFocus(
     final id = p.partyId;
     final st = followUpState(id == null ? const <DueFollowUp>[] : (followUps[id] ?? const <DueFollowUp>[]), nowMillis: now);
     final overdue = p.hasOverdue(nowMillis: now);
-    if (st.promiseBroken) brokenCount++;
+    if (st.promiseBroken) {
+      brokenCount++;
+      brokenAmount += p.total;
+    }
     if (st.needsActionToday) {
       actionCount++;
       actionAmount += p.total;
@@ -245,8 +263,15 @@ CollectionFocus buildCollectionFocus(
       overdueCount++;
       overdueAmount += p.total;
     }
-    if (st.needsActionToday || countsOverdue) {
-      cand.add(PartyFocus(party: p, state: st, oldestOverdueDays: _oldestOverdueDays(p, today)));
+    // Aaj lena hai: bill ki tareekh aaj ya wada aaj ka (late / toota wada wali parties upar ginti ho chuki).
+    final dueToday = !countsOverdue && !st.promiseBroken && (_hasDueToday(p, today) || st.promiseToday);
+    if (dueToday) {
+      dueTodayCount++;
+      dueTodayAmount += p.total;
+    }
+    if (st.needsActionToday || countsOverdue || dueToday) {
+      cand.add(PartyFocus(
+          party: p, state: st, oldestOverdueDays: _oldestOverdueDays(p, today), dueToday: dueToday));
     }
   }
   cand.sort((a, b) {
@@ -261,6 +286,9 @@ CollectionFocus buildCollectionFocus(
     overdueCount: overdueCount,
     overdueAmount: overdueAmount,
     brokenCount: brokenCount,
+    brokenAmount: brokenAmount,
+    dueTodayCount: dueTodayCount,
+    dueTodayAmount: dueTodayAmount,
     totalParties: totalParties,
     totalDue: totalDue,
     top: cand.take(topN).toList(),

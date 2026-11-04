@@ -23,6 +23,8 @@ import 'backup_export_screen.dart';
 import 'daily_bills_screen.dart';
 import 'day_book_screen.dart';
 import 'due_reminders_screen.dart';
+import 'receivables_screen.dart';
+import '../services/collection_actions.dart';
 import 'item_search_screen.dart';
 import 'items_screen.dart';
 import 'login_screen.dart';
@@ -471,6 +473,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _Action('Due\nReminders', 'یاد\nدہانی', 'Collect pending payments', 'بقایا وصول کریں', Icons.notifications_active_outlined,
             p.flatAmberBg, p.flatAmberFg,
             open: () => const DueRemindersScreen(), badge: _focus?.overdueCount ?? 0),
+      if (Permissions.can('due_reminders'))
+        _Action('Receivables', 'وصولیاں', 'Who owes, for how long', 'کس سے کتنا، کب سے', Icons.bar_chart_rounded,
+            p.flatBlueBg, p.flatBlueFg,
+            open: () => const ReceivablesScreen()),
       _Action('Customers &\nSuppliers', 'گاہک اور\nسپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people_outline, p.flatPinkBg,
           p.flatPinkFg,
           open: () => const PartyDashboardScreen()),
@@ -526,6 +532,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     focus: _focus!,
                     onOpen: () => _push(const DueRemindersScreen()),
                     onChanged: _refresh,
+                    onOpenReceivables: () => _push(const ReceivablesScreen()),
+                    onReceive: (f) async {
+                      final id = f.party.partyId;
+                      if (id == null) return;
+                      final saved = await receiveFromParty(context, partyId: id, partyName: f.party.partyName, due: f.total);
+                      if (saved) await _refresh();
+                    },
                   ),
                 ],
                 const SizedBox(height: 26),

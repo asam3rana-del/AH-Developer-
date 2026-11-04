@@ -6,6 +6,7 @@ import '../db/due_followup_repository.dart';
 import '../models/due_followup.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
+import 'party_avatar.dart';
 
 /// Dashboard ka "Aaj ki Wasooli" card: aaj kis se paisa mangna hai, kitna overdue hai, toote wade, aur sab se
 /// zaroori [CollectionFocus.top] parties (1 tap Call / WhatsApp). Card dabane par Due Reminders khulti hai.
@@ -16,7 +17,20 @@ class TodaysCollectionCard extends StatelessWidget {
   final CollectionFocus focus;
   final VoidCallback onOpen;
   final VoidCallback onChanged;
-  const TodaysCollectionCard({super.key, required this.focus, required this.onOpen, required this.onChanged});
+
+  /// "Paisa mila" (tick button): party ka payment likhna. null => button nahi dikhta.
+  final void Function(PartyFocus f)? onReceive;
+
+  /// "Aging / Sab dekhein": Receivables screen. null => link nahi dikhta.
+  final VoidCallback? onOpenReceivables;
+  const TodaysCollectionCard({
+    super.key,
+    required this.focus,
+    required this.onOpen,
+    required this.onChanged,
+    this.onReceive,
+    this.onOpenReceivables,
+  });
 
   AppPalette get _p => ThemeManager.palette;
 
@@ -72,14 +86,24 @@ class TodaysCollectionCard extends StatelessWidget {
     if (f.oldestOverdueDays > 0) {
       return (Loc.t('${f.oldestOverdueDays} days overdue', '${f.oldestOverdueDays} دن سے بقایا'), _p.red);
     }
+    if (f.dueToday) return (Loc.t('Due today', 'آج ادائیگی کا دن'), _p.flatAmberFg);
     return (Loc.t('Overdue', 'میعاد گزری'), _p.red);
   }
 
-  Widget _stat(String label, String value, Color color) => Expanded(
+  /// Teen khane wali patti: upar naam, beech mein ginti (bari), neeche raqam.
+  Widget _stat(String label, int count, double amount, Color color) => Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: _p.textMuted)),
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: _p.textMuted)),
           const SizedBox(height: 2),
-          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+          Text(count == 0 ? '—' : '$count',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: count == 0 ? _p.flatTealFg : color)),
+          Text(count == 0 ? Loc.t('Nobody', 'کوئی نہیں') : _rs(amount),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _p.textMuted)),
         ]),
       );
 
@@ -103,6 +127,19 @@ class TodaysCollectionCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 7),
         child: Row(children: [
+          // Customer ki chhoti tasveer (na ho to naam ka pehla harf); tap = tasveer lagana / badalna.
+          PartyAvatar(
+            isCustomer: true,
+            partyId: f.party.partyId,
+            name: f.party.partyName,
+            radius: 19,
+            onTap: f.party.partyId == null
+                ? null
+                : () async {
+                    await showPartyPhotoSheet(context, isCustomer: true, partyId: f.party.partyId!);
+                  },
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(f.party.partyName,
@@ -119,6 +156,10 @@ class TodaysCollectionCard extends StatelessWidget {
             _round(Icons.send, const Color(0xFF25D366), const Color(0xFFDDF6E8), () => _whatsApp(context, f)),
             const SizedBox(width: 8),
             _round(Icons.phone, _p.flatPurpleFg, _p.flatPurpleBg, () => _call(context, f)),
+          ],
+          if (onReceive != null && f.party.partyId != null) ...[
+            const SizedBox(width: 8),
+            _round(Icons.check, _p.flatTealFg, _p.flatTealBg, () => onReceive!(f)),
           ],
         ]),
       ),
@@ -167,23 +208,38 @@ class TodaysCollectionCard extends StatelessWidget {
             )
           else ...[
             Row(children: [
-              _stat(Loc.t('Follow up today', 'آج فالو اپ'),
-                  f.actionCount == 0 ? Loc.t('Nobody', 'کوئی نہیں') : '${f.actionCount} • ${_rs(f.actionAmount)}',
-                  f.actionCount == 0 ? _p.flatTealFg : _p.red),
+              _stat(Loc.t('Collect today', 'آج لینا ہے'), f.dueTodayCount, f.dueTodayAmount, _p.flatAmberFg),
               const SizedBox(width: 10),
-              _stat(Loc.t('Overdue', 'میعاد گزری'),
-                  f.overdueCount == 0 ? Loc.t('None', 'کوئی نہیں') : '${f.overdueCount} • ${_rs(f.overdueAmount)}',
-                  f.overdueCount == 0 ? _p.flatTealFg : _p.flatAmberFg),
+              _stat(Loc.t('Late', 'لیٹ'), f.overdueCount, f.overdueAmount, _p.red),
+              const SizedBox(width: 10),
+              _stat(Loc.t('Promise broken', 'وعدہ ٹوٹا'), f.brokenCount, f.brokenAmount, _p.red),
             ]),
-            if (f.brokenCount > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(Loc.t('${f.brokenCount} broken promise(s)', '${f.brokenCount} وعدے ٹوٹے'),
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _p.red)),
-              ),
             if (f.top.isNotEmpty) ...[
               const Divider(height: 18),
               for (final p in f.top) _row(context, p),
+            ],
+            if (onOpenReceivables != null) ...[
+              const Divider(height: 14),
+              InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: onOpenReceivables,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(children: [
+                    Icon(Icons.bar_chart_rounded, size: 18, color: _p.flatPurpleFg),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                          Loc.t('Total ${_rs(f.totalDue)} from ${f.totalParties} parties — see aging',
+                              'کل ${_rs(f.totalDue)} (${f.totalParties} پارٹیاں) — عمر کی تفصیل'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: _p.flatPurpleFg)),
+                    ),
+                    Icon(Icons.chevron_right, size: 20, color: _p.flatPurpleFg),
+                  ]),
+                ),
+              ),
             ],
           ],
         ]),
