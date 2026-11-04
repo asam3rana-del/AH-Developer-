@@ -83,36 +83,38 @@ class SlipPdfService {
     );
   }
 
-  static pw.Widget _block(SlipBlock b) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(top: 10),
-      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        if (b.heading != null && b.heading!.isNotEmpty)
-          pw.Padding(padding: const pw.EdgeInsets.only(bottom: 4), child: _text(b.heading!, size: 11.5, bold: true, argb: 0xFF0F9B8E)),
-        if (b.hasTable)
-          pw.Table(
-            columnWidths: {
-              for (var i = 0; i < b.headers.length; i++)
-                i: pw.FlexColumnWidth(i < b.weights.length ? b.weights[i] : 1),
-            },
-            border: const pw.TableBorder(horizontalInside: pw.BorderSide(color: _line, width: 0.6)),
-            children: [
+  /// Block ke hisse ALAG alag top-level widgets hain (Column mein nahi): MultiPage sirf `pw.Table` jaise spanning
+  /// widgets ko page par tod sakta hai. Column mein lamba bill ek page mein nahi samata tha, MultiPage 500 page
+  /// banane ki koshish karta raha aur RAM khatam ("Out of Memory").
+  static List<pw.Widget> _block(SlipBlock b) {
+    return [
+      pw.SizedBox(height: 10),
+      if (b.heading != null && b.heading!.isNotEmpty)
+        pw.Padding(padding: const pw.EdgeInsets.only(bottom: 4), child: _text(b.heading!, size: 11.5, bold: true, argb: 0xFF0F9B8E)),
+      if (b.hasTable)
+        pw.Table(
+          columnWidths: {
+            for (var i = 0; i < b.headers.length; i++)
+              i: pw.FlexColumnWidth(i < b.weights.length ? b.weights[i] : 1),
+          },
+          border: const pw.TableBorder(horizontalInside: pw.BorderSide(color: _line, width: 0.6)),
+          children: [
+            pw.TableRow(
+              repeat: true,
+              decoration: const pw.BoxDecoration(color: _teal),
+              children: [for (var i = 0; i < b.headers.length; i++) _cell(b.headers[i], header: true, right: i >= b.rightFrom)],
+            ),
+            for (final r in b.rows)
               pw.TableRow(
-                decoration: const pw.BoxDecoration(color: _teal),
-                children: [for (var i = 0; i < b.headers.length; i++) _cell(b.headers[i], header: true, right: i >= b.rightFrom)],
+                children: [for (var i = 0; i < b.headers.length; i++) _cell(i < r.length ? r[i] : '', header: false, right: i >= b.rightFrom)],
               ),
-              for (final r in b.rows)
-                pw.TableRow(
-                  children: [for (var i = 0; i < b.headers.length; i++) _cell(i < r.length ? r[i] : '', header: false, right: i >= b.rightFrom)],
-                ),
-            ],
-          ),
-        if (b.lines.isNotEmpty) ...[
-          if (b.hasTable) pw.SizedBox(height: 4),
-          for (final l in b.lines) _kv(l),
-        ],
-      ]),
-    );
+          ],
+        ),
+      if (b.lines.isNotEmpty) ...[
+        if (b.hasTable) pw.SizedBox(height: 4),
+        for (final l in b.lines) _kv(l),
+      ],
+    ];
   }
 
   static List<pw.Widget> _widgets(SlipPdfData d) => [
@@ -132,7 +134,7 @@ class SlipPdfService {
         if (d.partyName.trim().isNotEmpty)
           pw.Padding(padding: const pw.EdgeInsets.only(top: 8), child: pw.Center(child: _text(d.partyName.trim(), size: 13, bold: true))),
         if (d.meta.isNotEmpty) pw.Padding(padding: const pw.EdgeInsets.only(top: 8), child: pw.Column(children: [for (final k in d.meta) _kv(k)])),
-        for (final b in d.blocks) _block(b),
+        for (final b in d.blocks) ..._block(b),
         pw.SizedBox(height: 14),
         if (d.footer.isNotEmpty) pw.Center(child: _text(d.footer, size: 10, argb: 0xFF8A90A6)),
       ];
@@ -175,7 +177,7 @@ class SlipPdfService {
       doc.addPage(pw.MultiPage(
         pageFormat: PdfPageFormat.a5,
         margin: const pw.EdgeInsets.fromLTRB(28, 30, 28, 30),
-        maxPages: 500,
+        maxPages: 80, // bahut zyada page ban rahe hon to RAM khatam hone se pehle saaf error
         build: (ctx) => widgets,
       ));
     }
