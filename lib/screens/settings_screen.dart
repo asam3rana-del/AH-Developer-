@@ -55,6 +55,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _repo = UserRepository.instance;
   final _shopName = TextEditingController();
+  final _shopOwner = TextEditingController();
   final _shopPhone = TextEditingController();
   final _newUsername = TextEditingController();
   final _newPassword = TextEditingController();
@@ -78,7 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
-    for (final c in [_shopName, _shopPhone, _newUsername, _newPassword]) {
+    for (final c in [_shopName, _shopOwner, _shopPhone, _newUsername, _newPassword]) {
       c.dispose();
     }
     super.dispose();
@@ -86,9 +87,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final shopName = await _repo.getSetting('shop_name') ?? '';
+    final shopOwner = await _repo.getSetting('shop_owner') ?? '';
     final shopPhone = await _repo.getSetting('shop_phone') ?? '';
     if (!mounted) return; // screen band ho chuki => disposed controller na chhedo
     _shopName.text = shopName;
+    _shopOwner.text = shopOwner;
     _shopPhone.text = shopPhone;
     if (_shopName.text.trim().isNotEmpty) _headerShop = _shopName.text.trim();
     final pr = await PrinterService.instance.selected();
@@ -108,6 +111,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveShop() async {
     await _repo.setSetting('shop_name', _shopName.text.trim());
+    await _repo.setSetting('shop_owner', _shopOwner.text.trim());
     await _repo.setSetting('shop_phone', _shopPhone.text.trim());
     if (_shopName.text.trim().isNotEmpty && mounted) setState(() => _headerShop = _shopName.text.trim());
     _toast(Loc.t('Settings saved', 'سیٹنگز محفوظ ہو گئیں'));
@@ -427,6 +431,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (admin)
           _card(Loc.t('Shop Information', 'دکان کی معلومات'), Icons.store, [
             _tf(_shopName, Loc.t('Shop Name', 'دکان کا نام')),
+            _tf(_shopOwner, Loc.t('Owner Name', 'مالک کا نام')),
             _tf(_shopPhone, Loc.t('Phone', 'فون')),
             FilledButton(onPressed: _saveShop, child: Text(Loc.t('SAVE SETTINGS', 'محفوظ کریں'))),
           ]),

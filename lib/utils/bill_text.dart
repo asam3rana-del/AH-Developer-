@@ -12,6 +12,7 @@ String _qty(double v) {
 /// Pure function so it is unit-tested.
 String buildSaleBillText({
   required String shopName,
+  String shopOwner = '',
   String shopPhone = '',
   required String invoice,
   required DateTime date,
@@ -39,6 +40,7 @@ String buildSaleBillText({
 
   final rule = '-' * width;
   b.writeln(center(shopName.isEmpty ? 'IBTISAAM Kiryana Store' : shopName));
+  if (shopOwner.trim().isNotEmpty) b.writeln(center(shopOwner.trim()));
   if (shopPhone.isNotEmpty) b.writeln(center(shopPhone));
   b.writeln(rule);
   b.writeln('Invoice: $invoice');
@@ -72,6 +74,7 @@ String buildSaleBillText({
 /// [lines] = (naam, qty, unit, unitCost, amount).
 String buildPurchaseBillText({
   required String shopName,
+  String shopOwner = '',
   String shopPhone = '',
   required String billNo,
   required DateTime date,
@@ -99,6 +102,7 @@ String buildPurchaseBillText({
 
   final rule = '-' * width;
   b.writeln(center(shopName.isEmpty ? 'IBTISAAM Kiryana Store' : shopName));
+  if (shopOwner.trim().isNotEmpty) b.writeln(center(shopOwner.trim()));
   if (shopPhone.isNotEmpty) b.writeln(center(shopPhone));
   b.writeln(center('PURCHASE BILL'));
   b.writeln(rule);

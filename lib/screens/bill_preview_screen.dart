@@ -54,6 +54,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       _shopAddress = ((await repo.getSetting('shop_address')) ?? '').trim();
       d = d.copyWith(
         shopName: d.shopName.isEmpty ? (await repo.getSetting('shop_name')) ?? '' : d.shopName,
+        shopOwner: d.shopOwner.isEmpty ? (await repo.getSetting('shop_owner')) ?? '' : d.shopOwner,
         shopPhone: d.shopPhone.isEmpty ? (await repo.getSetting('shop_phone')) ?? '' : d.shopPhone,
         receiptFooter: (await repo.getSetting('receipt_footer')) ?? '',
       );
@@ -118,6 +119,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         total: d.total,
         paid: d.paid,
         shopName: d.shopName,
+        shopOwner: d.shopOwner,
         shopPhone: d.shopPhone,
         receiptFooter: d.receiptFooter,
         partyName: d.partyName,
@@ -377,6 +379,8 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(d.shopName.trim().isEmpty ? 'IBTISAAM Kiryana Store' : d.shopName.trim(),
                 textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk)),
+            if (d.shopOwner.trim().isNotEmpty)
+              Text(d.shopOwner.trim(), textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.navyInk, fontSize: 14, fontWeight: FontWeight.w600)),
             if (d.shopPhone.trim().isNotEmpty)
               Text('📞 ${d.shopPhone.trim()}', textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 12)),
             const Divider(height: 20),

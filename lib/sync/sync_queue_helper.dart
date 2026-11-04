@@ -35,7 +35,7 @@ class SyncQueueHelper {
 
   /// Sirf yeh app_settings keys sync hoti hain (baaqi device-specific: printer, login_method ...).
   static const Set<String> syncedAppSettingKeys = {
-    'shop_name', 'shop_phone', 'shop_address', 'receipt_footer', 'currency', 'tax_percent',
+    'shop_name', 'shop_owner', 'shop_phone', 'shop_address', 'receipt_footer', 'currency', 'tax_percent',
   };
 
   /// Sync hone wali app_settings key? (fixed whitelist).
