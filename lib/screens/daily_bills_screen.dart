@@ -9,7 +9,9 @@ import '../db/daily_bills_repository.dart';
 import '../db/due_reminders_repository.dart' show whatsAppDigits;
 import '../db/rent_repository.dart';
 import '../models/party.dart';
+import '../services/slip_pdf_service.dart';
 import '../services/whatsapp_sender.dart';
+import '../utils/slip_pdf_data.dart';
 import '../utils/slip_text.dart';
 import '../widgets/party_avatar.dart';
 import '../theme/theme_manager.dart';
@@ -49,6 +51,16 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
   Future<String> _billTextWithHeader(DailyParty r) async {
     final shop = await loadShopHeader();
     return slipHeaderBlock(shopName: shop.name, shopPhone: shop.phone) + dailyBillText(r, _day);
+  }
+
+  /// Daily Bill ka PDF (shop header ke saath) share sheet se.
+  Future<void> _sharePdf(DailyParty r) async {
+    try {
+      final shop = await loadShopHeader();
+      await SlipPdfService.share(dailyBillSlipData(r, _day, shopName: shop.name, shopPhone: shop.phone), fileBase: 'DailyBill_${r.name}');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF: $e')));
+    }
   }
 
   /// Sale bill ki tarah: customer ka saved number khud lag jata hai (khali ho to hi poochta hai).
@@ -445,6 +457,15 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
                   onPressed: () async => Share.share(await _billTextWithHeader(r)),
                   icon: const Icon(Icons.share),
                   label: Text(Loc.t('Share bill', 'بل شیئر کریں')),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 13)),
+                  onPressed: () => _sharePdf(r),
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text('PDF'),
                 ),
               ),
             ]),

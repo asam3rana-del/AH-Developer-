@@ -14,10 +14,12 @@ import '../models/purchase.dart';
 import '../models/return_entry.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
+import '../services/slip_pdf_service.dart';
 import '../services/whatsapp_sender.dart';
 import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
+import '../utils/slip_pdf_data.dart';
 import '../utils/slip_text.dart';
 import '../utils/sale_cart.dart' show formatQty;
 import '../widgets/party_avatar.dart';
@@ -320,7 +322,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
   }
 
   /// WhatsApp (seedha party ke number par) ya koi bhi doosri app — slip ka text [text] ke saath.
-  Future<void> _sendSlip(String text) async {
+  Future<void> _sendSlip(String text, {SlipPdfData? pdf}) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -336,12 +338,26 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
             title: Text(Loc.t('Share in another app', 'کسی اور ایپ میں شیئر کریں')),
             onTap: () => Navigator.pop(ctx, 'share'),
           ),
+          if (pdf != null)
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf, color: Color(0xFFD64545)),
+              title: Text(Loc.t('Share as PDF', 'پی ڈی ایف شیئر کریں')),
+              onTap: () => Navigator.pop(ctx, 'pdf'),
+            ),
         ]),
       ),
     );
     if (choice == null || !mounted) return;
     if (choice == 'wa') {
       await sendOnWhatsApp(context, phone: _phone, text: text);
+      return;
+    }
+    if (choice == 'pdf' && pdf != null) {
+      try {
+        await SlipPdfService.share(pdf);
+      } catch (e) {
+        _toast('PDF: $e');
+      }
       return;
     }
     try {
@@ -370,7 +386,22 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       balanceNow: st?.closing,
     );
     if (!mounted) return;
-    await _sendSlip(text);
+    await _sendSlip(
+      text,
+      pdf: paymentSlipData(
+        received: widget.isCustomer,
+        shopName: shop.name,
+        shopPhone: shop.phone,
+        partyName: _name,
+        amount: pay.amount,
+        date: DateTime.fromMillisecondsSinceEpoch(pay.createdAt),
+        method: pay.method,
+        billRef: pay.billReference,
+        note: pay.note,
+        slipNo: pay.reference,
+        balanceNow: st?.closing,
+      ),
+    );
   }
 
   Future<void> _copyStatement() async {
@@ -396,6 +427,49 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       sb.writeln(e.createdAt > 0
           ? '${_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}  \u2014  ${e.searchText}'
           : e.searchText);
+    }
+    final shop = await loadShopHeader();
+    if (!mounted) return;
+    final pdf = statementSlipData(
+      isCustomer: widget.isCustomer,
+      partyName: _name,
+      closing: st.closing,
+      youGive: give,
+      shopName: shop.name,
+      shopPhone: shop.phone,
+      loanLabel: widget.isCustomer && _loanKind.isNotEmpty
+          ? (_loanKind == 'amanat' ? 'Deposit Held' : 'Loan Outstanding')
+          : '',
+      loanOutstanding: _loanOutstanding,
+      daily: st.daily,
+      stuck: st.stuck,
+      entries: [for (final e in _entries) SlipStatementEntry(e.createdAt, e.searchText)],
+    );
+    final asPdf = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.share),
+            title: Text(Loc.t('Share as text', 'ٹیکسٹ شیئر کریں')),
+            onTap: () => Navigator.pop(ctx, false),
+          ),
+          ListTile(
+            leading: const Icon(Icons.picture_as_pdf, color: Color(0xFFD64545)),
+            title: Text(Loc.t('Share as PDF', 'پی ڈی ایف شیئر کریں')),
+            onTap: () => Navigator.pop(ctx, true),
+          ),
+        ]),
+      ),
+    );
+    if (asPdf == null || !mounted) return;
+    if (asPdf) {
+      try {
+        await SlipPdfService.share(pdf);
+      } catch (e) {
+        _toast('PDF: $e');
+      }
+      return;
     }
     try {
       await Share.share(sb.toString());
@@ -560,7 +634,19 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       '${Loc.t('Balance', 'بقایا')}: ${_rs2(due)}',
     ].join('\n');
     if (!mounted) return;
-    await _sendSlip(text);
+    await _sendSlip(
+      text,
+      pdf: purchaseSlipData(
+        title: isSale ? 'SALE BILL' : 'PURCHASE BILL',
+        supplier: _name,
+        billNo: ref,
+        total: e.amount,
+        balance: due,
+        date: DateTime.fromMillisecondsSinceEpoch(e.createdAt),
+        shopName: shop.name,
+        shopPhone: shop.phone,
+      ),
+    );
   }
 
   void _showPlusMenu() {
