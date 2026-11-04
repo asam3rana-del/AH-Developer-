@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/rendering.dart' show Rect;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
@@ -23,6 +24,17 @@ class SlipPdfService {
   static const _line = PdfColor.fromInt(0xFFEEF0F7);
 
   static pw.Font? _urduFont;
+  static pw.MemoryImage? _logo;
+  static bool _logoTried = false;
+
+  /// Dukaan ka logo (assets/images/logo.png) — header mein. Na mile to chupchap nahi lagta.
+  static Future<void> _loadLogo() async {
+    if (_logoTried) return;
+    _logoTried = true;
+    try {
+      _logo = pw.MemoryImage((await rootBundle.load('assets/images/logo.png')).buffer.asUint8List());
+    } catch (_) {}
+  }
 
   static Future<pw.Font?> _loadUrduFont() async {
     if (_urduFont != null) return _urduFont;
@@ -104,6 +116,7 @@ class SlipPdfService {
   }
 
   static List<pw.Widget> _widgets(SlipPdfData d) => [
+        if (_logo != null) pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(bottom: 6), child: pw.Image(_logo!, width: 64, height: 64))),
         if (d.shopName.trim().isNotEmpty)
           pw.Center(child: _text(d.shopName.trim(), size: 15, bold: true)),
         if (d.shopPhone.trim().isNotEmpty)
@@ -124,8 +137,27 @@ class SlipPdfService {
         if (d.footer.isNotEmpty) pw.Center(child: _text(d.footer, size: 10, argb: 0xFF8A90A6)),
       ];
 
-  static Future<Uint8List> build(SlipPdfData d) async {
+  /// PDF bytes. RAM kam padne (ya koi bhi masla) par ek baar 2x chhoti Urdu tasveeron ke saath dobara koshish.
+  static Future<Uint8List> build(SlipPdfData d) => buildMany([d]);
+
+  /// Kai slips ek PDF mein (har slip nayi page se shuru).
+  static Future<Uint8List> buildMany(List<SlipPdfData> ds) async {
+    try {
+      return await _build(ds);
+    } catch (_) {
+      UrduPdf.setLean(true);
+      try {
+        return await _build(ds);
+      } finally {
+        UrduPdf.setLean(false);
+        UrduPdf.clearCache();
+      }
+    }
+  }
+
+  static Future<Uint8List> _build(List<SlipPdfData> ds) async {
     final urdu = await _loadUrduFont();
+    await _loadLogo();
     final doc = pw.Document(
       theme: pw.ThemeData.withFont(
         base: pw.Font.helvetica(),
@@ -134,37 +166,55 @@ class SlipPdfService {
       ),
     );
     // Pass 1: Urdu text yaad karo -> tasveerein -> Pass 2: asli widgets.
-    _widgets(d);
+    for (final d in ds) {
+      _widgets(d);
+    }
     await UrduPdf.flush();
-    final widgets = _widgets(d);
-    doc.addPage(pw.MultiPage(
-      pageFormat: PdfPageFormat.a5,
-      margin: const pw.EdgeInsets.fromLTRB(28, 30, 28, 30),
-      maxPages: 500,
-      build: (ctx) => widgets,
-    ));
-    return doc.save();
+    for (final d in ds) {
+      final widgets = _widgets(d);
+      doc.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a5,
+        margin: const pw.EdgeInsets.fromLTRB(28, 30, 28, 30),
+        maxPages: 500,
+        build: (ctx) => widgets,
+      ));
+    }
+    final bytes = await doc.save();
+    UrduPdf.clearCache(); // is slip ki tasveerein ab nahi chahiye
+    return bytes;
   }
 
   /// PDF temp folder mein likh kar share sheet kholta hai. File ka path lautata hai.
-  static Future<File> save(SlipPdfData d, {String? fileBase, DateTime? now}) async {
-    final bytes = await build(d);
+  static Future<File> save(SlipPdfData d, {String? fileBase, DateTime? now}) =>
+      _write(() => build(d), fileBase ?? (d.partyName.isNotEmpty ? '${d.title}_${d.partyName}' : d.title), now);
+
+  /// Kai slips ek PDF file mein.
+  static Future<File> saveMany(List<SlipPdfData> ds, {required String fileBase, DateTime? now}) =>
+      _write(() => buildMany(ds), fileBase, now);
+
+  static Future<File> _write(Future<Uint8List> Function() make, String base, DateTime? now) async {
+    final bytes = await make();
     final dir = Directory(p.join((await getTemporaryDirectory()).path, 'slips'));
     if (!await dir.exists()) await dir.create(recursive: true);
-    final name = slipFileName(fileBase ?? (d.partyName.isNotEmpty ? '${d.title}_${d.partyName}' : d.title), now ?? DateTime.now());
+    final name = slipFileName(base, now ?? DateTime.now());
     final f = File(p.join(dir.path, name));
     await f.writeAsBytes(bytes, flush: true);
     return f;
   }
 
-  static Future<void> share(SlipPdfData d, {String? fileBase}) async {
-    final f = await save(d, fileBase: fileBase);
+  /// PDF ban chuki file ko share sheet mein kholta hai. [origin]: iPad par sheet kahan se khule.
+  static Future<void> shareFile(File f, {String? subject, Rect? origin}) async {
     try {
-      await Share.shareXFiles([XFile(f.path, mimeType: 'application/pdf')], subject: d.title);
+      await Share.shareXFiles([XFile(f.path, mimeType: 'application/pdf')], subject: subject, sharePositionOrigin: origin);
     } catch (_) {
       // Share sheet na khule to PDF viewer mein kholo (wahan se save/share ho sakta hai).
       final r = await OpenFilex.open(f.path, type: 'application/pdf');
       if (r.type != ResultType.done) rethrow;
     }
+  }
+
+  static Future<void> share(SlipPdfData d, {String? fileBase}) async {
+    final f = await save(d, fileBase: fileBase);
+    await shareFile(f, subject: d.title);
   }
 }

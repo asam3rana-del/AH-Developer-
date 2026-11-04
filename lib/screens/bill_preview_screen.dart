@@ -10,7 +10,7 @@ import '../db/supplier_repository.dart';
 import '../db/user_repository.dart';
 import '../services/printer_service.dart';
 import '../services/session.dart';
-import '../services/slip_pdf_service.dart';
+import '../widgets/slip_share.dart';
 import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
 import '../utils/slip_pdf_data.dart';
@@ -132,12 +132,8 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       );
 
   Future<void> _sharePdf() async {
-    try {
-      final base = '${_doc.isPurchase ? 'Purchase' : 'Sale'}_${_doc.ref}';
-      await SlipPdfService.share(billDocSlipData(_doc, netBalance: _partyId == null ? null : _net), fileBase: base);
-    } catch (e) {
-      _toast('PDF: $e');
-    }
+    final base = '${_doc.isPurchase ? 'Purchase' : 'Sale'}_${_doc.ref}';
+    await shareSlip(context, billDocSlipData(_doc, netBalance: _partyId == null ? null : _net), fileBase: base);
   }
 
   Future<void> _whatsApp() async {

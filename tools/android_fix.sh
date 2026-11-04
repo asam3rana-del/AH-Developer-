@@ -109,6 +109,30 @@ if ! grep -q "flutter_foreground_task.service.ForegroundService" "$MANIFEST"; th
 fi
 grep -n "FOREGROUND_SERVICE\|ForegroundService" "$MANIFEST" || { echo "ERROR: foreground service not added to manifest"; exit 1; }
 
+# --- PDF seedha customer ke WhatsApp chat mein (lib/services/whatsapp_pdf.dart, channel "ah_developer/wa") ---
+# Apna FileProvider (authority <applicationId>.slipshare) sirf cache/slips folder ke liye — share_plus ke provider par
+# bharosa nahi. Na ho to Dart side chupchap aam share sheet kholti hai.
+mkdir -p android/app/src/main/res/xml
+cat > android/app/src/main/res/xml/slip_paths.xml <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="slips" path="slips/" />
+</paths>
+XML
+if ! grep -q 'slip_paths' "$MANIFEST"; then
+  sed -i 's#</application>#    <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.slipshare" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/slip_paths" /></provider>\n    </application>#' "$MANIFEST"
+fi
+grep -q 'slip_paths' "$MANIFEST" || { echo "ERROR: slipshare FileProvider not added to manifest"; exit 1; }
+# WhatsApp ko queries mein (Android 11+ package visibility) — sirf tab jodo jab <queries> pehle se na ho.
+if ! grep -q 'com.whatsapp' "$MANIFEST"; then
+  if grep -q '<queries>' "$MANIFEST"; then
+    sed -i 's#<queries>#<queries>\n        <package android:name="com.whatsapp" />\n        <package android:name="com.whatsapp.w4b" />#' "$MANIFEST"
+  else
+    sed -i '0,/<application/s##<queries>\n        <package android:name="com.whatsapp" />\n        <package android:name="com.whatsapp.w4b" />\n    </queries>\n    <application#' "$MANIFEST"
+  fi
+fi
+grep -q 'com.whatsapp' "$MANIFEST" || { echo "ERROR: WhatsApp queries not added"; exit 1; }
+
 # --- Backup ki public Downloads copy (Kotlin BackupHelper.copyToDownloads): MediaStore MethodChannel ---
 # lib/backup/downloads_copy.dart isi channel ("ah_developer/downloads") ko bulata hai. Android 10+ par
 # permission nahi chahiye; 9 aur us se purane par WRITE_EXTERNAL_STORAGE (maxSdk 28) chahiye.
@@ -132,6 +156,9 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.core.content.FileProvider
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
@@ -178,6 +205,7 @@ class MainActivity : FlutterFragmentActivity() {
             }
         setupUsbChannel(flutterEngine)
         setupBtChannel(flutterEngine)
+        setupWaChannel(flutterEngine)
     }
 
     // ---- USB thermal printer (Kotlin PrinterHelper USB hissa: host mode, bulk OUT endpoint). Plugin nahi. ----
@@ -376,6 +404,51 @@ class MainActivity : FlutterFragmentActivity() {
                         }.start()
                     }
                     else -> result.notImplemented()
+                }
+            }
+    }
+
+    // ---- PDF seedha WhatsApp chat mein: channel "ah_developer/wa", method sendPdf(path, digits, text). ----
+    // WhatsApp ka "jid" extra (number@s.whatsapp.net) chat khol deta hai, PDF laga hota hai — sirf Send dabana hai.
+    // Kisi bhi masle par false lautata hai; Dart aam share sheet khol deta hai. (Is block mein dollar sign nahi: heredoc.)
+    private fun setupWaChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ah_developer/wa")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "sendPdf") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val path = call.argument<String>("path")
+                val digits = call.argument<String>("digits")
+                val text = call.argument<String>("text") ?: ""
+                if (path == null || digits == null || digits.isEmpty()) {
+                    result.success(false)
+                    return@setMethodCallHandler
+                }
+                try {
+                    val uri: Uri = FileProvider.getUriForFile(this, packageName + ".slipshare", File(path))
+                    var started = false
+                    for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b")) {
+                        try {
+                            packageManager.getPackageInfo(pkg, 0)
+                        } catch (e: PackageManager.NameNotFoundException) {
+                            continue
+                        }
+                        val i = Intent(Intent.ACTION_SEND)
+                        i.type = "application/pdf"
+                        i.setPackage(pkg)
+                        i.putExtra(Intent.EXTRA_STREAM, uri)
+                        if (text.isNotEmpty()) i.putExtra(Intent.EXTRA_TEXT, text)
+                        i.putExtra("jid", digits + "@s.whatsapp.net")
+                        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        startActivity(i)
+                        started = true
+                        break
+                    }
+                    result.success(started)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    result.success(false)
                 }
             }
     }

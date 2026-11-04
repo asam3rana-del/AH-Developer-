@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' hide TextDirection;
-import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../db/customer_repository.dart';
 import '../db/daily_bills_repository.dart';
-import '../db/due_reminders_repository.dart' show whatsAppDigits;
 import '../db/rent_repository.dart';
+import '../db/user_repository.dart';
 import '../models/party.dart';
-import '../services/slip_pdf_service.dart';
 import '../services/whatsapp_sender.dart';
 import '../utils/slip_pdf_data.dart';
 import '../utils/slip_text.dart';
@@ -18,6 +14,7 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart' show formatQty;
 import '../widgets/premium_header.dart';
+import '../widgets/slip_share.dart';
 import '../widgets/permission_guard.dart';
 
 /// "Aaj ke Bills" — ek din ki saari alag alag (Quick Sale) sales har customer ke ek bill ki tarah,
@@ -43,6 +40,9 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
   bool _loading = true;
   List<DailyParty> _rows = const [];
 
+  /// Is din ke jin customers ko PDF bheji ja chuki (is device par, `app_settings` mein).
+  Set<int> _sent = {};
+
   final _dateFmt = DateFormat('dd MMM yyyy');
   final _timeFmt = DateFormat('hh:mm a');
 
@@ -53,111 +53,64 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
     return slipHeaderBlock(shopName: shop.name, shopPhone: shop.phone) + dailyBillText(r, _day);
   }
 
-  bool _pdfBusy = false;
+  String get _sentKey => 'daily_pdf_sent_${DateFormat('yyyyMMdd').format(_day)}';
 
-  /// Daily Bill ka PDF (shop header ke saath) share sheet se.
-  /// Bill sheet ke upar dialog dikhata hai (SnackBar sheet ke neeche chhup jata tha, is liye error nazar nahi aata tha).
-  Future<void> _sharePdf(DailyParty r) async {
-    if (_pdfBusy) return; // dobara dabane se kai PDF ek saath na banein
-    _pdfBusy = true;
-    final nav = Navigator.of(context, rootNavigator: true);
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      useRootNavigator: true,
-      builder: (_) => const PopScope(
-        canPop: false,
-        child: AlertDialog(
-          content: Row(children: [
-            SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 3)),
-            SizedBox(width: 16),
-            Expanded(child: Text('PDF ban rahi hai...')),
-          ]),
-        ),
-      ),
-    );
-    Object? error;
-    StackTrace? stack;
+  Future<Set<int>> _loadSent() async {
     try {
-      final shop = await loadShopHeader();
-      await SlipPdfService.share(
-        dailyBillSlipData(r, _day, shopName: shop.name, shopPhone: shop.phone),
-        fileBase: 'DailyBill_${r.name}',
-      ).timeout(const Duration(seconds: 90));
-    } catch (e, st) {
-      error = e;
-      stack = st;
-      debugPrint('Daily bill PDF failed: $e\n$st');
-    } finally {
-      _pdfBusy = false;
-      if (nav.canPop()) nav.pop(); // progress dialog band
-    }
-    if (error != null && mounted) {
-      await showDialog<void>(
-        context: context,
-        useRootNavigator: true,
-        builder: (ctx) => AlertDialog(
-          title: const Text('PDF nahi bani'),
-          content: SingleChildScrollView(child: SelectableText('$error')),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-        ),
-      );
+      final v = await UserRepository.instance.getSetting(_sentKey);
+      if (v == null || v.isEmpty) return {};
+      return v.split(',').map(int.tryParse).whereType<int>().toSet();
+    } catch (_) {
+      return {};
     }
   }
 
-  /// Sale bill ki tarah: customer ka saved number khud lag jata hai (khali ho to hi poochta hai).
-  Future<void> _whatsApp(DailyParty r) async {
-    final text = await _billTextWithHeader(r);
-    var phone = '';
+  Future<void> _markSent(Iterable<int> ids) async {
+    final next = {..._sent, ...ids};
+    if (mounted) setState(() => _sent = next);
     try {
-      final all = await CustomerRepository.instance.listAll();
-      for (final c in all) {
-        if (c.id == r.id) {
-          phone = c.phone.trim();
-          break;
-        }
+      await UserRepository.instance.setSetting(_sentKey, next.join(','));
+    } catch (_) {}
+  }
+
+  /// Customer ka saved phone (khali ho to '' — tab aam share sheet khulti hai).
+  Future<String> _phoneOf(DailyParty r) async {
+    try {
+      for (final c in await CustomerRepository.instance.listAll()) {
+        if (c.id == r.id) return c.phone.trim();
       }
     } catch (_) {}
+    return '';
+  }
+
+  /// Daily Bill ka PDF (logo + shop header ke saath). Customer ka number ho (Android) to PDF seedha uski WhatsApp
+  /// chat mein khulti hai, warna share sheet. PDF na bane to bill ka text clipboard par copy ho jata hai.
+  Future<void> _sharePdf(DailyParty r) async {
+    final shop = await loadShopHeader();
+    final phone = await _phoneOf(r);
     if (!mounted) return;
-    if (phone.isEmpty) {
-      final ctrl = TextEditingController();
-      final entered = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(Loc.t('WhatsApp number', 'واٹس ایپ نمبر')),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(hintText: '03001234567'),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
-            FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text(Loc.t('Send', 'بھیجیں'))),
-          ],
-        ),
-      );
-      ctrl.dispose();
-      if (entered == null || entered.isEmpty) return;
-      phone = entered;
-    }
-    final digits = whatsAppDigits(phone);
+    final ok = await shareSlip(
+      context,
+      dailyBillSlipData(r, _day, shopName: shop.name, shopPhone: shop.phone),
+      fileBase: 'DailyBill_${r.name}',
+      fallbackText: await _billTextWithHeader(r),
+      whatsappPhone: phone,
+    );
+    if (ok) await _markSent([r.id]);
+  }
+
+  /// Is din ke sab customers ke bills ek hi PDF mein (har customer nayi page par).
+  Future<void> _shareAllPdf() async {
+    if (_rows.isEmpty) return;
+    final shop = await loadShopHeader();
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    if (digits.isEmpty) {
-      messenger.showSnackBar(SnackBar(content: Text(Loc.t('Invalid number', 'نمبر درست نہیں'))));
-      return;
-    }
-    final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(text)}');
-    try {
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        await Clipboard.setData(ClipboardData(text: text));
-        messenger.showSnackBar(SnackBar(content: Text(Loc.t('WhatsApp not found — bill copied', 'واٹس ایپ نہیں ملا — بل کاپی ہو گیا'))));
-      }
-    } catch (_) {
-      await Clipboard.setData(ClipboardData(text: text));
-      messenger.showSnackBar(SnackBar(content: Text(Loc.t('Bill copied', 'بل کاپی ہو گیا'))));
-    }
+    final ok = await shareSlips(
+      context,
+      [for (final r in _rows) dailyBillSlipData(r, _day, shopName: shop.name, shopPhone: shop.phone)],
+      fileBase: 'DailyBills_${DateFormat('yyyy-MM-dd').format(_day)}',
+      subject: 'Daily Bills',
+    );
+    if (ok) await _markSent(_rows.map((r) => r.id));
   }
 
   String _rs(double v) => 'Rs ${v.round()}';
@@ -180,8 +133,11 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
     if (!mounted) return;
     final rentErr = RentRepository.lastError;
     if (rentErr != null) _toast('Rent bills nahi ban sake: $rentErr');
+    final sent = await _loadSent();
+    if (!mounted) return;
     setState(() {
       _rows = rows;
+      _sent = sent;
       _loading = false;
     });
   }
@@ -240,6 +196,15 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
             ),
             _dateBar(),
             if (!_loading && _rows.isNotEmpty) _summary(totalSales, totalReceived),
+            if (!_loading && _rows.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: OutlinedButton.icon(
+                  onPressed: _shareAllPdf,
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: Text(Loc.t('All bills in one PDF', 'سب بلز ایک پی ڈی ایف میں')),
+                ),
+              ),
             if (_loading)
               const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
             else if (_rows.isEmpty)
@@ -335,6 +300,15 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
                 Expanded(
                   child: Text(r.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _p.textDark)),
                 ),
+                if (_sent.contains(r.id))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.check_circle, size: 14, color: _p.flatTealFg),
+                      const SizedBox(width: 3),
+                      Text(Loc.t('PDF sent', 'پی ڈی ایف بھیجی'), style: TextStyle(fontSize: 11.5, color: _p.flatTealFg)),
+                    ]),
+                  ),
                 Text('${r.billCount} ${Loc.t('bills', 'بلز')}', style: TextStyle(fontSize: 12, color: _p.textMuted)),
               ]),
               const SizedBox(height: 8),
@@ -483,34 +457,14 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
                     label: Text(Loc.t('Remove today\'s rent for this customer (holiday)', 'اس کسٹمر کا آج کا کرایہ ہٹائیں (چھٹی)')),
                   ),
                 ),
-            Row(children: [
-              Expanded(
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366), padding: const EdgeInsets.symmetric(vertical: 13)),
-                  onPressed: () => _whatsApp(r),
-                  icon: const Icon(Icons.send),
-                  label: Text(Loc.t('WhatsApp', 'واٹس ایپ')),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: _p.flatTealFg, padding: const EdgeInsets.symmetric(vertical: 13)),
-                  onPressed: () async => Share.share(await _billTextWithHeader(r)),
-                  icon: const Icon(Icons.share),
-                  label: Text(Loc.t('Share bill', 'بل شیئر کریں')),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 13)),
-                  onPressed: () => _sharePdf(r),
-                  icon: const Icon(Icons.picture_as_pdf),
-                  label: const Text('PDF'),
-                ),
-              ),
-            ]),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366), padding: const EdgeInsets.symmetric(vertical: 13)),
+              onPressed: () => _sharePdf(r),
+              icon: const Icon(Icons.picture_as_pdf),
+              label: Text(_sent.contains(r.id)
+                  ? Loc.t('Send PDF again (WhatsApp)', 'پی ڈی ایف دوبارہ بھیجیں (واٹس ایپ)')
+                  : Loc.t('Send PDF (WhatsApp)', 'پی ڈی ایف بھیجیں (واٹس ایپ)')),
+            ),
           ],
         ),
       ),

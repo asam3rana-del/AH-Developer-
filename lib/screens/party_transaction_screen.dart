@@ -14,7 +14,6 @@ import '../models/purchase.dart';
 import '../models/return_entry.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
-import '../services/slip_pdf_service.dart';
 import '../services/whatsapp_sender.dart';
 import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
@@ -23,6 +22,7 @@ import '../utils/slip_pdf_data.dart';
 import '../utils/slip_text.dart';
 import '../utils/sale_cart.dart' show formatQty;
 import '../widgets/party_avatar.dart';
+import '../widgets/slip_share.dart';
 import '../widgets/role_guard.dart';
 import 'bill_preview_screen.dart';
 import 'payments_screen.dart' show showPaymentDialog;
@@ -353,11 +353,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       return;
     }
     if (choice == 'pdf' && pdf != null) {
-      try {
-        await SlipPdfService.share(pdf);
-      } catch (e) {
-        _toast('PDF: $e');
-      }
+      await shareSlip(context, pdf, fallbackText: text);
       return;
     }
     try {
@@ -464,11 +460,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     );
     if (asPdf == null || !mounted) return;
     if (asPdf) {
-      try {
-        await SlipPdfService.share(pdf);
-      } catch (e) {
-        _toast('PDF: $e');
-      }
+      await shareSlip(context, pdf, fallbackText: sb.toString());
       return;
     }
     try {
