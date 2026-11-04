@@ -57,7 +57,16 @@ class PartyPhotoStore {
 
   /// Camera / gallery se tasveer le kar save karta hai. Cancel ya masla => null.
   Future<String?> pick(ImageSource source, {required bool customer, required int id}) async {
-    final XFile? x = await ImagePicker().pickImage(source: source, maxWidth: 800, maxHeight: 800, imageQuality: 80);
+    final picker = ImagePicker();
+    XFile? x = await picker.pickImage(source: source, maxWidth: 800, maxHeight: 800, imageQuality: 80);
+    // Android kam RAM wale phone par camera khulte hi app ko band kar sakta hai; tab tasveer yahan
+    // "lost data" mein hoti hai. Pehle isi se wapas lo.
+    if (x == null && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final lost = await picker.retrieveLostData();
+        if (!lost.isEmpty && lost.file != null) x = lost.file;
+      } catch (_) {}
+    }
     if (x == null) return null;
     await ensureLoaded();
     final dir = await _dir();

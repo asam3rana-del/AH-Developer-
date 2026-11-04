@@ -725,3 +725,11 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [x] Naya admin tool **Pending Cost** (Items > tools pills, permission `fix_bill_cost`): wo bill lines jin ki cost abhi "pending/andaza" hai (minus stock ya product cost 0 par bechi) — agar product ki cost baad mein likhi gayi ho to yahan se product ki maujooda cost (per smallest unit) se pakki karo; apply se pehle total cost/profit change dikhta hai. Purchase aane par ye pehle ki tarah khud hota hai. Log mein tag `product-cost` (purchase delete se wapas pending nahi hoti). `CostBackfill.fillFromProductCost`, `PendingCostRepository`, `PendingCostScreen`.
 - Shop Rent / Workers: code dekha, koi adhoori jagah (TODO / "coming soon") nahi mili.
 - Tests: `test/due_reminders_test.dart` (clampDueDays, dueDateAfterDays), `test/pending_cost_test.dart`. Note: Flutter SDK nahi tha, compile/test nahi hua — `flutter analyze && flutter test` chalayein.
+
+## Photo + PDF fixes (2026-11-04)
+- [x] Party list (Customers/Suppliers) mein ab asli tasveer wala avatar (tap = Camera/Gallery/Hata dein). Pehle sirf icon tha, tasveer sirf statement aur Daily Bills mein dikhti thi.
+- [x] Camera: Android app band kar de (kam RAM) to `retrieveLostData()` se tasveer wapas li jati hai.
+- [x] Sale aur Purchase bill (Bill Preview / Purchase Saved) par naya \"Share as PDF\" (`billDocSlipData`). Pehle in par PDF ka option tha hi nahi.
+- [x] PDF share sheet fail ho to file PDF viewer mein khul jati hai.
+- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein. `test/bill_pdf_data_test.dart` naya.
+- Baqi: Party Summary PDF (`partySummarySlipData`) abhi kisi button se jura nahi; tasveer sirf usi phone mein hai (backup/sync mein nahi).

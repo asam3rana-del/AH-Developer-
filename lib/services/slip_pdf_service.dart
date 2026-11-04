@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -158,6 +159,12 @@ class SlipPdfService {
 
   static Future<void> share(SlipPdfData d, {String? fileBase}) async {
     final f = await save(d, fileBase: fileBase);
-    await Share.shareXFiles([XFile(f.path, mimeType: 'application/pdf')], subject: d.title);
+    try {
+      await Share.shareXFiles([XFile(f.path, mimeType: 'application/pdf')], subject: d.title);
+    } catch (_) {
+      // Share sheet na khule to PDF viewer mein kholo (wahan se save/share ho sakta hai).
+      final r = await OpenFilex.open(f.path, type: 'application/pdf');
+      if (r.type != ResultType.done) rethrow;
+    }
   }
 }

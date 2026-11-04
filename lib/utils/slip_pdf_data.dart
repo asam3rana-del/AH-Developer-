@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../db/daily_bills_repository.dart' show DailyParty;
+import 'bill_doc.dart';
 
 /// Slip PDF ka saara data. Sab PURE (DB / UI / pdf library nahi) taake test ho sake; PDF khud
 /// `services/slip_pdf_service.dart` banata hai. Ek hi model Daily Bill, Payment Received/Made,
@@ -290,5 +291,47 @@ SlipPdfData purchaseSlipData({
         SlipKv('Balance', slipMoney(balance), bold: true),
       ]),
     ],
+  );
+}
+
+
+// ---------------------------------------------------------------- Sale / Purchase bill (BillDoc)
+
+/// Bill Preview ka PDF. [netBalance] sirf tab jab party mili ho (Prev/Net balance likhne ke liye).
+SlipPdfData billDocSlipData(BillDoc d, {double? netBalance}) {
+  final due = d.total - d.paid;
+  final party = d.partyName.trim();
+  return SlipPdfData(
+    title: d.isPurchase ? 'PURCHASE BILL' : 'SALE BILL',
+    shopName: d.shopName,
+    shopPhone: d.shopPhone,
+    partyName: party.isEmpty ? (d.isPurchase ? 'Cash Purchase' : 'Walk-in') : party,
+    meta: [
+      SlipKv(d.isPurchase ? 'Bill No' : 'Invoice', d.ref),
+      SlipKv('Date', DateFormat('dd MMM yyyy').format(d.date)),
+      SlipKv('Payment', d.paymentMethod),
+    ],
+    blocks: [
+      SlipBlock(
+        headers: const ['Item', 'Qty', 'Rate', 'Amount'],
+        weights: const [3.2, 1.3, 1.1, 1.3],
+        rows: [
+          for (final i in d.items)
+            [i.name, '${slipQty(i.qty)}${i.unit.isEmpty ? '' : ' ${i.unit}'}', slipRate(i.rate), slipMoney(i.amount)],
+        ],
+        lines: [
+          SlipKv('Subtotal', slipMoney(d.subtotal)),
+          if (d.discount > 0.009) SlipKv('Discount', '-${slipMoney(d.discount)}'),
+          SlipKv('Total', slipMoney(d.total), bold: true),
+          SlipKv('Paid', slipMoney(d.paid)),
+          if (due > 0.009) SlipKv('Balance Due', slipMoney(due), bold: true, argb: 0xFFD64545),
+          if (netBalance != null) ...[
+            SlipKv('Prev Balance', slipMoney(netBalance - due)),
+            SlipKv('Net Balance', slipMoney(netBalance), bold: true),
+          ],
+        ],
+      ),
+    ],
+    footer: d.receiptFooter.trim().isEmpty ? 'Thank you! Please visit again.' : d.receiptFooter.trim(),
   );
 }

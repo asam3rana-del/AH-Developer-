@@ -13,6 +13,7 @@ import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
+import '../widgets/party_avatar.dart';
 
 /// Mirrors PartyActivity.kt — "Customers & Suppliers": add / edit / delete, search, "Dues only",
 /// tap-for-history, call, plus the maintenance chips (Fix Balances, Merge Duplicates, Cleanup
@@ -803,6 +804,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           accent: _customerAccent,
           icon: Icons.person,
           isCustomer: true,
+          partyId: c.id,
           onTap: () => _showCustomerHistory(c),
           onEdit: () => _editCustomer(c),
           onDelete: () => _deleteCustomer(c),
@@ -830,6 +832,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           accent: _supplierAccent,
           icon: Icons.shopping_bag,
           isCustomer: false,
+          partyId: s.id,
           onTap: () => _showSupplierHistory(s),
           onEdit: () => _editSupplier(s),
           onDelete: () => _deleteSupplier(s),
@@ -1077,6 +1080,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     required Color accent,
     required IconData icon,
     required bool isCustomer,
+    int? partyId,
     required VoidCallback onTap,
     required VoidCallback onEdit,
     required VoidCallback onDelete,
@@ -1110,11 +1114,12 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
         InkWell(
           onTap: onTap,
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(color: accent.withOpacity(0.14), shape: BoxShape.circle),
-              child: Icon(icon, size: 19, color: accent),
+            PartyAvatar(
+              isCustomer: isCustomer,
+              partyId: partyId,
+              name: name,
+              radius: 21,
+              onTap: partyId == null ? null : () => showPartyPhotoSheet(context, isCustomer: isCustomer, partyId: partyId),
             ),
             const SizedBox(width: 16),
             Expanded(

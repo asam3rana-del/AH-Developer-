@@ -10,8 +10,10 @@ import '../db/supplier_repository.dart';
 import '../db/user_repository.dart';
 import '../services/printer_service.dart';
 import '../services/session.dart';
+import '../services/slip_pdf_service.dart';
 import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
+import '../utils/slip_pdf_data.dart';
 import '../utils/slip_text.dart';
 import '../theme/theme_manager.dart';
 
@@ -128,6 +130,15 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         partyId: id,
         paymentMethod: d.paymentMethod,
       );
+
+  Future<void> _sharePdf() async {
+    try {
+      final base = '${_doc.isPurchase ? 'Purchase' : 'Sale'}_${_doc.ref}';
+      await SlipPdfService.share(billDocSlipData(_doc, netBalance: _partyId == null ? null : _net), fileBase: base);
+    } catch (e) {
+      _toast('PDF: $e');
+    }
+  }
 
   Future<void> _whatsApp() async {
     var phone = _doc.partyPhone.trim();
@@ -343,6 +354,9 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
           _gBtn(Loc.t('Send on WhatsApp', 'واٹس ایپ پر بھیجیں'), Icons.send,
               const [Color(0xFF25D366), Color(0xFF1DA851)], _whatsApp),
           const SizedBox(height: 12),
+          _gBtn(Loc.t('Share as PDF', 'پی ڈی ایف شیئر کریں'), Icons.picture_as_pdf,
+              const [Color(0xFFE05252), Color(0xFFC03A3A)], _sharePdf),
+          const SizedBox(height: 12),
           _gBtn(Loc.t('+ NEW PURCHASE BILL', '+ نیا خریداری بل'), Icons.check,
               const [Color(0xFF16915F), Color(0xFF0F7A55)], () => Navigator.of(context).pop('new')),
           const SizedBox(height: 12),
@@ -434,6 +448,8 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         _btn(_printing ? Loc.t('Printing…', 'پرنٹ ہو رہا ہے…') : Loc.t('PRINT', 'پرنٹ'), Icons.print, ThemeManager.palette.blue, _printing ? null : _print),
         const SizedBox(height: 10),
         _btn(Loc.t('Send on WhatsApp', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
+        const SizedBox(height: 10),
+        _btn(Loc.t('Share as PDF', 'پی ڈی ایف شیئر کریں'), Icons.picture_as_pdf, const Color(0xFFD64545), _sharePdf),
         const SizedBox(height: 10),
         Row(children: [
           Expanded(child: _btn(Loc.t('DONE', 'مکمل'), Icons.check, ThemeManager.palette.teal, () => Navigator.of(context).pop())),
