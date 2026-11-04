@@ -94,6 +94,16 @@ test('due_followups follow the same branch rules (own branch only)', async () =>
   await assertFails(setDoc(doc(db, 'due_followups/wrong'), { branchId: 'b2', method: 'note', outcome: 'note' }));
 });
 
+test('due_followups: app sends null for empty optional fields (WhatsApp / call without amount or date)', async () => {
+  const db = dbFor('uid-b1');
+  await assertSucceeds(setDoc(doc(db, 'due_followups/n1'), {
+    branchId: 'b1', partyServerId: 'customer:T-1', method: 'whatsapp', outcome: 'sent',
+    amount: null, promiseDate: null, nextFollowUp: null, note: null,
+  }));
+  await assertFails(setDoc(doc(db, 'due_followups/n2'), { branchId: 'b1', method: 'call', outcome: 'sent', amount: 'abc' }));
+  await assertFails(setDoc(doc(db, 'due_followups/n3'), { branchId: 'b1', method: 'call', outcome: 'sent', promiseDate: 'x' }));
+});
+
 test('due_followups: invalid fields are rejected, branchId cannot change', async () => {
   const db = dbFor('uid-b1');
   await assertFails(setDoc(doc(db, 'due_followups/bad1'), { branchId: 'b1', method: 'call', outcome: 'bogus' }));

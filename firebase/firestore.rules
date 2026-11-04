@@ -95,9 +95,9 @@ service cloud.firestore {
           && d.method in ['whatsapp', 'call', 'visit', 'sms', 'note']
           && d.outcome in ['sent', 'paid', 'promised', 'partial',
                            'no_answer', 'refused', 'dispute', 'note']
-          && (!('amount' in d) || (d.amount is number && d.amount >= 0))
-          && (!('promiseDate' in d) || d.promiseDate is number)
-          && (!('nextFollowUp' in d) || d.nextFollowUp is number)
+          && (d.get('amount', null) == null || (d.amount is number && d.amount >= 0))
+          && (d.get('promiseDate', null) == null || d.promiseDate is number)
+          && (d.get('nextFollowUp', null) == null || d.nextFollowUp is number)
           && (!('note' in d) || d.note == null || (d.note is string && d.note.size() <= 500));
     }
 

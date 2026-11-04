@@ -28,10 +28,20 @@ class CrashHandler {
 
     final previousPlatformHandler = PlatformDispatcher.instance.onError;
     PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+      // cloud_firestore ka jana-pehchana bug: transaction fail (jaise permission-denied) ho to plugin
+      // `completeError` do baar chalata hai. Asal ghalti push ke apne catch mein pehle hi darj ho chuki hoti hai,
+      // ye dobara aane wala StateError koi crash nahi — dialog / crash text mein na aaye.
+      if (isKnownBenign(error, stack)) return true;
       _save('Async / platform', error, stack);
       // Agar pehle koi handler tha to wahi faisla kare; warna 'handled' na maanein.
       return previousPlatformHandler?.call(error, stack) ?? false;
     };
+  }
+
+  /// `Bad state: Future already completed` jo cloud_firestore ke `runTransaction` (method_channel_firestore) se aata hai.
+  static bool isKnownBenign(Object error, StackTrace? stack) {
+    if (error is! StateError || !error.message.contains('Future already completed')) return false;
+    return (stack?.toString() ?? '').contains('method_channel_firestore');
   }
 
   /// Kotlin: "CRASH at <stamp>\nThread: ...\n\n<stack trace>".
