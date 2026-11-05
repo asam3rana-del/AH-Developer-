@@ -82,11 +82,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Product> _matches = const [];
   String _query = '';
 
-  // Party (Customer + Supplier) search — Today's sale / profit cards ki jagah.
-  final _partyCtrl = TextEditingController();
+  // Party (Customer + Supplier) nateeje — ab wahi ek search bar (_searchCtrl) chalata hai.
   List<PartyRow>? _parties; // cache; doosri screen se wapas aane par reset
   List<PartyRow> _partyMatches = const [];
-  String _partyQuery = '';
   bool _showCustomers = true;
   bool _showSuppliers = true;
 
@@ -151,7 +149,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _partyCtrl.dispose();
     super.dispose();
   }
 
@@ -199,11 +196,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (error != null) _toast(error);
   }
 
+  /// Ek hi search bar: items (rate) AUR parties (customer / supplier) dono ek sath dhundta hai.
   Future<void> _onSearch(String q) async {
     final t = q.trim();
     setState(() => _query = t);
     if (t.isEmpty) {
-      setState(() => _matches = const []);
+      setState(() {
+        _matches = const [];
+        _partyMatches = const [];
+      });
       return;
     }
     try {
@@ -212,9 +213,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _toast(e.toString());
       return;
     }
+    // Parties ka load fail ho jaye to bhi items dikhen.
+    try {
+      _parties ??= await PartyDashboardRepository.instance.loadParties();
+    } catch (_) {}
     // Is dauran user ne aur type kar diya ho to purana jawab na dikhayen.
     if (!mounted || _searchCtrl.text.trim() != t) return;
-    setState(() => _matches = dashboardSearch(_products!, t));
+    setState(() {
+      _matches = dashboardSearch(_products!, t);
+      _partyMatches = _parties == null
+          ? const []
+          : dashboardPartySearch(_parties!, t, customers: _showCustomers, suppliers: _showSuppliers);
+    });
   }
 
   /// Header ka Sync button: Settings wala Sync Now (internet nahi => message). Baad mein dashboard refresh.
@@ -235,34 +245,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _parties = null;
     await _refresh();
     if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
-    if (_partyQuery.isNotEmpty) _onPartySearch(_partyCtrl.text);
   }
 
   bool get _canSeeSuppliers => _am.contains(Session.role); // cashier ko supplier screen band
-
-  /// Customer + Supplier search (naam / phone). Data wahi loadParties() jo Payment picker use karta hai.
-  Future<void> _onPartySearch(String q) async {
-    final t = q.trim();
-    setState(() => _partyQuery = t);
-    if (t.isEmpty) {
-      setState(() => _partyMatches = const []);
-      return;
-    }
-    try {
-      _parties ??= await PartyDashboardRepository.instance.loadParties();
-    } catch (e) {
-      _toast(e.toString());
-      return;
-    }
-    if (!mounted || _partyCtrl.text.trim() != t) return;
-    setState(() => _partyMatches = dashboardPartySearch(
-          _parties!,
-          t,
-          customers: _showCustomers,
-          suppliers: _showSuppliers,
-          canSeeSuppliers: _canSeeSuppliers,
-        ));
-  }
 
   // ------------------------------------------------------------ navigation
 
@@ -273,7 +258,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _parties = null; // baqaya badal gaya ho sakta hai
     _refresh();
     if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
-    if (_partyQuery.isNotEmpty) _onPartySearch(_partyCtrl.text);
   }
 
   /// Payment Received / Made: parties load karke seedha picker kholta hai; chunne par us party ka
@@ -524,9 +508,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: EdgeInsets.fromLTRB(16, 20, 16, 28 + mq.padding.bottom),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _searchBar(p),
-                if (_query.isNotEmpty) _searchResults(p),
-                const SizedBox(height: 22),
-                _partySearchCard(p),
+                if (_query.isNotEmpty) _unifiedResults(p),
                 if (_focus != null) ...[
                   const SizedBox(height: 18),
                   TodaysCollectionCard(
@@ -676,7 +658,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             decoration: InputDecoration(
               isDense: true,
               border: InputBorder.none,
-              hintText: Loc.t('Search Item Rate…', 'آئٹم ریٹ سرچ کریں…'),
+              hintText: _canSeeSuppliers
+                  ? Loc.t('Search item, customer, supplier…', 'آئٹم، کسٹمر، سپلائر سرچ کریں…')
+                  : Loc.t('Search item, customer…', 'آئٹم، کسٹمر سرچ کریں…'),
               hintStyle: TextStyle(color: p.textMuted, fontWeight: FontWeight.bold),
             ),
           ),
@@ -694,8 +678,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Kotlin runItemSearch(): pehle 6 match; tap => ItemSearchScreen usi item par khuli hui.
-  Widget _searchResults(AppPalette p) {
+  /// Ek search ke nateeje: pehle Items (rate), phir Parties (chips ke sath).
+  Widget _unifiedResults(AppPalette p) {
+    Widget header(String text) => Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
+          child: Text(text, style: TextStyle(fontSize: 11.5, letterSpacing: 0.6, fontWeight: FontWeight.bold, color: p.textMuted)),
+        );
+    Widget empty(String text) => Padding(
+          padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
+          child: Text(text, style: TextStyle(fontSize: 13, color: p.textMuted)),
+        );
     return Container(
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
@@ -703,36 +695,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: p.border),
       ),
-      child: _matches.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.all(18),
-              child: Text(Loc.t('No matching items', 'کوئی آئٹم نہیں ملا'), style: TextStyle(fontSize: 13, color: p.textMuted)),
-            )
-          : Column(children: [
-              for (var i = 0; i < _matches.length; i++) ...[
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () => _push(ItemSearchScreen(preselectBarcode: _matches[i].barcode)),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    child: Row(children: [
-                      Expanded(
-                        child: Text(_matches[i].name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.textDark)),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(dashboardAmount(_matches[i].salePrice),
-                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.flatBlueFg)),
-                    ]),
-                  ),
-                ),
-                if (i != _matches.length - 1)
-                  Divider(height: 1, thickness: 1, indent: 18, endIndent: 18, color: p.border),
-              ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        header(Loc.t('ITEMS', 'آئٹمز')),
+        if (_matches.isEmpty) empty(Loc.t('No matching items', 'کوئی آئٹم نہیں ملا')) else _itemRows(p),
+        Divider(height: 1, thickness: 1, color: p.border),
+        header(Loc.t('PARTIES', 'پارٹیاں')),
+        if (_canSeeSuppliers)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 2, 14, 0),
+            child: Wrap(spacing: 8, children: [
+              _partyChip(p, Loc.t('All', 'سب'), _showCustomers && _showSuppliers, () => _setPartyFilter(true, true)),
+              _partyChip(p, Loc.t('Customers', 'کسٹمرز'), _showCustomers && !_showSuppliers, () => _setPartyFilter(true, false)),
+              _partyChip(p, Loc.t('Suppliers', 'سپلائرز'), !_showCustomers && _showSuppliers, () => _setPartyFilter(false, true)),
             ]),
+          ),
+        if (_partyMatches.isEmpty)
+          empty(Loc.t('No matching party', 'کوئی پارٹی نہیں ملی'))
+        else
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: _partyResults(p)),
+        const SizedBox(height: 6),
+      ]),
     );
+  }
+
+  /// Kotlin runItemSearch(): pehle 6 match; tap => ItemSearchScreen usi item par khuli hui.
+  Widget _itemRows(AppPalette p) {
+    return Column(children: [
+      for (var i = 0; i < _matches.length; i++) ...[
+        InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _push(ItemSearchScreen(preselectBarcode: _matches[i].barcode)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(children: [
+              Expanded(
+                child: Text(_matches[i].name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.textDark)),
+              ),
+              const SizedBox(width: 10),
+              Text(dashboardAmount(_matches[i].salePrice),
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.flatBlueFg)),
+            ]),
+          ),
+        ),
+        if (i != _matches.length - 1) Divider(height: 1, thickness: 1, indent: 18, endIndent: 18, color: p.border),
+      ],
+    ]);
   }
 
   Widget _sectionLabel(AppPalette p, String text) => Padding(
@@ -769,64 +779,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Customer + Supplier search card (Today's sale / profit ki jagah).
-  Widget _partySearchCard(AppPalette p) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-      decoration: BoxDecoration(
-        color: p.cardWhite,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: p.border),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          IconBadge(icon: Icons.people_outline, color: p.flatPinkFg, bg: p.flatPinkBg, size: 36, iconSize: 16),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: _partyCtrl,
-              onChanged: _onPartySearch,
-              textInputAction: TextInputAction.search,
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: p.textDark),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: _canSeeSuppliers
-                    ? Loc.t('Search customer / supplier…', 'کسٹمر / سپلائر سرچ کریں…')
-                    : Loc.t('Search customer…', 'کسٹمر سرچ کریں…'),
-                hintStyle: TextStyle(color: p.textMuted, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          if (_partyQuery.isNotEmpty)
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              icon: Icon(Icons.close, size: 18, color: p.textMuted),
-              onPressed: () {
-                _partyCtrl.clear();
-                _onPartySearch('');
-              },
-            ),
-        ]),
-        if (_canSeeSuppliers) ...[
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, children: [
-            _partyChip(p, Loc.t('All', 'سب'), _showCustomers && _showSuppliers, () => _setPartyFilter(true, true)),
-            _partyChip(p, Loc.t('Customers', 'کسٹمرز'), _showCustomers && !_showSuppliers, () => _setPartyFilter(true, false)),
-            _partyChip(p, Loc.t('Suppliers', 'سپلائرز'), !_showCustomers && _showSuppliers, () => _setPartyFilter(false, true)),
-          ]),
-        ],
-        if (_partyQuery.isNotEmpty) _partyResults(p),
-      ]),
-    );
-  }
-
   void _setPartyFilter(bool customers, bool suppliers) {
     setState(() {
       _showCustomers = customers;
       _showSuppliers = suppliers;
     });
-    if (_partyQuery.isNotEmpty) _onPartySearch(_partyCtrl.text);
+    if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
   }
 
   Widget _partyChip(AppPalette p, String label, bool selected, VoidCallback onTap) {
