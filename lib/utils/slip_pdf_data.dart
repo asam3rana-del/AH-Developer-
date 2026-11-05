@@ -42,6 +42,12 @@ class SlipBlock {
   bool get hasTable => headers.isNotEmpty && rows.isNotEmpty;
 }
 
+/// PDF ke neeche dhanyawad (Urdu). Shop ki apni `receipt_footer` set ho to wo chalti hai.
+const String slipThanks = 'خریداری کا شکریہ';
+
+/// PDF ke neeche payment ki maloomat (Urdu + number).
+const String slipPayInfo = 'جاز کیش / راست: 03006296815';
+
 class SlipPdfData {
   final String shopName;
   final String shopPhone;
