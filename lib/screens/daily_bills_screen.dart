@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:share_plus/share_plus.dart';
 
 import '../db/customer_repository.dart';
 import '../db/daily_bills_repository.dart';
@@ -118,6 +120,28 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
       subject: 'Daily Bills',
     );
     if (ok) await _markSent(_rows.map((r) => r.id));
+  }
+
+  /// Bill ka text (shop header ke sath) customer ki WhatsApp chat mein. Number saved na ho to poochta hai.
+  Future<void> _sendText(DailyParty r) async {
+    final phone = await _phoneOf(r);
+    final text = await _billTextWithHeader(r);
+    if (!mounted) return;
+    await sendOnWhatsApp(context, phone: phone, text: text);
+  }
+
+  /// Wahi text aam share sheet se (kisi bhi app mein).
+  Future<void> _shareText(DailyParty r, BuildContext btnContext) async {
+    final text = await _billTextWithHeader(r);
+    Rect? origin;
+    final box = btnContext.findRenderObject();
+    if (box is RenderBox && box.hasSize) origin = box.localToGlobal(Offset.zero) & box.size;
+    try {
+      await Share.share(text, subject: 'Daily Bill - ${r.name}', sharePositionOrigin: origin);
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) _toast(Loc.t('Copied', 'کاپی ہو گیا'));
+    }
   }
 
   String _rs(double v) => 'Rs ${v.round()}';
@@ -472,6 +496,26 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
                   ? Loc.t('Send PDF again (WhatsApp)', 'پی ڈی ایف دوبارہ بھیجیں (واٹس ایپ)')
                   : Loc.t('Send PDF (WhatsApp)', 'پی ڈی ایف بھیجیں (واٹس ایپ)')),
             ),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _sendText(r),
+                  icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                  label: Text(Loc.t('WhatsApp text', 'واٹس ایپ ٹیکسٹ')),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Builder(
+                  builder: (bc) => OutlinedButton.icon(
+                    onPressed: () => _shareText(r, bc),
+                    icon: const Icon(Icons.share),
+                    label: Text(Loc.t('Share', 'شیئر')),
+                  ),
+                ),
+              ),
+            ]),
           ],
         ),
       ),
