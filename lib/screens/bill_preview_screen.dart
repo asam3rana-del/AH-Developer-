@@ -133,7 +133,8 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
 
   Future<void> _sharePdf() async {
     final base = '${_doc.isPurchase ? 'Purchase' : 'Sale'}_${_doc.ref}';
-    await shareSlip(context, billDocSlipData(_doc, netBalance: _partyId == null ? null : _net), fileBase: base);
+    final data = billDocSlipData(_doc, netBalance: _partyId == null ? null : _net);
+    await shareSlip(context, data, fileBase: base, fileName: slipAutoFileName(data, ref: _doc.ref), whatsappPhone: _doc.partyPhone);
   }
 
   Future<void> _whatsApp() async {

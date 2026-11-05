@@ -10,6 +10,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
+import '../db/user_repository.dart';
 import '../utils/pdf_urdu.dart';
 import '../utils/slip_pdf_data.dart';
 
@@ -25,6 +26,7 @@ class SlipPdfService {
 
   static pw.Font? _urduFont;
   static pw.MemoryImage? _logo;
+  static String _owner = '';
   static bool _logoTried = false;
 
   /// Dukaan ka logo (assets/images/logo.png) — header mein. Na mile to chupchap nahi lagta.
@@ -117,12 +119,29 @@ class SlipPdfService {
     ];
   }
 
+  /// Header: logo ek taraf, aur uske barabar dukaan ka naam, malik ka naam, phone (teeno bold, center).
+  static pw.Widget _header(SlipPdfData d) {
+    final name = d.shopName.trim();
+    final phone = d.shopPhone.trim();
+    final lines = <pw.Widget>[
+      if (name.isNotEmpty) pw.Center(child: _text(name, size: 16, bold: true)),
+      if (_owner.isNotEmpty) pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(top: 3), child: _text(_owner, size: 13, bold: true))),
+      if (phone.isNotEmpty) pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(top: 3), child: _text(phone, size: 13, bold: true))),
+    ];
+    if (_logo == null) return pw.Column(children: lines);
+    return pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+      pw.Image(_logo!, width: 70, height: 70),
+      pw.SizedBox(width: 10),
+      pw.Expanded(child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.center, children: lines)),
+      pw.SizedBox(width: 80), // logo jitni jagah khali, taake naam bilkul beech mein rahe
+    ]);
+  }
+
+  /// Supplier ki taraf ki slips par apni payment ki maloomat nahi chhapti.
+  static const _noPayInfo = {'PURCHASE BILL', 'PAYMENT MADE', 'SUPPLIER STATEMENT'};
+
   static List<pw.Widget> _widgets(SlipPdfData d) => [
-        if (_logo != null) pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(bottom: 6), child: pw.Image(_logo!, width: 64, height: 64))),
-        if (d.shopName.trim().isNotEmpty)
-          pw.Center(child: _text(d.shopName.trim(), size: 15, bold: true)),
-        if (d.shopPhone.trim().isNotEmpty)
-          pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(top: 2), child: _text(d.shopPhone.trim(), size: 10, argb: 0xFF8A90A6))),
+        _header(d),
         pw.SizedBox(height: 8),
         pw.Container(
           color: _teal,
@@ -136,7 +155,14 @@ class SlipPdfService {
         if (d.meta.isNotEmpty) pw.Padding(padding: const pw.EdgeInsets.only(top: 8), child: pw.Column(children: [for (final k in d.meta) _kv(k)])),
         for (final b in d.blocks) ..._block(b),
         pw.SizedBox(height: 14),
-        if (d.footer.isNotEmpty) pw.Center(child: _text(d.footer, size: 10, argb: 0xFF8A90A6)),
+        if (!_noPayInfo.contains(d.title))
+          pw.Container(
+          margin: const pw.EdgeInsets.only(bottom: 8),
+          padding: const pw.EdgeInsets.symmetric(vertical: 5),
+          decoration: const pw.BoxDecoration(border: pw.Border.symmetric(horizontal: pw.BorderSide(color: _teal, width: 0.8))),
+          child: pw.Center(child: _text(slipPayInfo, size: 12, bold: true, argb: 0xFF0F9B8E)),
+        ),
+        if (d.footer.isNotEmpty) pw.Center(child: _text(d.footer, size: 11, bold: true, argb: 0xFF8A90A6)),
       ];
 
   /// PDF bytes. RAM kam padne (ya koi bhi masla) par ek baar 2x chhoti Urdu tasveeron ke saath dobara koshish.
@@ -160,6 +186,11 @@ class SlipPdfService {
   static Future<Uint8List> _build(List<SlipPdfData> ds) async {
     final urdu = await _loadUrduFont();
     await _loadLogo();
+    try {
+      _owner = (await UserRepository.instance.getSetting('shop_owner'))?.trim() ?? '';
+    } catch (_) {
+      _owner = '';
+    }
     final doc = pw.Document(
       theme: pw.ThemeData.withFont(
         base: pw.Font.helvetica(),
@@ -187,18 +218,19 @@ class SlipPdfService {
   }
 
   /// PDF temp folder mein likh kar share sheet kholta hai. File ka path lautata hai.
-  static Future<File> save(SlipPdfData d, {String? fileBase, DateTime? now}) =>
-      _write(() => build(d), fileBase ?? (d.partyName.isNotEmpty ? '${d.title}_${d.partyName}' : d.title), now);
+  static Future<File> save(SlipPdfData d, {String? fileBase, String? fileName, DateTime? now}) =>
+      _write(() => build(d), fileBase ?? (d.partyName.isNotEmpty ? '${d.title}_${d.partyName}' : d.title), now, fileName);
 
   /// Kai slips ek PDF file mein.
-  static Future<File> saveMany(List<SlipPdfData> ds, {required String fileBase, DateTime? now}) =>
-      _write(() => buildMany(ds), fileBase, now);
+  static Future<File> saveMany(List<SlipPdfData> ds, {required String fileBase, String? fileName, DateTime? now}) =>
+      _write(() => buildMany(ds), fileBase, now, fileName);
 
-  static Future<File> _write(Future<Uint8List> Function() make, String base, DateTime? now) async {
+  /// [exactName] diya ho to wahi naam (waqt ke bina), warna `fileBase_tareekh_waqt.pdf`.
+  static Future<File> _write(Future<Uint8List> Function() make, String base, DateTime? now, [String? exactName]) async {
     final bytes = await make();
     final dir = Directory(p.join((await getTemporaryDirectory()).path, 'slips'));
     if (!await dir.exists()) await dir.create(recursive: true);
-    final name = slipFileName(base, now ?? DateTime.now());
+    final name = exactName ?? slipFileName(base, now ?? DateTime.now());
     final f = File(p.join(dir.path, name));
     await f.writeAsBytes(bytes, flush: true);
     return f;

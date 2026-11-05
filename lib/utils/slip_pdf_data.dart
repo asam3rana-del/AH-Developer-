@@ -61,7 +61,7 @@ class SlipPdfData {
     this.partyName = '',
     this.meta = const [],
     this.blocks = const [],
-    this.footer = 'Thank you!',
+    this.footer = slipThanks,
   });
 }
 
@@ -94,6 +94,35 @@ String slipFileName(String base, DateTime when) {
   final clean = base.trim().replaceAll(RegExp(r'[^\w\u0600-\u06FF-]+'), '_').replaceAll(RegExp(r'_+'), '_');
   final safe = clean.isEmpty || clean == '_' ? 'Slip' : clean;
   return '${safe}_${DateFormat('yyyyMMdd_HHmm').format(when)}.pdf';
+}
+
+/// Customer ko dikhne wala saaf naam: `Qasir-Pan-Shop_Bill_05-11-2026.pdf` (waqt nahi, spaces `-`).
+String slipCustomerFileName(String party, String kind, DateTime day) {
+  final clean = party
+      .trim()
+      .replaceAll(RegExp(r'[^\w\u0600-\u06FF\s-]+'), '')
+      .replaceAll(RegExp(r'\s+'), '-')
+      .replaceAll(RegExp(r'-+'), '-');
+  final who = clean.isEmpty || clean == '-' ? '' : '${clean}_';
+  final k = kind.replaceAll(RegExp(r'[^\w-]+'), '-');
+  return '$who${k}_${DateFormat('dd-MM-yyyy').format(day)}.pdf';
+}
+
+/// Slip ke title se saaf naam: `Qasir-Pan-Shop_Payment-Received_05-11-2026.pdf`. [ref] (bill number) ho to kind mein judta hai.
+String slipAutoFileName(SlipPdfData d, {DateTime? day, String ref = ''}) {
+  const kinds = {
+    'DAILY BILL': 'Bill',
+    'PAYMENT RECEIVED': 'Payment-Received',
+    'PAYMENT MADE': 'Payment-Made',
+    'CUSTOMER STATEMENT': 'Statement',
+    'SUPPLIER STATEMENT': 'Statement',
+    'PARTY SUMMARY': 'Summary',
+    'SALE BILL': 'Sale-Bill',
+    'PURCHASE BILL': 'Purchase-Bill',
+  };
+  var kind = kinds[d.title] ?? 'Slip';
+  if (ref.trim().isNotEmpty) kind = '$kind-${ref.trim()}';
+  return slipCustomerFileName(d.partyName, kind, day ?? DateTime.now());
 }
 
 // ---------------------------------------------------------------- Daily Bill
@@ -332,6 +361,6 @@ SlipPdfData billDocSlipData(BillDoc d, {double? netBalance}) {
         ],
       ),
     ],
-    footer: d.receiptFooter.trim().isEmpty ? 'Thank you! Please visit again.' : d.receiptFooter.trim(),
+    footer: d.receiptFooter.trim().isEmpty ? slipThanks : d.receiptFooter.trim(),
   );
 }

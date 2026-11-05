@@ -87,12 +87,18 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
   /// chat mein khulti hai, warna share sheet. PDF na bane to bill ka text clipboard par copy ho jata hai.
   Future<void> _sharePdf(DailyParty r) async {
     final shop = await loadShopHeader();
-    final phone = await _phoneOf(r);
+    var phone = await _phoneOf(r);
     if (!mounted) return;
+    if (phone.isEmpty) {
+      // Number saved nahi: poochho taake PDF seedha WhatsApp chat mein khule (cancel => aam share sheet).
+      phone = await askWhatsAppNumber(context) ?? '';
+      if (!mounted) return;
+    }
     final ok = await shareSlip(
       context,
       dailyBillSlipData(r, _day, shopName: shop.name, shopPhone: shop.phone),
       fileBase: 'DailyBill_${r.name}',
+      fileName: slipCustomerFileName(r.name, 'Bill', _day),
       fallbackText: await _billTextWithHeader(r),
       whatsappPhone: phone,
     );
@@ -108,6 +114,7 @@ class _DailyBillsBodyState extends State<_DailyBillsBody> {
       context,
       [for (final r in _rows) dailyBillSlipData(r, _day, shopName: shop.name, shopPhone: shop.phone)],
       fileBase: 'DailyBills_${DateFormat('yyyy-MM-dd').format(_day)}',
+      fileName: slipCustomerFileName('All-Bills', 'Daily', _day),
       subject: 'Daily Bills',
     );
     if (ok) await _markSent(_rows.map((r) => r.id));

@@ -66,3 +66,27 @@ Future<void> sendOnWhatsApp(BuildContext context, {required String phone, requir
     messenger.showSnackBar(SnackBar(content: Text(Loc.t('Copied', 'کاپی ہو گیا'))));
   }
 }
+
+/// Customer ka number saved na ho to poochta hai (PDF seedha us ki WhatsApp chat mein kholne ke liye).
+/// Cancel / khali => null.
+Future<String?> askWhatsAppNumber(BuildContext context) async {
+  final ctrl = TextEditingController();
+  final entered = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(Loc.t('WhatsApp number', 'واٹس ایپ نمبر')),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        keyboardType: TextInputType.phone,
+        decoration: const InputDecoration(hintText: '03001234567'),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text(Loc.t('Send', 'بھیجیں'))),
+      ],
+    ),
+  );
+  ctrl.dispose();
+  return (entered == null || entered.isEmpty) ? null : entered;
+}

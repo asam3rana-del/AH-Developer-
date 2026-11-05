@@ -353,7 +353,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       return;
     }
     if (choice == 'pdf' && pdf != null) {
-      await shareSlip(context, pdf, fallbackText: text);
+      await shareSlip(context, pdf, fallbackText: text, whatsappPhone: _phone);
       return;
     }
     try {

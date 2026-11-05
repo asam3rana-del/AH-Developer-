@@ -20,12 +20,13 @@ Future<bool> shareSlip(
   BuildContext context,
   SlipPdfData data, {
   String? fileBase,
+  String? fileName,
   String? fallbackText,
   String? whatsappPhone,
 }) =>
     _runSlipPdf(
       context,
-      () => SlipPdfService.save(data, fileBase: fileBase),
+      () => SlipPdfService.save(data, fileBase: fileBase, fileName: fileName ?? slipAutoFileName(data)),
       subject: data.title,
       fallbackText: fallbackText,
       whatsappPhone: whatsappPhone,
@@ -36,9 +37,10 @@ Future<bool> shareSlips(
   BuildContext context,
   List<SlipPdfData> data, {
   required String fileBase,
+  String? fileName,
   String subject = 'Bills',
 }) =>
-    _runSlipPdf(context, () => SlipPdfService.saveMany(data, fileBase: fileBase), subject: subject);
+    _runSlipPdf(context, () => SlipPdfService.saveMany(data, fileBase: fileBase, fileName: fileName), subject: subject);
 
 /// [whatsappPhone] diya ho (Android) to PDF seedha usi number ki WhatsApp chat mein khulti hai; warna / na ho sake
 /// to aam share sheet. Kamyab => true (share sheet khul gayi ya chat khul gayi).
