@@ -260,6 +260,34 @@ void main() {
       expect(f.top.first.oldestOverdueDays, 10);
     });
 
+    test('Due screen ke filter home card ki ginti se bilkul mel khate hain', () {
+      final parties = [
+        party(1, 'Overdue only', 1000, due: day(5)),
+        party(2, 'Broken', 500, due: day(5)),
+        party(3, 'On promise', 9000, due: day(5)),
+        party(4, 'Follow today', 300, due: day(5)),
+        party(5, 'Future bill', 700, due: day(25)),
+        party(6, 'Bill today', 250, due: day(15)),
+        party(7, 'Promise today', 400, due: day(25)),
+      ];
+      final fups = {
+        2: [fu(at(10, 10), partyId: 2, outcome: FollowUpOutcome.promised, promise: day(13))],
+        3: [fu(at(14, 10), partyId: 3, outcome: FollowUpOutcome.promised, promise: day(20))],
+        4: [fu(at(12, 10), partyId: 4, outcome: FollowUpOutcome.noAnswer, next: day(15))],
+        7: [fu(at(14, 10), partyId: 7, outcome: FollowUpOutcome.promised, promise: day(15))],
+      };
+      final f = buildCollectionFocus(parties, fups, nowMillis: now, topN: 2);
+      int count(FollowUpFilter flt) => parties
+          .where((p) => partyMatchesFilter(flt, p, followUpState(fups[p.partyId] ?? const <DueFollowUp>[], nowMillis: now), nowMillis: now))
+          .length;
+      expect(count(FollowUpFilter.collectToday), f.dueTodayCount);
+      expect(count(FollowUpFilter.late), f.overdueCount);
+      expect(count(FollowUpFilter.brokenPromise), f.brokenCount);
+      expect(count(FollowUpFilter.focus), f.candidateCount);
+      expect(f.top.length, 2); // card sirf 2 dikhata hai, baqi "+N more"
+      expect(f.candidateCount > f.top.length, isTrue);
+    });
+
     test('advance rows aur khali list', () {
       final adv = DueParty(
         partyId: 9,

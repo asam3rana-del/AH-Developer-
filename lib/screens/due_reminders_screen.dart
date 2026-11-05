@@ -11,6 +11,7 @@ import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import '../widgets/party_avatar.dart';
 import '../widgets/permission_guard.dart';
+import '../services/collection_actions.dart';
 import 'followup_sheets.dart';
 
 /// Mirrors DueRemindersActivity.kt.
@@ -27,14 +28,18 @@ import 'followup_sheets.dart';
 ///
 /// Farq (Kotlin se): Material icons; WhatsApp `url_launcher` se (externalApplication).
 class DueRemindersScreen extends StatelessWidget {
-  const DueRemindersScreen({super.key});
+  /// Home card ke tile (Collect today / Late / Promise broken) isi filter ke sath yahan kholte hain.
+  final FollowUpFilter initialFilter;
+  const DueRemindersScreen({super.key, this.initialFilter = FollowUpFilter.all});
 
   @override
-  Widget build(BuildContext context) => const PermissionGuard(permission: 'due_reminders', child: _DueRemindersBody());
+  Widget build(BuildContext context) =>
+      PermissionGuard(permission: 'due_reminders', child: _DueRemindersBody(initialFilter: initialFilter));
 }
 
 class _DueRemindersBody extends StatefulWidget {
-  const _DueRemindersBody();
+  final FollowUpFilter initialFilter;
+  const _DueRemindersBody({this.initialFilter = FollowUpFilter.all});
 
   @override
   State<_DueRemindersBody> createState() => _DueRemindersBodyState();
@@ -71,6 +76,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   @override
   void initState() {
     super.initState();
+    _filter = widget.initialFilter;
     WidgetsBinding.instance.addObserver(this);
     _load();
   }
@@ -377,6 +383,14 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     }
   }
 
+  /// Home card ke tick wala hi kaam: payment likho, phir list dobara load.
+  Future<void> _receive(DueParty g) async {
+    final id = g.partyId;
+    if (id == null) return;
+    final saved = await receiveFromParty(context, partyId: id, partyName: g.partyName, due: g.total);
+    if (saved && mounted) await _load(showSpinner: false);
+  }
+
   Future<void> _openTimeline(DueParty g) async {
     final id = g.partyId;
     if (id == null) return;
@@ -461,9 +475,10 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     // Search ke baad jo parties bachin, summary un ki (taake kisi ek customer ka total saaf nazar aaye).
     final matched = groupDueByParty(_bills).where((g) => dueMatches(g, _query)).toList();
     final states = {for (final g in matched) g.key: _stateOf(g)};
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
     final filtered = _filter == FollowUpFilter.all || _purchases
         ? matched
-        : matched.where((g) => !g.isAdvance && followUpMatches(_filter, states[g.key]!)).toList();
+        : matched.where((g) => partyMatchesFilter(_filter, g, states[g.key]!, nowMillis: nowMs)).toList();
     final groups = _purchases ? filtered : _orderByFollowUp(filtered, states);
     final shown = [for (final g in matched) ...g.bills];
     final summary = summarizeDue(shown);
@@ -523,6 +538,13 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
                 )
               else ...[
                 if (!_purchases) _filterChips(matched, states),
+                if (!_purchases && _filter != FollowUpFilter.all && groups.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10, left: 4),
+                    child: Text(
+                        '${_filterLabel(_filter)}: ${groups.length} ${Loc.t('parties', 'پارٹیاں')} • ${_rs(groups.fold<double>(0, (a, g) => a + g.total))}',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: _p.textMuted)),
+                  ),
                 if (groups.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 30),
@@ -553,6 +575,12 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     switch (f) {
       case FollowUpFilter.all:
         return Loc.t('All', 'سب');
+      case FollowUpFilter.focus:
+        return Loc.t("Today's collection", 'آج کی وصولی');
+      case FollowUpFilter.collectToday:
+        return Loc.t('Collect today', 'آج لینا ہے');
+      case FollowUpFilter.late:
+        return Loc.t('Late', 'لیٹ');
       case FollowUpFilter.today:
         return Loc.t('Do today', 'آج کرنا ہے');
       case FollowUpFilter.brokenPromise:
@@ -567,8 +595,8 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   }
 
   Widget _filterChips(List<DueParty> matched, Map<String, FollowUpState> states) {
-    int count(FollowUpFilter f) =>
-        matched.where((g) => !g.isAdvance && g.partyId != null && followUpMatches(f, states[g.key]!)).length;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    int count(FollowUpFilter f) => matched.where((g) => partyMatchesFilter(f, g, states[g.key]!, nowMillis: nowMs)).length;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: SingleChildScrollView(
@@ -763,7 +791,15 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   Widget _partyCard(DueParty g, FollowUpState st) {
     final multi = g.bills.length > 1;
     final one = g.bills.first;
-    final (badgeText, badgeColor) = _badge(dueBucket(g.earliestDue));
+    var (badgeText, badgeColor) = _badge(dueBucket(g.earliestDue));
+    // Bill par tareekh nahi par aaj follow-up / wada hai => "No date set" ki jagah wahi dikhao jo home card kehta hai.
+    if (!_purchases && !g.isAdvance && dueBucket(g.earliestDue) == DueBucket.noDate && !st.promiseBroken) {
+      if (st.promiseToday) {
+        (badgeText, badgeColor) = (Loc.t('PROMISE TODAY', 'آج کا وعدہ'), _amber);
+      } else if (st.followUpDue) {
+        (badgeText, badgeColor) = (Loc.t('FOLLOW-UP TODAY', 'آج فالو اپ'), _amber);
+      }
+    }
     final hasPhone = g.partyPhone.trim().isNotEmpty;
     final canRemind = !g.isAdvance; // advance wali party ko "paisa do" ka reminder nahi bhejna
     final onlyBalance = !multi && one.isBalance;
@@ -871,6 +907,11 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
               ),
               if (multi) Icon(Icons.chevron_right, color: _p.textMuted),
               if (canTrack) ...[
+                Tooltip(
+                  message: Loc.t('Payment received', 'رقم وصول'),
+                  child: _circleButton(Icons.check, _teal, _p.flatTealBg, () => _receive(g)),
+                ),
+                const SizedBox(width: 10),
                 Tooltip(
                   message: Loc.t('Follow-up history / add note', 'فالو اپ ہسٹری / نوٹ'),
                   child: _circleButton(Icons.history, _teal, _p.flatTealBg, () => _openTimeline(g)),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
 
+import '../models/due_followup.dart';
 import '../db/dashboard_repository.dart';
 import '../db/due_followup_repository.dart';
 import '../db/party_dashboard_repository.dart';
@@ -530,7 +531,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 18),
                   TodaysCollectionCard(
                     focus: _focus!,
-                    onOpen: () => _push(const DueRemindersScreen()),
+                    onOpen: () => _push(const DueRemindersScreen(initialFilter: FollowUpFilter.focus)),
+                    onOpenFilter: (f) => _push(DueRemindersScreen(initialFilter: f)),
                     onChanged: _refresh,
                     onOpenReceivables: () => _push(const ReceivablesScreen()),
                     onReceive: (f) async {

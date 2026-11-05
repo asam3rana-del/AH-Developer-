@@ -203,7 +203,11 @@ class CollectionFocus {
     this.brokenAmount = 0,
     this.dueTodayCount = 0,
     this.dueTodayAmount = 0,
+    this.candidateCount = 0,
   });
+
+  /// Card ki list mein kul kitni parties aati hain ([top] sirf pehli chand).
+  final int candidateCount;
 
   static const empty = CollectionFocus(
     actionCount: 0,
@@ -231,6 +235,43 @@ int _oldestOverdueDays(DueParty p, int today) {
 bool _hasDueToday(DueParty p, int today) =>
     p.bills.any((b) => !b.isBalance && !b.isAdvance && b.dueDate > 0 && startOfDayMillis(b.dueDate) == today);
 
+/// Ek party kis bucket mein hai. Home card ki ginti AUR Due screen ke filter DONO isi se chalte hain,
+/// taake ek jagah ka number doosri jagah ki list se hamesha mile.
+class CollectionBuckets {
+  final bool broken;
+  final bool late;
+  final bool dueToday;
+  final bool needsAction;
+  const CollectionBuckets({required this.broken, required this.late, required this.dueToday, required this.needsAction});
+
+  /// Home card ki list mein aane wali party (toota wada / aaj ka kaam / late / aaj lena hai).
+  bool get inFocus => needsAction || late || dueToday;
+}
+
+CollectionBuckets classifyCollection(DueParty p, FollowUpState st, {int? nowMillis}) {
+  final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
+  final today = startOfDayMillis(now);
+  final late = p.hasOverdue(nowMillis: now) && !st.onPromise;
+  final dueToday = !late && !st.promiseBroken && (_hasDueToday(p, today) || st.promiseToday);
+  return CollectionBuckets(broken: st.promiseBroken, late: late, dueToday: dueToday, needsAction: st.needsActionToday);
+}
+
+/// Due screen ka filter: kya ye party [f] mein aati hai? (Home card ke teeno tile + chips yahi use karte hain.)
+bool partyMatchesFilter(FollowUpFilter f, DueParty p, FollowUpState st, {int? nowMillis}) {
+  if (f == FollowUpFilter.all) return true;
+  if (p.isAdvance || p.total <= 0.009) return false;
+  switch (f) {
+    case FollowUpFilter.focus:
+      return classifyCollection(p, st, nowMillis: nowMillis).inFocus;
+    case FollowUpFilter.collectToday:
+      return classifyCollection(p, st, nowMillis: nowMillis).dueToday;
+    case FollowUpFilter.late:
+      return classifyCollection(p, st, nowMillis: nowMillis).late;
+    default:
+      return p.partyId != null && followUpMatches(f, st);
+  }
+}
+
 /// Parties + follow-up entries => aaj ka khulasa. PURE (test ke liye).
 CollectionFocus buildCollectionFocus(
   Iterable<DueParty> parties,
@@ -249,7 +290,7 @@ CollectionFocus buildCollectionFocus(
     totalDue += p.total;
     final id = p.partyId;
     final st = followUpState(id == null ? const <DueFollowUp>[] : (followUps[id] ?? const <DueFollowUp>[]), nowMillis: now);
-    final overdue = p.hasOverdue(nowMillis: now);
+    final b = classifyCollection(p, st, nowMillis: now);
     if (st.promiseBroken) {
       brokenCount++;
       brokenAmount += p.total;
@@ -258,13 +299,13 @@ CollectionFocus buildCollectionFocus(
       actionCount++;
       actionAmount += p.total;
     }
-    final countsOverdue = overdue && !st.onPromise;
+    final countsOverdue = b.late;
     if (countsOverdue) {
       overdueCount++;
       overdueAmount += p.total;
     }
     // Aaj lena hai: bill ki tareekh aaj ya wada aaj ka (late / toota wada wali parties upar ginti ho chuki).
-    final dueToday = !countsOverdue && !st.promiseBroken && (_hasDueToday(p, today) || st.promiseToday);
+    final dueToday = b.dueToday;
     if (dueToday) {
       dueTodayCount++;
       dueTodayAmount += p.total;
@@ -292,6 +333,7 @@ CollectionFocus buildCollectionFocus(
     totalParties: totalParties,
     totalDue: totalDue,
     top: cand.take(topN).toList(),
+    candidateCount: cand.length,
   );
 }
 

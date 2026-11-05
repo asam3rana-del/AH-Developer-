@@ -254,12 +254,18 @@ FollowUpState followUpState(Iterable<DueFollowUp> entries, {int? nowMillis}) {
 }
 
 /// Filter chips (Due Reminders screen).
-enum FollowUpFilter { all, today, brokenPromise, onPromise, neverContacted, dispute }
+/// `focus` / `collectToday` / `late` home ke "Aaj ki Wasooli" card ke hisaab se hain (party chahiye, is liye
+/// [partyMatchesFilter] istemal karo); baqi sirf follow-up state se.
+enum FollowUpFilter { all, focus, collectToday, late, brokenPromise, today, onPromise, neverContacted, dispute }
 
 bool followUpMatches(FollowUpFilter f, FollowUpState s) {
   switch (f) {
     case FollowUpFilter.all:
       return true;
+    case FollowUpFilter.focus:
+    case FollowUpFilter.collectToday:
+    case FollowUpFilter.late:
+      return true; // bill ki tareekh bhi dekhni parti hai => partyMatchesFilter()
     case FollowUpFilter.today:
       return s.needsActionToday;
     case FollowUpFilter.brokenPromise:

@@ -23,6 +23,9 @@ class TodaysCollectionCard extends StatelessWidget {
 
   /// "Aging / Sab dekhein": Receivables screen. null => link nahi dikhta.
   final VoidCallback? onOpenReceivables;
+
+  /// Tile / "+N more" dabane par Due Reminders usi filter ke sath khulti hai (null => [onOpen]).
+  final void Function(FollowUpFilter f)? onOpenFilter;
   const TodaysCollectionCard({
     super.key,
     required this.focus,
@@ -30,7 +33,10 @@ class TodaysCollectionCard extends StatelessWidget {
     required this.onChanged,
     this.onReceive,
     this.onOpenReceivables,
+    this.onOpenFilter,
   });
+
+  void _openFilter(FollowUpFilter f) => onOpenFilter != null ? onOpenFilter!(f) : onOpen();
 
   AppPalette get _p => ThemeManager.palette;
 
@@ -91,8 +97,13 @@ class TodaysCollectionCard extends StatelessWidget {
   }
 
   /// Teen khane wali patti: upar naam, beech mein ginti (bari), neeche raqam.
-  Widget _stat(String label, int count, double amount, Color color) => Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _stat(String label, int count, double amount, Color color, FollowUpFilter filter) => Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => _openFilter(filter),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -104,7 +115,9 @@ class TodaysCollectionCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _p.textMuted)),
-        ]),
+            ]),
+          ),
+        ),
       );
 
   Widget _round(IconData icon, Color fg, Color bg, VoidCallback onTap) => InkWell(
@@ -208,15 +221,28 @@ class TodaysCollectionCard extends StatelessWidget {
             )
           else ...[
             Row(children: [
-              _stat(Loc.t('Collect today', 'آج لینا ہے'), f.dueTodayCount, f.dueTodayAmount, _p.flatAmberFg),
+              _stat(Loc.t('Collect today', 'آج لینا ہے'), f.dueTodayCount, f.dueTodayAmount, _p.flatAmberFg, FollowUpFilter.collectToday),
               const SizedBox(width: 10),
-              _stat(Loc.t('Late', 'لیٹ'), f.overdueCount, f.overdueAmount, _p.red),
+              _stat(Loc.t('Late', 'لیٹ'), f.overdueCount, f.overdueAmount, _p.red, FollowUpFilter.late),
               const SizedBox(width: 10),
-              _stat(Loc.t('Promise broken', 'وعدہ ٹوٹا'), f.brokenCount, f.brokenAmount, _p.red),
+              _stat(Loc.t('Promise broken', 'وعدہ ٹوٹا'), f.brokenCount, f.brokenAmount, _p.red, FollowUpFilter.brokenPromise),
             ]),
             if (f.top.isNotEmpty) ...[
               const Divider(height: 18),
               for (final p in f.top) _row(context, p),
+              if (f.candidateCount > f.top.length)
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => _openFilter(FollowUpFilter.focus),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(children: [
+                      Text(Loc.t('+${f.candidateCount - f.top.length} more — see all', '+${f.candidateCount - f.top.length} مزید — سب دیکھیں'),
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: _p.flatPurpleFg)),
+                      Icon(Icons.chevron_right, size: 18, color: _p.flatPurpleFg),
+                    ]),
+                  ),
+                ),
             ],
             if (onOpenReceivables != null) ...[
               const Divider(height: 14),
