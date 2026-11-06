@@ -24,6 +24,8 @@ import 'backup_export_screen.dart';
 import 'daily_bills_screen.dart';
 import 'day_book_screen.dart';
 import 'due_reminders_screen.dart';
+import 'wasooli_queue_screen.dart';
+import '../db/collection_autopilot_repository.dart';
 import 'receivables_screen.dart';
 import '../services/collection_actions.dart';
 import 'item_search_screen.dart';
@@ -90,6 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   double _toGet = 0;
   double _toGive = 0;
+  int _autopilotTodo = 0; // Wasooli Autopilot: aaj yaad dilana baqi
   CollectionFocus? _focus; // "Aaj ki Wasooli" card (sirf jin ke paas due_reminders access hai)
   int _pending = 0;
   String _shopName = '';
@@ -164,9 +167,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     int? pending;
     String? shop;
     CollectionFocus? focus;
+    int autopilotTodo = 0;
     // Wasooli card ka masla baqi dashboard ko na rokay: alag try, error toast nahi.
     try {
       if (Permissions.can('due_reminders')) focus = await DueFollowUpRepository.instance.todaysFocus();
+    } catch (_) {}
+    try {
+      if (Permissions.can('due_reminders')) {
+        autopilotTodo = (await CollectionAutopilotRepository.instance.today()).queue.todo.length;
+      }
     } catch (_) {}
     try {
       party = await repo.partyTotalsNow();
@@ -192,6 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (pending != null) _pending = pending;
       if (shop != null) _shopName = shop;
       _focus = focus;
+      _autopilotTodo = autopilotTodo;
     });
     if (error != null) _toast(error);
   }
@@ -458,6 +468,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _Action('Due\nReminders', 'یاد\nدہانی', 'Collect pending payments', 'بقایا وصول کریں', Icons.notifications_active_outlined,
             p.flatAmberBg, p.flatAmberFg,
             open: () => const DueRemindersScreen(), badge: _focus?.overdueCount ?? 0),
+      if (Permissions.can('due_reminders'))
+        _Action('Collection\nAutopilot', 'وصولی\nآٹو پائلٹ', 'Who to remind today, 1 tap each', 'آج کس کو یاد دلانا ہے', Icons.bolt_rounded,
+            p.flatTealBg, p.flatTealFg,
+            open: () => const WasooliQueueScreen(), badge: _autopilotTodo),
       if (Permissions.can('due_reminders'))
         _Action('Receivables', 'وصولیاں', 'Who owes, for how long', 'کس سے کتنا، کب سے', Icons.bar_chart_rounded,
             p.flatBlueBg, p.flatBlueFg,

@@ -313,6 +313,41 @@ class DueParty {
 
   int get earliestCreated => bills.map((b) => b.createdAt).reduce((a, b) => a < b ? a : b);
 
+  /// Jin bills par date nahi, unhein bhi follow-up chahiye: itne din purane hon to "late" ginte hain.
+  static const undatedGraceDays = 7;
+
+  /// Bina-date asli bills mein sab se purane bill ki umar (din). 0 = koi bina-date bill nahi.
+  int undatedAgeDays({int? nowMillis}) {
+    final today = startOfDayMillis(nowMillis ?? DateTime.now().millisecondsSinceEpoch);
+    var oldest = 0;
+    for (final b in bills) {
+      if (b.isBalance || b.isAdvance || b.dueDate > 0 || b.createdAt <= 0) continue;
+      final d = ((today - startOfDayMillis(b.createdAt)) / 86400000).round();
+      if (d > oldest) oldest = d;
+    }
+    return oldest;
+  }
+
+  /// Koi bina-date bill [graceDays] se zyada purana hai (aur abhi tak baqi).
+  bool hasStaleUndated({int? nowMillis, int graceDays = undatedGraceDays}) =>
+      undatedAgeDays(nowMillis: nowMillis) >= graceDays;
+
+  /// Sab se purane baqi bill ke din: dated overdue ke din, ya (agar late ho chuka) bina-date bill ki umar.
+  int oldestAgeDays({int? nowMillis}) {
+    final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
+    final today = startOfDayMillis(now);
+    var oldest = 0;
+    if (hasOverdue(nowMillis: now) && earliestDue > 0) {
+      oldest = ((today - startOfDayMillis(earliestDue)) / 86400000).round();
+      if (oldest < 0) oldest = 0;
+    }
+    if (hasStaleUndated(nowMillis: now)) {
+      final u = undatedAgeDays(nowMillis: now);
+      if (u > oldest) oldest = u;
+    }
+    return oldest;
+  }
+
   bool hasOverdue({int? nowMillis}) {
     final today = startOfDayMillis(nowMillis ?? DateTime.now().millisecondsSinceEpoch);
     return bills.any((b) => b.dueDate > 0 && b.dueDate < today);

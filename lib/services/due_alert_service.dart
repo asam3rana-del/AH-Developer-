@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../db/collection_autopilot_repository.dart';
 import '../db/due_followup_repository.dart';
+import '../models/collection_autopilot.dart';
+import '../screens/wasooli_queue_screen.dart';
 import '../screens/amanat_loan_screen.dart';
 import '../screens/due_reminders_screen.dart';
 import '../screens/utility_bills_screen.dart';
@@ -30,6 +33,9 @@ class DueAlertService {
   static const alertHour = 10; // subah 10 baje ke baad
   static const eveningHour = 18; // shaam 6 baje ke baad
   static const _payload = 'due_reminders';
+
+  /// Autopilot notification ka payload (tap par Wasooli Queue screen khulti hai).
+  static const queuePayload = 'wasooli_queue';
   static const _channelId = 'due_alerts';
 
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
@@ -61,10 +67,12 @@ class DueAlertService {
   }
 
   static void _open(String? payload) {
-    if (payload != _payload && payload != billsPayload && payload != returnPayload) return;
+    if (payload != _payload && payload != queuePayload && payload != billsPayload && payload != returnPayload) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppLock.navigatorKey.currentState?.push(MaterialPageRoute(
-        builder: (_) => payload == billsPayload
+        builder: (_) => payload == queuePayload
+            ? const WasooliQueueScreen()
+            : payload == billsPayload
             ? const UtilityBillsScreen()
             : payload == returnPayload
                 ? const AmanatLoanScreen()
@@ -124,11 +132,11 @@ class DueAlertService {
           return false;
         }
       }
-      final focus = await DueFollowUpRepository.instance.todaysFocus(nowMillis: t.millisecondsSinceEpoch);
-      if (focus.isEmpty) return false;
-      // Shaam ki yaad-dihani sirf tab jab abhi bhi aaj ka kaam baqi ho; subah wali na gayi ho to shaam use poora kar de.
-      if (!force && evening && morningDone && focus.actionCount == 0 && focus.brokenCount == 0 && focus.dueTodayCount == 0) return false;
-      final body = bodyFor(focus);
+      // Autopilot queue: jin ko aaj reminder bhejna baqi hai. Jo party aaj ho chuki wo dobara nahi aati.
+      final day = await CollectionAutopilotRepository.instance.today(nowMillis: t.millisecondsSinceEpoch);
+      final q = day.queue;
+      if (q.todo.isEmpty) return false;
+      final body = autopilotNotificationBody(q, collectedToday: day.collectedToday, paymentsToday: day.paymentsToday);
 
       await init();
       await _plugin.show(
@@ -145,7 +153,7 @@ class DueAlertService {
             styleInformation: BigTextStyleInformation(body),
           ),
         ),
-        payload: _payload,
+        payload: queuePayload,
       );
       await prefs.setString(evening ? keyLastEveningDate : keyLastDate, today);
       if (evening) await prefs.setString(keyLastDate, today);

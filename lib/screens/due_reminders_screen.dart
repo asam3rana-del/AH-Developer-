@@ -482,7 +482,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     final groups = _purchases ? filtered : _orderByFollowUp(filtered, states);
     final shown = [for (final g in matched) ...g.bills];
     final summary = summarizeDue(shown);
-    final overdueParties = matched.where((g) => g.hasOverdue()).length;
+    final overdueParties = matched.where((g) => g.hasOverdue() || g.hasStaleUndated()).length;
     // Walk-in / Cash Purchase (party nahi) Party Dashboard ke total mein nahi ginte — alag dikhate hain taake
     // "Total outstanding" Dashboard ke You'll get / You'll give se mel khaye.
     final noParty = shown.where((b) => b.partyId == null).fold<double>(0.0, (a, b) => a + b.due);

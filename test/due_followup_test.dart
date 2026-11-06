@@ -7,6 +7,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ah_developer_kiryana_store/db/app_database.dart';
 import 'package:ah_developer_kiryana_store/db/due_followup_repository.dart';
 import 'package:ah_developer_kiryana_store/db/due_reminders_repository.dart';
+import 'package:ah_developer_kiryana_store/models/collection_plan.dart';
 import 'package:ah_developer_kiryana_store/models/due_followup.dart';
 import 'package:ah_developer_kiryana_store/services/session.dart';
 
@@ -412,6 +413,49 @@ void main() {
       final db = await AppDatabase.instance.database;
       final t = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='due_followups'");
       expect(t, isNotEmpty);
+    });
+  });
+
+  group('planCollection', () {
+    DueBill b(String id, int created, double total, {double paid = 0}) => DueBill(
+        id: id, partyId: 1, partyName: 'Ali', partyPhone: '0300', total: total, paid: paid,
+        dueDate: 0, createdAt: created, isSale: true);
+
+    test('purane bill se shuru, phir previous balance, phir advance', () {
+      final bills = [b('B', 2, 500), b('A', 1, 1000, paid: 400)]; // A baqi 600
+      final open = openBillsForCollection(bills);
+      expect(open.map((x) => x.id), ['A', 'B']);
+      final p = planCollection(amount: 1300, bills: open, previousBalance: 100);
+      expect(p.shares.map((s) => s.billRef), ['A', 'B']);
+      expect(p.shares[0].amount, 600);
+      expect(p.shares[0].clearsBill, true);
+      expect(p.shares[1].amount, 500);
+      expect(p.toPreviousBalance, 100);
+      expect(p.advance, 100);
+      expect(p.remainingAfter, 0);
+    });
+
+    test('kam raqam: pehla bill adha, baqi kuch nahi', () {
+      final open = [b('A', 1, 1000), b('B', 2, 500)];
+      final p = planCollection(amount: 300, bills: open);
+      expect(p.shares.length, 1);
+      expect(p.shares.first.clearsBill, false);
+      expect(p.remainingAfter, 1200);
+    });
+  });
+
+  group('bina-date receivable', () {
+    DueParty undated(int createdDay) => DueParty(
+        partyId: 1, partyName: 'Ali', partyPhone: '0300', isSale: true,
+        bills: [DueBill(id: 'INV-9', partyId: 1, partyName: 'Ali', partyPhone: '0300', total: 800, paid: 0,
+            dueDate: 0, createdAt: day(createdDay), isSale: true)]);
+
+    test('7+ din purana bina-date bill late hai, taza nahi', () {
+      final st = followUpState(const [], nowMillis: now);
+      expect(classifyCollection(undated(5), st, nowMillis: now).late, true); // 10 din
+      expect(classifyCollection(undated(12), st, nowMillis: now).late, false); // 3 din
+      expect(undated(5).oldestAgeDays(nowMillis: now), 10);
+      expect(undated(12).oldestAgeDays(nowMillis: now), 0);
     });
   });
 }

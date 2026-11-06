@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart' show ConflictAlgorithm, DatabaseExecutor;
 
+import '../models/collection_plan.dart';
 import '../models/due_followup.dart';
 import '../services/session.dart';
 import '../sync/sync_queue_helper.dart';
@@ -224,11 +225,7 @@ class CollectionFocus {
 }
 
 int _oldestOverdueDays(DueParty p, int today) {
-  if (!p.hasOverdue(nowMillis: today)) return 0;
-  final e = p.earliestDue;
-  if (e <= 0) return 0;
-  final d = (today - startOfDayMillis(e)) / 86400000;
-  return d < 0 ? 0 : d.round();
+  return p.oldestAgeDays(nowMillis: today);
 }
 
 /// Party ke kisi asli bill ki tareekh aaj ki hai.
@@ -251,7 +248,7 @@ class CollectionBuckets {
 CollectionBuckets classifyCollection(DueParty p, FollowUpState st, {int? nowMillis}) {
   final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
   final today = startOfDayMillis(now);
-  final late = p.hasOverdue(nowMillis: now) && !st.onPromise;
+  final late = (p.hasOverdue(nowMillis: now) || p.hasStaleUndated(nowMillis: now)) && !st.onPromise;
   final dueToday = !late && !st.promiseBroken && (_hasDueToday(p, today) || st.promiseToday);
   return CollectionBuckets(broken: st.promiseBroken, late: late, dueToday: dueToday, needsAction: st.needsActionToday);
 }
@@ -389,13 +386,23 @@ Uri reminderUriFor(DueParty g, List<DueFollowUp> entries, {int? nowMillis}) {
   final single = g.bills.length == 1 && !g.bills.first.isBalance ? g.bills.first : null;
   final level = reminderLevel(entries, nowMillis: now);
   final st = followUpState(entries, nowMillis: now);
-  if (level == 0 && !st.promiseBroken) return single != null ? whatsAppUri(single) : whatsAppUri(g.toTotalBill());
-  final today = startOfDayMillis(now);
-  var oldest = 0;
-  if (g.hasOverdue(nowMillis: now) && g.earliestDue > 0) {
-    oldest = ((today - startOfDayMillis(g.earliestDue)) / 86400000).round();
-    if (oldest < 0) oldest = 0;
+  if (level == 0 && !st.promiseBroken) {
+    if (single != null) return whatsAppUri(single);
+    // Kai bills: har bill ki alag line (invoice, tareekh, baqi, kitne din late).
+    final open = openBillsForCollection(g.bills);
+    if (g.isSale && !g.isAdvance && open.length >= 2) {
+      final msg = itemizedReminderMessage(
+        partyName: g.partyName,
+        bills: open,
+        total: g.total,
+        previousBalance: previousBalanceOf(g.bills),
+        nowMillis: now,
+      );
+      return Uri.parse('https://wa.me/${whatsAppDigits(g.partyPhone)}?text=${Uri.encodeComponent(msg)}');
+    }
+    return whatsAppUri(g.toTotalBill());
   }
+  final oldest = g.oldestAgeDays(nowMillis: now);
   final msg = followUpMessage(
     level: level,
     name: g.partyName,

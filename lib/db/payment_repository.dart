@@ -85,6 +85,13 @@ class PaymentRepository {
     return left < 0 ? 0.0 : left;
   }
 
+  /// Dropdown label: "INV-1 \u2022 Rs 5000 \u2022 baqi Rs 2000" (poora ada ho to "ada").
+  static String _billLabel(String ref, Map<String, Object?> r) {
+    final total = (r['total'] as num).toDouble();
+    final left = total - ((r['paid'] as num?) ?? 0).toDouble();
+    return '$ref \u2022 Rs ${total.round()} \u2022 ${left > 0.009 ? 'baqi Rs ${left.round()}' : 'ada'}';
+  }
+
   /// Recent (unreturned) bills of one party, newest first, max 50.
   ///
   /// [alsoInclude]: edit karte waqt payment ka maujooda bill (agar wo naye 50 mein na aaye, ya returned ho)
@@ -103,13 +110,13 @@ class PaymentRepository {
     final key = isCustomer ? 'invoice' : 'billNo';
     final out = rows.map((r) {
       final ref = (r[key] as String);
-      return BillOption('$ref \u2022 Rs ${(r['total'] as num).round()}', ref);
+      return BillOption(_billLabel(ref, r), ref);
     }).toList();
     if (alsoInclude.isNotEmpty && !out.any((b) => b.ref == alsoInclude)) {
       final extra = await db.query(isCustomer ? 'sales' : 'purchases',
           where: '$key = ?', whereArgs: [alsoInclude], limit: 1);
       if (extra.isNotEmpty) {
-        out.add(BillOption('$alsoInclude \u2022 Rs ${(extra.first['total'] as num).round()}', alsoInclude));
+        out.add(BillOption(_billLabel(alsoInclude, extra.first), alsoInclude));
       }
     }
     return out;
@@ -173,6 +180,58 @@ class PaymentRepository {
             billRef: '',
             dateMillis: dateMillis,
             reference: linked > 0.009 ? '$reference-x' : reference);
+      }
+    });
+    await _refreshParties();
+  }
+
+  /// Customer ki ek raqam KAI bills par (purane pehle) — ek transaction, har bill ka alag payment row
+  /// (bill ka `paid` + party balance + cash entry sab theek). [shares] ke baad bachi [generalAmount] bina bill
+  /// ke (previous balance / advance) payment banti hai.
+  Future<void> saveAllocated({
+    required bool isCustomer,
+    required int partyId,
+    required String partyName,
+    required List<MapEntry<String, double>> shares,
+    required double generalAmount,
+    required String method,
+    required String note,
+    required int dateMillis,
+  }) async {
+    final total = shares.fold<double>(0.0, (s, e) => s + e.value) + generalAmount;
+    if (!total.isFinite || total <= 0) throw ArgumentError('Amount must be greater than 0');
+    final db = await AppDatabase.instance.database;
+    final partyType = isCustomer ? 'customer' : 'supplier';
+    final base = 'manual-$partyType-$partyId-${DeviceTag.current}-${DateTime.now().millisecondsSinceEpoch}';
+    await db.transaction((txn) async {
+      var i = 0;
+      for (final s in shares) {
+        if (s.value <= 0.009) continue;
+        await _insertPayment(txn,
+            isCustomer: isCustomer,
+            partyType: partyType,
+            partyId: partyId,
+            partyName: partyName,
+            amount: s.value,
+            method: method,
+            note: note,
+            billRef: s.key,
+            dateMillis: dateMillis,
+            reference: i == 0 ? base : '$base-b$i');
+        i++;
+      }
+      if (generalAmount > 0.009) {
+        await _insertPayment(txn,
+            isCustomer: isCustomer,
+            partyType: partyType,
+            partyId: partyId,
+            partyName: partyName,
+            amount: generalAmount,
+            method: method,
+            note: note,
+            billRef: '',
+            dateMillis: dateMillis,
+            reference: i == 0 ? base : '$base-g');
       }
     });
     await _refreshParties();
