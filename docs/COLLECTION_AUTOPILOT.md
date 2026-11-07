@@ -53,6 +53,13 @@ Maqsad: jin se paisa lena hai un ka reminder khud bane (malik busy ho tab bhi), 
 - Notification tap -> hub tab 1 (Autopilot).
 - `WasooliQueueScreen` aur `DueRemindersScreen` mein `embedded` flag: tab ke andar apni AppBar nahi. Purani report-screen se `DueRemindersScreen()` abhi bhi akeli khulti hai.
 
+### Partial payment par due date renew
+- Customer ki payment save hone par (`PaymentRepository.save` / `saveAllocated`), agar us ke bills abhi baqi hain, un bills ki due date aage ho jati hai (`_renewDueDates`, `lib/models/due_renewal.dart`).
+- Nayi date = aaj + muddat. Muddat: customer ki default `dueDays` (agar set) -> warna bill ki apni purani muddat (3..30 din) -> warna 7 din.
+- Sirf wo bills jin par date set thi; date kabhi peeche nahi jati; poora ada bill open nahi hota isliye nahi chhua jata.
+- Sync: har badle hue bill ka `sale update` queue mein jata hai. Test: `test/due_renewal_test.dart`.
+- Nateeja: partial payment dene wali party "late" list se hat jati hai, nayi date guzarne par wapas aati hai.
+
 ## 2. Pehle ka collection patch (`ah-collection-plan-patch.zip`)
 
 Is mein ye files thin (project mein shamil / merge ho chuki):
@@ -62,7 +69,7 @@ Is mein ye files thin (project mein shamil / merge ho chuki):
 - `test/due_followup_test.dart`
 
 ## 3. Sale screen
-- Udhaar sale par due date ke quick chips: Tomorrow / 1 / 3 / 7 / 15 / 30 din aur clear (✕) (`_setDueInDays`). Due date set hogi to autopilot ko "late" pata chalta hai.
+- Udhaar sale par sirf due date picker ("Set date" chip). Quick day-chips (Tomorrow/1/3/7/15/30) aur ✕ hata diye. Date na chuni ho to pehle jaisa auto date (customer / dukaan ki default muddat) lagti hai.
 
 ---
 

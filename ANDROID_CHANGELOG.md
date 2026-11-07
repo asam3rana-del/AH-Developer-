@@ -3,6 +3,8 @@
 - [x] "Agla bhejo" button: har tap par agli party ka WhatsApp + follow-up entry khud; row par WhatsApp / Call / Paisa mila.
 - [x] Dashboard tile "Collection Autopilot" (badge = aaj baqi). `DueAlertService` ab autopilot queue se notification banati hai, tap par Wasooli Queue; jo aaj ho chuka wo dobara nahi.
 - [x] Naya `collection_hub_screen.dart`: Autopilot + saari due list ek screen mein (2 tabs); dashboard par ek "Collection" tile; notification tap hub kholta hai.
+- [x] Partial payment par due date renew: `lib/models/due_renewal.dart` + `PaymentRepository._renewDueDates` (aaj + customer dueDays / bill ki muddat / 7 din). Test `due_renewal_test.dart`.
+- [x] Sale screen: due date ke quick day-chips (Tomorrow/1/3/7/15/30) aur ✕ hata kar sirf date picker rakha.
 - [x] Collection plan patch: FIFO payment plan (`collection_plan.dart`), itemized reminder, `due_followup_repository` / `due_reminders_repository` / `payment_repository` / `due_reminders_screen` updates.
 - [x] Test: `test/collection_autopilot_test.dart` (9). Detail: `docs/COLLECTION_AUTOPILOT.md`.
 - [ ] Bina `flutter analyze` / `flutter test` ke likha gaya (Flutter SDK nahi) — CI par `Analyze + Test` dekhein.

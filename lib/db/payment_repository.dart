@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../models/due_renewal.dart';
 import '../models/misc_entities.dart';
 import '../services/session.dart';
 import 'app_database.dart';
@@ -73,6 +74,32 @@ class PaymentRepository {
       whereArgs: [billRef],
     );
     await _enqueue(txn, isCustomer ? 'sale' : 'purchase', billRef, 'update', {'paid': newPaid});
+  }
+
+  /// Customer ne partial payment di (bill abhi baqi) => us ke open bills ki due date aage (aaj + muddat).
+  /// Sirf wo bills jin par date set thi; poora ada bill open nahi hota isliye na chhua jata.
+  Future<void> _renewDueDates(DatabaseExecutor txn, int partyId) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final rows = await txn.rawQuery(
+      'SELECT s.invoice AS invoice, s.dueDate AS dueDate, s.createdAt AS createdAt, c.dueDays AS dueDays '
+      'FROM sales s LEFT JOIN customers c ON c.id = s.customerId '
+      "WHERE s.customerId = ? AND s.status = 'active' AND (s.total - s.paid) > 0.009 AND s.dueDate > 0",
+      [partyId],
+    );
+    for (final r in rows) {
+      final old = (r['dueDate'] as num).toInt();
+      final next = renewedDueDate(
+        nowMillis: now,
+        oldDue: old,
+        createdAt: (r['createdAt'] as num).toInt(),
+        customerDays: (r['dueDays'] as num?)?.toInt() ?? 0,
+      );
+      if (next <= 0 || next == old) continue;
+      final invoice = r['invoice'] as String;
+      await txn.update('sales', {'dueDate': next, 'dirty': 1, 'updatedAt': now},
+          where: 'invoice = ?', whereArgs: [invoice]);
+      await _enqueue(txn, 'sale', invoice, 'update', {'dueDate': next});
+    }
   }
 
   /// Bill ka baaqi (total - paid); bill na mile to null.
@@ -181,6 +208,7 @@ class PaymentRepository {
             dateMillis: dateMillis,
             reference: linked > 0.009 ? '$reference-x' : reference);
       }
+      if (isCustomer) await _renewDueDates(txn, partyId);
     });
     await _refreshParties();
   }
@@ -233,6 +261,7 @@ class PaymentRepository {
             dateMillis: dateMillis,
             reference: i == 0 ? base : '$base-g');
       }
+      if (isCustomer) await _renewDueDates(txn, partyId);
     });
     await _refreshParties();
   }

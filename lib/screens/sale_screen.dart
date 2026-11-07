@@ -1345,11 +1345,6 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     return base.add(Duration(days: days)).millisecondsSinceEpoch;
   }
 
-  void _setDueInDays(int days) {
-    final base = DateTime(_saleDate.year, _saleDate.month, _saleDate.day);
-    setState(() => _dueDateMillis = base.add(Duration(days: days)).millisecondsSinceEpoch);
-  }
-
   Future<void> _pickDueDate() async {
     final base = DateTime(_saleDate.year, _saleDate.month, _saleDate.day);
     final initial = _dueDateMillis > 0 ? DateTime.fromMillisecondsSinceEpoch(_dueDateMillis) : base.add(const Duration(days: 7));
@@ -1381,9 +1376,6 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               : Loc.t('Set date', 'تاریخ چنیں')),
           onPressed: _pickDueDate,
         ),
-        for (final d in const [1, 3, 7, 15, 30])
-          ActionChip(label: Text(d == 1 ? Loc.t('Tomorrow', 'کل') : '$d din'), onPressed: () => _setDueInDays(d)),
-        if (_dueDateMillis > 0) ActionChip(label: const Text('✕'), onPressed: () => setState(() => _dueDateMillis = 0)),
       ]),
     );
   }
