@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/due_followup.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/permission_guard.dart';
