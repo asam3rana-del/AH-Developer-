@@ -2,6 +2,7 @@
 - [x] Naya `lib/models/collection_autopilot.dart` + `lib/db/collection_autopilot_repository.dart` + `lib/screens/wasooli_queue_screen.dart`: late / pending / toote wade ki aaj ki list khud banti hai (TODO / DONE / WAITING), gap: toota wada 1 din, 30+ din 2 din, baaqi 3 din; dispute roz nahi.
 - [x] "Agla bhejo" button: har tap par agli party ka WhatsApp + follow-up entry khud; row par WhatsApp / Call / Paisa mila.
 - [x] Dashboard tile "Collection Autopilot" (badge = aaj baqi). `DueAlertService` ab autopilot queue se notification banati hai, tap par Wasooli Queue; jo aaj ho chuka wo dobara nahi.
+- [x] Naya `collection_hub_screen.dart`: Autopilot + saari due list ek screen mein (2 tabs); dashboard par ek "Collection" tile; notification tap hub kholta hai.
 - [x] Collection plan patch: FIFO payment plan (`collection_plan.dart`), itemized reminder, `due_followup_repository` / `due_reminders_repository` / `payment_repository` / `due_reminders_screen` updates.
 - [x] Test: `test/collection_autopilot_test.dart` (9). Detail: `docs/COLLECTION_AUTOPILOT.md`.
 - [ ] Bina `flutter analyze` / `flutter test` ke likha gaya (Flutter SDK nahi) — CI par `Analyze + Test` dekhein.

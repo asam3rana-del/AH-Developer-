@@ -47,6 +47,12 @@ Maqsad: jin se paisa lena hai un ka reminder khud bane (malik busy ho tab bhi), 
 
 ---
 
+### Ek screen (CollectionHubScreen)
+- `lib/screens/collection_hub_screen.dart` (naya): ek screen, 2 tabs — **Aaj (Autopilot)** aur **Tamam bqaya** (purani Due Reminders list, filters + search).
+- Dashboard par ab ek hi tile "Collection" (badge = aaj baqi reminders). Collect today / Late / Promise broken tiles hub ka tab 2 filter ke sath kholte hain.
+- Notification tap -> hub tab 1 (Autopilot).
+- `WasooliQueueScreen` aur `DueRemindersScreen` mein `embedded` flag: tab ke andar apni AppBar nahi. Purani report-screen se `DueRemindersScreen()` abhi bhi akeli khulti hai.
+
 ## 2. Pehle ka collection patch (`ah-collection-plan-patch.zip`)
 
 Is mein ye files thin (project mein shamil / merge ho chuki):

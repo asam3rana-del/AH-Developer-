@@ -8,9 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../db/collection_autopilot_repository.dart';
 import '../db/due_followup_repository.dart';
 import '../models/collection_autopilot.dart';
-import '../screens/wasooli_queue_screen.dart';
+import '../screens/collection_hub_screen.dart';
 import '../screens/amanat_loan_screen.dart';
-import '../screens/due_reminders_screen.dart';
 import '../screens/utility_bills_screen.dart';
 import 'app_lock.dart';
 
@@ -71,12 +70,12 @@ class DueAlertService {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppLock.navigatorKey.currentState?.push(MaterialPageRoute(
         builder: (_) => payload == queuePayload
-            ? const WasooliQueueScreen()
+            ? const CollectionHubScreen(initialTab: 0)
             : payload == billsPayload
             ? const UtilityBillsScreen()
             : payload == returnPayload
                 ? const AmanatLoanScreen()
-                : const DueRemindersScreen(),
+                : const CollectionHubScreen(initialTab: 1),
       ));
     });
   }

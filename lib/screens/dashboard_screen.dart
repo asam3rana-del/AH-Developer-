@@ -23,8 +23,7 @@ import 'amanat_loan_screen.dart';
 import 'backup_export_screen.dart';
 import 'daily_bills_screen.dart';
 import 'day_book_screen.dart';
-import 'due_reminders_screen.dart';
-import 'wasooli_queue_screen.dart';
+import 'collection_hub_screen.dart';
 import '../db/collection_autopilot_repository.dart';
 import 'receivables_screen.dart';
 import '../services/collection_actions.dart';
@@ -465,13 +464,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             p.flatCoralFg,
             onTap: () => _quickPayment(forCustomer: false)),
       if (Permissions.can('due_reminders'))
-        _Action('Due\nReminders', 'یاد\nدہانی', 'Collect pending payments', 'بقایا وصول کریں', Icons.notifications_active_outlined,
+        _Action('Collection', 'وصولی', 'Remind today + all pending dues', 'آج کی یاد دہانی اور تمام بقایا', Icons.bolt_rounded,
             p.flatAmberBg, p.flatAmberFg,
-            open: () => const DueRemindersScreen(), badge: _focus?.overdueCount ?? 0),
-      if (Permissions.can('due_reminders'))
-        _Action('Collection\nAutopilot', 'وصولی\nآٹو پائلٹ', 'Who to remind today, 1 tap each', 'آج کس کو یاد دلانا ہے', Icons.bolt_rounded,
-            p.flatTealBg, p.flatTealFg,
-            open: () => const WasooliQueueScreen(), badge: _autopilotTodo),
+            open: () => const CollectionHubScreen(), badge: _autopilotTodo > 0 ? _autopilotTodo : (_focus?.overdueCount ?? 0)),
       if (Permissions.can('due_reminders'))
         _Action('Receivables', 'وصولیاں', 'Who owes, for how long', 'کس سے کتنا، کب سے', Icons.bar_chart_rounded,
             p.flatBlueBg, p.flatBlueFg,
@@ -527,8 +522,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 18),
                   TodaysCollectionCard(
                     focus: _focus!,
-                    onOpen: () => _push(const DueRemindersScreen(initialFilter: FollowUpFilter.focus)),
-                    onOpenFilter: (f) => _push(DueRemindersScreen(initialFilter: f)),
+                    onOpen: () => _push(const CollectionHubScreen(initialFilter: FollowUpFilter.focus)),
+                    onOpenFilter: (f) => _push(CollectionHubScreen(initialFilter: f)),
                     onChanged: _refresh,
                     onOpenReceivables: () => _push(const ReceivablesScreen()),
                     onReceive: (f) async {

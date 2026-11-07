@@ -20,15 +20,18 @@ import '../widgets/premium_header.dart';
 /// Notification (DueAlertService) isi queue se banti hai, is liye jo yahan ho chuka wo shaam ki yaad-dihani
 /// mein dobara nahi aata.
 class WasooliQueueScreen extends StatelessWidget {
-  const WasooliQueueScreen({super.key});
+  /// `embedded` = CollectionHubScreen ke tab ke andar (apni AppBar nahi, hub ki hai).
+  final bool embedded;
+  const WasooliQueueScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) =>
-      const PermissionGuard(permission: 'due_reminders', child: _QueueBody());
+      PermissionGuard(permission: 'due_reminders', child: _QueueBody(embedded: embedded));
 }
 
 class _QueueBody extends StatefulWidget {
-  const _QueueBody();
+  final bool embedded;
+  const _QueueBody({this.embedded = false});
 
   @override
   State<_QueueBody> createState() => _QueueBodyState();
@@ -289,7 +292,7 @@ class _QueueBodyState extends State<_QueueBody> with WidgetsBindingObserver {
     final q = _day.queue;
     return Scaffold(
       backgroundColor: _p.bg,
-      appBar: AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
+      appBar: widget.embedded ? null : AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => _load(showSpinner: false),

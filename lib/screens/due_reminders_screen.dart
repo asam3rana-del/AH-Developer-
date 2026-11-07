@@ -30,16 +30,20 @@ import 'followup_sheets.dart';
 class DueRemindersScreen extends StatelessWidget {
   /// Home card ke tile (Collect today / Late / Promise broken) isi filter ke sath yahan kholte hain.
   final FollowUpFilter initialFilter;
-  const DueRemindersScreen({super.key, this.initialFilter = FollowUpFilter.all});
+
+  /// `embedded` = CollectionHubScreen ke tab ke andar (apni AppBar nahi, hub ki hai).
+  final bool embedded;
+  const DueRemindersScreen({super.key, this.initialFilter = FollowUpFilter.all, this.embedded = false});
 
   @override
-  Widget build(BuildContext context) =>
-      PermissionGuard(permission: 'due_reminders', child: _DueRemindersBody(initialFilter: initialFilter));
+  Widget build(BuildContext context) => PermissionGuard(
+      permission: 'due_reminders', child: _DueRemindersBody(initialFilter: initialFilter, embedded: embedded));
 }
 
 class _DueRemindersBody extends StatefulWidget {
   final FollowUpFilter initialFilter;
-  const _DueRemindersBody({this.initialFilter = FollowUpFilter.all});
+  final bool embedded;
+  const _DueRemindersBody({this.initialFilter = FollowUpFilter.all, this.embedded = false});
 
   @override
   State<_DueRemindersBody> createState() => _DueRemindersBodyState();
@@ -489,7 +493,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
     final partyTotal = summary.totalDue - noParty;
     return Scaffold(
       backgroundColor: _p.bg,
-      appBar: AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
+      appBar: widget.embedded ? null : AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => _load(showSpinner: false),
