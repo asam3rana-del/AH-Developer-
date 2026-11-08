@@ -492,6 +492,12 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Text(_verificationId == null ? Loc.t('SEND OTP', 'OTP بھیجیں') : Loc.t('RESEND OTP', 'دوبارہ OTP بھیجیں')),
           ),
         ),
+        // Lockout se bachao: OTP SMS na aaye (quota / network / Firebase setup) to password se login.
+        // Sirf is screen ke liye; Settings ka login_method nahi badalta.
+        TextButton(
+          onPressed: _busy ? null : () => setState(() { _otpMode = false; _error = null; }),
+          child: Text(Loc.t('OTP not coming? Login with password', 'OTP نہیں آ رہا؟ پاس ورڈ سے لاگ اِن کریں')),
+        ),
         if (_verificationId != null) ...[
           const SizedBox(height: 12),
           TextField(
