@@ -84,6 +84,12 @@ Is mein ye files thin (project mein shamil / merge ho chuki):
 - Khulta hai: Collection screen ki AppBar mein TV icon se. Full-screen (immersive); band karne ke liye X ya back.
 - Data wahi Autopilot ki TODO list; koi nayi DB / sync nahi.
 
+## 3d. Quick Sale slip (credit)
+- Masla: Quick Sale ke baad slip khulti nahi thi, aur Party Details ke sale card ka share button sirf Total / Balance likhta tha — Previous balance aur shukriya nahi.
+- Fix 1: `sale_screen.dart` `_submitQuickSale` — credit quick sale save hote hi `_showBillPreview` (normal sale jaisa, `justSaved`): items, Prev / Net Balance, shukriya, Print / WhatsApp / PDF.
+- Fix 2: `party_transaction_screen.dart` `_shareBill` (customer sale) -> `_shareSaleSlip`: BillDoc + `balanceBeforeBill` se wahi poori slip (WhatsApp text + PDF). Purchase aur returned bills pehle jaisi.
+- Cash quick sale pehle jaisi (sirf message), taake tez kaam na ruke.
+
 ## 4. Test / Deploy
 - [ ] Is environment mein Flutter SDK nahi tha — **kuch compile / run nahi hua**. Pehle chalayein:
   `flutter pub get && flutter analyze && flutter test test/collection_autopilot_test.dart test/due_followup_test.dart test/due_alert_body_test.dart`

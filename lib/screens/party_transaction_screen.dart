@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../db/due_reminders_repository.dart' show whatsAppDigits;
+import '../db/party_repository.dart';
 import '../db/party_transaction_repository.dart';
+import '../db/user_repository.dart';
 import '../db/purchase_history_repository.dart';
 import '../db/sale_history_repository.dart';
 import '../db/payment_repository.dart';
@@ -611,12 +613,56 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     }
   }
 
+  /// Sale ki poori slip share karo (Bill Preview jaisi). Kamyab na ho to false => purani chhoti slip.
+  Future<bool> _shareSaleSlip(TxEntry e, ShopHeader shop) async {
+    try {
+      final sale = e.sale!;
+      final items = await SaleHistoryRepository.instance.itemsForInvoice(sale.invoice);
+      final date = DateTime.fromMillisecondsSinceEpoch(sale.createdAt);
+      final footer = ((await UserRepository.instance.getSetting('receipt_footer')) ?? '').trim();
+      final doc = BillDoc(
+        isPurchase: false,
+        ref: sale.invoice,
+        date: date,
+        shopName: shop.name,
+        shopPhone: shop.phone,
+        receiptFooter: footer,
+        partyName: _name,
+        partyId: widget.partyId,
+        partyPhone: _phone,
+        items: [for (final i in items) BillItem(name: i.product, qty: i.qty, unit: i.unit, rate: i.unitPrice, amount: i.amount)],
+        subtotal: sale.subtotal,
+        discount: sale.discount,
+        total: sale.total,
+        paid: sale.paid,
+        paymentMethod: sale.paymentMethod.isEmpty
+            ? ''
+            : sale.paymentMethod[0].toUpperCase() + sale.paymentMethod.substring(1),
+      );
+      final before = await PartyRepository.instance
+          .balanceBeforeBill(isCustomer: true, partyId: widget.partyId!, billRef: sale.invoice, billDate: date);
+      final net = before + doc.balance;
+      if (!mounted) return true;
+      await _sendSlip(
+        wrapBillHeaderForWhatsApp(doc.toText(netBalance: net)),
+        pdf: billDocSlipData(doc, netBalance: net),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _shareBill(TxEntry e) async {
     final isSale = e.sale != null;
     final ref = e.sale?.invoice ?? e.purchase?.billNo ?? '';
     final paid = e.sale?.paid ?? e.purchase?.paid ?? 0.0;
     final due = e.status == 'returned' ? 0.0 : (e.amount - paid).clamp(0, double.infinity).toDouble();
     final shop = await loadShopHeader();
+    // Customer ki sale: Bill Preview jaisi poori slip (items, Prev / Net Balance, shukriya).
+    if (isSale && widget.isCustomer && widget.partyId != null && e.status != 'returned') {
+      if (await _shareSaleSlip(e, shop)) return;
+    }
     final text = slipHeaderBlock(shopName: shop.name, shopPhone: shop.phone) +
         [
       _name,

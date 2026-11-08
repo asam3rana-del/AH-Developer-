@@ -1229,6 +1229,32 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       if (shortNeeded > r.product.stock) {
         _toast(StockPolicy.shortWarning(r.product.name, r.product.stock, shortNeeded, r.product.smallestUnitName()));
       }
+      // Credit quick sale: normal sale ki tarah poori slip (Prev / Net Balance + shukriya) kholo.
+      if (result.isCredit && mounted) {
+        final amount = (r.qty * r.price).roundToDouble();
+        await _showBillPreview(
+          invoice: result.invoice,
+          date: DateTime.now(),
+          customer: r.customerName.trim(),
+          lines: [
+            SaleLine(
+              itemName: r.product.name,
+              barcode: r.product.barcode,
+              qty: r.qty,
+              unit: r.unit,
+              unitPrice: r.price,
+              cost: 0.0,
+              amount: amount,
+            ),
+          ],
+          subtotal: amount,
+          discount: 0.0,
+          total: amount,
+          paid: 0.0,
+          paymentLabel: 'Credit',
+          showNew: true,
+        );
+      }
     } on SaleCreditLimitException catch (e) {
       if (!mounted) return;
       if (await _confirmCreditLimit(e) == true && mounted) {
