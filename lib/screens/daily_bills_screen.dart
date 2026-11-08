@@ -627,6 +627,43 @@ class _RentSheetState extends State<_RentSheet> {
     await _reload();
   }
 
+  /// Rent theek karo: chuni hui date se aaj tak ke rent bills poore (chhutti wale wapas, missing naye).
+  Future<void> _repair(RentConfig c) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(now.year, now.month, now.day - 2),
+      firstDate: now.subtract(const Duration(days: 366)),
+      lastDate: now,
+      helpText: Loc.t('Fix rent from which day?', 'کس دن سے کرایہ ٹھیک کریں؟'),
+    );
+    if (picked == null || !mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Fix rent?', 'کرایہ ٹھیک کریں؟')),
+        content: Text(Loc.t(
+            '${c.name}: from ${_dateFmt.format(picked)} till today, holiday days will be put back and missing days will be created (Rs ${c.dailyRent.round()} each). Days that are already fine are not touched. Balance changes accordingly.',
+            '${c.name}: ${_dateFmt.format(picked)} سے آج تک چھٹی والے دن واپس لگیں گے اور جو دن رہ گئے وہ بن جائیں گے (ہر دن Rs ${c.dailyRent.round()})۔ جو دن ٹھیک ہیں انہیں نہیں چھیڑا جائے گا۔ بیلنس اسی حساب سے بدلے گا۔')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Fix', 'ٹھیک کریں'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final r = await RentRepository.instance.repairRent(c.customerId, picked);
+      _toast(r.total == 0
+          ? Loc.t('Nothing to fix, all rent bills are already there', 'کچھ ٹھیک کرنے کو نہیں، سب کرایہ بل موجود ہیں')
+          : Loc.t('Done: ${r.restored} holiday days put back, ${r.created} new days created',
+              'ہو گیا: ${r.restored} چھٹی والے دن واپس لگے، ${r.created} نئے دن بنے'));
+    } catch (e) {
+      _toast('$e');
+    }
+    await _reload();
+  }
+
   Future<void> _stop(RentConfig c) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -680,7 +717,13 @@ class _RentSheetState extends State<_RentSheet> {
                   subtitle: Text(
                       'Rs ${c.dailyRent.round()} / ${Loc.t('day', 'دن')} • ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(c.startDay))}'),
                   onTap: () => _edit(existing: c),
-                  trailing: IconButton(icon: const Icon(Icons.stop_circle_outlined), onPressed: () => _stop(c)),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                        tooltip: Loc.t('Fix rent', 'کرایہ ٹھیک کریں'),
+                        icon: const Icon(Icons.build_circle_outlined),
+                        onPressed: () => _repair(c)),
+                    IconButton(icon: const Icon(Icons.stop_circle_outlined), onPressed: () => _stop(c)),
+                  ]),
                 ),
             ]),
           ),

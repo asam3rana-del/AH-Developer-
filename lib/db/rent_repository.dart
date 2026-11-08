@@ -43,6 +43,14 @@ List<DateTime> missingRentDays({
   return out;
 }
 
+/// Rent theek karne ka nateeja: kitne chhutti wale bills wapas lage, kitne naye bane.
+class RentRepairResult {
+  final int restored;
+  final int created;
+  const RentRepairResult({required this.restored, required this.created});
+  int get total => restored + created;
+}
+
 class RentConfig {
   final int customerId;
   final String name;
@@ -151,6 +159,40 @@ class RentRepository {
     });
     if (created > 0) await CustomerRepository.instance.refresh();
     return created;
+  }
+
+  /// Rent theek karo: [from] se aaj tak ke is customer ke rent bills ko poora karo.
+  /// - chhutti (returned) wale bills wapas lagte hain (balance dobara judta hai),
+  /// - jo din ka bill hai hi nahi wo ban jata hai (balance judta hai),
+  /// - jo bill pehle se theek (active) hain unhe nahi chhua jata, kuch dobara nahi banta.
+  /// Agar [from] rent ki shuruaati date se pehle ki ho to shuruaati date wahan tak peeche ho jati hai.
+  Future<RentRepairResult> repairRent(int customerId, DateTime from, {DateTime? today}) async {
+    _requireStaff();
+    final t = today ?? DateTime.now();
+    final last = DateTime(t.year, t.month, t.day);
+    final first = DateTime(from.year, from.month, from.day);
+    if (first.isAfter(last)) throw ArgumentError('Date aaj se aage nahi ho sakti');
+    final db = await AppDatabase.instance.database;
+    final cfg = await db.query('customer_rent', where: 'customerId = ?', whereArgs: [customerId], limit: 1);
+    if (cfg.isEmpty) throw StateError('Is customer ka rent laga hua nahi hai');
+    final startMs = (cfg.first['startDay'] as num).toInt();
+    if (first.millisecondsSinceEpoch < startMs) {
+      await db.update('customer_rent', {'startDay': first.millisecondsSinceEpoch},
+          where: 'customerId = ?', whereArgs: [customerId]);
+    }
+    var restored = 0;
+    var d = first;
+    while (!d.isAfter(last)) {
+      final invoice = rentInvoice(customerId, d);
+      final rows = await db.query('sales', columns: ['status'], where: 'invoice = ?', whereArgs: [invoice], limit: 1);
+      if (rows.isNotEmpty && rows.first['status'] == 'returned') {
+        await setRentBillOff(invoice, off: false);
+        restored++;
+      }
+      d = DateTime(d.year, d.month, d.day + 1);
+    }
+    final created = await ensureRentUpTo(last);
+    return RentRepairResult(restored: restored, created: created);
   }
 
   /// Chhutti: [invoice] wale rent bill ko hata do ([off] true) ya wapas lagao ([off] false).

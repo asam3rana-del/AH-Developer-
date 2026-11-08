@@ -5,6 +5,7 @@
 - [x] Naya `collection_hub_screen.dart`: Autopilot + saari due list ek screen mein (2 tabs); dashboard par ek "Collection" tile; notification tap hub kholta hai.
 - [x] Partial payment par due date renew: `lib/models/due_renewal.dart` + `PaymentRepository._renewDueDates` (aaj + customer dueDays / bill ki muddat / 7 din). Test `due_renewal_test.dart`.
 - [x] Sale screen: due date ke quick day-chips (Tomorrow/1/3/7/15/30) aur ✕ hata kar sirf date picker rakha.
+- [x] Rent: Daily Rent sheet mein "Fix rent" (spanner) button — `RentRepository.repairRent`: chuni date se aaj tak chhutti (returned) wale rent bills wapas lagte hain aur missing din ban jate hain; theek bills nahi chhute, balance usi hisaab se.
 - [x] Collection plan patch: FIFO payment plan (`collection_plan.dart`), itemized reminder, `due_followup_repository` / `due_reminders_repository` / `payment_repository` / `due_reminders_screen` updates.
 - [x] Test: `test/collection_autopilot_test.dart` (9). Detail: `docs/COLLECTION_AUTOPILOT.md`.
 - [ ] Bina `flutter analyze` / `flutter test` ke likha gaya (Flutter SDK nahi) — CI par `Analyze + Test` dekhein.

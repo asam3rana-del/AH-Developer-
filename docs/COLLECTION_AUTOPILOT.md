@@ -73,6 +73,11 @@ Is mein ye files thin (project mein shamil / merge ho chuki):
 
 ---
 
+## 3b. Daily Rent: "Fix rent" (spanner button)
+- Daily Rent sheet mein har customer ke saath spanner icon. Date chuno -> us din se aaj tak: chhutti (returned) wale rent bills wapas lagte hain, jo din ka bill hai hi nahi wo ban jata hai. Theek (active) bills nahi chhuye jate, kuch double nahi banta.
+- Balance usi hisaab se judta hai aur sync queue mein jata hai. Date rent ki shuruaati date se pehle ki ho to shuruaat peeche ho jati hai.
+- Code: `RentRepository.repairRent` (lib/db/rent_repository.dart), UI `_repair` (daily_bills_screen.dart).
+
 ## 4. Test / Deploy
 - [ ] Is environment mein Flutter SDK nahi tha — **kuch compile / run nahi hua**. Pehle chalayein:
   `flutter pub get && flutter analyze && flutter test test/collection_autopilot_test.dart test/due_followup_test.dart test/due_alert_body_test.dart`
