@@ -78,6 +78,12 @@ Is mein ye files thin (project mein shamil / merge ho chuki):
 - Balance usi hisaab se judta hai aur sync queue mein jata hai. Date rent ki shuruaati date se pehle ki ho to shuruaat peeche ho jati hai.
 - Code: `RentRepository.repairRent` (lib/db/rent_repository.dart), UI `_repair` (daily_bills_screen.dart).
 
+## 3c. Collection Display Board (LCD / LED jaisi screen)
+- `lib/screens/collection_ticker_screen.dart` (naya): kali screen, aaj ke baqi parties ke naam + raqam neeche ek line mein bina ruke chalte hain, beech mein har 5 second baad ek party bari likhi aati hai (naam, raqam, wajah: toota wada / late N din / aaj due).
+- Upar: baqi parties + raqam, ho chuka, aaj wasool, ghari. Har 60 second khud refresh (jis ne reminder bhej diya wo hat jata hai, jis ne paisa diya uski raqam kam).
+- Khulta hai: Collection screen ki AppBar mein TV icon se. Full-screen (immersive); band karne ke liye X ya back.
+- Data wahi Autopilot ki TODO list; koi nayi DB / sync nahi.
+
 ## 4. Test / Deploy
 - [ ] Is environment mein Flutter SDK nahi tha — **kuch compile / run nahi hua**. Pehle chalayein:
   `flutter pub get && flutter analyze && flutter test test/collection_autopilot_test.dart test/due_followup_test.dart test/due_alert_body_test.dart`

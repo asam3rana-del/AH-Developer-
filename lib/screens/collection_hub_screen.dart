@@ -4,6 +4,7 @@ import '../models/due_followup.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/permission_guard.dart';
+import 'collection_ticker_screen.dart';
 import 'due_reminders_screen.dart';
 import 'wasooli_queue_screen.dart';
 
@@ -33,6 +34,13 @@ class CollectionHubScreen extends StatelessWidget {
             foregroundColor: Colors.white,
             elevation: 0,
             title: Text(Loc.t('Collection', 'وصولی'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            actions: [
+              IconButton(
+                tooltip: Loc.t('Display board', 'ڈسپلے بورڈ'),
+                icon: const Icon(Icons.tv_rounded),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CollectionTickerScreen())),
+              ),
+            ],
             bottom: TabBar(
               indicatorColor: Colors.white,
               labelColor: Colors.white,
