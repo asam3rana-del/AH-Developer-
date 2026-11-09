@@ -47,7 +47,10 @@ List<DateTime> missingRentDays({
 class RentRepairResult {
   final int restored;
   final int created;
-  const RentRepairResult({required this.restored, required this.created});
+
+  /// Pehle se theek (active) bills jo dobara sync ke liye bheje gaye (server tak na pahunche hon to pahunch jayen).
+  final int resent;
+  const RentRepairResult({required this.restored, required this.created, this.resent = 0});
   int get total => restored + created;
 }
 
@@ -164,7 +167,8 @@ class RentRepository {
   /// Rent theek karo: [from] se aaj tak ke is customer ke rent bills ko poora karo.
   /// - chhutti (returned) wale bills wapas lagte hain (balance dobara judta hai),
   /// - jo din ka bill hai hi nahi wo ban jata hai (balance judta hai),
-  /// - jo bill pehle se theek (active) hain unhe nahi chhua jata, kuch dobara nahi banta.
+  /// - jo bill pehle se theek (active) hain unka hisaab nahi badalta, sirf dobara sync ke liye bheje jate hain
+  ///   (doosri device par na pahunche hon to pahunch jayen); kuch dobara nahi banta.
   /// Agar [from] rent ki shuruaati date se pehle ki ho to shuruaati date wahan tak peeche ho jati hai.
   Future<RentRepairResult> repairRent(int customerId, DateTime from, {DateTime? today}) async {
     _requireStaff();
@@ -181,18 +185,25 @@ class RentRepository {
           where: 'customerId = ?', whereArgs: [customerId]);
     }
     var restored = 0;
+    var resent = 0;
     var d = first;
     while (!d.isAfter(last)) {
       final invoice = rentInvoice(customerId, d);
       final rows = await db.query('sales', columns: ['status'], where: 'invoice = ?', whereArgs: [invoice], limit: 1);
-      if (rows.isNotEmpty && rows.first['status'] == 'returned') {
-        await setRentBillOff(invoice, off: false);
-        restored++;
+      if (rows.isNotEmpty) {
+        if (rows.first['status'] == 'returned') {
+          await setRentBillOff(invoice, off: false);
+          restored++;
+        } else {
+          // Theek bill: sirf dobara sync queue mein (upsert, idempotent — balance / paisa nahi badalta).
+          await SyncQueueHelper.enqueueSale(db, invoice);
+          resent++;
+        }
       }
       d = DateTime(d.year, d.month, d.day + 1);
     }
     final created = await ensureRentUpTo(last);
-    return RentRepairResult(restored: restored, created: created);
+    return RentRepairResult(restored: restored, created: created, resent: resent);
   }
 
   /// Chhutti: [invoice] wale rent bill ko hata do ([off] true) ya wapas lagao ([off] false).

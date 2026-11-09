@@ -76,6 +76,7 @@ Is mein ye files thin (project mein shamil / merge ho chuki):
 ## 3b. Daily Rent: "Fix rent" (spanner button)
 - Daily Rent sheet mein har customer ke saath spanner icon. Date chuno -> us din se aaj tak: chhutti (returned) wale rent bills wapas lagte hain, jo din ka bill hai hi nahi wo ban jata hai. Theek (active) bills nahi chhuye jate, kuch double nahi banta.
 - Balance usi hisaab se judta hai aur sync queue mein jata hai. Date rent ki shuruaati date se pehle ki ho to shuruaat peeche ho jati hai.
+- Theek (active) bills ka hisaab nahi badalta, magar un ki sale dobara sync queue mein jati hai (`enqueueSale` upsert, balance delta nahi) — doosri device par na pahunche hon to pahunch jayen.
 - Code: `RentRepository.repairRent` (lib/db/rent_repository.dart), UI `_repair` (daily_bills_screen.dart).
 
 ## 3c. Collection Display Board (LCD / LED jaisi screen)

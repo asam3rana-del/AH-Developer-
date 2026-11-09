@@ -8,6 +8,7 @@
 - [x] Rent: Daily Rent sheet mein "Fix rent" (spanner) button — `RentRepository.repairRent`: chuni date se aaj tak chhutti (returned) wale rent bills wapas lagte hain aur missing din ban jate hain; theek bills nahi chhute, balance usi hisaab se.
 - [x] Naya `collection_ticker_screen.dart`: LCD/LED jaisa display board — aaj wasooli wale naam + raqam chalte hain, beech mein ek ek party bari; Collection screen ke TV icon se.
 - [x] Quick Sale (credit) ke baad ab normal sale jaisi Bill Preview khulti hai (Prev / Net Balance + shukriya). Party Details ke sale card ka share button bhi poori slip bhejta hai (items, Prev / Net Balance, shukriya), sirf Total / Balance wali chhoti slip nahi.
+- [x] Fix rent ab theek rent bills ko dobara sync queue mein bhi daalta hai (doosri device par na pahunche hon to pahunch jayen); balance nahi badalta.
 - [x] Collection plan patch: FIFO payment plan (`collection_plan.dart`), itemized reminder, `due_followup_repository` / `due_reminders_repository` / `payment_repository` / `due_reminders_screen` updates.
 - [x] Test: `test/collection_autopilot_test.dart` (9). Detail: `docs/COLLECTION_AUTOPILOT.md`.
 - [ ] Bina `flutter analyze` / `flutter test` ke likha gaya (Flutter SDK nahi) — CI par `Analyze + Test` dekhein.

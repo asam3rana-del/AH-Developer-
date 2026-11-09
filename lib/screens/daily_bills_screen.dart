@@ -643,8 +643,8 @@ class _RentSheetState extends State<_RentSheet> {
       builder: (ctx) => AlertDialog(
         title: Text(Loc.t('Fix rent?', 'کرایہ ٹھیک کریں؟')),
         content: Text(Loc.t(
-            '${c.name}: from ${_dateFmt.format(picked)} till today, holiday days will be put back and missing days will be created (Rs ${c.dailyRent.round()} each). Days that are already fine are not touched. Balance changes accordingly.',
-            '${c.name}: ${_dateFmt.format(picked)} سے آج تک چھٹی والے دن واپس لگیں گے اور جو دن رہ گئے وہ بن جائیں گے (ہر دن Rs ${c.dailyRent.round()})۔ جو دن ٹھیک ہیں انہیں نہیں چھیڑا جائے گا۔ بیلنس اسی حساب سے بدلے گا۔')),
+            '${c.name}: from ${_dateFmt.format(picked)} till today, holiday days will be put back and missing days will be created (Rs ${c.dailyRent.round()} each). Days that are already fine keep their amount and are only re-sent for sync (so the other device gets them). Balance changes only for restored / new days.',
+            '${c.name}: ${_dateFmt.format(picked)} سے آج تک چھٹی والے دن واپس لگیں گے اور جو دن رہ گئے وہ بن جائیں گے (ہر دن Rs ${c.dailyRent.round()})۔ جو دن ٹھیک ہیں ان کی رقم وہی رہے گی، بس دوبارہ سنک کو بھیجے جائیں گے تاکہ دوسری ڈیوائس کو مل جائیں۔ بیلنس صرف واپس لگے یا نئے دنوں سے بدلے گا۔')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Fix', 'ٹھیک کریں'))),
@@ -654,10 +654,14 @@ class _RentSheetState extends State<_RentSheet> {
     if (ok != true) return;
     try {
       final r = await RentRepository.instance.repairRent(c.customerId, picked);
-      _toast(r.total == 0
-          ? Loc.t('Nothing to fix, all rent bills are already there', 'کچھ ٹھیک کرنے کو نہیں، سب کرایہ بل موجود ہیں')
-          : Loc.t('Done: ${r.restored} holiday days put back, ${r.created} new days created',
-              'ہو گیا: ${r.restored} چھٹی والے دن واپس لگے، ${r.created} نئے دن بنے'));
+      final sync = r.resent > 0
+          ? Loc.t(' ${r.resent} existing bills re-sent for sync.', ' ${r.resent} موجود بل دوبارہ سنک کو بھیجے۔')
+          : '';
+      _toast((r.total == 0
+              ? Loc.t('Nothing to fix, all rent bills are already there.', 'کچھ ٹھیک کرنے کو نہیں، سب کرایہ بل موجود ہیں۔')
+              : Loc.t('Done: ${r.restored} holiday days put back, ${r.created} new days created.',
+                  'ہو گیا: ${r.restored} چھٹی والے دن واپس لگے، ${r.created} نئے دن بنے۔')) +
+          sync);
     } catch (e) {
       _toast('$e');
     }
