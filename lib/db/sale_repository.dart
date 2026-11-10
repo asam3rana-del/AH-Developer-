@@ -574,7 +574,10 @@ class SaleRepository {
       final diff = original != null ? saleEditDiff(lines, originalItems) : null;
       bool needsStock(int index) => diff == null || diff.changedLineIndices.contains(index);
 
-      if (original != null) {
+      // Dart 3.13: baad mein assign hone wala `final Sale? original` closure ke andar promote nahi hota —
+      // initializer wala local copy promote hota hai.
+      final orig = original;
+      if (orig != null) {
         // Only original rows that were changed/removed give stock back —
         // untouched rows keep the stock they already deducted.
         for (final si in diff!.itemsToReverse) {
@@ -584,9 +587,10 @@ class SaleRepository {
               type: MovementType.saleEditReversal, reference: invoice);
         }
         // Reverse the original due (or advance) — nonzero either way.
-        final originalOutstanding = original.total - original.paid;
-        if (original.customerId != null && originalOutstanding.abs() > 0.009) {
-          await _adjustCustomerBalance(txn, original.customerId!, -originalOutstanding, now);
+        final originalOutstanding = orig.total - orig.paid;
+        final origCustomerId = orig.customerId;
+        if (origCustomerId != null && originalOutstanding.abs() > 0.009) {
+          await _adjustCustomerBalance(txn, origCustomerId, -originalOutstanding, now);
         }
         await txn.delete('sale_items', where: 'invoice=?', whereArgs: [invoice]);
         await _deleteCashByReference(txn, invoice);
