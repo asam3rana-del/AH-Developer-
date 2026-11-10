@@ -23,7 +23,8 @@ class SyncQueueDao {
       'sync_queue',
       where: 'syncedAt IS NULL AND retryCount < ?',
       whereArgs: [maxAutoRetries],
-      orderBy: 'createdAt ASC',
+      // FIX: ek hi millisecond mein bani entries (customer banana + us ka balance) ki tarteeb pakki — id se.
+      orderBy: 'createdAt ASC, id ASC',
       limit: limit,
     );
     return rows.map(SyncQueueEntry.fromMap).toList();

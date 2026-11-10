@@ -58,3 +58,21 @@ Sale/Purchase customer ko **naam se** dhoondte hain (`saveSale`: pehla match). P
 2. Device par: OTP login ke baad sync; deactivated user restart par logout; duplicate party naam ka message; poora-paid bill naye naam ke saath → doosre device par customer aur bill link.
 3. A1 (applicationId) aur A2 (Flutter/targetSdk) ka faisla + data migration plan.
 4. Keystore ka mehfooz backup (pehle se pending).
+
+## F. Sync code review (2026-11-11)
+Poora sync parha: `sync_repository`, `sync_api` (push/pull), `sync_apply*`, `sync_queue_*`, `sync_worker`, `network_monitor`.
+Mazboot hissay: increment ops idempotent (`appliedOps`), last-write-wins (`upsertAt`), clock-skew ceiling, pull ek
+transaction mein (adhoora apply nahi), sales/purchases/customers/products par pending-edit guard, unique-clash audit.
+
+Fix kiye:
+| # | Severity | File | Masla | Fix |
+|---|----------|------|-------|-----|
+| S1 | HIGH | `sync_apply_rest.dart` | Payments / expenses / cash par pending-edit guard nahi tha: push atka ho (fail / stuck / quota) aur pull aaye to local edit purani raqam par wapas, ya local delete ki hui entry **dobara zinda** (balance pehle hi ulta => hisaab double). 1 ghante overlap ke baad ye zyada hota | Sales jaisa: is entity ki koi unsynced queue row ho to pull skip. Test shamil |
+| S2 | MEDIUM | `sync_worker.dart` | Sync chalte waqt bana bill / payment ka trigger gum: 15 min (ya pause/resume) tak cloud par nahi | Trigger yaad rehta hai; sync khatam hone ke 5 s baad ek aur sync |
+| S3 | MEDIUM | `sync_repository.dart` | Worker 5 min baad intezar chhorta, sync chalti rehti; agli sync doosri copy chala deti (double push / do apply ek saath) | `syncNow` re-entrancy guard |
+| S4 | LOW | `sync_repository.dart` | Push ruka to Sync result mein asli wajah ki jagah "push failed" | Message ki tarteeb |
+| S5 | LOW | `sync_queue_dao.dart` | Ek hi ms ki entries ki push tarteeb pakki nahi | `ORDER BY createdAt, id` |
+
+Baqi (fix nahi, nazar mein rakhein): ek kharab cloud doc poori pull rok sakta hai (push phir bhi chalta hai; error Sync
+result mein dikhta hai) — aisa ho to error bhejein. Backup restore ke baad un-synced queue entries naye DeviceTag se
+dobara push ho sakti hain — restore se pehle hamesha Sync Now.

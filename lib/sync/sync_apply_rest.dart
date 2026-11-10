@@ -299,6 +299,7 @@ Future<void> applyPurchases(DatabaseExecutor db, List<SyncDoc> rows, {required i
 // ----------------------------------------------------------------- expenses
 
 Future<void> applyExpenses(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
   for (final row in rows) {
     final serverId = _s(row['serverId']);
     if (serverId == null) continue;
@@ -306,6 +307,11 @@ Future<void> applyExpenses(DatabaseExecutor db, List<SyncDoc> rows, {required in
       await db.delete('expenses', where: 'serverId = ?', whereArgs: [serverId]);
       continue;
     }
+    // FIX: is device ka apna edit / delete abhi cloud par nahi gaya (push fail / stuck / quota) => cloud ki
+    // purani copy se overwrite NA karo. Pehle: edit ki hui raqam wapas purani ho jati, ya local delete ki hui
+    // entry dobara zinda ho jati (balance pehle hi ulta ho chuka => hisaab double). Sales/purchases mein ye
+    // check pehle se tha. Pending push ho jaye to agli pull cloud ki taaza copy le aati hai.
+    if (await q.pendingCountForEntity('expense', serverId) > 0) continue;
     final category = _s(row['category']);
     if (category == null) continue;
     final createdAt = _i(row['createdAt']) ?? nowMs();
@@ -331,6 +337,7 @@ Future<void> applyExpenses(DatabaseExecutor db, List<SyncDoc> rows, {required in
 // ----------------------------------------------------------------- payments
 
 Future<void> applyPayments(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
   for (final row in rows) {
     final serverId = _s(row['serverId']);
     if (serverId == null) continue;
@@ -338,6 +345,11 @@ Future<void> applyPayments(DatabaseExecutor db, List<SyncDoc> rows, {required in
       await db.delete('payments', where: 'serverId = ?', whereArgs: [serverId]);
       continue;
     }
+    // FIX: is device ka apna edit / delete abhi cloud par nahi gaya (push fail / stuck / quota) => cloud ki
+    // purani copy se overwrite NA karo. Pehle: edit ki hui raqam wapas purani ho jati, ya local delete ki hui
+    // entry dobara zinda ho jati (balance pehle hi ulta ho chuka => hisaab double). Sales/purchases mein ye
+    // check pehle se tha. Pending push ho jaye to agli pull cloud ki taaza copy le aati hai.
+    if (await q.pendingCountForEntity('payment', serverId) > 0) continue;
     final reference = _s(row['reference']);
     if (reference == null) continue;
     final partyType = _s(row['partyType']) ?? '';
@@ -384,6 +396,7 @@ Future<void> applyPayments(DatabaseExecutor db, List<SyncDoc> rows, {required in
 
 Future<void> applyCashTransactions(DatabaseExecutor db, List<SyncDoc> rows,
     {required int Function() nowMs}) async {
+  final q = SyncQueueDao(db);
   for (final row in rows) {
     final serverId = _s(row['serverId']);
     if (serverId == null) continue;
@@ -391,6 +404,11 @@ Future<void> applyCashTransactions(DatabaseExecutor db, List<SyncDoc> rows,
       await db.delete('cash_transactions', where: 'serverId = ?', whereArgs: [serverId]);
       continue;
     }
+    // FIX: is device ka apna edit / delete abhi cloud par nahi gaya (push fail / stuck / quota) => cloud ki
+    // purani copy se overwrite NA karo. Pehle: edit ki hui raqam wapas purani ho jati, ya local delete ki hui
+    // entry dobara zinda ho jati (balance pehle hi ulta ho chuka => hisaab double). Sales/purchases mein ye
+    // check pehle se tha. Pending push ho jaye to agli pull cloud ki taaza copy le aati hai.
+    if (await q.pendingCountForEntity('cash_transaction', serverId) > 0) continue;
     final type = _s(row['type']);
     if (type == null) continue;
     final createdAt = _i(row['createdAt']) ?? nowMs();

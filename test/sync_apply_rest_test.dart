@@ -323,6 +323,24 @@ void main() {
       expect((await db.query('payments')).length, 2);
     });
 
+    test('pending local edit/delete: payment, expense, cash pull se overwrite / dobara zinda nahi', () async {
+      // Edit: local 700, cloud ki purani copy 500 — local edit push hone tak barqarar.
+      await db.insert('payments', {'reference': 'S1', 'partyType': 'customer', 'amount': 700.0, 'method': 'cash',
+        'note': '', 'billReference': '', 'createdAt': 1, 'serverId': 'p1'});
+      await _queue(db, 'payment', 'p1', 'upsert');
+      // Delete: local se hata diya, delete abhi push nahi hua — cloud ki copy wapas na aaye.
+      await _queue(db, 'expense', 'e1', 'delete');
+      await _queue(db, 'cash_transaction', 'c1', 'delete');
+      await _apply(db, PullResult(
+        payments: [{'serverId': 'p1', 'reference': 'S1', 'partyType': 'customer', 'amount': 500, 'method': 'cash', 'createdAt': 1}],
+        expenses: [{'serverId': 'e1', 'category': 'Rent', 'amount': 100, 'createdAt': 1}],
+        cashTransactions: [{'serverId': 'c1', 'type': 'in', 'amount': 100, 'createdAt': 1}],
+      ));
+      expect((await db.query('payments')).single['amount'], 700.0);
+      expect(await db.query('expenses'), isEmpty);
+      expect(await db.query('cash_transactions'), isEmpty);
+    });
+
     test('payment supplier partyType supplier table se resolve', () async {
       await db.insert('suppliers', {'name': 'X', 'serverId': 'sX'});
       await _apply(db, PullResult(payments: [

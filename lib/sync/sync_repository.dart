@@ -52,7 +52,29 @@ class SyncRepository {
     return p.getInt(prefsLastSync) ?? 0;
   }
 
-  static Future<SyncResult> syncNow() async {
+  static Future<SyncResult>? _running;
+
+  /// FIX (do sync ek saath): SyncWorker 5 minute baad intezar chhor deta hai magar Dart mein chalti sync
+  /// rukti nahi — agli sync usi waqt doosri copy chala deti thi (wahi queue rows do baar push, do transactions
+  /// ek saath apply, checkpoint ki race). Ab pichli abhi chal rahi ho to nayi foran laut aati hai.
+  static Future<SyncResult> syncNow() {
+    final running = _running;
+    if (running != null) {
+      return Future.value(const SyncResult(
+        pushedCount: 0,
+        failedCount: 0,
+        pulledOk: false,
+        error: 'Previous sync is still running (slow internet) — it will finish on its own; try again in a minute.',
+      ));
+    }
+    final f = _syncNowImpl();
+    _running = f;
+    return f.whenComplete(() {
+      if (identical(_running, f)) _running = null;
+    });
+  }
+
+  static Future<SyncResult> _syncNowImpl() async {
     // Kotlin FIX (multi-tenant): koi Firebase project hi nahi => saaf batao, chupke na chalo.
     if (!await isCloudReady()) {
       return SyncResult(
@@ -95,12 +117,13 @@ class SyncRepository {
           break;
         }
         offline = isNetworkError(e);
+        // FIX: asli wajah PEHLE nikalo — pehle neeche wali line `error` ki default 'push failed' dikhati thi.
+        error = _messageOf(e);
+        if (error.length > 300) error = error.substring(0, 300);
         // Quota khatam: user ko Sync Now ke natije mein saaf dikhao (chup chap "Already up to date" nahi).
         if (e is SyncOfflineException && looksLikeQuotaMessage(e.message)) pushBlocked = e.message;
         // Push kisi bhi wajah se ruka (sign-in / network / server): asli wajah Sync Now ke natije mein dikhao.
         if (offline) pushBlocked ??= error.length > 200 ? error.substring(0, 200) : error;
-        error = _messageOf(e);
-        if (error.length > 300) error = error.substring(0, 300);
       }
       if (offline) {
         // Internet nahi: retryCount na barhao, baqi entries bhi abhi na bhejo (agli sync par chalengi).
