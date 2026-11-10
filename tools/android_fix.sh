@@ -121,6 +121,29 @@ dependencies {
 }
 KTS
 fi
+# --- Purane plugins (e.g. file_picker 8.x: compileSdk 34) ko bhi compileSdk >= TARGET_SDK par compile karo. ---
+# Naye AndroidX libraries (flutter_plugin_android_lifecycle) 35+ maangti hain, warna checkReleaseAarMetadata fail.
+# `finalizeDsl` AGP ka rasmi hook hai (plugin ki apni build.gradle ke BAAD, DSL lock hone se PEHLE chalta hai).
+# Root build file ke SHURU mein, taake koi plugin project is se pehle evaluate na ho.
+ROOT_KTS=android/build.gradle.kts
+if [ "$KTS" = 1 ] && [ -f "$ROOT_KTS" ] && ! grep -q "ah-compile-sdk-floor" "$ROOT_KTS"; then
+  { cat <<ROOTKTS
+// ---- tools/android_fix.sh (CI): ah-compile-sdk-floor ----
+subprojects {
+    pluginManager.withPlugin("com.android.library") {
+        extensions.configure<com.android.build.api.variant.LibraryAndroidComponentsExtension> {
+            finalizeDsl { ext ->
+                if ((ext.compileSdk ?: 0) < $TARGET_SDK) ext.compileSdk = $TARGET_SDK
+            }
+        }
+    }
+}
+
+ROOTKTS
+    cat "$ROOT_KTS"; } > "$ROOT_KTS.new" && mv "$ROOT_KTS.new" "$ROOT_KTS"
+  echo "=== $ROOT_KTS ==="; cat "$ROOT_KTS"
+fi
+
 echo "=== app gradle (verify sdk / signing / proguard) ==="
 grep -n "compileSdk\|targetSdk\|minSdk\|ndkVersion\|signingConfig\|upload.jks\|proguard" "$GRADLE"
 if [ "$KTS" = 0 ]; then
