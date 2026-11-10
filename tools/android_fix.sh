@@ -109,7 +109,9 @@ android {
     buildTypes {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
-            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+            // proguardFiles yahan NAHI: Flutter ka Gradle plugin release mein khud
+            // proguard-android-optimize.txt + android/app/proguard-rules.pro jorta hai. Naya AGP purani
+            // `proguard-android.txt` par build hi rok deta hai.
         }
     }
 }
@@ -121,7 +123,11 @@ KTS
 fi
 echo "=== app gradle (verify sdk / signing / proguard) ==="
 grep -n "compileSdk\|targetSdk\|minSdk\|ndkVersion\|signingConfig\|upload.jks\|proguard" "$GRADLE"
-grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build gradle"; exit 1; }
+if [ "$KTS" = 0 ]; then
+  grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build gradle"; exit 1; }
+else
+  [ -s android/app/proguard-rules.pro ] || { echo "ERROR: android/app/proguard-rules.pro missing"; exit 1; }
+fi
 grep -q 'signingConfigs.release\|signingConfigs.getByName("release")' "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
 grep -q "targetSdk = $TARGET_SDK" "$GRADLE" || { echo "ERROR: targetSdk $TARGET_SDK not applied"; exit 1; }
 
