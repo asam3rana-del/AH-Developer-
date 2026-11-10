@@ -108,6 +108,9 @@ jobs:
       # Repo has no ios/ or android/ folders, so generate them.
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
+      # Flutter 3.47 ka `flutter create` dependencies naye patch par upgrade kar deta hai — commit wali lock wapas.
+      - run: git checkout -- pubspec.yaml pubspec.lock
+
       # App ka naam (home screen par): Hanna Solutions.
       - name: Set iOS app name
         run: |
@@ -194,6 +197,9 @@ jobs:
 
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
+      # Flutter 3.47 ka `flutter create` dependencies naye patch par upgrade kar deta hai — commit wali lock wapas.
+      - run: git checkout -- pubspec.yaml pubspec.lock
+
       # Kotlin / AGP / targetSdk: tools/android_fix.sh (Groovy aur naya KTS template dono).
 
       - name: flutter pub get (lockfile check)
@@ -250,6 +256,10 @@ jobs:
 
       # Repo mein windows/ folder nahi hota, isliye generate karte hain (iOS / Android jaisa).
       - run: flutter create --platforms=windows --project-name ah_developer_kiryana_store .
+
+      # Flutter 3.47 ka `flutter create` dependencies naye patch par upgrade kar deta hai — commit wali lock wapas.
+      - run: git checkout -- pubspec.yaml pubspec.lock
+        shell: bash
 
       - name: flutter pub get (lockfile check)
         shell: bash
