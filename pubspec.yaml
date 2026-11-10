@@ -26,7 +26,8 @@ dependencies:
   firebase_app_check: ^0.3.0  # staffLogin enforceAppCheck (opt-in)
   firebase_auth: ^5.1.0       # SyncApi: anonymous sign-in (Firestore rules request.auth != null)
   connectivity_plus: ^6.0.3   # NetworkMonitor: internet wapas aane par sync trigger
-  workmanager: ^0.5.2         # Android: band app par bhi 12 PM / 9 PM backup checkpoint (BackupCheckpointWorker)
+  # 0.5.x purane Flutter embedding (Registrar) par tha — Flutter 3.29+ par compile nahi hota. 0.9: federated, naya API.
+  workmanager: ^0.9.1         # Android: band app par bhi 12 PM / 9 PM backup checkpoint (BackupCheckpointWorker)
   flutter_foreground_task: ^8.10.0  # Android: minimize/back ke baad bhi sync chalti rahe (SyncKeepAlive)
 
   # Misc

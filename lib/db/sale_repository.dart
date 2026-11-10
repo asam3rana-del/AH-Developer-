@@ -640,6 +640,9 @@ class SaleRepository {
           'updatedAt': now,
           'dirty': 1,
         });
+        // FIX: naya customer cloud par bhi jaye (pehle sirf due wale bill ka increment_balance jata tha;
+        // poora paid bill hone par ye customer doosre devices par kabhi nahi pahunchta tha).
+        await SyncQueueHelper.enqueueCustomer(txn, customerId);
       }
 
       // A brand-new bill must not reuse an invoice number (double-tap /
@@ -1270,6 +1273,7 @@ class SaleRepository {
             'updatedAt': now,
             'dirty': 1,
           });
+          await SyncQueueHelper.enqueueCustomer(txn, customerId);
         }
       }
 

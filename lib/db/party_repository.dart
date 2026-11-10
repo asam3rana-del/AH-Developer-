@@ -162,7 +162,9 @@ List<Payment> pickOrphanedPayments(
 // ---------------------------------------------------------------------------
 
 /// Kotlin `SavePartyResult`.
-enum SavePartyResult { success, nameRequired }
+/// [duplicateName]: isi naam (case/space ignore) ki doosri party pehle se hai. Sale/Purchase party ko NAAM se
+/// dhoondte hain, is liye do "Ali" hon to bill hamesha pehle wale ke khate mein jata — is liye rok.
+enum SavePartyResult { success, nameRequired, duplicateName }
 
 /// How many customers/suppliers had a drifted balance corrected (0/0 = sab theek).
 class RecalcResult {
@@ -225,6 +227,16 @@ class PartyRepository {
 
   // ---- use cases: validate + save / update -------------------------------
 
+  /// [table] mein [name] (trim + case ignore) wali koi aur row ([exceptId] ke ilawa) hai?
+  Future<bool> _nameTaken(String table, String name, {int? exceptId}) async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.rawQuery(
+      'SELECT id FROM $table WHERE LOWER(TRIM(name)) = ? AND id != ? LIMIT 1',
+      [name.trim().toLowerCase(), exceptId ?? -1],
+    );
+    return rows.isNotEmpty;
+  }
+
   /// Kotlin SaveCustomerUseCase. Naam trim; khali naam => [SavePartyResult.nameRequired].
   Future<SavePartyResult> addCustomer({
     required String name,
@@ -235,6 +247,7 @@ class PartyRepository {
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
+    if (await _nameTaken('customers', trimmed)) return SavePartyResult.duplicateName;
     await saveCustomer(Customer(
       name: trimmed,
       phone: phone.trim(),
@@ -253,6 +266,7 @@ class PartyRepository {
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
+    if (await _nameTaken('suppliers', trimmed)) return SavePartyResult.duplicateName;
     await saveSupplier(Supplier(name: trimmed, phone: phone.trim(), openingBalance: openingBalance, balance: 0.0));
     return SavePartyResult.success;
   }
@@ -272,6 +286,11 @@ class PartyRepository {
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
+    // Naam badla ho tab hi check (purane duplicate wali party ka phone/limit edit na ruke).
+    if (trimmed.toLowerCase() != existing.name.trim().toLowerCase() &&
+        await _nameTaken('customers', trimmed, exceptId: existing.id)) {
+      return SavePartyResult.duplicateName;
+    }
     await updateCustomer(existing.copyWith(
       name: trimmed,
       phone: phone.trim(),
@@ -294,6 +313,11 @@ class PartyRepository {
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
+    // Naam badla ho tab hi check (purane duplicate wali party ka phone/limit edit na ruke).
+    if (trimmed.toLowerCase() != existing.name.trim().toLowerCase() &&
+        await _nameTaken('suppliers', trimmed, exceptId: existing.id)) {
+      return SavePartyResult.duplicateName;
+    }
     await updateSupplier(existing.copyWith(name: trimmed, phone: phone.trim(), openingBalance: openingBalance));
     return SavePartyResult.success;
   }

@@ -114,6 +114,10 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
 
   // ------------------------------------------------------------------ actions
 
+  String _dupNameMsg(String name) => Loc.t(
+      '"$name" already exists. Add something to tell them apart, e.g. "$name (Mohalla)".',
+      '"$name" پہلے سے موجود ہے۔ فرق کے لیے کچھ ساتھ لکھیں، مثلاً "$name (محلہ)"۔');
+
   Future<bool> _confirm(String title, String message, String confirmLabel, {bool destructive = false}) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -162,20 +166,15 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       return;
     }
 
-    // Kotlin "IMPROVEMENT PACK": ek jaise naam par warning (do asli log ka naam ek ho sakta hai,
-    // is liye rokta nahi, sirf sochne ka mauqa deta hai).
+    // Ek jaisa naam ab ROKA jata hai (pehle sirf warning thi): Sale/Purchase party ko naam se dhoondte hain,
+    // do "Ali" hon to har bill pehle wale ke khate mein chala jata. Farq ke liye naam mein ilaqa/dukaan likhein.
     final lower = name.toLowerCase();
     final exists = _showingCustomers
         ? _customers.any((c) => c.name.trim().toLowerCase() == lower)
         : _suppliers.any((s) => s.name.trim().toLowerCase() == lower);
     if (exists) {
-      final ok = await _confirm(
-        Loc.t('Name already exists', 'یہ نام پہلے سے موجود ہے'),
-        Loc.t('A party named "$name" already exists. Add another one with the same name?',
-            '"$name" نام کی ایک پارٹی پہلے سے موجود ہے۔ کیا اسی نام سے ایک اور شامل کی جائے؟'),
-        Loc.t('Add anyway', 'پھر بھی شامل کریں'),
-      );
-      if (!ok || !mounted) return;
+      _toast(_dupNameMsg(name));
+      return;
     }
 
     await _runBusy(() async {
@@ -186,6 +185,10 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       if (res == SavePartyResult.nameRequired) {
         _toast(Loc.t('Name is required', 'نام ضروری ہے'));
+        return;
+      }
+      if (res == SavePartyResult.duplicateName) {
+        _toast(_dupNameMsg(name));
         return;
       }
       _toast(Loc.t('Saved', 'محفوظ ہو گیا'));
@@ -327,7 +330,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
         if (stuckValue == null) return;
       }
       await _runBusy(() async {
-        await PartyRepository.instance.editCustomer(
+        final res = await PartyRepository.instance.editCustomer(
           c,
           name: name.text,
           phone: phone.text,
@@ -337,6 +340,10 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           rateType: _canEditStuck ? rateType : null, // cashier rate-type nahi badal sakta
           dueDays: _canEditStuck ? (int.tryParse(dueDays.text.trim()) ?? 0).clamp(0, 365) : null,
         );
+        if (res == SavePartyResult.duplicateName) {
+          if (mounted) _toast(_dupNameMsg(name.text.trim()));
+          return;
+        }
         if (mounted) _toast(Loc.t('Updated', 'اپ ڈیٹ ہو گیا'));
         await _reload();
       });
@@ -395,12 +402,16 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     try {
       if (ok != true || !mounted) return;
       await _runBusy(() async {
-        await PartyRepository.instance.editSupplier(
+        final res = await PartyRepository.instance.editSupplier(
           s,
           name: name.text,
           phone: phone.text,
           openingBalance: double.tryParse(opening.text.trim()) ?? s.openingBalance,
         );
+        if (res == SavePartyResult.duplicateName) {
+          if (mounted) _toast(_dupNameMsg(name.text.trim()));
+          return;
+        }
         if (mounted) _toast(Loc.t('Updated', 'اپ ڈیٹ ہو گیا'));
         await _reload();
       });

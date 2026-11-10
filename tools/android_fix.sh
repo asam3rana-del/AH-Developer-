@@ -1,25 +1,44 @@
-# --- Versions: Kotlin 2.1.0 + AGP 8.7.3 + Gradle 8.9 (Firebase 23.x libs need Kotlin 2.1 metadata; AGP 8.3's R8 can't read it) ---
-sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
-sed -i -E 's/(com.android.application" version )"[0-9.]+"/\1"8.7.3"/' android/settings.gradle
-sed -i -E 's/gradle-[0-9.]+-(all|bin)/gradle-8.9-all/' android/gradle/wrapper/gradle-wrapper.properties
-echo "=== settings.gradle (verify versions) ==="
-cat android/settings.gradle
-grep -q '"org.jetbrains.kotlin.android" version "2.1.0"' android/settings.gradle || { echo "ERROR: Kotlin 2.1.0 not applied"; exit 1; }
-grep -q '"com.android.application" version "8.7.3"' android/settings.gradle || { echo "ERROR: AGP 8.7.3 not applied"; exit 1; }
-cat android/gradle/wrapper/gradle-wrapper.properties
+# Android ka generated project (flutter create) yahan theek hota hai.
+# Do template sambhale jate hain:
+#   * Kotlin DSL  (android/settings.gradle.kts, android/app/build.gradle.kts) — Flutter 3.29+ ka default
+#   * Groovy      (android/settings.gradle,     android/app/build.gradle)     — purana (Flutter 3.24)
+# Play Store (31 Aug 2026 se): naye apps / updates ka targetSdk 36 zaroori.
+TARGET_SDK=36
+MIN_SDK=23   # flutter_secure_storage (backup password); Flutter ka apna minimum is se zyada ho to wahi rehta hai
 
-# Firebase/sqflite/url_launcher/... plugins need NDK 25.1.8937393 (Flutter 3.24 template pins 23.1.7779620)
-# and some need compileSdk 35. Handles both Groovy forms: `ndkVersion = x` and `ndkVersion x`.
 GRADLE=android/app/build.gradle
 [ -f android/app/build.gradle.kts ] && GRADLE=android/app/build.gradle.kts
-sed -i -E 's/ndkVersion[[:space:]]*=?[[:space:]]*flutter\.ndkVersion/ndkVersion = "25.1.8937393"/' "$GRADLE"
-sed -i -E 's/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/compileSdk = 35/' "$GRADLE"
-echo "android.suppressUnsupportedCompileSdk=35" >> android/gradle.properties
-grep -n "ndkVersion\|compileSdk" "$GRADLE"
+case "$GRADLE" in *.kts) KTS=1 ;; *) KTS=0 ;; esac
+echo "=== Gradle file: $GRADLE (KTS=$KTS) ==="
+[ -f "$GRADLE" ] || { echo "ERROR: $GRADLE nahi mili — pehle 'flutter create --platforms=android .' chalayein"; exit 1; }
 
-# flutter_secure_storage (backup password) needs minSdk 23; Flutter 3.24 template default is 21.
-sed -i -E 's/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/minSdk = 23/' "$GRADLE"
-grep -n "minSdk" "$GRADLE"
+if [ "$KTS" = 0 ]; then
+  # --- Purana template: Kotlin 2.1.0 + AGP 8.7.3 + Gradle 8.9 (Firebase 23.x libs need Kotlin 2.1 metadata) ---
+  sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
+  sed -i -E 's/(com.android.application" version )"[0-9.]+"/\1"8.7.3"/' android/settings.gradle
+  sed -i -E 's/gradle-[0-9.]+-(all|bin)/gradle-8.9-all/' android/gradle/wrapper/gradle-wrapper.properties
+  echo "=== settings.gradle (verify versions) ==="
+  cat android/settings.gradle
+  grep -q '"org.jetbrains.kotlin.android" version "2.1.0"' android/settings.gradle || { echo "ERROR: Kotlin 2.1.0 not applied"; exit 1; }
+  grep -q '"com.android.application" version "8.7.3"' android/settings.gradle || { echo "ERROR: AGP 8.7.3 not applied"; exit 1; }
+  cat android/gradle/wrapper/gradle-wrapper.properties
+  # NDK 25.1 (3.24 template 23.1 pin karta tha), compileSdk/targetSdk, minSdk.
+  sed -i -E 's/ndkVersion[[:space:]]*=?[[:space:]]*flutter\.ndkVersion/ndkVersion = "25.1.8937393"/' "$GRADLE"
+  sed -i -E "s/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/compileSdk = $TARGET_SDK/" "$GRADLE"
+  sed -i -E "s/targetSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.targetSdkVersion/targetSdk = $TARGET_SDK/" "$GRADLE"
+  sed -i -E "s/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/minSdk = $MIN_SDK/" "$GRADLE"
+else
+  # --- Naya (KTS) template: Flutter khud naye AGP / Kotlin / Gradle deta hai. Sirf check: Kotlin >= 2.1 (Firebase). ---
+  SETTINGS=android/settings.gradle.kts
+  echo "=== $SETTINGS ==="; cat "$SETTINGS"
+  KV=$(grep -oE 'org\.jetbrains\.kotlin\.android"\)[[:space:]]*version[[:space:]]*"[0-9.]+"' "$SETTINGS" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
+  echo "Kotlin plugin: ${KV:-?}"
+  case "$KV" in
+    1.*|2.0.*) sed -i -E 's/(org\.jetbrains\.kotlin\.android"\)[[:space:]]*version[[:space:]]*)"[0-9.]+"/\1"2.1.0"/' "$SETTINGS"; echo "Kotlin -> 2.1.0" ;;
+  esac
+  cat android/gradle/wrapper/gradle-wrapper.properties
+fi
+echo "android.suppressUnsupportedCompileSdk=$TARGET_SDK" >> android/gradle.properties
 
 # Phase 12 (Print & Scan): Bluetooth printer + camera permissions. `flutter create` manifest mein
 # yeh nahi hoti; sirf tab jodo jab pehle se na hon.
@@ -46,11 +65,6 @@ cat > android/app/proguard-rules.pro <<'EOF'
 -dontwarn com.google.mlkit.vision.text.korean.**
 -dontwarn com.google.mlkit.vision.text.devanagari.**
 EOF
-# Release buildType mein proguard file jodo (`signingConfig signingConfigs.debug` ke baad).
-sed -i -E "s/^([[:space:]]*)signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/&\n\1proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'/" "$GRADLE"
-echo "=== app build.gradle (verify proguard) ==="
-grep -n "proguard\|signingConfig" "$GRADLE"
-grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build.gradle"; exit 1; }
 
 # --- Production signing is mandatory: never publish a release APK signed with the debug key. ---
 : "${KEYSTORE_BASE64:=}"
@@ -62,11 +76,54 @@ grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wire
 printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/upload.jks || { echo "ERROR: KEYSTORE_BASE64 is not valid base64."; exit 1; }
 [ -s android/app/upload.jks ] || { echo "ERROR: decoded keystore is empty."; exit 1; }
 keytool -list -keystore android/app/upload.jks -storepass "$KEYSTORE_PASSWORD" -alias ahkey >/dev/null 2>&1 || { echo "ERROR: keystore is invalid or alias 'ahkey' / store password is incorrect."; exit 1; }
-sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword System.getenv('KEYSTORE_PASSWORD')\n\1        keyAlias 'ahkey'\n\1        keyPassword System.getenv('KEY_PASSWORD')\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
-sed -i -E 's/signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/signingConfig signingConfigs.release/' "$GRADLE"
-echo "=== app build.gradle (verify signing) ==="
-grep -n "signingConfig\|upload.jks" "$GRADLE"
-grep -q "signingConfigs.release" "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
+
+if [ "$KTS" = 0 ]; then
+  # Release buildType mein proguard file jodo (`signingConfig signingConfigs.debug` ke baad).
+  sed -i -E "s/^([[:space:]]*)signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/&\n\1proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'/" "$GRADLE"
+  sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword System.getenv('KEYSTORE_PASSWORD')\n\1        keyAlias 'ahkey'\n\1        keyPassword System.getenv('KEY_PASSWORD')\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
+  sed -i -E 's/signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/signingConfig signingConfigs.release/' "$GRADLE"
+else
+  # KTS: template ke text par sed ke bajaye aakhir mein ek aur `android {}` block. Gradle mein blocks jurte hain
+  # aur baad wali value jeet'ti hai — template ki wording badle tab bhi ye chalta hai.
+  cat >> "$GRADLE" <<KTS
+
+// ---- tools/android_fix.sh (CI) ----
+android {
+    compileSdk = maxOf(flutter.compileSdkVersion, $TARGET_SDK)
+    defaultConfig {
+        minSdk = maxOf(flutter.minSdkVersion, $MIN_SDK)
+        targetSdk = $TARGET_SDK
+    }
+    compileOptions {
+        // flutter_local_notifications (DueAlertService)
+        isCoreLibraryDesugaringEnabled = true
+    }
+    signingConfigs {
+        create("release") {
+            storeFile = file("upload.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = "ahkey"
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+        }
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+KTS
+fi
+echo "=== app gradle (verify sdk / signing / proguard) ==="
+grep -n "compileSdk\|targetSdk\|minSdk\|ndkVersion\|signingConfig\|upload.jks\|proguard" "$GRADLE"
+grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build gradle"; exit 1; }
+grep -q 'signingConfigs.release\|signingConfigs.getByName("release")' "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
+grep -q "targetSdk = $TARGET_SDK" "$GRADLE" || { echo "ERROR: targetSdk $TARGET_SDK not applied"; exit 1; }
 
 # --- Security: Android auto-backup band (DeviceTag/sync prefs doosre phone par copy na hon). ---
 if ! grep -q 'android:allowBackup' "$MANIFEST"; then

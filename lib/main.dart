@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
 import 'backup/backup_scheduler.dart';
+import 'db/user_repository.dart';
 import 'db/desktop_db_init.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
@@ -36,6 +37,7 @@ void main() async {
   await Loc.load();
   await ThemeManager.load();
   await Session.load();
+  await _revalidateSession();
   // PosApplication.onCreate() mein AppLock.register(this) ke barabar.
   await AppLock.instance.register(loginBuilder: (_) => const LoginScreen());
   // PosApplication.onCreate() mein BackupScheduler.register(this) ke barabar (12 PM / 9 PM / app-close backup).
@@ -64,6 +66,25 @@ void main() async {
   } catch (_) {}
   runApp(const AhDeveloperApp());
   unawaited(DueAlertService.handleLaunch());
+}
+
+/// FIX: Session (username/role) SharedPreferences se aata hai — Windows par wo saada JSON file hai jise cashier
+/// khud badal kar `admin` likh sakta tha, aur jis user ko Admin ne deactivate kiya / role badla wo restart ke
+/// baad bhi purane role ke saath andar rehta. Har launch par DB ke `users` se dobara milao.
+/// DB khul hi na sake to kuch na chhero (lockout na ho).
+Future<void> _revalidateSession() async {
+  final name = Session.username;
+  if (name == null) return;
+  try {
+    final u = await UserRepository.instance.find(name);
+    if (u == null || !u.active) {
+      await Session.clear();
+      return;
+    }
+    if (u.role != Session.role || u.permissions != Session.permissions || u.displayName != Session.displayName) {
+      await Session.start(u);
+    }
+  } catch (_) {}
 }
 
 class AhDeveloperApp extends StatelessWidget {

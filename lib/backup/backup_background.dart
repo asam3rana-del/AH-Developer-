@@ -29,12 +29,13 @@ class BackupBackground {
   static Future<void> schedule() async {
     if (!_supported) return;
     try {
-      await Workmanager().initialize(backupCallbackDispatcher, isInDebugMode: false);
+      // workmanager 0.9: `isInDebugMode` hata diya gaya (debug ab hooks se).
+      await Workmanager().initialize(backupCallbackDispatcher);
       await Workmanager().registerPeriodicTask(
         uniqueName,
         taskName,
         frequency: BackupScheduler.checkInterval, // 15 min = Android ka minimum
-        existingWorkPolicy: ExistingWorkPolicy.keep,
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep, // 0.9: periodic ka apna enum
       );
     } catch (_) {
       // Plugin na ho / OEM battery policy — foreground Timer fallback maujood hai.
