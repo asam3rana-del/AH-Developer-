@@ -262,6 +262,7 @@ class SyncResult {
     if (totalReceived > 0) parts.add('received $totalReceived');
     if (failedCount > 0) parts.add('$failedCount failed');
     if (pushError != null) parts.add('push blocked: $pushError');
+    if (PullDiagnostics.lateQueryIssue.isNotEmpty) parts.add('warning: ${PullDiagnostics.lateQueryIssue}');
     if (parts.isEmpty) return 'Already up to date';
     final s = parts.join(', ');
     return s[0].toUpperCase() + s.substring(1);

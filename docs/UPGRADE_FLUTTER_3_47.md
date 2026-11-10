@@ -39,3 +39,18 @@ Agar "Analyze + Test" fail ho to log ka error bhejein — naye Flutter ke deprec
 - `flutter_contacts` 2.x, `share_plus` 11+, `local_auth` 3.x, `flutter_local_notifications` 18+: in ke naye major versions mein API badli hai; maujooda versions naye Flutter par chalne chahiyein. CI ya device par masla aaye to agla qadam.
 - **applicationId `com.example...`** abhi bhi hai — Play Store ke liye badalna zaroori (dekhein `COMMERCIAL_AUDIT_2026-11-10.md` A1; id badalne se purani install update nahi hoti, backup/restore se data le jayein).
 - Flutter 3.50 (November 2026) aane par Material ke purane imports deprecate honge — tab dobara dekhein.
+
+
+## Fix: Device A ki payment sync nahi hui, edit karne par hui (2026-11-10)
+**Wajah:** doosra device sirf wo docs pull karta hai jin ka `updatedAt` us ke checkpoint (−10 min) se naya ho. `updatedAt`
+Device A ki clock se aur payment save hone ke waqt ka hota hai. A der se push kare (net nahi / app band) ya A ki clock
+peeche ho, to doc "purana" lagta tha aur kabhi nahi aata. Iska bachao `pushedAt` wali doosri query hai — lekin wo
+Firestore **index** maangti hai, aur index na ho to error **chupke se** nigal liya jata tha. Edit naya `updatedAt`
+deta hai, isliye tab aa jati thi.
+
+**Code fix:** payments / cash / sales / purchases / expenses ka pull overlap 10 min → 1 ghanta; `pushedAt` query fail ho
+to Sync Now ke natije mein `warning: pushedAt index missing ...` dikhta hai.
+
+**Aap ko karna hai:** `firebase deploy --only firestore:indexes` (repo ki `firebase/firestore.indexes.json`) — ya Console >
+Firestore > Indexes mein har collection ke liye (`branchId` ↑, `pushedAt` ↑). Pehle se chhooti entries ke liye
+Device B par Settings > Sync > **Resync from a date/time (pull)** — payment wale din se pehle ki tareekh.

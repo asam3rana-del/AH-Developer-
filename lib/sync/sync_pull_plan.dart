@@ -15,7 +15,14 @@ const int pullOverlapMs = 10 * 60 * 1000;
 const int stockPullOverlapMs = 60 * 60 * 1000;
 
 /// Un collections ke naam jin par [stockPullOverlapMs] lagta hai.
-const Set<String> stockPullCollections = {'products', 'customers', 'suppliers'};
+/// FIX (payment sync nahi hui, edit ke baad hui): paise wali collections bhi 1 ghante ka overlap. Device A ki
+/// entry ka `updatedAt` A ki clock se aur enqueue ke waqt ka hota hai; A der se push kare (net nahi / app band)
+/// ya A ki clock peeche ho, to B ka checkpoint aage nikal chuka hota tha aur payment kabhi pull nahi hoti thi —
+/// edit karne par naya `updatedAt` milta tha, tab jaa kar aati. (Late push ka asal ilaaj `pushedAt` index hai.)
+const Set<String> stockPullCollections = {
+  'products', 'customers', 'suppliers',
+  'payments', 'cash_transactions', 'sales', 'purchases', 'expenses',
+};
 
 /// Kotlin `pull()` ki tarteeb mein 20 collections + Flutter ki 4 Workers + 2 Shop Rents + 2 Utility Bills + 1 Due Follow-ups collections (Firestore naam).
 const List<String> pullCollections = [

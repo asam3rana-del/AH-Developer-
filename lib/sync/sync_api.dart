@@ -395,6 +395,7 @@ class SyncApi implements SyncBackend {
             ));
     }
 
+    var lateFailed = false;
     Future<MapEntry<String, List<SyncDoc>>> load(String collection) async {
       final overlap = stockPullCollections.contains(collection) ? stockPullOverlapMs : pullOverlapMs;
       final threshold = since > overlap ? since - overlap : 0;
@@ -417,8 +418,14 @@ class SyncApi implements SyncBackend {
         for (final d in late.docs) {
           byId.putIfAbsent(d.id, () => Map<String, Object?>.from(d.data()));
         }
-      } catch (_) {
+      } catch (e) {
         // pushedAt index abhi deploy nahi hua (firebase/firestore.indexes.json) — updatedAt wali pull chalti rahe.
+        // FIX: pehle ye chupke se nigal liya jata tha; tab der se push hui payments / sales kabhi pull nahi hotin.
+        final code = e is FirebaseException ? e.code : '';
+        PullDiagnostics.lateQueryIssue = code == 'failed-precondition'
+            ? 'pushedAt index missing for "$collection" — deploy firebase/firestore.indexes.json'
+            : 'late-push query failed for "$collection": $e';
+        lateFailed = true;
       }
       return MapEntry(collection, byId.values.toList());
     }
@@ -436,7 +443,9 @@ class SyncApi implements SyncBackend {
       }
     }
 
+    lateFailed = false;
     final loaded = await Future.wait(pullCollections.map(loadSafe));
+    if (!lateFailed) PullDiagnostics.lateQueryIssue = '';
     return assemblePullResult(Map.fromEntries(loaded), since);
   }
 

@@ -165,3 +165,13 @@ bool isNetworkError(Object e) {
       s.contains('connection reset') ||
       s.contains('unable to resolve host');
 }
+
+
+/// Pull ki chhupi kharabi jo sync ko "theek" dikhate hue data chhod deti hai — Sync Now ke natije mein dikhti hai.
+class PullDiagnostics {
+  PullDiagnostics._();
+
+  /// `pushedAt` (der se push hui entries) wali query fail hui — aksar Firestore index deploy nahi hua.
+  /// Khali = sab theek.
+  static String lateQueryIssue = '';
+}
