@@ -10,9 +10,14 @@ on:
   workflow_dispatch:
     inputs:
       flutter_version:
-        description: 'Flutter version (khali = neeche wala FLUTTER_VERSION). Naya version aazmane ke liye e.g. 3.47.2'
+        description: 'Flutter version (khali = neeche wala FLUTTER_VERSION). Naya version aazmane ke liye e.g. 3.50.x'
         required: false
         default: ''
+      accept_new_lockfile:
+        description: 'pubspec.yaml badla hai aur nayi pubspec.lock abhi commit nahi hui: is run mein lock check skip (artifact "pubspec-lock" download karke commit karein)'
+        type: boolean
+        required: false
+        default: false
 
 # Naya push aane par usi branch ki purani chalti run cancel (build minutes bachte hain).
 concurrency:
@@ -23,7 +28,9 @@ env:
   # Flutter ka ek hi version, saari jobs ke liye. Bump karna ho to sirf yeh ek line badlein
   # (ya Run workflow mein flutter_version likhein) — naye Flutter par Android/iOS/Windows
   # build ke fixes (tools/android_fix.sh, Kotlin/AGP/Gradle versions) dobara check karne parte hain.
-  FLUTTER_VERSION: ${{ inputs.flutter_version || '3.24.0' }}
+  # 3.47.x = latest 3.47 patch (Play Store API 36 / Android 16 ke saath). 3.24 -> 3.47 upgrade: 2026-11-10.
+  FLUTTER_VERSION: ${{ inputs.flutter_version || '3.47.x' }}
+  ACCEPT_NEW_LOCK: ${{ inputs.accept_new_lockfile && '1' || '0' }}
 
 jobs:
   # Analyze + test is the required release gate. Every platform build depends on this job.
@@ -48,13 +55,18 @@ jobs:
             echo "::error::pubspec.lock is missing. Commit it to the repository root."
             exit 1
           elif ! git diff --quiet --ignore-cr-at-eol -- pubspec.lock; then
-            echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
-            git diff -- pubspec.lock | head -50
-            exit 1
+            if [ "$ACCEPT_NEW_LOCK" = "1" ]; then
+              echo "::warning::pubspec.lock badli (accept_new_lockfile=true). Artifact 'pubspec-lock' download karke repo mein commit karein."
+            else
+              echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile (ya Run workflow mein accept_new_lockfile tick karein)."
+              git diff -- pubspec.lock | head -50
+              exit 1
+            fi
           fi
 
       # CI ne jo pubspec.lock banayi, wo download ke liye rakh do (repo mein commit karne ke liye).
       - name: Upload generated pubspec.lock
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pubspec-lock
@@ -89,6 +101,10 @@ jobs:
           channel: 'stable'
           cache: true
 
+      # Flutter 3.44+ mein Swift Package Manager default hai; kuch plugins (mlkit, bluetooth printer) abhi
+      # CocoaPods par hain aur neeche ke Podfile steps CocoaPods maante hain — is liye CI mein purana raasta.
+      - run: flutter config --no-enable-swift-package-manager
+
       # Repo has no ios/ or android/ folders, so generate them.
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
@@ -98,11 +114,29 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Hanna Solutions'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleName 'Hanna Solutions'" ios/Runner/Info.plist
 
-      # Firebase needs iOS 13+ and google_mlkit_* (Bill Scan OCR) needs iOS 15.5+; Flutter's template defaults to 12.
+      # iOS privacy strings: inke baghair camera (Bill Scan), gallery, contacts (party phone), Face ID
+      # (fingerprint login) ya Bluetooth printer kholte hi iOS app ko foran band (crash) kar deta hai,
+      # aur App Store review bhi reject karta hai.
+      - name: Set iOS usage descriptions
+        run: |
+          P=ios/Runner/Info.plist
+          add() { /usr/libexec/PlistBuddy -c "Delete :$1" "$P" 2>/dev/null || true; /usr/libexec/PlistBuddy -c "Add :$1 string '$2'" "$P"; }
+          add NSCameraUsageDescription "Bill scan karne ke liye camera chahiye."
+          add NSPhotoLibraryUsageDescription "Bill ki tasveer gallery se chunne ke liye."
+          add NSContactsUsageDescription "Party ka phone number contacts se bharne ke liye."
+          add NSFaceIDUsageDescription "Face ID se login aur app lock ke liye."
+          add NSBluetoothAlwaysUsageDescription "Bluetooth bill printer se print karne ke liye."
+          add NSBluetoothPeripheralUsageDescription "Bluetooth bill printer se print karne ke liye."
+          add NSLocalNetworkUsageDescription "WiFi / network bill printer se print karne ke liye."
+          grep -c "UsageDescription" "$P"
+
+      # google_mlkit_* (Bill Scan OCR) needs iOS 15.5+; Flutter 3.47 ka template minimum 15.0 hai.
       - name: Set iOS deployment target to 15.5
         run: |
-          sed -i '' "s/^# platform :ios.*/platform :ios, '15.5'/" ios/Podfile
-          sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 15.5/g" ios/Runner.xcodeproj/project.pbxproj
+          [ -f ios/Podfile ] || { echo "::error::ios/Podfile nahi bani (SPM band hona chahiye tha)"; exit 1; }
+          sed -i '' -E "s/^#? *platform :ios.*/platform :ios, '15.5'/" ios/Podfile
+          sed -i '' -E "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g" ios/Runner.xcodeproj/project.pbxproj
+          grep -m3 "IPHONEOS_DEPLOYMENT_TARGET" ios/Runner.xcodeproj/project.pbxproj
 
       # Pods (e.g. resource bundles) otherwise ask for a Development Team even with --no-codesign.
       - name: Disable code signing for Pods
@@ -118,9 +152,13 @@ jobs:
             echo "::error::pubspec.lock is missing. Commit it to the repository root."
             exit 1
           elif ! git diff --quiet --ignore-cr-at-eol -- pubspec.lock; then
-            echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
-            git diff -- pubspec.lock | head -50
-            exit 1
+            if [ "$ACCEPT_NEW_LOCK" = "1" ]; then
+              echo "::warning::pubspec.lock badli (accept_new_lockfile=true). Artifact 'pubspec-lock' download karke repo mein commit karein."
+            else
+              echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile (ya Run workflow mein accept_new_lockfile tick karein)."
+              git diff -- pubspec.lock | head -50
+              exit 1
+            fi
           fi
 
       # Unsigned build — good enough to confirm it compiles for iOS.
@@ -156,9 +194,7 @@ jobs:
 
       - run: flutter create --platforms=ios,android --project-name ah_developer_kiryana_store .
 
-      # Firebase auth 23.x needs Kotlin 2.1+.
-      - name: Bump Kotlin plugin
-        run: sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
+      # Kotlin / AGP / targetSdk: tools/android_fix.sh (Groovy aur naya KTS template dono).
 
       - name: flutter pub get (lockfile check)
         shell: bash
@@ -168,9 +204,13 @@ jobs:
             echo "::error::pubspec.lock is missing. Commit it to the repository root."
             exit 1
           elif ! git diff --quiet --ignore-cr-at-eol -- pubspec.lock; then
-            echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
-            git diff -- pubspec.lock | head -50
-            exit 1
+            if [ "$ACCEPT_NEW_LOCK" = "1" ]; then
+              echo "::warning::pubspec.lock badli (accept_new_lockfile=true). Artifact 'pubspec-lock' download karke repo mein commit karein."
+            else
+              echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile (ya Run workflow mein accept_new_lockfile tick karein)."
+              git diff -- pubspec.lock | head -50
+              exit 1
+            fi
           fi
 
       - name: Android fixes + fixed signing key
@@ -219,9 +259,13 @@ jobs:
             echo "::error::pubspec.lock is missing. Commit it to the repository root."
             exit 1
           elif ! git diff --quiet --ignore-cr-at-eol -- pubspec.lock; then
-            echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile."
-            git diff -- pubspec.lock | head -50
-            exit 1
+            if [ "$ACCEPT_NEW_LOCK" = "1" ]; then
+              echo "::warning::pubspec.lock badli (accept_new_lockfile=true). Artifact 'pubspec-lock' download karke repo mein commit karein."
+            else
+              echo "::error::pubspec.lock is out of date with pubspec.yaml. Run 'flutter pub get' and commit the updated lockfile (ya Run workflow mein accept_new_lockfile tick karein)."
+              git diff -- pubspec.lock | head -50
+              exit 1
+            fi
           fi
 
       # Window title: Hanna Solutions.
