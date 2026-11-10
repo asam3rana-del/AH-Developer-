@@ -16,7 +16,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: '3.47.x'  # build.yml ke FLUTTER_VERSION jaisa rakhein
           channel: 'stable'
           cache: true
 
