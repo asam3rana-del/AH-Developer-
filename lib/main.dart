@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'backup/backup_scheduler.dart';
 import 'db/user_repository.dart';
@@ -29,17 +30,25 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // MainActivity.onCreate: CrashHandler.install — sab se pehle, taake baad ki har crash pakri jaye.
   CrashHandler.install();
-  // Windows: DB factory sab se pehle (DeviceTag/BranchConfigStore ke liye nahi, lekin koi bhi DB call se pehle).
-  await initDesktopDatabase();
-  // PosApplication.onCreate() ka pehla kaam: DeviceTag / BranchConfigStore (IDs mein zaroorat).
-  await DeviceTag.init();
-  await BranchConfigStore.init();
-  await Loc.load();
-  await ThemeManager.load();
-  await Session.load();
-  await _revalidateSession();
-  // PosApplication.onCreate() mein AppLock.register(this) ke barabar.
-  await AppLock.instance.register(loginBuilder: (_) => const LoginScreen());
+  // FIX: in mein se koi bhi fail ho (kharab prefs / DB nahi khulti) to pehle `runApp` kabhi nahi chalta tha —
+  // dukaandar ko sirf safed screen. Ab saaf error screen + Retry + error copy (support ke liye).
+  try {
+    // Windows: DB factory sab se pehle (DeviceTag/BranchConfigStore ke liye nahi, lekin koi bhi DB call se pehle).
+    await initDesktopDatabase();
+    // PosApplication.onCreate() ka pehla kaam: DeviceTag / BranchConfigStore (IDs mein zaroorat).
+    await DeviceTag.init();
+    await BranchConfigStore.init();
+    await Loc.load();
+    await ThemeManager.load();
+    await Session.load();
+    await _revalidateSession();
+    // PosApplication.onCreate() mein AppLock.register(this) ke barabar.
+    await AppLock.instance.register(loginBuilder: (_) => const LoginScreen());
+  } catch (e, st) {
+    CrashHandler.record('Startup', e, st);
+    runApp(_StartupErrorApp(error: '$e', stack: '$st'));
+    return;
+  }
   // PosApplication.onCreate() mein BackupScheduler.register(this) ke barabar (12 PM / 9 PM / app-close backup).
   try {
     BackupScheduler.instance.register();
@@ -180,4 +189,64 @@ class _DesktopScrollBehavior extends MaterialScrollBehavior {
         PointerDeviceKind.stylus,
         PointerDeviceKind.trackpad,
       };
+}
+
+
+/// App start na ho sake to ye screen (theme / zabaan / DB par bharosa nahi — sab saada).
+class _StartupErrorApp extends StatelessWidget {
+  const _StartupErrorApp({required this.error, required this.stack});
+  final String error;
+  final String stack;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const Icon(Icons.error_outline, size: 56, color: Colors.red),
+                const SizedBox(height: 12),
+                const Text('App start nahi ho saki',
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text(
+                  'Aap ka data phone mein mehfooz hai. Pehle "Dobara koshish" dabayein. Phir bhi na chale to '
+                  '"Error copy" kar ke support ko bhejein — app uninstall NA karein.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: SelectableText(error, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: main,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Dobara koshish (Retry)'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: 'Startup error\n$error\n\n$stack'));
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(const SnackBar(content: Text('Error copy ho gaya')));
+                    }
+                  },
+                  icon: const Icon(Icons.copy),
+                  label: const Text('Error copy'),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

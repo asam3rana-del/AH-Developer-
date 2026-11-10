@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:firebase_auth/firebase_auth.dart' show PhoneAuthCredential;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
@@ -158,10 +159,62 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // Ghalat password par brute-force rokne ke liye: 5 ghalat koshishon ke baad 30 second ruk.
+  // FIX: pehle sirf memory mein tha — app band-khol kar lockout khatam. Ab SharedPreferences mein (sirf is device
+  // par, sync nahi) aur har lockout pichhle se dugna (30 s, 1 m, 2 m ... 15 min tak).
+  static const _kFail = 'login_fail_count';
+  static const _kLockUntil = 'login_lock_until_ms';
+  static const _kLockLevel = 'login_lock_level';
   static int _failCount = 0;
   static DateTime? _lockUntil;
+  static bool _lockLoaded = false;
+
+  static Future<void> _loadLock() async {
+    if (_lockLoaded) return;
+    _lockLoaded = true;
+    try {
+      final p = await SharedPreferences.getInstance();
+      _failCount = p.getInt(_kFail) ?? 0;
+      final ms = p.getInt(_kLockUntil) ?? 0;
+      _lockUntil = ms > 0 ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
+    } catch (_) {}
+  }
+
+  static Future<void> _recordFailure() async {
+    _failCount++;
+    try {
+      final p = await SharedPreferences.getInstance();
+      if (_failCount >= 5) {
+        final level = (p.getInt(_kLockLevel) ?? 0) + 1;
+        final shift = level - 1 > 5 ? 5 : level - 1;
+        final raw = 30 * (1 << shift);
+        final secs = raw > 900 ? 900 : raw;
+        _failCount = 0;
+        _lockUntil = DateTime.now().add(Duration(seconds: secs));
+        await p.setInt(_kLockLevel, level);
+        await p.setInt(_kLockUntil, _lockUntil!.millisecondsSinceEpoch);
+      }
+      await p.setInt(_kFail, _failCount);
+    } catch (_) {
+      if (_failCount >= 5) {
+        _failCount = 0;
+        _lockUntil = DateTime.now().add(const Duration(seconds: 30));
+      }
+    }
+  }
+
+  static Future<void> _clearFailures() async {
+    _failCount = 0;
+    _lockUntil = null;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.remove(_kFail);
+      await p.remove(_kLockUntil);
+      await p.remove(_kLockLevel);
+    } catch (_) {}
+  }
 
   Future<void> _login() async {
+    await _loadLock();
     final until = _lockUntil;
     if (until != null && DateTime.now().isBefore(until)) {
       final secs = until.difference(DateTime.now()).inSeconds + 1;
@@ -200,10 +253,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
     if (!ok) {
-      if (++_failCount >= 5) {
-        _failCount = 0;
-        _lockUntil = DateTime.now().add(const Duration(seconds: 30));
-      }
+      await _recordFailure();
       final msg = user == null
           ? Loc.t('User not found: "$username"', 'یوزر نہیں ملا: "$username"')
           : !user.active
@@ -211,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
               : Loc.t('Wrong password', 'پاس ورڈ غلط ہے');
       return setState(() { _busy = false; _error = msg; });
     }
-    _failCount = 0;
+    await _clearFailures();
     // Secure staff cloud login (opt-in). Local login kabhi block nahi hota; cloud nakaam ho to sirf sync ruki rehti hai.
     _cloudAttempted = false;
     if (await StaffAuth.isEnabled()) {

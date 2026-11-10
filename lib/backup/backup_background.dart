@@ -20,7 +20,12 @@ import 'backup_scheduler.dart';
 class BackupBackground {
   BackupBackground._();
 
-  static const uniqueName = 'grocery_pos_backup_checkpoints'; // Kotlin WORK_NAME
+  /// workmanager 0.5 → 0.10: plugin ka Android package badla (be.tramckrijte → dev.fluttercommunity).
+  /// Purane naam par registered kaam purani (ab na-maujood) worker class ki taraf ishara karta hai aur
+  /// `keep` policy use hamesha zinda rakhti — naya kaam kabhi register na hota. Is liye naya naam,
+  /// aur purana naam ek dafa cancel.
+  static const uniqueName = 'ah_backup_checkpoints_v2';
+  static const legacyUniqueName = 'grocery_pos_backup_checkpoints'; // Kotlin WORK_NAME / workmanager 0.5
   static const taskName = 'backup_checkpoint_check';
 
   static bool get _supported => !kIsWeb && Platform.isAndroid;
@@ -31,6 +36,9 @@ class BackupBackground {
     try {
       // workmanager 0.9: `isInDebugMode` hata diya gaya (debug ab hooks se).
       await Workmanager().initialize(backupCallbackDispatcher);
+      try {
+        await Workmanager().cancelByUniqueName(legacyUniqueName);
+      } catch (_) {}
       await Workmanager().registerPeriodicTask(
         uniqueName,
         taskName,

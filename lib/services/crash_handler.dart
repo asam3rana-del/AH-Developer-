@@ -53,6 +53,9 @@ class CrashHandler {
     return 'CRASH at $stamp\nThread: $source\n\n$error\n${stack ?? ''}';
   }
 
+  /// Pakri hui (handled) lekin sangeen ghalti bhi agli dafa "App crashed last time" mein dikhe (e.g. startup).
+  static void record(String source, Object error, StackTrace? stack) => _save(source, error, stack);
+
   static void _save(String source, Object error, StackTrace? stack) {
     try {
       final text = format(source, error, stack, DateTime.now());

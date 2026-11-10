@@ -334,7 +334,8 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           c,
           name: name.text,
           phone: phone.text,
-          creditLimit: double.tryParse(limit.text.trim()) ?? c.creditLimit,
+          // Khali field = limit hata do (0). Pehle khali par purani limit chupke se reh jati thi.
+          creditLimit: limit.text.trim().isEmpty ? 0.0 : (double.tryParse(limit.text.trim()) ?? c.creditLimit),
           openingBalance: double.tryParse(opening.text.trim()) ?? c.openingBalance,
           stuckBalance: stuckValue, // null (cashier) => purana stuck barqarar
           rateType: _canEditStuck ? rateType : null, // cashier rate-type nahi badal sakta

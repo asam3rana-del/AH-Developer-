@@ -4,6 +4,9 @@
 #   * Groovy      (android/settings.gradle,     android/app/build.gradle)     — purana (Flutter 3.24)
 # Play Store (31 Aug 2026 se): naye apps / updates ka targetSdk 36 zaroori.
 TARGET_SDK=36
+# Play Store App ID (2026-11-10 faisla). Kabhi na badlein — badalne se nayi app ban jati hai.
+# `namespace` (Kotlin/Java code ka package) jaan boojh kar wahi rehta hai; sirf applicationId badalta hai.
+APP_ID="${APP_ID:-com.hannasolutions.pos}"
 MIN_SDK=23   # flutter_secure_storage (backup password); Flutter ka apna minimum is se zyada ho to wahi rehta hai
 
 GRADLE=android/app/build.gradle
@@ -27,6 +30,7 @@ if [ "$KTS" = 0 ]; then
   sed -i -E "s/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/compileSdk = $TARGET_SDK/" "$GRADLE"
   sed -i -E "s/targetSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.targetSdkVersion/targetSdk = $TARGET_SDK/" "$GRADLE"
   sed -i -E "s/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/minSdk = $MIN_SDK/" "$GRADLE"
+  sed -i -E "s/applicationId[[:space:]]*=?[[:space:]]*\"[^\"]*\"/applicationId = \"$APP_ID\"/" "$GRADLE"
 else
   # --- Naya (KTS) template: Flutter khud naye AGP / Kotlin / Gradle deta hai. Sirf check: Kotlin >= 2.1 (Firebase). ---
   SETTINGS=android/settings.gradle.kts
@@ -91,6 +95,7 @@ else
 android {
     compileSdk = maxOf(flutter.compileSdkVersion, $TARGET_SDK)
     defaultConfig {
+        applicationId = "$APP_ID"
         minSdk = maxOf(flutter.minSdkVersion, $MIN_SDK)
         targetSdk = $TARGET_SDK
     }
@@ -153,6 +158,8 @@ else
 fi
 grep -q 'signingConfigs.release\|signingConfigs.getByName("release")' "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
 grep -q "targetSdk = $TARGET_SDK" "$GRADLE" || { echo "ERROR: targetSdk $TARGET_SDK not applied"; exit 1; }
+grep -q "applicationId = \"$APP_ID\"" "$GRADLE" || { echo "ERROR: applicationId $APP_ID not applied"; exit 1; }
+echo "App ID: $APP_ID"
 
 # --- Security: Android auto-backup band (DeviceTag/sync prefs doosre phone par copy na hon). ---
 if ! grep -q 'android:allowBackup' "$MANIFEST"; then
