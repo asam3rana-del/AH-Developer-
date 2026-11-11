@@ -76,3 +76,15 @@ Fix kiye:
 Baqi (fix nahi, nazar mein rakhein): ek kharab cloud doc poori pull rok sakta hai (push phir bhi chalta hai; error Sync
 result mein dikhta hai) — aisa ho to error bhejein. Backup restore ke baad un-synced queue entries naye DeviceTag se
 dobara push ho sakti hain — restore se pehle hamesha Sync Now.
+
+## G. Doosra audit (P0 / P1) aur device test — 2026-11-11
+
+- **P0 security (server par cashier ki rok):** sahi tha — live rules sirf branch alag karti thin. `firestore.device-roles.rules`
+  (repo mein pehle se, test #11 green) **live deploy** ki. `role` field na ho to device admin (purane phone nahi toote);
+  `role = cashier` → delete nahi, rate/cost/naam nahi, credit limit/opening nahi, users/suppliers/purchases/tankhwah read nahi.
+  Hadd: role device ka hai, insaan ka nahi; tori hui app apni branch mein ghalat raqam likh sakti hai; per-person
+  login = Cloud Functions (Blaze) — `docs/STAFF_AUTH_BACKEND_SETUP.md`.
+- **P1 opening data:** code nahi, data entry — opening cash/bank, party opening balance, stock count. Balance Sheet ka
+  Capital "calculated" (balancing figure) hai, is liye asal check har line ko haqeeqat se milana hai.
+- **Fix:** Android 15+ edge-to-edge — system bar aakhri button chhupati thi → `_BottomSystemBarGuard` (`lib/main.dart`), Build #693 green.
+- Device test natija: `docs/PERSONAL_USE_SIGNOFF.md` → "Natija — 2026-11-11".
