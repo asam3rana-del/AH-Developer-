@@ -20,6 +20,7 @@ import '../widgets/menu_row.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import '../widgets/sync_section.dart';
+import 'about_screen.dart';
 import 'backup_export_screen.dart';
 import 'cash_screen.dart';
 import 'expense_screen.dart';
@@ -643,6 +644,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(Loc.t('MANAGE USERS', 'یوزرز مینیج کریں')),
             ),
           ]),
+        _card(Loc.t('About & Privacy', 'ایپ اور پرائیویسی'), Icons.info_outline, [
+          Text(Loc.t('Privacy policy, support, delete my data', 'پرائیویسی پالیسی، سپورٹ، ڈیٹا ختم کروانا')),
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
+            child: Text(Loc.t('OPEN ABOUT', 'کھولیں')),
+          ),
+        ]),
         OutlinedButton.icon(
           onPressed: _logout,
           icon: Icon(Icons.logout, color: ThemeManager.palette.red),

@@ -48,9 +48,9 @@ echo "android.suppressUnsupportedCompileSdk=$TARGET_SDK" >> android/gradle.prope
 # yeh nahi hoti; sirf tab jodo jab pehle se na hon.
 MANIFEST=android/app/src/main/AndroidManifest.xml
 
-# App ka naam (phone par icon ke neeche): Hanna Solutions.
-sed -i -E 's/android:label="[^"]*"/android:label="Hanna Solutions"/' "$MANIFEST"
-grep -q 'android:label="Hanna Solutions"' "$MANIFEST" || { echo "ERROR: app label not set"; exit 1; }
+# App ka naam (phone par icon ke neeche): Hanna POS.
+sed -i -E 's/android:label="[^"]*"/android:label="Hanna POS"/' "$MANIFEST"
+grep -q 'android:label="Hanna POS"' "$MANIFEST" || { echo "ERROR: app label not set"; exit 1; }
 if ! grep -q "BLUETOOTH_CONNECT" "$MANIFEST"; then
   sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>/' "$MANIFEST"
 fi

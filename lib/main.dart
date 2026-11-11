@@ -111,7 +111,7 @@ class AhDeveloperApp extends StatelessWidget {
           navigatorKey: AppLock.navigatorKey,
           // zabaan / theme badalne par saari screens dobara ban jayein
           key: ValueKey('$lang-$dark'),
-          title: 'Hanna Solutions',
+          title: 'Hanna POS',
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(p, dark),
           // Desktop: mouse se bhi drag-scroll (touch-screen POS jaisa).

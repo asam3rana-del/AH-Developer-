@@ -422,9 +422,12 @@ class SyncApi implements SyncBackend {
         // pushedAt index abhi deploy nahi hua (firebase/firestore.indexes.json) — updatedAt wali pull chalti rahe.
         // FIX: pehle ye chupke se nigal liya jata tha; tab der se push hui payments / sales kabhi pull nahi hotin.
         final code = e is FirebaseException ? e.code : '';
+        PullDiagnostics.lateQueryFailed.add(collection);
+        final n = PullDiagnostics.lateQueryFailed.length;
+        final which = n == 1 ? '"$collection"' : '$n collections (e.g. "$collection")';
         PullDiagnostics.lateQueryIssue = code == 'failed-precondition'
-            ? 'pushedAt index missing for "$collection" — deploy firebase/firestore.indexes.json'
-            : 'late-push query failed for "$collection": $e';
+            ? 'pushedAt index missing for $which — run tools/deploy_indexes.sh (firebase/firestore.indexes.json)'
+            : 'late-push query failed for $which: $e';
         lateFailed = true;
       }
       return MapEntry(collection, byId.values.toList());
@@ -444,6 +447,7 @@ class SyncApi implements SyncBackend {
     }
 
     lateFailed = false;
+    PullDiagnostics.lateQueryFailed.clear();
     final loaded = await Future.wait(pullCollections.map(loadSafe));
     if (!lateFailed) PullDiagnostics.lateQueryIssue = '';
     return assemblePullResult(Map.fromEntries(loaded), since);

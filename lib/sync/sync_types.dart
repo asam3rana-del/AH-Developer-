@@ -174,4 +174,7 @@ class PullDiagnostics {
   /// `pushedAt` (der se push hui entries) wali query fail hui — aksar Firestore index deploy nahi hua.
   /// Khali = sab theek.
   static String lateQueryIssue = '';
+
+  /// Jin collections ki late-push query fail hui (aakhri pull) — warning mein ginti.
+  static final Set<String> lateQueryFailed = <String>{};
 }
