@@ -123,11 +123,11 @@ jobs:
       # Flutter 3.47 ka `flutter create` dependencies naye patch par upgrade kar deta hai — commit wali lock wapas.
       - run: git checkout -- pubspec.yaml pubspec.lock
 
-      # App ka naam (home screen par): Hanna Solutions.
+      # App ka naam (home screen par): Hanna POS.
       - name: Set iOS app name
         run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Hanna Solutions'" ios/Runner/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleName 'Hanna Solutions'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Hanna POS'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName 'Hanna POS'" ios/Runner/Info.plist
           # App ID (bundle identifier) — Android ke saath ek jaisa. Kabhi na badlein.
           sed -i '' -E 's/PRODUCT_BUNDLE_IDENTIFIER = com\.example\.[A-Za-z0-9_]+/PRODUCT_BUNDLE_IDENTIFIER = com.hannasolutions.pos/g' ios/Runner.xcodeproj/project.pbxproj
           grep -m3 "PRODUCT_BUNDLE_IDENTIFIER" ios/Runner.xcodeproj/project.pbxproj
@@ -306,10 +306,10 @@ jobs:
             fi
           fi
 
-      # Window title: Hanna Solutions.
+      # Window title: Hanna POS.
       - name: Set Windows window title
         shell: pwsh
-        run: (Get-Content windows/runner/main.cpp) -replace 'L"ah_developer_kiryana_store"', 'L"Hanna Solutions"' | Set-Content windows/runner/main.cpp
+        run: (Get-Content windows/runner/main.cpp) -replace 'L"ah_developer_kiryana_store"', 'L"Hanna POS"' | Set-Content windows/runner/main.cpp
 
       - run: flutter build windows --release
 
