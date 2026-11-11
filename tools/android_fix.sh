@@ -80,6 +80,9 @@ EOF
 printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/upload.jks || { echo "ERROR: KEYSTORE_BASE64 is not valid base64."; exit 1; }
 [ -s android/app/upload.jks ] || { echo "ERROR: decoded keystore is empty."; exit 1; }
 keytool -list -keystore android/app/upload.jks -storepass "$KEYSTORE_PASSWORD" -alias ahkey >/dev/null 2>&1 || { echo "ERROR: keystore is invalid or alias 'ahkey' / store password is incorrect."; exit 1; }
+# Firebase / Play ke liye signing fingerprints (public hain, secret nahi) — Firebase Console > Android app > SHA.
+echo "=== Signing key fingerprints (Firebase Console mein Android app ke saath lagayein) ==="
+keytool -list -v -keystore android/app/upload.jks -storepass "$KEYSTORE_PASSWORD" -alias ahkey 2>/dev/null | grep -E "SHA1:|SHA256:" || true
 
 if [ "$KTS" = 0 ]; then
   # Release buildType mein proguard file jodo (`signingConfig signingConfigs.debug` ke baad).
