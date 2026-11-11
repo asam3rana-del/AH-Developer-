@@ -118,7 +118,10 @@ class AhDeveloperApp extends StatelessWidget {
           scrollBehavior: const _DesktopScrollBehavior(),
           builder: (context, child) => Directionality(
             textDirection: lang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
-            child: _DesktopFrame(background: p.bg, child: child!),
+            child: _BottomSystemBarGuard(
+              background: p.bg,
+              child: _DesktopFrame(background: p.bg, child: child!),
+            ),
           ),
           // Session hai to seedha dashboard, warna login/setup.
           home: Session.isLoggedIn ? const DashboardScreen() : const LoginScreen(),
@@ -175,6 +178,30 @@ class _DesktopFrame extends StatelessWidget {
     return ColoredBox(
       color: background,
       child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: maxWidth), child: child)),
+    );
+  }
+}
+
+/// Android 15+ (targetSdk 35/36) edge-to-edge zabardasti karta hai: neeche wali system bar (back/home)
+/// screen ke upar aa jaati hai, aur jin ListView par apni padding di hui hai unka aakhri button
+/// (maslan Settings ka Logout) us ke neeche chhup jata hai. Poori app ko bar ke upar khatam karo,
+/// bar ke peeche app ka background rang. Keyboard khula ho to Flutter `padding.bottom` khud 0 kar
+/// deta hai, is liye keyboard ke saath faltu khali jagah nahi banti.
+class _BottomSystemBarGuard extends StatelessWidget {
+  const _BottomSystemBarGuard({required this.child, required this.background});
+  final Widget child;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    if (bottom <= 0) return child;
+    return ColoredBox(
+      color: background,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottom),
+        child: MediaQuery.removePadding(context: context, removeBottom: true, child: child),
+      ),
     );
   }
 }
