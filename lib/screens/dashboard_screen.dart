@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/due_followup.dart';
 import '../db/dashboard_repository.dart';
@@ -10,6 +11,7 @@ import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../services/biometric.dart';
 import '../services/crash_handler.dart';
+import '../services/crash_reporter.dart';
 import '../services/permissions.dart';
 import '../services/session.dart';
 import '../sync/settings_sync.dart';
@@ -108,6 +110,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _checkLastCrash() async {
     final text = await CrashHandler.getLastCrash();
     if (text == null || !mounted) return;
+    // Cloud Sync juda ho to developer ko khud (Firestore crash_reports) — dialog ka intezar kiye baghair.
+    CrashReporter.uploadIfNew(text).ignore();
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -117,6 +121,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: SelectableText(CrashHandler.preview(text), style: const TextStyle(fontSize: 12)),
         ),
         actions: [
+          TextButton(
+            onPressed: () async {
+              try {
+                await launchUrl(CrashReporter.whatsAppUri(text), mode: LaunchMode.externalApplication);
+              } catch (_) {}
+              await CrashHandler.clearLastCrash();
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: Text(Loc.t('Send to developer', 'ڈیولپر کو بھیجیں')),
+          ),
           TextButton(
             onPressed: () async {
               await Share.share(text, subject: 'IBTISAAM POS Crash Log');

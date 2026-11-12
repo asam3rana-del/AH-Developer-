@@ -1,6 +1,8 @@
 import '../db/due_followup_repository.dart';
 import '../db/due_reminders_repository.dart';
 import 'due_followup.dart';
+import 'pay_schedule.dart';
+import 'qist_plan.dart';
 
 /// Wasooli Autopilot (PURE — DB / UI nahi): "aaj kis ko yaad dilana hai" ki khud-ba-khud banne wali list.
 ///
@@ -14,7 +16,7 @@ import 'due_followup.dart';
 /// Gap: toota wada 1 din, 30+ din purana baqi 2 din, baaqi 3 din. Dispute aur aage ke wade wali party roz nahi satayi jati.
 /// Malik ka tay kiya hua follow-up / wada-aaj ka din gap ko override karta hai (sirf aaj ho chuka ho to DONE).
 
-enum TouchReason { brokenPromise, promiseToday, followUpDue, late, dueToday }
+enum TouchReason { brokenPromise, promiseToday, qistDue, payDay, followUpDue, late, dueToday }
 
 enum TouchStatus { todo, doneToday, waiting }
 
@@ -99,12 +101,16 @@ int _reasonRank(TouchReason r) {
       return 0;
     case TouchReason.promiseToday:
       return 1;
-    case TouchReason.followUpDue:
+    case TouchReason.qistDue:
       return 2;
-    case TouchReason.late:
+    case TouchReason.payDay:
       return 3;
-    case TouchReason.dueToday:
+    case TouchReason.followUpDue:
       return 4;
+    case TouchReason.late:
+      return 5;
+    case TouchReason.dueToday:
+      return 6;
   }
 }
 
@@ -113,6 +119,10 @@ AutopilotQueue buildAutopilot(
   Iterable<DueParty> parties,
   Map<int, List<DueFollowUp>> followUps, {
   int? nowMillis,
+  // customerId -> paySchedule (models/pay_schedule.dart). Us din customer TODO mein (agar aaj baat na hui ho).
+  Map<int, String> paySchedules = const {},
+  // customerId -> qist plan ki halat (models/qist_plan.dart). Qist ki tareekh / late qist => TODO.
+  Map<int, QistStatus> qist = const {},
 }) {
   final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
   final today = _sod(now);
@@ -132,6 +142,10 @@ AutopilotQueue buildAutopilot(
       found = TouchReason.brokenPromise;
     } else if (st.promiseToday) {
       found = TouchReason.promiseToday;
+    } else if (qist[id] != null && qistNeedsTouch(qist[id]!, nowMillis: now)) {
+      found = TouchReason.qistDue;
+    } else if (isPayDay(paySchedules[id] ?? '', DateTime.fromMillisecondsSinceEpoch(now))) {
+      found = TouchReason.payDay;
     } else if (st.followUpDue) {
       found = TouchReason.followUpDue;
     } else if (b.late) {
@@ -166,7 +180,10 @@ AutopilotQueue buildAutopilot(
       done.add(item(TouchStatus.doneToday));
       continue;
     }
-    final scheduled = reason == TouchReason.promiseToday || reason == TouchReason.followUpDue;
+    final scheduled = reason == TouchReason.promiseToday ||
+        reason == TouchReason.followUpDue ||
+        reason == TouchReason.payDay ||
+        reason == TouchReason.qistDue;
     if (since == null || scheduled) {
       todo.add(item(TouchStatus.todo));
       continue;

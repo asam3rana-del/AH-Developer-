@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../db/due_followup_repository.dart';
 import '../models/due_followup.dart';
+import '../services/payment_info.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import 'party_avatar.dart';
@@ -52,7 +53,8 @@ class TodaysCollectionCard extends StatelessWidget {
     final id = f.party.partyId;
     try {
       final entries = id == null ? const <DueFollowUp>[] : await DueFollowUpRepository.instance.forParty(id);
-      final ok = await launchUrl(reminderUriFor(f.party, entries), mode: LaunchMode.externalApplication);
+      final uri = await PaymentInfo.withSaved(reminderUriFor(f.party, entries));
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok) throw Exception('launch failed');
       if (id != null) {
         await DueFollowUpRepository.instance

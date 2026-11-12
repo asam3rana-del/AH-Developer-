@@ -119,4 +119,35 @@ void main() {
     expect(countBalanceDrift([ok, bad]), 1);
     expect(countBalanceDrift([ok]), 0);
   });
+
+  test('Owner capital / drawings split the capital, totals still balance', () {
+    final f = buildBalanceSheet(
+      cashIn: 70000,
+      cashOut: 5000,
+      bankIn: 0,
+      bankOut: 0,
+      stockValue: 10000,
+      receivables: 0,
+      advancePaidToSuppliers: 0,
+      payables: 0,
+      advanceFromCustomers: 0,
+      sales: 0,
+      cogs: 0,
+      expenses: 0,
+      ownerCapitalIn: 70000,
+      ownerDrawings: 5000,
+    );
+    // Assets 75,000 = capital in 70,000 - drawings 5,000 + opening stock 10,000 (other)
+    expect(f.capital, closeTo(75000, 1e-9));
+    expect(f.openingAndOther, closeTo(10000, 1e-9));
+    expect(f.ownerCapitalIn - f.ownerDrawings + f.openingAndOther + f.netProfit + f.totalLiabilities,
+        closeTo(f.totalAssets, 1e-9));
+  });
+
+  test('Without owner entries everything stays in "opening & other" (old behaviour)', () {
+    final f = sheet(cashIn: 50000, stock: 6500);
+    expect(f.ownerCapitalIn, 0);
+    expect(f.ownerDrawings, 0);
+    expect(f.openingAndOther, closeTo(f.capital, 1e-9));
+  });
 }

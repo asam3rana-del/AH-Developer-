@@ -121,6 +121,10 @@ class _QueueBodyState extends State<_QueueBody> with WidgetsBindingObserver {
         return (Loc.t('Promise broken', 'وعدہ ٹوٹا'), _p.red);
       case TouchReason.promiseToday:
         return (Loc.t('Promised for today', 'آج کا وعدہ'), _p.flatAmberFg);
+      case TouchReason.qistDue:
+        return (Loc.t('Installment due', 'قسط کی تاریخ'), _p.red);
+      case TouchReason.payDay:
+        return (Loc.t('Payment day today', 'آج ادائیگی کا مقررہ دن'), _p.flatTealFg);
       case TouchReason.followUpDue:
         return (Loc.t('Follow-up due today', 'آج فالو اپ کا دن'), _p.flatAmberFg);
       case TouchReason.dueToday:

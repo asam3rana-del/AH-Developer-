@@ -7,12 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'backup/backup_scheduler.dart';
+import 'backup/offsite_backup.dart';
 import 'db/user_repository.dart';
 import 'db/desktop_db_init.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/app_lock.dart';
 import 'services/crash_handler.dart';
+import 'services/demo_mode.dart';
 import 'services/bill_reminder_service.dart';
 import 'services/due_alert_service.dart';
 import 'services/return_alert_service.dart';
@@ -35,6 +37,8 @@ void main() async {
   try {
     // Windows: DB factory sab se pehle (DeviceTag/BranchConfigStore ke liye nahi, lekin koi bhi DB call se pehle).
     await initDesktopDatabase();
+    // Demo / training dukaan ka flag DB khulne se PEHLE (kaunsi DB file khulegi, is par munhasir).
+    await DemoMode.init();
     // PosApplication.onCreate() ka pehla kaam: DeviceTag / BranchConfigStore (IDs mein zaroorat).
     await DeviceTag.init();
     await BranchConfigStore.init();
@@ -72,6 +76,7 @@ void main() async {
     unawaited(DueAlertService.checkAndNotify());
     unawaited(BillReminderService.checkAndNotify());
     unawaited(ReturnAlertService.checkAndNotify());
+    unawaited(OffsiteBackup.checkAndNotify());
   } catch (_) {}
   runApp(const AhDeveloperApp());
   unawaited(DueAlertService.handleLaunch());
@@ -102,16 +107,18 @@ class AhDeveloperApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([Loc.language, ThemeManager.isDark]),
+      listenable: Listenable.merge([Loc.language, ThemeManager.isDark, DemoMode.notifier]),
       builder: (context, _) {
         final lang = Loc.language.value;
         final dark = ThemeManager.isDark.value;
         final p = ThemeManager.palette;
+        final demo = DemoMode.enabled;
         return MaterialApp(
           navigatorKey: AppLock.navigatorKey,
           // zabaan / theme badalne par saari screens dobara ban jayein
-          key: ValueKey('$lang-$dark'),
-          title: 'Hanna POS',
+          // Demo on/off par bhi poora tree naya (kisi screen mein doosri dukaan ka purana data na reh jaye).
+          key: ValueKey('$lang-$dark-$demo'),
+          title: demo ? 'Hanna POS (DEMO)' : 'Hanna POS',
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(p, dark),
           // Desktop: mouse se bhi drag-scroll (touch-screen POS jaisa).
@@ -120,7 +127,18 @@ class AhDeveloperApp extends StatelessWidget {
             textDirection: lang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
             child: _BottomSystemBarGuard(
               background: p.bg,
-              child: _DesktopFrame(background: p.bg, child: child!),
+              child: _DesktopFrame(
+                background: p.bg,
+                // Demo dukaan har screen par saaf nazar aaye, taake asal hisaab samajh kar entry na ho.
+                child: demo
+                    ? Banner(
+                        message: 'DEMO',
+                        location: BannerLocation.topEnd,
+                        color: const Color(0xFFD97706),
+                        child: child!,
+                      )
+                    : child!,
+              ),
             ),
           ),
           // Session hai to seedha dashboard, warna login/setup.

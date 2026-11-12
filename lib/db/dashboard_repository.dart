@@ -1,5 +1,6 @@
 import '../models/misc_entities.dart';
 import '../models/product.dart';
+import '../services/demo_mode.dart';
 import '../services/session.dart';
 import '../utils/password_hasher.dart';
 import 'app_database.dart';
@@ -62,7 +63,8 @@ List<PartyRow> dashboardPartySearch(
 
 /// Sync pending label; 0 => null (label chhupa hua).
 String? syncPendingMessage(int count, {required bool urdu}) {
-  if (count <= 0) return null;
+  // Demo dukaan kabhi sync nahi hoti — "not yet synced" ki warning wahan sirf pareshan karti.
+  if (count <= 0 || DemoMode.enabled) return null;
   return urdu
       ? '⚠ $count تبدیلیاں ابھی کلاؤڈ پر نہیں پہنچیں — چیک کرنے کے لیے ٹیپ کریں'
       : '⚠ $count change(s) not yet synced to cloud — tap to check Sync History';

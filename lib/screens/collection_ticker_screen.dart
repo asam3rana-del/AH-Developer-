@@ -32,6 +32,10 @@ String _reasonLabel(AutopilotItem it) {
       return 'WADA TOOTA';
     case TouchReason.promiseToday:
       return 'AAJ KA WADA';
+    case TouchReason.qistDue:
+      return 'QIST DUE';
+    case TouchReason.payDay:
+      return 'AAJ PAYMENT DIN';
     case TouchReason.followUpDue:
       return 'FOLLOW-UP AAJ';
     case TouchReason.late:

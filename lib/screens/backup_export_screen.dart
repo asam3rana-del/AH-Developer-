@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import '../backup/backup_export.dart';
 import '../backup/backup_helper.dart';
 import '../backup/backup_password_store.dart';
+import '../backup/offsite_backup.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
@@ -49,6 +50,7 @@ class _BackupBodyState extends State<_BackupBody> {
 
   List<File> _backups = [];
   bool _loadingBackups = false;
+  int _lastOffsite = 0; // OffsiteBackup: aakhri dafa phone se bahar share (0 = kabhi nahi)
 
   bool get _isAdmin => Session.isAdmin;
 
@@ -71,7 +73,13 @@ class _BackupBodyState extends State<_BackupBody> {
     setState(() => _loadingBackups = true);
     try {
       final list = await BackupHelper.listBackups();
-      if (mounted) setState(() => _backups = list);
+      final last = await OffsiteBackup.lastSharedMillis();
+      if (mounted) {
+        setState(() {
+          _backups = list;
+          _lastOffsite = last;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _backups = []);
     } finally {
@@ -406,6 +414,52 @@ class _BackupBodyState extends State<_BackupBody> {
 
   // ---------------- UI ----------------
 
+  /// Phone se bahar backup ki halat: kab bheja, abhi bhejo, password ki yaad.
+  Widget _offsiteCard() {
+    final days = daysSinceShared(_lastOffsite);
+    final ok = days >= 0 && days <= 1;
+    final color = ok ? _p.teal : _p.red;
+    final status = days < 0
+        ? Loc.t('Never sent outside this phone', 'کبھی فون سے باہر نہیں بھیجا')
+        : days == 0
+            ? Loc.t('Sent outside today ✓', 'آج باہر بھیجا ✓')
+            : Loc.t('Last sent outside $days day(s) ago', 'آخری بار $days دن پہلے باہر بھیجا');
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _p.cardWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(status, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 4),
+        Text(
+          Loc.t(
+            'If the phone is lost, backups on it are lost too. Send the newest backup to WhatsApp (your own number) or '
+                'Google Drive every day. Write down the Backup Password — it is needed to restore on a new phone.',
+            'فون گم ہو تو اس پر رکھے بیک اپ بھی جاتے ہیں۔ روز تازہ بیک اپ واٹس ایپ (اپنا نمبر) یا Google Drive پر بھیجیں۔ '
+                'Backup Password لکھ کر رکھیں — نئے فون پر بحال کرنے کے لیے ضروری ہے۔',
+          ),
+          style: TextStyle(fontSize: 12, color: _p.textMuted),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.ios_share),
+          label: Text(Loc.t('SEND NEWEST BACKUP OUTSIDE', 'تازہ بیک اپ باہر بھیجیں')),
+          onPressed: _backups.isEmpty
+              ? null
+              : () async {
+                  if (!await OffsiteBackup.shareLatest()) {
+                    _toast(Loc.t('Could not share backup.', 'بیک اپ شیئر نہیں ہو سکا۔'));
+                  }
+                  await _loadBackups();
+                },
+        ),
+      ]),
+    );
+  }
+
   Widget _bigButton(String label, Color color, VoidCallback? onTap) => SizedBox(
         width: double.infinity,
         child: FilledButton(
@@ -489,6 +543,7 @@ class _BackupBodyState extends State<_BackupBody> {
               ? null
               : () async {
                   if (!await BackupHelper.shareBackup(f)) _toast(Loc.t('Could not share backup.', 'بیک اپ شیئر نہیں ہو سکا۔'));
+                  await _loadBackups();
                 },
         ),
         IconButton(
@@ -551,6 +606,8 @@ class _BackupBodyState extends State<_BackupBody> {
               _bigButton(Loc.t('🔑 Backup Password', '🔑 بیک اپ پاسورڈ'), _p.flatPurpleFg, _showPassword),
               const SizedBox(height: 12),
               _bigButton(Loc.t('📂 Restore from file…', '📂 فائل سے بحال کریں…'), _p.red, _restoreFromFile),
+              const SizedBox(height: 12),
+              _offsiteCard(),
               _sectionTitle(Loc.t('Saved backups', 'محفوظ بیک اپ')),
               if (_loadingBackups)
                 const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))

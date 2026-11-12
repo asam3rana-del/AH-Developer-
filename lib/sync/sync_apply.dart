@@ -128,6 +128,9 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
     final returnEntriesRemote = row.containsKey('returnEntries') ? (_s(row['returnEntries']) ?? '') : null;
     // Amanat/Loan log (DB v32): purane doc mein na ho to local log na todo.
     final returnLogRemote = row.containsKey('returnLog') ? (_s(row['returnLog']) ?? '') : null;
+    // Payment ka din (DB v37): purane doc mein na ho to local value na todo.
+    final payScheduleRemote = row.containsKey('paySchedule') ? (_s(row['paySchedule']) ?? '') : null;
+    final qistPlanRemote = row.containsKey('qistPlan') ? (_s(row['qistPlan']) ?? '') : null;
     final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
     final localPending = await pendingDelta(q, 'customer', serverId, 'increment_balance');
     // 2-device FIX: is device ka apna naam/phone edit abhi push nahi hua => server ki purani copy se
@@ -170,6 +173,8 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
           if (returnDateRemote != null) 'returnDate': returnDateRemote,
           if (returnEntriesRemote != null) 'returnEntries': returnEntriesRemote,
           if (returnLogRemote != null) 'returnLog': returnLogRemote,
+          if (payScheduleRemote != null) 'paySchedule': payScheduleRemote,
+          if (qistPlanRemote != null) 'qistPlan': qistPlanRemote,
           'updatedAt': serverUpdatedAt,
           'dirty': localPending != 0.0 ? 1 : 0,
         },
@@ -190,6 +195,8 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
         if (returnDateRemote != null) 'returnDate': returnDateRemote,
         if (returnEntriesRemote != null) 'returnEntries': returnEntriesRemote,
         if (returnLogRemote != null) 'returnLog': returnLogRemote,
+        if (payScheduleRemote != null) 'paySchedule': payScheduleRemote,
+        if (qistPlanRemote != null) 'qistPlan': qistPlanRemote,
         'serverId': serverId,
         'updatedAt': serverUpdatedAt,
         'dirty': localPending != 0.0 ? 1 : 0,

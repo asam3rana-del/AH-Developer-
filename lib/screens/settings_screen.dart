@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../db/app_database.dart';
 import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
 import '../services/credit_guard.dart';
+import '../services/demo_mode.dart';
+import '../services/payment_info.dart';
 import '../services/credit_override_policy.dart';
 import '../services/staff_auth.dart';
 import '../services/app_lock.dart';
@@ -20,6 +23,7 @@ import '../widgets/menu_row.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import '../widgets/sync_section.dart';
+import '../sync/sync_repository.dart';
 import 'about_screen.dart';
 import 'backup_export_screen.dart';
 import 'cash_screen.dart';
@@ -31,6 +35,7 @@ import 'purchase_screen.dart';
 import 'recycle_bin_screen.dart';
 import 'reports_screen.dart';
 import 'sale_screen.dart';
+import 'setup_guide_screen.dart';
 import 'shell_ledger_screen.dart';
 import 'shop_rent_screen.dart';
 import 'user_management_screen.dart';
@@ -59,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _shopName = TextEditingController();
   final _shopOwner = TextEditingController();
   final _shopPhone = TextEditingController();
+  final _paymentInfo = TextEditingController(); // Raast / JazzCash / bank — reminders ke neeche
   final _dueDays = TextEditingController(); // default udhaar muddat (din)
   final _newUsername = TextEditingController();
   final _newPassword = TextEditingController();
@@ -82,7 +88,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
-    for (final c in [_shopName, _shopOwner, _shopPhone, _dueDays, _newUsername, _newPassword]) {
+    for (final c in [_shopName, _shopOwner, _shopPhone, _paymentInfo, _dueDays, _newUsername, _newPassword]) {
       c.dispose();
     }
     super.dispose();
@@ -92,11 +98,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final shopName = await _repo.getSetting('shop_name') ?? '';
     final shopOwner = await _repo.getSetting('shop_owner') ?? '';
     final shopPhone = await _repo.getSetting('shop_phone') ?? '';
+    final paymentInfo = await PaymentInfo.load();
     final dueDays = parseShopDueDays(await _repo.getSetting(kDueDaysSetting));
     if (!mounted) return; // screen band ho chuki => disposed controller na chhedo
     _shopName.text = shopName;
     _shopOwner.text = shopOwner;
     _shopPhone.text = shopPhone;
+    _paymentInfo.text = paymentInfo;
     _dueDays.text = dueDays.toString();
     if (_shopName.text.trim().isNotEmpty) _headerShop = _shopName.text.trim();
     final pr = await PrinterService.instance.selected();
@@ -118,6 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _repo.setSetting('shop_name', _shopName.text.trim());
     await _repo.setSetting('shop_owner', _shopOwner.text.trim());
     await _repo.setSetting('shop_phone', _shopPhone.text.trim());
+    await PaymentInfo.save(_paymentInfo.text);
     await _repo.setSetting(kDueDaysSetting, parseShopDueDays(_dueDays.text).toString());
     if (_shopName.text.trim().isNotEmpty && mounted) setState(() => _headerShop = _shopName.text.trim());
     _toast(Loc.t('Settings saved', 'سیٹنگز محفوظ ہو گئیں'));
@@ -351,6 +360,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Demo dukaan on / off. Pehle chalti sync ruke, DB band ho, session saaf ho; phir flag badalte hi
+  /// MaterialApp (key mein demo) naya banta hai aur login screen nayi file se khulti hai.
+  Future<void> _switchDemo(bool on) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(on ? Loc.t('Open Demo shop?', 'ڈیمو دکان کھولیں؟') : Loc.t('Exit Demo?', 'ڈیمو بند کریں؟')),
+        content: Text(on
+            ? Loc.t(
+                'The app will switch to a separate practice shop. First time, create a demo admin user. '
+                    'Sync and backups stay off until you exit Demo. Your real shop is not changed.',
+                'ایپ ایک الگ پریکٹس دکان پر چلی جائے گی۔ پہلی بار ڈیمو ایڈمن یوزر بنائیں۔ '
+                    'ڈیمو بند کرنے تک سنک اور بیک اپ بند رہیں گے۔ اصل دکان میں کچھ نہیں بدلے گا۔')
+            : Loc.t('Back to the real shop. Log in with your real password.',
+                'اصل دکان پر واپس۔ اپنے اصل پاس ورڈ سے لاگ اِن کریں۔')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Continue', 'جاری رکھیں'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await SyncRepository.waitIdle();
+    await AppDatabase.instance.close();
+    await Session.clear();
+    // Is ke baad yeh screen dispose ho jati hai (MaterialApp ka key badalta hai) — context ab use nahi.
+    await DemoMode.setEnabled(on);
+  }
+
   Future<void> _logout() async {
     await Session.clear();
     if (!mounted) return;
@@ -441,7 +479,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _tf(_shopOwner, Loc.t('Owner Name', 'مالک کا نام')),
             _tf(_shopPhone, Loc.t('Phone', 'فون')),
             _tf(_dueDays, Loc.t('Default credit period (days, 0 = off)', 'ڈیفالٹ ادھار مدت (دن، 0 = بند)'), number: true),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: TextField(
+                controller: _paymentInfo,
+                minLines: 2,
+                maxLines: 5,
+                decoration: InputDecoration(
+                  labelText: Loc.t('Payment details for reminders', 'یاد دہانی میں ادائیگی کی تفصیل'),
+                  hintText: 'Raast ID: 03001234567\nJazzCash: 03001234567 (Asam)\nBank: Meezan PK00MEZN0000000000000000',
+                  helperText: Loc.t('Added under every WhatsApp due reminder', 'ہر واٹس ایپ یاد دہانی کے نیچے لگے گا'),
+                  filled: true,
+                  fillColor: ThemeManager.palette.fieldFill,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
             FilledButton(onPressed: _saveShop, child: Text(Loc.t('SAVE SETTINGS', 'محفوظ کریں'))),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const RoleGuard(allowed: {'admin'}, child: SetupGuideScreen())))
+                  .then((_) => _load()),
+              icon: const Icon(Icons.checklist_rtl),
+              label: Text(Loc.t('SHOP SETUP GUIDE (new shop)', 'دکان سیٹ اپ گائیڈ (نئی دکان)')),
+            ),
           ]),
         if (admin)
           _card(Loc.t('Sale', 'سیل'), Icons.point_of_sale, [
@@ -652,6 +714,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text(Loc.t('OPEN ABOUT', 'کھولیں')),
           ),
         ]),
+        if (admin || DemoMode.enabled)
+          _card(Loc.t('Demo / Training shop', 'ڈیمو / ٹریننگ دکان'), Icons.school_outlined, [
+            Text(DemoMode.enabled
+                ? Loc.t('You are in the DEMO shop. Nothing here goes to the real shop, the cloud or other phones.',
+                    'آپ ڈیمو دکان میں ہیں۔ یہاں کی کوئی انٹری اصل دکان، کلاؤڈ یا دوسرے فون پر نہیں جاتی۔')
+                : Loc.t('A separate practice shop for staff training and testing. Real data, sync and backups are not touched.',
+                    'اسٹاف کی ٹریننگ اور ٹیسٹنگ کے لیے الگ دکان۔ اصل ڈیٹا، سنک اور بیک اپ کو ہاتھ نہیں لگتا۔')),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _switchDemo(!DemoMode.enabled),
+              icon: Icon(DemoMode.enabled ? Icons.storefront : Icons.school_outlined),
+              label: Text(DemoMode.enabled
+                  ? Loc.t('EXIT DEMO — back to real shop', 'ڈیمو بند کریں — اصل دکان')
+                  : Loc.t('OPEN DEMO SHOP', 'ڈیمو دکان کھولیں')),
+            ),
+          ]),
         OutlinedButton.icon(
           onPressed: _logout,
           icon: Icon(Icons.logout, color: ThemeManager.palette.red),

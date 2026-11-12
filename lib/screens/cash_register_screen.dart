@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../db/cash_register_repository.dart';
 import '../models/misc_entities.dart';
+import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
@@ -57,14 +58,10 @@ class _CashRegisterScreenState extends State<CashRegisterScreen> {
     if (reg == null) {
       _openCash.text = today.carryCash != 0 ? today.carryCash.toStringAsFixed(2) : '';
       _openBank.text = today.carryBank != 0 ? today.carryBank.toStringAsFixed(2) : '';
-    } else if (!reg.closed) {
-      // Counted amounts start at the expected figure (Kotlin), so an exact
-      // till closes with one tap.
-      _countCash.text = registerExpected(opening: reg.openingCash, totalIn: today.flows.cashIn, totalOut: today.flows.cashOut)
-          .toStringAsFixed(2);
-      _countBank.text = registerExpected(opening: reg.openingBank, totalIn: today.flows.bankIn, totalOut: today.flows.bankOut)
-          .toStringAsFixed(2);
     }
+    // Blind count: "Counted" khane ab expected se pehle se nahi bharte (pehle Kotlin ki tarah bharte the, is liye
+    // bina gine ek tap mein "Matched" band ho jata tha). Ab galla gin kar asal raqam likhni parti hai.
+    // Refresh par jo cashier likh chuka wo nahi mit-ta.
     setState(() {
       _today = today;
       _history = history;
@@ -141,7 +138,8 @@ class _CashRegisterScreenState extends State<CashRegisterScreen> {
 
   Future<void> _confirmClose(CashRegister reg) async {
     final ac = double.tryParse(_countCash.text.trim());
-    final ab = double.tryParse(_countBank.text.trim());
+    // Bank khali chhora => 0 (bohat si dukaanon ka bank hi nahi); cash ginti lazmi.
+    final ab = _countBank.text.trim().isEmpty ? 0.0 : double.tryParse(_countBank.text.trim());
     if (ac == null || ab == null) {
       _toast(Loc.t('Enter valid amounts', 'صحیح رقم درج کریں'));
       return;
@@ -362,14 +360,18 @@ class _CashRegisterScreenState extends State<CashRegisterScreen> {
       _badge(Loc.t('OPEN', 'کھلا ہوا'), green),
       _statRow(p, Loc.t('Opening Cash', 'ابتدائی کیش'), _rs(reg.openingCash)),
       _statRow(p, Loc.t('Opening Bank', 'ابتدائی بینک'), _rs(reg.openingBank)),
-      _divider(p),
-      _statRow(p, Loc.t('Cash In (today)', 'آج کیش ان'), '+ ${_rs(f.cashIn)}', green),
-      _statRow(p, Loc.t('Cash Out (today)', 'آج کیش آؤٹ'), '- ${_rs(f.cashOut)}', p.red),
-      _statRow(p, Loc.t('Bank In (today)', 'آج بینک ان'), '+ ${_rs(f.bankIn)}', green),
-      _statRow(p, Loc.t('Bank Out (today)', 'آج بینک آؤٹ'), '- ${_rs(f.bankOut)}', p.red),
-      _divider(p),
-      _statRow(p, Loc.t('Expected Closing Cash', 'متوقع اختتامی کیش'), _rs(expCash), p.navy),
-      _statRow(p, Loc.t('Expected Closing Bank', 'متوقع اختتامی بینک'), _rs(expBank), p.navy),
+      // Blind count: cashier ko din ka hisaab / expected nahi dikhta jab tak galla band na ho
+      // (warna wo gine baghair expected hi likh deta). Admin / Manager ko sab dikhta hai.
+      if (Session.isAdminOrManager) ...[
+        _divider(p),
+        _statRow(p, Loc.t('Cash In (today)', 'آج کیش ان'), '+ ${_rs(f.cashIn)}', green),
+        _statRow(p, Loc.t('Cash Out (today)', 'آج کیش آؤٹ'), '- ${_rs(f.cashOut)}', p.red),
+        _statRow(p, Loc.t('Bank In (today)', 'آج بینک ان'), '+ ${_rs(f.bankIn)}', green),
+        _statRow(p, Loc.t('Bank Out (today)', 'آج بینک آؤٹ'), '- ${_rs(f.bankOut)}', p.red),
+        _divider(p),
+        _statRow(p, Loc.t('Expected Closing Cash', 'متوقع اختتامی کیش'), _rs(expCash), p.navy),
+        _statRow(p, Loc.t('Expected Closing Bank', 'متوقع اختتامی بینک'), _rs(expBank), p.navy),
+      ],
       Padding(
         padding: const EdgeInsets.only(top: 12),
         child: InkWell(

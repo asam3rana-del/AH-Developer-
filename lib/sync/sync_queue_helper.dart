@@ -36,6 +36,7 @@ class SyncQueueHelper {
   /// Sirf yeh app_settings keys sync hoti hain (baaqi device-specific: printer, login_method ...).
   static const Set<String> syncedAppSettingKeys = {
     'shop_name', 'shop_owner', 'shop_phone', 'shop_address', 'receipt_footer', 'currency', 'tax_percent',
+    'payment_info', // Raast / JazzCash / bank — wasooli reminders ke neeche (PaymentInfo)
   };
 
   /// Sync hone wali app_settings key? (fixed whitelist).
@@ -188,6 +189,8 @@ class SyncQueueHelper {
         'returnDate': c['returnDate'] ?? 0,
         'returnEntries': c['returnEntries'] ?? '',
         'returnLog': c['returnLog'] ?? '',
+        'paySchedule': c['paySchedule'] ?? '',
+        'qistPlan': c['qistPlan'] ?? '',
       });
 
   static Map<String, Object?> supplierPayload(Map<String, Object?> s) => _stamp({

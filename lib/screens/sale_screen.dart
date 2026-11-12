@@ -18,6 +18,7 @@ import '../models/sale.dart';
 import '../services/sale_draft.dart';
 import '../services/sale_hold_recall.dart';
 import '../services/credit_override_policy.dart';
+import '../services/credit_risk.dart' show CreditRisk, loadCreditRiskByName;
 import '../services/session.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
@@ -949,6 +950,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       if (suspects.isNotEmpty && !await _confirmSuspectCost(suspects)) return;
     }
 
+    // Udhaar se pehle: is customer ka purana baqi late hai ya wada toota? (sirf naya udhaar bill; warning,
+    // aur "sirf admin/manager" policy ON ho to cashier ke liye rok.)
+    if (!skipDuplicateCheck && !_isEdit && totals.due > 0.009) {
+      final risk = await loadCreditRiskByName(_customerCtrl.text.trim());
+      if (!mounted) return;
+      if (risk.risky && !await _confirmCreditRisk(_customerCtrl.text.trim(), risk)) return;
+    }
+
     // Snapshot for the bill preview — _clearAll() wipes the screen after save.
     final previewLines = List<SaleLine>.of(_lines);
     final previewCustomer = _customerCtrl.text.trim();
@@ -1154,6 +1163,36 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       showNewBill: showNew,
       justSaved: showNew,
     );
+  }
+
+  /// Purana baqi late / wada toota: udhaar dene se pehle poochho. true = phir bhi udhaar do.
+  Future<bool> _confirmCreditRisk(String name, CreditRisk r) async {
+    final lines = <String>[
+      if (r.lateAmount > 0.009)
+        Loc.t('Rs ${formatQty(r.lateAmount)} is late (oldest by ${r.maxDaysLate} days).',
+            'Rs ${formatQty(r.lateAmount)} late hai (sab se purana ${r.maxDaysLate} din).'),
+      if (r.promiseBroken) Loc.t('Last payment promise was broken.', 'Pichla payment ka wada toot gaya.'),
+    ];
+    final mayOverride = await CreditOverridePolicy.currentUserMayOverride();
+    if (!mounted) return false;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Old dues pending — $name', 'Purana baqi — $name')),
+        content: Text('${lines.join('\n')}\n\n${mayOverride ? Loc.t('Give more credit anyway?', 'Phir bhi udhaar dein?') : Loc.t('Only admin or manager can give more credit to this customer.', 'Is customer ko mazeed udhaar sirf admin ya manager de sakta hai.')}'),
+        actions: mayOverride
+            ? [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.red),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(Loc.t('Give credit', 'Udhaar dein')),
+                ),
+              ]
+            : [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('OK'))],
+      ),
+    );
+    return ok == true;
   }
 
   /// "Save Anyway?" prompt — a shopkeeper can knowingly let a trusted customer

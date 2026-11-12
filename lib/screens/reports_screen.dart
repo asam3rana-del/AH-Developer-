@@ -5,6 +5,7 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import 'balance_sheet_screen.dart';
 import 'due_reminders_screen.dart';
+import 'expiry_report_screen.dart';
 import 'history_screen.dart';
 import 'inventory_insights_screen.dart';
 import 'monthly_screen.dart';
@@ -186,6 +187,10 @@ class _ReportsBodyState extends State<_ReportsBody> {
               _row(p, Loc.t('Stock Audit', 'اسٹاک آڈٹ'),
                   Loc.t("Find products where stock doesn't match its own history", 'وہ پروڈکٹس جن کا اسٹاک اپنی تاریخ سے میچ نہیں کرتا'),
                   p.red, () => _open(const StockAuditScreen())),
+            if (_can('stock_report'))
+              _row(p, Loc.t('Expiry Report', 'ایکسپائری رپورٹ'),
+                  Loc.t('Stock that has expired or expires in 30 days', 'جو مال ایکسپائر ہو چکا یا 30 دن میں ہوگا'),
+                  p.red, () => _openG('stock_report', const ExpiryReportScreen())),
             // Reorder / Damage / Margin / Movers ek hi screen ke 4 tab hain — pehle 4 alag rows thin (duplicate).
             if (_can('inventory_insights'))
               _row(p, Loc.t('Inventory Insights', 'انوینٹری تجزیہ'),

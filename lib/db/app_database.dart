@@ -2,6 +2,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/return_entry.dart';
+import '../services/demo_mode.dart';
 
 import 'stock_ledger.dart';
 
@@ -19,21 +20,27 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 36;
+  static const _dbVersion = 37;
 
   Database? _db;
 
+  /// Jo file is waqt khuli hai. Demo mode badle to [database] purani band kar ke sahi file kholta hai —
+  /// taake kabhi bhi demo ki entry asal file mein (ya ulta) na jaye, chahe koi screen beech mein DB maange.
+  String? _openFileName;
+
   /// Backup/Restore (Phase 11) ko chahiye: schema version aur DB ka path.
   static int get schemaVersion => _dbVersion;
-  static String get databaseFileName => _dbName;
+  /// Demo mode mein alag file ([DemoMode.demoDbFileName]) — asal dukaan ki file ko haath nahi lagta.
+  static String get databaseFileName => DemoMode.dbFileName(_dbName);
 
   Future<Database> get database async {
+    if (_db != null && _openFileName != databaseFileName) await close();
     _db ??= await _open();
     return _db!;
   }
 
   /// Live DB file ka poora path (file abhi bani na ho tab bhi).
-  Future<String> get databasePath async => join(await getDatabasesPath(), _dbName);
+  Future<String> get databasePath async => join(await getDatabasesPath(), databaseFileName);
 
   /// Kotlin `PRAGMA wal_checkpoint(FULL)` — backup se pehle WAL ka data main file mein.
   Future<void> checkpointWal() async {
@@ -45,12 +52,15 @@ class AppDatabase {
   Future<void> close() async {
     final db = _db;
     _db = null;
+    _openFileName = null;
     if (db != null && db.isOpen) await db.close();
   }
 
   Future<Database> _open() async {
     final dir = await getDatabasesPath();
-    final path = join(dir, _dbName);
+    final name = databaseFileName;
+    final path = join(dir, name);
+    _openFileName = name;
     return openDatabase(
       path,
       version: _dbVersion,
@@ -123,6 +133,8 @@ class AppDatabase {
         returnDate INTEGER NOT NULL DEFAULT 0,
         returnEntries TEXT NOT NULL DEFAULT '',
         returnLog TEXT NOT NULL DEFAULT '',
+        paySchedule TEXT NOT NULL DEFAULT '',
+        qistPlan TEXT NOT NULL DEFAULT '',
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1
@@ -565,6 +577,12 @@ class AppDatabase {
       // v36: Due Reminders follow-up sync — serverId / partyServerId (v35 mein bane table ke liye; naye table mein pehle se hain).
       await _addColumnIfMissing(db, 'due_followups', 'serverId', 'TEXT');
       await _addColumnIfMissing(db, 'due_followups', 'partyServerId', 'TEXT');
+    }
+    if (oldVersion < 37) {
+      // v37: customer ki "payment ka din" (models/pay_schedule.dart) — Wasooli Autopilot usi din upar laata hai —
+      // aur qist plan (models/qist_plan.dart, JSON).
+      await _addColumnIfMissing(db, 'customers', 'paySchedule', "TEXT NOT NULL DEFAULT ''");
+      await _addColumnIfMissing(db, 'customers', 'qistPlan', "TEXT NOT NULL DEFAULT ''");
     }
     // products.searchTag was added to _onCreate WITHOUT a migration step, so a database created by the
     // earliest builds (schema v1) never got the column. Found by the real-file migration test

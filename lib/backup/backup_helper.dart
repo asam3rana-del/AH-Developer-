@@ -10,9 +10,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/app_database.dart';
+import '../services/demo_mode.dart';
 import '../sync/device_tag.dart';
 import '../sync/sync_repository.dart';
 import 'backup_crypto.dart';
+import 'offsite_backup.dart';
 import 'downloads_copy.dart';
 import 'backup_password_store.dart';
 import 'kotlin_import.dart';
@@ -119,6 +121,11 @@ class BackupHelper {
 
   /// Live DB ka consistent snapshot (VACUUM INTO) le kar encrypt + verify karta hai. Null => fail (dekhein [lastError]).
   static Future<File?> backupNow() async {
+    // Demo dukaan ka backup asal backups ke saath (same naam / folder) na mile.
+    if (DemoMode.enabled) {
+      lastError = DemoMode.backupBlockedMessage;
+      return null;
+    }
     if (_busy) {
       lastError = 'Doosra backup / restore chal raha hai';
       return null;
@@ -211,7 +218,9 @@ class BackupHelper {
   /// Backup file ko share sheet (Drive / WhatsApp / Gmail ...) se bhejta hai.
   static Future<bool> shareBackup(File file) async {
     try {
-      await Share.shareXFiles([XFile(file.path)], subject: 'IBTISAAM POS backup');
+      final r = await Share.shareXFiles([XFile(file.path)], subject: 'IBTISAAM POS backup');
+      // Kahin bhi bheja (WhatsApp / Drive ...) => "bahar backup" ho gaya; sirf band (dismiss) kiya to nahi.
+      if (r.status != ShareResultStatus.dismissed) await OffsiteBackup.markShared();
       return true;
     } catch (e) {
       lastError = e.toString();
@@ -285,6 +294,11 @@ class BackupHelper {
   }
 
   static Future<bool> _restoreGuarded(File backupFile, String? pass) async {
+    // Asal dukaan ka backup demo file mein (ya ulta) restore na ho.
+    if (DemoMode.enabled) {
+      lastError = DemoMode.backupBlockedMessage;
+      return false;
+    }
     if (_busy) {
       lastError = 'Doosra backup / restore chal raha hai';
       return false;

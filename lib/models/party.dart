@@ -33,6 +33,12 @@ class Customer {
   /// Amanat / Loan ki history (given / recovered / adjusted rows, JSON text, dekhein models/return_entry.dart).
   /// Sirf party ledger / statement mein dikhane ke liye; balance isse nahi badalta. '' = koi nahi.
   final String returnLog;
+
+  /// Payment ka din (models/pay_schedule.dart): '' | 'w:1..7' | 'm:1..31'. DB v37.
+  final String paySchedule;
+
+  /// Qist plan (models/qist_plan.dart, JSON). '' = koi plan nahi. DB v37.
+  final String qistPlan;
   final String? serverId;
   final int updatedAt;
   final bool dirty;
@@ -51,6 +57,8 @@ class Customer {
     this.returnDate = 0,
     this.returnEntries = '',
     this.returnLog = '',
+    this.paySchedule = '',
+    this.qistPlan = '',
     this.serverId,
     this.updatedAt = 0,
     this.dirty = true,
@@ -80,6 +88,8 @@ class Customer {
     int? returnDate,
     String? returnEntries,
     String? returnLog,
+    String? paySchedule,
+    String? qistPlan,
     int? updatedAt,
     bool? dirty,
   }) =>
@@ -97,6 +107,8 @@ class Customer {
         returnDate: returnDate ?? this.returnDate,
         returnEntries: returnEntries ?? this.returnEntries,
         returnLog: returnLog ?? this.returnLog,
+        paySchedule: paySchedule ?? this.paySchedule,
+        qistPlan: qistPlan ?? this.qistPlan,
         serverId: serverId,
         updatedAt: updatedAt ?? this.updatedAt,
         dirty: dirty ?? this.dirty,
@@ -117,6 +129,9 @@ class Customer {
         // Khali ho to key hi nahi: purane schema / edit par DB ki maujooda entries na mitein.
         if (returnEntries.isNotEmpty) 'returnEntries': returnEntries,
         if (returnLog.isNotEmpty) 'returnLog': returnLog,
+        // Hamesha (khali bhi): "payment din hatao" ('' save) kaam kare.
+        'paySchedule': paySchedule,
+        'qistPlan': qistPlan,
         'serverId': serverId,
         'updatedAt': updatedAt,
         'dirty': dirty ? 1 : 0,
@@ -136,6 +151,8 @@ class Customer {
         returnDate: (m['returnDate'] as num?)?.toInt() ?? 0,
         returnEntries: (m['returnEntries'] as String?) ?? '',
         returnLog: (m['returnLog'] as String?) ?? '',
+        paySchedule: (m['paySchedule'] as String?) ?? '',
+        qistPlan: (m['qistPlan'] as String?) ?? '',
         serverId: m['serverId'] as String?,
         updatedAt: (m['updatedAt'] as num?)?.toInt() ?? 0,
         dirty: (m['dirty'] as int?) == 1,

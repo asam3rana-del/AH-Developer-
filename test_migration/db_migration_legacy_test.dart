@@ -41,6 +41,7 @@ void main() {
 
   // version -> what that migration step added (removed when rewinding to a version below it)
   final steps = <_Step>[
+    _Step(37, columns: {'customers': ['paySchedule', 'qistPlan']}),
     _Step(36, columns: {'due_followups': ['serverId', 'partyServerId']}),
     _Step(35, tables: ['due_followups']),
     _Step(34, columns: {'users': ['permissions']}),

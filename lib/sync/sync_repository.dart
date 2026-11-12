@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/app_database.dart';
+import '../services/demo_mode.dart';
 import 'cloud_config_store.dart';
 import 'sync_queue_dao.dart';
 import 'sync_types.dart';
@@ -74,7 +75,21 @@ class SyncRepository {
     });
   }
 
+  /// Chalti sync (agar hai) khatam hone tak ruko — Demo mode badalne se pehle DB band karne ke liye.
+  static Future<void> waitIdle() async {
+    final running = _running;
+    if (running != null) {
+      try {
+        await running;
+      } catch (_) {}
+    }
+  }
+
   static Future<SyncResult> _syncNowImpl() async {
+    // Demo / training dukaan: kabhi cloud par kuch na jaye, na aaye.
+    if (DemoMode.enabled) {
+      return const SyncResult(pushedCount: 0, failedCount: 0, pulledOk: false, error: DemoMode.syncBlockedMessage);
+    }
     // Kotlin FIX (multi-tenant): koi Firebase project hi nahi => saaf batao, chupke na chalo.
     if (!await isCloudReady()) {
       return SyncResult(

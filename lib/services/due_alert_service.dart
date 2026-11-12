@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../backup/offsite_backup.dart';
 import '../db/collection_autopilot_repository.dart';
 import '../db/due_followup_repository.dart';
 import '../models/collection_autopilot.dart';
@@ -66,6 +67,11 @@ class DueAlertService {
   }
 
   static void _open(String? payload) {
+    // Roz ka "backup bahar bhejein" reminder: seedha sab se naye backup ki share sheet.
+    if (payload == OffsiteBackup.payload) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => OffsiteBackup.shareLatest());
+      return;
+    }
     if (payload != _payload && payload != queuePayload && payload != billsPayload && payload != returnPayload) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppLock.navigatorKey.currentState?.push(MaterialPageRoute(

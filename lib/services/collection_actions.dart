@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../db/due_followup_repository.dart';
 import '../db/due_reminders_repository.dart';
 import '../models/due_followup.dart';
+import 'payment_info.dart';
 import '../screens/payments_screen.dart' show showPaymentDialog;
 import '../utils/loc.dart';
 
@@ -48,7 +49,8 @@ Future<bool> sendReminderTo(BuildContext context, DueParty g) async {
   final id = g.partyId;
   try {
     final entries = id == null ? const <DueFollowUp>[] : await DueFollowUpRepository.instance.forParty(id);
-    final ok = await launchUrl(reminderUriFor(g, entries), mode: LaunchMode.externalApplication);
+    final uri = await PaymentInfo.withSaved(reminderUriFor(g, entries));
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok) throw Exception('launch failed');
     if (id != null) {
       await DueFollowUpRepository.instance

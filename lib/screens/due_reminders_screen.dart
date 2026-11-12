@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../db/due_followup_repository.dart';
 import '../db/due_reminders_repository.dart';
 import '../models/due_followup.dart';
+import '../services/payment_info.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
@@ -369,7 +370,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   Future<void> _whatsApp(DueParty g) async {
     if (!await _confirmResend(g)) return;
     try {
-      final ok = await launchUrl(_reminderUri(g), mode: LaunchMode.externalApplication);
+      final ok = await launchUrl(await PaymentInfo.withSaved(_reminderUri(g)), mode: LaunchMode.externalApplication);
       if (!ok) throw Exception('launch failed');
       await _logAttempt(g, FollowUpMethod.whatsapp);
     } catch (_) {

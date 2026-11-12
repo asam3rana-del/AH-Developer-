@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' show DateFormat;
 
 import '../db/category_unit_repository.dart';
 import '../db/product_repository.dart';
@@ -6,6 +7,7 @@ import '../models/category_unit.dart' as models;
 import '../models/product.dart';
 import '../utils/input_validation.dart';
 import '../utils/ladder_rate_plan.dart';
+import '../utils/expiry.dart';
 import '../utils/loc.dart';
 import '../utils/rate_list_export.dart';
 import '../widgets/premium_header.dart';
@@ -39,6 +41,8 @@ class _ProductScreenState extends State<ProductScreen> {
   final _saleCtrl = TextEditingController();
   final _stockCtrl = TextEditingController();
   final _reorderCtrl = TextEditingController();
+  /// products.expiry (`yyyy-MM-dd`, khali = nahi). Pehle form save par ye field mit jati thi (Product() mein nahi thi).
+  String _expiry = '';
   final _searchCtrl = TextEditingController();
 
   String _primaryUnit = 'pcs';
@@ -199,8 +203,56 @@ class _ProductScreenState extends State<ProductScreen> {
       _wBulkQtyCtrl.text = p.wholesaleBulkMinQty > 0 ? _trimNum(p.wholesaleBulkMinQty) : '';
       _saleCtrl.text = p.salePrice > 0 ? p.salePrice.toString() : '';
       _reorderCtrl.text = p.reorderLevel > 0 ? _trimNum(p.reorderLevel) : '';
+      _expiry = p.expiry;
       _stockCtrl.text = _trimNum(p.stock);
     });
+  }
+
+  /// Expiry date: tap = calendar, ✕ = hatao. Report: Reports → Expiry Report.
+  Widget _expiryField() {
+    final p = ThemeManager.palette;
+    final d = parseExpiry(_expiry);
+    final label = d == null
+        ? (_expiry.trim().isEmpty ? Loc.t('Not set (optional)', 'نہیں لگی (اختیاری)') : _expiry.trim())
+        : DateFormat('dd MMM yyyy').format(d);
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: d ?? DateTime(now.year, now.month + 3, now.day),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+          helpText: Loc.t('Expiry date', 'ایکسپائری تاریخ'),
+        );
+        if (picked != null && mounted) setState(() => _expiry = formatExpiryForStorage(picked));
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: p.fieldFill,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: p.border),
+        ),
+        child: Row(children: [
+          const Text('📅', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(Loc.t('Expiry date', 'ایکسپائری تاریخ'), style: TextStyle(fontSize: 11, color: p.textMuted)),
+              Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p.textDark)),
+            ]),
+          ),
+          if (_expiry.trim().isNotEmpty)
+            IconButton(
+              tooltip: Loc.t('Remove', 'ہٹائیں'),
+              icon: Icon(Icons.close, color: p.textMuted),
+              onPressed: () => setState(() => _expiry = ''),
+            ),
+        ]),
+      ),
+    );
   }
 
   void _clearForm() {
@@ -218,6 +270,7 @@ class _ProductScreenState extends State<ProductScreen> {
       _saleCtrl.clear();
       _stockCtrl.clear();
       _reorderCtrl.clear();
+      _expiry = '';
       _primaryUnit = 'pcs';
       _secondaryUnit = 'None';
       _secondaryQty = 0.0;
@@ -355,6 +408,7 @@ class _ProductScreenState extends State<ProductScreen> {
       tertiaryUnit: _tertiaryUnit == 'None' ? '' : _tertiaryUnit,
       tertiaryUnitQty: _tertiaryUnit == 'None' ? 0.0 : _tertiaryQty,
       reorderLevel: (double.tryParse(_reorderCtrl.text.trim()) ?? 0.0).clamp(0.0, double.infinity),
+      expiry: _expiry.trim(),
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       dirty: true,
       // Manual default-unit choices (unit dialog). Loaded from the product on
@@ -826,6 +880,8 @@ class _ProductScreenState extends State<ProductScreen> {
                   style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 11),
                 ),
               ),
+              const SizedBox(height: 12),
+              _expiryField(),
             ],
           );
         },

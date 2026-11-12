@@ -66,4 +66,23 @@ void main() {
     final old = Expense.fromMap({'category': 'Rent', 'description': '', 'amount': 5, 'createdAt': 1});
     expect(old.method, 'cash'); // rows from before DB v6
   });
+
+  test('Owner Capital (Cash In) is neither income nor expense, reason prefixed', () {
+    final p = planCashEntry(type: 'IN', category: CashCategories.ownerCapital, misc: '', note: 'Shuru ka paisa');
+    expect(p.createsExpense, isFalse);
+    expect(p.cashReason, '$ownerCapitalReason | Shuru ka paisa');
+    expect(p.cashReason.startsWith(incomeReasonPrefix), isFalse);
+  });
+
+  test('Owner Drawings (Cash Out) does not create an Expense', () {
+    final p = planCashEntry(type: 'OUT', category: CashCategories.ownerDrawings, misc: '', note: '');
+    expect(p.createsExpense, isFalse);
+    expect(p.cashReason, ownerDrawingsReason);
+  });
+
+  test('Owner categories are on the Cash screen but not in the Expense list', () {
+    expect(CashCategories.withIncome, containsAll(CashCategories.owner));
+    expect(CashCategories.all, isNot(contains(CashCategories.ownerCapital)));
+    expect(CashCategories.all, isNot(contains(CashCategories.ownerDrawings)));
+  });
 }

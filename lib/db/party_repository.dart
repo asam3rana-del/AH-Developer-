@@ -283,6 +283,7 @@ class PartyRepository {
     int? dueDays,
     String? kind,
     int? returnDate,
+    String? paySchedule,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
@@ -301,6 +302,7 @@ class PartyRepository {
       dueDays: dueDays ?? existing.dueDays,
       kind: kind ?? existing.kind,
       returnDate: returnDate ?? existing.returnDate,
+      paySchedule: paySchedule ?? existing.paySchedule,
     ));
     return SavePartyResult.success;
   }

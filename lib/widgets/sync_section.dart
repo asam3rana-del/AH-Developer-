@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/demo_mode.dart';
 import '../services/session.dart';
 import '../sync/branch_config_store.dart';
 import '../sync/cloud_config_store.dart';
@@ -311,6 +312,19 @@ class _SyncSectionState extends State<SyncSection> {
 
   @override
   Widget build(BuildContext context) {
+    // Demo dukaan: sync ka koi tool (Setup / Disconnect / branch cleanup) nahi — cloud settings asal
+    // dukaan ki hain aur dono modes mein sanjhi hain, demo se unhein chherna asal sync tor sakta hai.
+    if (DemoMode.enabled) {
+      return Card(
+        margin: const EdgeInsets.only(bottom: 14),
+        child: ListTile(
+          leading: Icon(Icons.cloud_off, color: ThemeManager.palette.amber),
+          title: Text(Loc.t('Cloud Sync', 'کلاؤڈ سنک')),
+          subtitle: Text(Loc.t('Off in Demo mode — demo entries never go to the real shop or other phones.',
+              'ڈیمو موڈ میں بند ہے — ڈیمو کی انٹریاں اصل دکان یا دوسرے فون پر نہیں جاتیں۔')),
+        ),
+      );
+    }
     final admin = SettingsSync.requireAdmin(Session.role);
     final s = _status;
     final Color dot = s == null

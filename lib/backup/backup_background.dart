@@ -8,6 +8,7 @@ import '../services/bill_reminder_service.dart';
 import '../services/due_alert_service.dart';
 import '../services/return_alert_service.dart';
 import 'backup_scheduler.dart';
+import 'offsite_backup.dart';
 
 /// Kotlin `BackupCheckpointWorker` (WorkManager, har 15 min) ka Flutter jor.
 /// App band / swipe-out hone par bhi Android 12 PM / 9 PM checkpoint check chalata hai.
@@ -60,6 +61,8 @@ void backupCallbackDispatcher() {
       // Naye isolate mein DB / prefs / secure storage foreground jaise hi khulte hain
       // (sqflite path file-based hai, isliye wahi live DB milti hai).
       await BackupScheduler.instance.checkCheckpoints();
+      // Raat 9 ke baad: "aaj ka backup phone se bahar bhejein" (din mein ek dafa, agar bheja nahi).
+      await OffsiteBackup.checkAndNotify();
       // Roz ki due-reminder notification (10 AM ke baad, din mein ek baar).
       await DueAlertService.checkAndNotify();
       // Utility bills: ek din pehle / due din / guzarne ke baad reminder.

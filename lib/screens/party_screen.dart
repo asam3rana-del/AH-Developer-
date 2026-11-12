@@ -5,15 +5,20 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../db/customer_repository.dart';
+import '../db/due_followup_repository.dart';
 import '../db/party_repository.dart';
 import '../db/supplier_repository.dart';
+import '../models/due_followup.dart';
 import '../models/party.dart';
+import '../models/pay_schedule.dart';
 import '../services/contact_picker.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
 import '../widgets/party_avatar.dart';
+import 'followup_sheets.dart';
+import 'qist_sheet.dart';
 
 /// Mirrors PartyActivity.kt — "Customers & Suppliers": add / edit / delete, search, "Dues only",
 /// tap-for-history, call, plus the maintenance chips (Fix Balances, Merge Duplicates, Cleanup
@@ -229,14 +234,44 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
 
   void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
-  Future<void> _dial(String phone) async {
-    if (phone.trim().isEmpty) return;
+  /// true = dialer khul gaya.
+  Future<bool> _dial(String phone) async {
+    if (phone.trim().isEmpty) return false;
     try {
       final ok = await launchUrl(Uri(scheme: 'tel', path: phone.trim()));
       if (!ok && mounted) _toast(Loc.t("Couldn't open dialer", 'ڈائلر نہیں کھل سکا'));
+      return ok;
     } catch (_) {
       if (mounted) _toast(Loc.t("Couldn't open dialer", 'ڈائلر نہیں کھل سکا'));
+      return false;
     }
+  }
+
+  /// Customer ko call: dialer khulte hi "call" ki entry (Rabta history / Collection mein) ban jati hai, aur
+  /// nateeja likhne ki sheet khul jati hai — call se wapas aate hi wohi samne hoti hai (baat hui / nahi uthaya /
+  /// wada + tareekh). Sheet band kar dein to entry "sent" rehti hai (koshish to hui).
+  Future<void> _callCustomer(Customer c, double closing) async {
+    final id = c.id;
+    if (!await _dial(c.phone) || id == null || !mounted) return;
+    try {
+      final entryId = await DueFollowUpRepository.instance
+          .add(partyId: id, partyName: c.name, method: FollowUpMethod.call, outcome: FollowUpOutcome.sent);
+      final entry = await DueFollowUpRepository.instance.byId(entryId);
+      if (!mounted) return;
+      await showFollowUpSheet(context,
+          partyId: id,
+          partyName: c.name,
+          existing: entry,
+          method: FollowUpMethod.call,
+          suggestedAmount: closing > 0 ? closing : 0);
+    } catch (_) {}
+  }
+
+  /// Customer ki poori rabta history (call / WhatsApp / wade / nateeje), naya pehle.
+  Future<void> _showRabta(Customer c, double closing) async {
+    final id = c.id;
+    if (id == null) return;
+    await showFollowUpTimeline(context, partyId: id, partyName: c.name, totalDue: closing > 0 ? closing : 0);
   }
 
   // ------------------------------------------------------------------ edit dialogs
@@ -253,6 +288,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     const money = TextInputType.numberWithOptions(decimal: true);
     var rateType = c.rateType;
     final dueDays = TextEditingController(text: c.dueDays > 0 ? c.dueDays.toString() : '');
+    var paySchedule = payScheduleChoices.contains(c.paySchedule) ? c.paySchedule : '';
 
     var nameError = false;
     final ok = await showDialog<bool>(
@@ -301,6 +337,18 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
                     controller: dueDays,
                     keyboardType: TextInputType.number,
                     decoration: _dlgDeco(Loc.t('Payment due in (days) — optional', 'ادائیگی کی مدت (دن) — اختیاری'))),
+                const SizedBox(height: 10),
+                // Payment ka din: Wasooli Autopilot usi din is customer ko aaj ki list mein upar laata hai.
+                DropdownButtonFormField<String>(
+                  value: paySchedule,
+                  isExpanded: true,
+                  decoration: _dlgDeco(Loc.t('Payment day (when they have money)', 'ادائیگی کا دن (جب پیسے ہوں)')),
+                  items: [
+                    for (final v in payScheduleChoices)
+                      DropdownMenuItem(value: v, child: Text(payScheduleLabel(v, urdu: Loc.isUrdu))),
+                  ],
+                  onChanged: (v) => setLocal(() => paySchedule = v ?? ''),
+                ),
               ],
             ]),
           ),
@@ -340,6 +388,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           stuckBalance: stuckValue, // null (cashier) => purana stuck barqarar
           rateType: _canEditStuck ? rateType : null, // cashier rate-type nahi badal sakta
           dueDays: _canEditStuck ? (int.tryParse(dueDays.text.trim()) ?? 0).clamp(0, 365) : null,
+          paySchedule: _canEditStuck ? paySchedule : null, // cashier nahi badal sakta
         );
         if (res == SavePartyResult.duplicateName) {
           if (mounted) _toast(_dupNameMsg(name.text.trim()));
@@ -817,6 +866,17 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           icon: Icons.person,
           isCustomer: true,
           partyId: c.id,
+          onCall: () => _callCustomer(
+              c, partyClosing(opening: c.openingBalance, running: _customerBalances[c.id] ?? 0.0, stuck: c.stuckBalance)),
+          onRabta: () => _showRabta(
+              c, partyClosing(opening: c.openingBalance, running: _customerBalances[c.id] ?? 0.0, stuck: c.stuckBalance)),
+          onQist: c.id == null
+              ? null
+              : () => showQistSheet(context,
+                  customerId: c.id!,
+                  name: c.name,
+                  due: partyClosing(
+                      opening: c.openingBalance, running: _customerBalances[c.id] ?? 0.0, stuck: c.stuckBalance)),
           onTap: () => _showCustomerHistory(c),
           onEdit: () => _editCustomer(c),
           onDelete: () => _deleteCustomer(c),
@@ -1093,6 +1153,9 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     required IconData icon,
     required bool isCustomer,
     int? partyId,
+    VoidCallback? onCall,
+    VoidCallback? onRabta,
+    VoidCallback? onQist,
     required VoidCallback onTap,
     required VoidCallback onEdit,
     required VoidCallback onDelete,
@@ -1166,7 +1229,10 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
         Align(
           alignment: AlignmentDirectional.centerEnd,
           child: Wrap(spacing: 10, runSpacing: 8, children: [
-            if (phone.isNotEmpty) action(Icons.phone, Loc.t('Call', 'کال کریں'), p.flatTealFg, () => _dial(phone)),
+            if (phone.isNotEmpty)
+              action(Icons.phone, Loc.t('Call', 'کال کریں'), p.flatTealFg, onCall ?? () => unawaited(_dial(phone))),
+            if (onRabta != null) action(Icons.forum_outlined, Loc.t('Rabta', 'رابطہ'), accent, onRabta),
+            if (onQist != null) action(Icons.calendar_month_outlined, Loc.t('Qist', 'قسط'), accent, onQist),
             action(Icons.edit, Loc.t('Edit', 'ترمیم'), accent, onEdit),
             action(Icons.delete, Loc.t('Delete', 'حذف کریں'), p.red, onDelete, danger: true),
           ]),

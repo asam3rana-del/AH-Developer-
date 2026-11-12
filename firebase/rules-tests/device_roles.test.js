@@ -121,3 +121,16 @@ test('unprovisioned / unauthenticated: nothing; nobody can write branch_members'
   await assertFails(updateDoc(doc(as('u-cash'), 'branch_members/u-cash'), { role: 'admin' }));
   await assertFails(setDoc(doc(as('u-cash'), 'branch_members/u-cash'), { branchId: 'b1', role: 'admin' }));
 });
+
+test('crash_reports: any provisioned device can create its own short report; nobody can read / change it', async () => {
+  const report = (uid, extra = {}) => ({ text: 'CRASH at ...', at: 1, device: 'AB12', branchId: 'b1', app: 'Hanna POS', uid, ...extra });
+  await assertSucceeds(setDoc(doc(as('u-cash'), 'crash_reports/r1'), report('u-cash')));
+  await assertSucceeds(setDoc(doc(as('u-admin'), 'crash_reports/r2'), report('u-admin')));
+  await assertFails(setDoc(doc(as('u-cash'), 'crash_reports/r3'), report('u-admin')));                // someone else's uid
+  await assertFails(setDoc(doc(as('u-cash'), 'crash_reports/r4'), report('u-cash', { extra: 1 })));  // unknown field
+  await assertFails(setDoc(doc(as('u-cash'), 'crash_reports/r5'), report('u-cash', { text: 'x'.repeat(8001) })));
+  await assertFails(setDoc(doc(as('u-nobody'), 'crash_reports/r6'), report('u-nobody')));             // not provisioned
+  await assertFails(getDoc(doc(as('u-admin'), 'crash_reports/r1')));
+  await assertFails(updateDoc(doc(as('u-cash'), 'crash_reports/r1'), { text: 'y' }));
+  await assertFails(deleteDoc(doc(as('u-admin'), 'crash_reports/r1')));
+});
