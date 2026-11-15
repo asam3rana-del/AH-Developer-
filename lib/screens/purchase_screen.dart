@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -523,6 +524,18 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (f.hasFocus) c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length);
       });
+    });
+  }
+
+  /// SIRF list se haath se (tap) item chunne par: cursor Qty par aur keyboard khula rahe.
+  /// Tap par focus ek pal ke liye hat jata tha aur Android keyboard band kar deta tha. Keyboard se
+  /// (Enter/Next) wala flow bilkul pehle jaisa hai — yeh wahan chalta hi nahi.
+  void _onProductTapped(Product p) {
+    _onProductPicked(p);
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted || !_qtyFocus.hasFocus) return;
+      if (View.of(context).viewInsets.bottom > 0) return; // keyboard khula hai: kuch na karo
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
     });
   }
 
@@ -2060,7 +2073,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       if (text.text.trim().isEmpty) return const Iterable<Product>.empty();
                       return _products.where((p) => p.matchesQuery(text.text));
                     },
-                    onSelected: _onProductPicked,
+                    onSelected: _onProductTapped,
                     fieldViewBuilder: (context, controller, focusNode, onSubmit) => ValueListenableBuilder<TextEditingValue>(
                       valueListenable: controller,
                       builder: (context, value, _) => TextField(
