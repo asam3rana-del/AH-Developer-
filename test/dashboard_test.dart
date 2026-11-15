@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ah_developer_kiryana_store/db/dashboard_repository.dart';
+import 'package:ah_developer_kiryana_store/db/party_dashboard_repository.dart';
 import 'package:ah_developer_kiryana_store/models/misc_entities.dart';
 import 'package:ah_developer_kiryana_store/models/product.dart';
 
@@ -72,6 +73,30 @@ void main() {
       expect(syncPendingMessage(3, urdu: false), '⚠ 3 change(s) not yet synced to cloud — tap to check Sync History');
       expect(syncPendingMessage(3, urdu: true), contains('3'));
       expect(syncPendingMessage(3, urdu: true), contains('کلاؤڈ'));
+    });
+  });
+
+  group('dashboardPartySearch', () {
+    PartyRow row(int id, String name, String phone, bool isCustomer) =>
+        PartyRow(id: id, name: name, phone: phone, closing: 100, isCustomer: isCustomer);
+    final all = [
+      row(1, 'Ali Traders', '0300111', false),
+      row(2, 'Ali Khan', '0311222', true),
+      row(3, 'Bilal', '0300999', true),
+    ];
+    test('khali query => kuch nahi', () {
+      expect(dashboardPartySearch(all, '  '), isEmpty);
+    });
+    test('naam ya phone; customers pehle', () {
+      expect(dashboardPartySearch(all, 'ali').map((r) => r.id), [2, 1]);
+      expect(dashboardPartySearch(all, '0300').map((r) => r.id), [3, 1]);
+    });
+    test('filter chips', () {
+      expect(dashboardPartySearch(all, 'ali', suppliers: false).map((r) => r.id), [2]);
+      expect(dashboardPartySearch(all, 'ali', customers: false).map((r) => r.id), [1]);
+    });
+    test('cashier ko supplier nahi', () {
+      expect(dashboardPartySearch(all, 'ali', canSeeSuppliers: false).map((r) => r.id), [2]);
     });
   });
 

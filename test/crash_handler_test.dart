@@ -11,6 +11,16 @@ void main() {
     expect(t.contains('boom'), isTrue);
   });
 
+  test('isKnownBenign: only the Firestore transaction double-complete StateError', () {
+    final fs = StackTrace.fromString(
+        '#1 MethodChannelFirebaseFirestore.runTransaction.<anonymous closure> '
+        '(package:cloud_firestore_platform_interface/src/method_channel/method_channel_firestore.dart:290)');
+    expect(CrashHandler.isKnownBenign(StateError('Future already completed'), fs), isTrue);
+    expect(CrashHandler.isKnownBenign(StateError('Future already completed'), StackTrace.fromString('#0 other.dart:1')), isFalse);
+    expect(CrashHandler.isKnownBenign(StateError('different'), fs), isFalse);
+    expect(CrashHandler.isKnownBenign(Exception('Future already completed'), fs), isFalse);
+  });
+
   test('preview truncates past 3000 chars', () {
     expect(CrashHandler.preview('a' * 10), 'a' * 10);
     expect(CrashHandler.preview('a' * 3500).contains('truncated'), isTrue);

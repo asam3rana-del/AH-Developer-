@@ -77,6 +77,10 @@ void main() {
       expect(a, isNot(b));
       expect(BackupPasswordStore.minLength, 8);
     });
+
+    test('Keystore unavailable exception ka paighaam saaf hai', () {
+      expect(const BackupPasswordUnavailableException().toString(), contains('Naya password nahi banaya'));
+    });
   });
 
   group('BackupExport CSV', () {

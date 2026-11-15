@@ -9,6 +9,7 @@ import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/party_quick_add_menu.dart';
+import '../widgets/permission_guard.dart';
 import '../widgets/role_guard.dart';
 import '../db/due_reminders_repository.dart' show PartyDueStatus;
 import 'amanat_loan_screen.dart';
@@ -24,6 +25,7 @@ import 'reports_screen.dart';
 import 'sale_history_screen.dart';
 import 'sale_screen.dart';
 import 'settings_screen.dart';
+import '../services/permissions.dart';
 
 /// Mirrors PartyDashboardActivity.kt (+ PartyQuickAddMenu.kt ka "+" menu, chhota hissa).
 ///
@@ -307,12 +309,14 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
           _SheetItem(Icons.inventory_2_outlined, _blue, Loc.t('Products', 'پروڈکٹس'),
               Loc.t('Manage your inventory items', 'اپنے انوینٹری آئٹمز کا انتظام کریں'),
               () => _push(const RoleGuard(allowed: {'admin'}, child: ProductScreen()))),
-        if (Session.isAdminOrManager)
+        if (Permissions.canAnyReport())
           _SheetItem(Icons.trending_up, _purple, Loc.t('Reports', 'رپورٹس'),
               Loc.t('Sales, stock & financial overview', 'سیل، اسٹاک اور مالیاتی جائزہ'),
               () => _push(const ReportsScreen())),
-        _SheetItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Cash In/Out', 'کیش ان/آؤٹ'),
-            Loc.t('Record cash movements', 'کیش کی آمد و رفت درج کریں'), () => _push(const CashScreen())),
+        if (Permissions.can('cash_register'))
+          _SheetItem(Icons.account_balance_wallet_outlined, _green, Loc.t('Cash In/Out', 'کیش ان/آؤٹ'),
+              Loc.t('Record cash movements', 'کیش کی آمد و رفت درج کریں'),
+              () => _push(const PermissionGuard(permission: 'cash_register', child: CashScreen()))),
         _SheetItem(Icons.search, _green, Loc.t('Item Rate Search', 'آئٹم ریٹ سرچ'),
             Loc.t("Look up any item's price", 'کسی بھی آئٹم کی قیمت دیکھیں'), () => _push(const ItemSearchScreen())),
         _SheetItem(Icons.settings_outlined, _orange, Loc.t('Settings', 'سیٹنگز'),
@@ -527,7 +531,7 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
               style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold)),
         ),
         IconButton(
-          tooltip: Loc.t('Amanat / Loan', 'امانت / قرض'),
+          tooltip: Loc.t('Deposit / Loan', 'امانت / قرض'),
           icon: const Icon(Icons.savings_outlined, color: Colors.white),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AmanatLoanScreen())),
         ),
@@ -579,7 +583,7 @@ class _PartyDashboardScreenState extends State<PartyDashboardScreen> {
           Icon(Icons.savings_outlined, size: 22, color: p.flatPurpleFg),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(Loc.t('Amanat / Loan', 'امانت / قرض'),
+            child: Text(Loc.t('Deposit / Loan', 'امانت / قرض'),
                 style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: p.textDark)),
           ),
           Icon(Icons.chevron_right, color: p.textMuted),

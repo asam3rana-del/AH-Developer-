@@ -212,3 +212,36 @@ CustomerRateSuggestion? customerRateFor(
   if (inChosen <= 0) return null;
   return CustomerRateSuggestion(primary, inChosen);
 }
+
+/// Customer ka purana rate kyun nahi lagaya gaya.
+enum CustomerRateSkip { none, rateChanged, belowCost }
+
+class CustomerRateOutcome {
+  /// null => customer ka purana rate nahi lagana (item ka apna rate use ho).
+  final CustomerRateSuggestion? suggestion;
+  final CustomerRateSkip skip;
+  const CustomerRateOutcome(this.suggestion, this.skip);
+}
+
+/// [customerRateFor] + do hifazati rules:
+///  1. Item ka rate customer ki aakhri sale ke BAAD badla ho ([Product.ratesAt] > [lastSoldAt]) =>
+///     purana rate nahi lagta, item ka naya rate lagta hai.
+///  2. Purana rate item ke cost se kam ya barabar ho => nahi lagta (nuqsan se bachao).
+/// ratesAt / lastSoldAt / cost agar 0 (pata nahi) hon to wo rule skip hota hai.
+CustomerRateOutcome evaluateCustomerRate(
+  Product p, {
+  required double lastUnitPrice,
+  required String lastUnit,
+  required String chosenUnit,
+  int lastSoldAt = 0,
+}) {
+  final s = customerRateFor(p, lastUnitPrice: lastUnitPrice, lastUnit: lastUnit, chosenUnit: chosenUnit);
+  if (s == null) return const CustomerRateOutcome(null, CustomerRateSkip.none);
+  if (p.ratesAt > 0 && lastSoldAt > 0 && p.ratesAt > lastSoldAt) {
+    return const CustomerRateOutcome(null, CustomerRateSkip.rateChanged);
+  }
+  if (p.cost > 0 && s.primaryRate <= p.cost) {
+    return const CustomerRateOutcome(null, CustomerRateSkip.belowCost);
+  }
+  return CustomerRateOutcome(s, CustomerRateSkip.none);
+}

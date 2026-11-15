@@ -38,6 +38,16 @@ service cloud.firestore {
           && branchId == myBranchId();
     }
 
+    // Reads of a document that does not exist yet (resource == null) must not error out:
+    // the sync push reads each doc inside a transaction before creating it, and
+    // resource.data.* on a missing doc makes the rule fail with PERMISSION_DENIED.
+    // A provisioned member may read "nothing"; an existing doc must be in their branch.
+    function canRead() {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/branch_members/$(request.auth.uid))
+          && (resource == null || resource.data.branchId == myBranchId());
+    }
+
     function hasBranchId() {
       return request.resource.data.branchId is string
           && request.resource.data.branchId.size() > 0;
@@ -75,9 +85,32 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Due Reminders follow-up log (collection due_followups): same branch rules as every
+    // synced collection, plus field validation. due_followups is deliberately NOT in
+    // isSyncedCollection() above — Firestore ORs matching rules, so leaving it there would
+    // let the generic rule below bypass validFollowup().
+    function validFollowup() {
+      let d = request.resource.data;
+      return hasBranchId()
+          && d.method in ['whatsapp', 'call', 'visit', 'sms', 'note']
+          && d.outcome in ['sent', 'paid', 'promised', 'partial',
+                           'no_answer', 'refused', 'dispute', 'note']
+          && (d.get('amount', null) == null || (d.amount is number && d.amount >= 0))
+          && (d.get('promiseDate', null) == null || d.promiseDate is number)
+          && (d.get('nextFollowUp', null) == null || d.nextFollowUp is number)
+          && (!('note' in d) || d.note == null || (d.note is string && d.note.size() <= 500));
+    }
+
+    match /due_followups/{docId} {
+      allow read: if canRead();
+      allow create: if isMyBranch(request.resource.data.branchId) && validFollowup();
+      allow update: if isMyBranch(resource.data.branchId)
+                     && branchIdUnchanged() && validFollowup();
+      allow delete: if isMyBranch(resource.data.branchId);
+    }
+
     match /{collection}/{docId} {
-      allow read: if isSignedIn() && isSyncedCollection(collection)
-                   && isMyBranch(resource.data.branchId);
+      allow read: if isSyncedCollection(collection) && canRead();
       allow create: if isSignedIn() && isSyncedCollection(collection)
                      && hasBranchId() && isMyBranch(request.resource.data.branchId);
       allow update: if isSignedIn() && isSyncedCollection(collection)
@@ -85,6 +118,18 @@ service cloud.firestore {
                      && isMyBranch(resource.data.branchId);
       allow delete: if isSignedIn() && isSyncedCollection(collection)
                      && isMyBranch(resource.data.branchId);
+    }
+
+    // Crash reports: app ki ghalti (stack trace) developer ko — sirf banana, branch member device, chhota text,
+    // apna uid. Padhna / badalna / mitana app se nahi (sirf Firebase console). lib/services/crash_reporter.dart.
+    match /crash_reports/{docId} {
+      allow create: if isSignedIn()
+                    && exists(/databases/$(database)/documents/branch_members/$(request.auth.uid))
+                    && request.resource.data.keys().hasOnly(['text', 'at', 'device', 'branchId', 'app', 'uid'])
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() <= 8000
+                    && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if false;
     }
 
     // Deny everything else by default.

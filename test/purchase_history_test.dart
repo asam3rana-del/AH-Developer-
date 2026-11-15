@@ -34,6 +34,9 @@ void main() {
     expect(filterPurchaseRows(rows, 'ali').length, 1);
     expect(filterPurchaseRows(rows, '0002').single.supplierName, 'Cash Purchase');
     expect(filterPurchaseRows(rows, '  ').length, 2);
+    // item ke naam se bhi search
+    final byItem = filterPurchaseRows(rows, 'capstan', itemText: {rows.first.billNo: 'capstan gold '});
+    expect(byItem.single.billNo, rows.first.billNo);
   });
 
   group('parseReturnRequest (Kotlin dialog validation)', () {
@@ -45,6 +48,8 @@ void main() {
 
     test('nothing entered => error', () {
       expect(parseReturnRequest(lines, {1: '', 2: ' '}).error, isNotNull);
+      expect(parseReturnRequest(lines, {1: 'NaN'}).error, isNotNull);
+      expect(parseReturnRequest(lines, {1: 'Infinity'}).error, isNotNull);
     });
 
     test('more than purchased => error', () {

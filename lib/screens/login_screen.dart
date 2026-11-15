@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:firebase_auth/firebase_auth.dart' show PhoneAuthCredential;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
@@ -10,6 +11,7 @@ import '../services/app_lock.dart';
 import '../services/biometric.dart';
 import '../services/otp_login.dart';
 import '../services/session.dart';
+import '../services/staff_auth.dart';
 import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
 import 'dashboard_screen.dart';
@@ -41,6 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _showPass = false;
   bool _fingerprintOnly = false;
   bool _otpMode = false;
+  bool _cloudAttempted = false;
   String? _verificationId;
   String? _error;
 
@@ -156,10 +159,62 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // Ghalat password par brute-force rokne ke liye: 5 ghalat koshishon ke baad 30 second ruk.
+  // FIX: pehle sirf memory mein tha — app band-khol kar lockout khatam. Ab SharedPreferences mein (sirf is device
+  // par, sync nahi) aur har lockout pichhle se dugna (30 s, 1 m, 2 m ... 15 min tak).
+  static const _kFail = 'login_fail_count';
+  static const _kLockUntil = 'login_lock_until_ms';
+  static const _kLockLevel = 'login_lock_level';
   static int _failCount = 0;
   static DateTime? _lockUntil;
+  static bool _lockLoaded = false;
+
+  static Future<void> _loadLock() async {
+    if (_lockLoaded) return;
+    _lockLoaded = true;
+    try {
+      final p = await SharedPreferences.getInstance();
+      _failCount = p.getInt(_kFail) ?? 0;
+      final ms = p.getInt(_kLockUntil) ?? 0;
+      _lockUntil = ms > 0 ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
+    } catch (_) {}
+  }
+
+  static Future<void> _recordFailure() async {
+    _failCount++;
+    try {
+      final p = await SharedPreferences.getInstance();
+      if (_failCount >= 5) {
+        final level = (p.getInt(_kLockLevel) ?? 0) + 1;
+        final shift = level - 1 > 5 ? 5 : level - 1;
+        final raw = 30 * (1 << shift);
+        final secs = raw > 900 ? 900 : raw;
+        _failCount = 0;
+        _lockUntil = DateTime.now().add(Duration(seconds: secs));
+        await p.setInt(_kLockLevel, level);
+        await p.setInt(_kLockUntil, _lockUntil!.millisecondsSinceEpoch);
+      }
+      await p.setInt(_kFail, _failCount);
+    } catch (_) {
+      if (_failCount >= 5) {
+        _failCount = 0;
+        _lockUntil = DateTime.now().add(const Duration(seconds: 30));
+      }
+    }
+  }
+
+  static Future<void> _clearFailures() async {
+    _failCount = 0;
+    _lockUntil = null;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.remove(_kFail);
+      await p.remove(_kLockUntil);
+      await p.remove(_kLockLevel);
+    } catch (_) {}
+  }
 
   Future<void> _login() async {
+    await _loadLock();
     final until = _lockUntil;
     if (until != null && DateTime.now().isBefore(until)) {
       final secs = until.difference(DateTime.now()).inSeconds + 1;
@@ -198,10 +253,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
     if (!ok) {
-      if (++_failCount >= 5) {
-        _failCount = 0;
-        _lockUntil = DateTime.now().add(const Duration(seconds: 30));
-      }
+      await _recordFailure();
       final msg = user == null
           ? Loc.t('User not found: "$username"', 'یوزر نہیں ملا: "$username"')
           : !user.active
@@ -209,7 +261,17 @@ class _LoginScreenState extends State<LoginScreen> {
               : Loc.t('Wrong password', 'پاس ورڈ غلط ہے');
       return setState(() { _busy = false; _error = msg; });
     }
-    _failCount = 0;
+    await _clearFailures();
+    // Secure staff cloud login (opt-in). Local login kabhi block nahi hota; cloud nakaam ho to sirf sync ruki rehti hai.
+    _cloudAttempted = false;
+    if (await StaffAuth.isEnabled()) {
+      _cloudAttempted = true; // password se already koshish ho gayi: _completeLogin dobara na poochhe
+      final cloudOk = await StaffAuth.signIn(user!.username, typed);
+      if (!cloudOk && mounted) {
+        _toast(Loc.t('Cloud sync login failed: ${StaffAuth.lastError} (working offline)',
+            'کلاؤڈ لاگ اِن ناکام: ${StaffAuth.lastError} (آف لائن چل رہا ہے)'));
+      }
+    }
     await _repo.setSetting('last_username', user!.username);
     final method = await _repo.getSetting('login_method') ?? 'password';
     if (method == 'both') {
@@ -272,8 +334,48 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _completeLogin(User user) async {
+    await _ensureCloudSession(user);
     await Session.start(user);
     _goMain();
+  }
+
+  /// Secure cloud login ON ho aur is user ka verified cloud session na ho (OTP / fingerprint / \"none\" login:
+  /// in mein password hota hi nahi), to cloud password ek dafa poochho. Skip karne par app offline chalti hai,
+  /// sync \"not signed in\" rehti hai. Server kabhi sirf OTP / fingerprint ki bunyad par cloud access nahi deta.
+  Future<void> _ensureCloudSession(User user) async {
+    if (_cloudAttempted || !await StaffAuth.isEnabled()) return;
+    if (await StaffAuth.hasSessionFor(user.username)) return;
+    if (!mounted) return;
+    final field = TextEditingController();
+    final typed = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Cloud sign-in', 'کلاؤڈ سائن اِن')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(Loc.t('Enter ${user.displayName}\'s cloud password to sync. Skip to work offline.',
+              'سنک کے لیے ${user.displayName} کا کلاؤڈ پاس ورڈ لکھیں۔ آف لائن کام کے لیے Skip دبائیں۔')),
+          const SizedBox(height: 10),
+          TextField(
+            controller: field,
+            obscureText: true,
+            decoration: InputDecoration(hintText: Loc.t('Cloud password', 'کلاؤڈ پاس ورڈ')),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Skip', 'چھوڑیں'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, field.text), child: Text(Loc.t('Sign in', 'سائن اِن'))),
+        ],
+      ),
+    );
+    // field.dispose() jaan boojh kar nahi (dialog animation abhi controller use kar rahi hoti hai).
+    if (typed == null || typed.isEmpty) {
+      _toast(Loc.t('Working offline (cloud not signed in)', 'آف لائن چل رہا ہے (کلاؤڈ سائن اِن نہیں)'));
+      return;
+    }
+    if (!await StaffAuth.signIn(user.username, typed)) {
+      _toast(Loc.t('Cloud sign-in failed: ${StaffAuth.lastError} (working offline)',
+          'کلاؤڈ سائن اِن ناکام: ${StaffAuth.lastError} (آف لائن چل رہا ہے)'));
+    }
   }
 
   /// "Both" mode: password ke baad fingerprint bhi verify.
@@ -439,6 +541,12 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: _busy ? null : _sendOtp,
             child: Text(_verificationId == null ? Loc.t('SEND OTP', 'OTP بھیجیں') : Loc.t('RESEND OTP', 'دوبارہ OTP بھیجیں')),
           ),
+        ),
+        // Lockout se bachao: OTP SMS na aaye (quota / network / Firebase setup) to password se login.
+        // Sirf is screen ke liye; Settings ka login_method nahi badalta.
+        TextButton(
+          onPressed: _busy ? null : () => setState(() { _otpMode = false; _error = null; }),
+          child: Text(Loc.t('OTP not coming? Login with password', 'OTP نہیں آ رہا؟ پاس ورڈ سے لاگ اِن کریں')),
         ),
         if (_verificationId != null) ...[
           const SizedBox(height: 12),

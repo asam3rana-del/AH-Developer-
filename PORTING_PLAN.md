@@ -84,3 +84,6 @@ Sale edit/delete sirf admin; History mein profit sirf admin; naye sale mein due 
    pehli `ensureCharges` par ek baar khud push hoti hain. Firestore rules + indexes (root aur `firebase/`) dobara deploy karein.
    Agar do device ek hi mahine ka "advance se katna" alag alag chala dein to doosra apply nahi hota (Sync History mein conflict;
    Rent Expense double ho sakta hai — check karein). Test: `test/shop_rent_sync_test.dart`. Kotlin `.kt` files ab repo mein nahi (sirf `kotlin_reference/config/`).
+
+
+> **Update (2026-10-25):** Port complete hai, is liye `kotlin_reference/` folder hata diya gaya. Flutter code hi asal aur zyada updated source hai. Ab se koi bhi tabdeeli seedha `lib/` mein karein; upar ki `kotlin_reference` wali hidayaat purani hain.

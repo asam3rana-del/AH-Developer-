@@ -7,7 +7,7 @@ import '../models/product.dart';
 import '../models/stock_movement.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
-import '../widgets/role_guard.dart';
+import '../widgets/permission_guard.dart';
 
 enum StockMovementMode { stock, cost }
 
@@ -26,8 +26,8 @@ class StockMovementScreen extends StatelessWidget {
   const StockMovementScreen({super.key, this.mode = StockMovementMode.stock, this.initialBarcode});
 
   @override
-  Widget build(BuildContext context) => RoleGuard(
-        allowed: const {'admin', 'manager'},
+  Widget build(BuildContext context) => PermissionGuard(
+        permission: mode == StockMovementMode.cost ? 'cost_history' : 'stock_history',
         child: _StockMovementBody(mode: mode, initialBarcode: initialBarcode),
       );
 }

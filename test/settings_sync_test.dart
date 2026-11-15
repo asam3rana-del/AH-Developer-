@@ -123,6 +123,16 @@ void main() {
       expect(d.blocked, isFalse);
     });
 
+    test('project badle aur pending ho => blocked, pending na ho to allow', () {
+      final blocked = decideCloudSetupSave(
+          branchConfigured: true, oldBranch: 'a1', newBranch: 'a1', pendingCount: 4, projectChanged: true);
+      expect(blocked.blocked, isTrue);
+      expect(blocked.pending, 4);
+      final ok = decideCloudSetupSave(
+          branchConfigured: true, oldBranch: 'a1', newBranch: 'a1', pendingCount: 0, projectChanged: true);
+      expect(ok.blocked, isFalse);
+    });
+
     test('pendingCount sirf un-synced rows ginta hai', () async {
       await _q(db, id: 'a');
       await _q(db, id: 'b', synced: 5);

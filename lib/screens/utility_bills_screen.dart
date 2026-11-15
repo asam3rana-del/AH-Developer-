@@ -94,14 +94,14 @@ IconData _kindIcon(String k) {
 String _dateLabel(DateTime d) => DateFormat('d MMM yyyy').format(d);
 
 ({String text, Color color}) _statusChip(BillStatus s) {
-  if (s.paid) return (text: Loc.t('Paid', 'ادا شدہ'), color: Colors.green.shade700);
+  if (s.paid) return (text: Loc.t('Paid', 'ادا شدہ'), color: ThemeManager.palette.teal);
   if (s.overdue) {
-    return (text: Loc.t('Overdue ${-s.daysLeft}d', '${-s.daysLeft} دن لیٹ'), color: Colors.red.shade700);
+    return (text: Loc.t('Overdue ${-s.daysLeft}d', '${-s.daysLeft} دن لیٹ'), color: ThemeManager.palette.red);
   }
-  if (s.dueToday) return (text: Loc.t('Due today', 'آج آخری تاریخ'), color: Colors.red.shade700);
-  if (s.dueTomorrow) return (text: Loc.t('Due tomorrow', 'کل آخری تاریخ'), color: Colors.orange.shade800);
-  if (s.daysLeft <= 5) return (text: Loc.t('In ${s.daysLeft} days', '${s.daysLeft} دن باقی'), color: Colors.orange.shade800);
-  return (text: Loc.t('In ${s.daysLeft} days', '${s.daysLeft} دن باقی'), color: Colors.blueGrey.shade600);
+  if (s.dueToday) return (text: Loc.t('Due today', 'آج آخری تاریخ'), color: ThemeManager.palette.red);
+  if (s.dueTomorrow) return (text: Loc.t('Due tomorrow', 'کل آخری تاریخ'), color: ThemeManager.palette.amber);
+  if (s.daysLeft <= 5) return (text: Loc.t('In ${s.daysLeft} days', '${s.daysLeft} دن باقی'), color: ThemeManager.palette.amber);
+  return (text: Loc.t('In ${s.daysLeft} days', '${s.daysLeft} دن باقی'), color: ThemeManager.palette.textMuted);
 }
 
 class UtilityBillsScreen extends StatefulWidget {
@@ -219,8 +219,8 @@ class _UtilityBillsScreenState extends State<UtilityBillsScreen> {
             },
           ),
           ListTile(
-            leading: Icon(Icons.delete_outline, color: Colors.red.shade700),
-            title: Text(Loc.t('Delete bill', 'بل ہٹائیں'), style: TextStyle(color: Colors.red.shade700)),
+            leading: Icon(Icons.delete_outline, color: ThemeManager.palette.red),
+            title: Text(Loc.t('Delete bill', 'بل ہٹائیں'), style: TextStyle(color: ThemeManager.palette.red)),
             onTap: () {
               Navigator.pop(c);
               _delete(v.bill);
@@ -253,7 +253,7 @@ class _UtilityBillsScreenState extends State<UtilityBillsScreen> {
             const SizedBox(height: 4),
             Text('$overdue',
                 style: TextStyle(
-                    color: overdue > 0 ? Colors.red.shade700 : p.textDark, fontSize: 22, fontWeight: FontWeight.bold)),
+                    color: overdue > 0 ? ThemeManager.palette.red : p.textDark, fontSize: 22, fontWeight: FontWeight.bold)),
           ]),
         ),
         Expanded(
@@ -473,7 +473,7 @@ class _BillFormState extends State<_BillForm> {
               title: Text(Loc.t('Active', 'چالو')),
               subtitle: Text(Loc.t('Turn off if you no longer pay this bill', 'اگر یہ بل اب نہیں بھرتے تو بند کر دیں')),
             ),
-          if (_error != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error!, style: TextStyle(color: Colors.red.shade700))),
+          if (_error != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error!, style: TextStyle(color: ThemeManager.palette.red))),
         ]),
       ),
       actions: [
@@ -561,7 +561,7 @@ class _PayDialogState extends State<_PayDialog> {
             title: Text(Loc.t('Also record in Expense & Cash', 'اخراجات اور کیش میں بھی لکھیں')),
             subtitle: Text(Loc.t('Turn off if you already entered this payment', 'اگر یہ ادائیگی پہلے لکھ چکے ہیں تو بند کریں')),
           ),
-          if (_error != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error!, style: TextStyle(color: Colors.red.shade700))),
+          if (_error != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error!, style: TextStyle(color: ThemeManager.palette.red))),
         ]),
       ),
       actions: [

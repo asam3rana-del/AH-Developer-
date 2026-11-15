@@ -33,6 +33,10 @@ void main() {
     test('null (gina nahi) theek', () => expect(validateCount(p, null), isNull));
     test('0 theek — asal gintee zero', () => expect(validateCount(p, 0), isNull));
     test('manfi rad', () => expect(validateCount(p, -1), isNotNull));
+    test('NaN / Infinity rad', () {
+      expect(validateCount(p, double.nan), isNotNull);
+      expect(validateCount(p, double.infinity), isNotNull);
+    });
     test('piece item mein fraction rad', () => expect(validateCount(p, 1.5), isNotNull));
     test('poori gintee theek', () => expect(validateCount(p, 8), isNull));
   });

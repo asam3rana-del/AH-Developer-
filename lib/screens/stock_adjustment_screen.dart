@@ -4,7 +4,7 @@ import '../db/stock_adjustment_repository.dart';
 import '../models/product.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
-import '../widgets/role_guard.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors StockAdjustmentActivity.kt — item dhoondo, phir "Damage / Loss" (hamesha stock ghatata hai,
 /// Damage/Loss report ko feed karta hai) ya "Correction" (+ ya -, recount / entry ki ghalti) darj karo.
@@ -20,8 +20,8 @@ class StockAdjustmentScreen extends StatelessWidget {
   const StockAdjustmentScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const RoleGuard(
-        allowed: {'admin', 'manager'},
+  Widget build(BuildContext context) => const PermissionGuard(
+        permission: 'stock_adjustment',
         child: _StockAdjustmentBody(),
       );
 }

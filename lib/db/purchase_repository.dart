@@ -1,4 +1,5 @@
 
+import '../utils/qty_math.dart';
 import '../sync/device_tag.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
@@ -12,12 +13,14 @@ import '../utils/purchase_calc.dart' show roundBillTotal;
 import '../utils/split_payment.dart';
 import '../utils/stock_touch_policy.dart';
 import 'app_database.dart';
+import 'cost_backfill.dart';
 import 'party_transaction_repository.dart' show addPurchaseLineCost, purchaseItemSmallestQty, reversePurchaseLineCost;
 import 'product_repository.dart';
 import 'sale_repository.dart' show subtractLinkedPaid;
 import '../sync/sync_queue_helper.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
+import 'unit_cost.dart';
 
 /// One line the user has added to the purchase before saving — mirrors
 /// `data class PurchaseLine` in PurchaseRepository.kt.
@@ -497,6 +500,9 @@ class PurchaseRepository {
         'supplierInvoiceNo': invoiceNo,
       });
 
+      // costPending: jin barcodes ka stock/cost is save mein badla, unki sale-line cost backfill dobara.
+      final backfillBarcodes = <String>{...reversedBarcodes};
+
       // ---- stock + weighted-average cost + rates (sirf badli/nayi lines)
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];
@@ -547,6 +553,7 @@ class PurchaseRepository {
               unitCost: newCost,
               now: now);
           touched = true;
+          backfillBarcodes.add(barcode);
         }
 
         // Retail / wholesale: 0 = "na badlo". Rule (DATE WISE): product par us item ki sab se nayi BILL-DATE
@@ -580,6 +587,11 @@ class PurchaseRepository {
           }
         }
         if (touched) await _enqueueProduct(txn, barcode);
+      }
+
+      // costPending: minus stock par bani sale lines ki cost ab is purchase ke rate se (edit mein purani wapas).
+      for (final bc in backfillBarcodes) {
+        await CostBackfill.reallocateBill(txn, billNo: billNo, barcode: bc);
       }
 
       // ---- edit ke baad bhi stock minus ho to rok do (poora transaction rollback)
@@ -656,9 +668,8 @@ class PurchaseRepository {
 
     // Stock is purchase se kam reh gaya (baad ki sale): stock beech mein minus jane do, cost ki value alag
     // rakho; akhri check savePurchase mein hota hai (nayi qty add hone ke baad).
-    if (product.stock < smallest || pendingValue.containsKey(it.barcode)) {
-      final factor = product.smallestUnitFactor();
-      final costPer = factor > 0 ? product.cost / factor : product.cost;
+    if (!hasEnoughStock(product.stock, smallest) || pendingValue.containsKey(it.barcode)) {
+      final costPer = costPerSmallestOf(product.cost, product.smallestUnitFactor());
       final current = pendingValue[it.barcode] ?? (product.stock * costPer);
       final value = (current - it.amount) < 0 ? 0.0 : (current - it.amount);
       pendingValue[it.barcode] = value;
@@ -686,7 +697,7 @@ class PurchaseRepository {
       smallestQtyToRemove: smallest,
     );
     final n = await txn.rawUpdate(
-      'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock >= ?',
+      'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + $kStockEpsilon >= ?',
       [smallest, newCost, now, it.barcode, smallest],
     );
     if (n == 0) {

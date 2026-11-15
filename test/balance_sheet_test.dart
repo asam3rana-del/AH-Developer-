@@ -16,6 +16,7 @@ BalanceSheetFigures sheet({
   double sales = 0,
   double cogs = 0,
   double exp = 0,
+  double income = 0,
 }) =>
     buildBalanceSheet(
       cashIn: cashIn,
@@ -30,6 +31,7 @@ BalanceSheetFigures sheet({
       sales: sales,
       cogs: cogs,
       expenses: exp,
+      otherIncome: income,
     );
 
 typedef Bill = ({String id, String status, double total, double paid});
@@ -41,6 +43,11 @@ Pay pay(double amount, {String ref = 'manual-x', String billRef = ''}) =>
     (reference: ref, billReference: billRef, amount: amount);
 
 void main() {
+  test('Other Income net profit mein judti hai', () {
+    final f = sheet(sales: 2000, cogs: 1200, exp: 100, income: 300);
+    expect(f.netProfit, 1000);
+  });
+
   test('assets, liabilities and profit add up', () {
     final f = sheet(
         cashIn: 1000, cashOut: 200, bankIn: 500, bankOut: 100, stock: 300, recv: 150, advSup: 50, pay: 400, advCus: 20,
@@ -111,5 +118,36 @@ void main() {
     final bad = PartyLedger(storedBalance: 0, bills: [bill('B', 1000, 400)], payments: const []);
     expect(countBalanceDrift([ok, bad]), 1);
     expect(countBalanceDrift([ok]), 0);
+  });
+
+  test('Owner capital / drawings split the capital, totals still balance', () {
+    final f = buildBalanceSheet(
+      cashIn: 70000,
+      cashOut: 5000,
+      bankIn: 0,
+      bankOut: 0,
+      stockValue: 10000,
+      receivables: 0,
+      advancePaidToSuppliers: 0,
+      payables: 0,
+      advanceFromCustomers: 0,
+      sales: 0,
+      cogs: 0,
+      expenses: 0,
+      ownerCapitalIn: 70000,
+      ownerDrawings: 5000,
+    );
+    // Assets 75,000 = capital in 70,000 - drawings 5,000 + opening stock 10,000 (other)
+    expect(f.capital, closeTo(75000, 1e-9));
+    expect(f.openingAndOther, closeTo(10000, 1e-9));
+    expect(f.ownerCapitalIn - f.ownerDrawings + f.openingAndOther + f.netProfit + f.totalLiabilities,
+        closeTo(f.totalAssets, 1e-9));
+  });
+
+  test('Without owner entries everything stays in "opening & other" (old behaviour)', () {
+    final f = sheet(cashIn: 50000, stock: 6500);
+    expect(f.ownerCapitalIn, 0);
+    expect(f.ownerDrawings, 0);
+    expect(f.openingAndOther, closeTo(f.capital, 1e-9));
   });
 }

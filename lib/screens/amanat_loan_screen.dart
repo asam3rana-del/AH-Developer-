@@ -4,16 +4,17 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../db/due_reminders_repository.dart';
 import '../db/party_repository.dart' show SavePartyResult;
-import '../sync/settings_sync.dart';
+import '../models/return_entry.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
+import '../widgets/contact_pick_button.dart';
 
 /// Dashboard ki "Amanat / Loan" screen.
 ///
 /// Sab Amanat (customer ne paisa rakhwaya) aur Loan (dukaan ne udhar diya) wali parties ek jagah:
-/// balance, wapsi ki tarikh, aur SYNC ki halat (Synced / Pending). Upar "Sync Now" button.
+/// balance aur wapsi ki tarikh. Sync sirf dashboard header ke Sync button se.
 /// Sab kaam yahin: "Add" (maujooda customer ko Amanat/Loan banao ya nayi party), card par tap = tarikh,
 /// card ka menu = Amanat/Loan se hatao ya party delete.
 ///
@@ -37,11 +38,8 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
   final _dateFmt = DateFormat('d MMM yyyy');
 
   bool _loading = true;
-  bool _syncing = false;
-  int _filter = 0; // 0 = sab, 1 = Amanat, 2 = Loan
+  int _filter = 0; // 0 = sab, 1 = Deposit, 2 = Loan
   List<ReturnReminder> _all = const [];
-  Set<int> _pending = const {};
-  int? _lastSyncedAt;
 
   AppPalette get _p => ThemeManager.palette;
 
@@ -67,40 +65,24 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
 
   Future<void> _load({bool showSpinner = true}) async {
     if (showSpinner) setState(() => _loading = true);
-    final list = await _repo.returnReminders();
-    final pending = await _repo.pendingReturnPartyIds();
-    if (!mounted) return;
-    setState(() {
-      _all = list;
-      _pending = pending;
-      _loading = false;
-    });
+    try {
+      final list = await _repo.returnReminders();
+      if (!mounted) return;
+      setState(() {
+        _all = list;
+      });
+    } catch (_) {
+      if (mounted) _toast(Loc.t('Could not load the list', 'فہرست لوڈ نہیں ہو سکی'));
+    } finally {
+      // Ghalti par bhi spinner na atke (pehle list khali dikhti, spinner chalta rehta).
+      if (mounted && _loading) setState(() => _loading = false);
+    }
   }
 
   void _toast(String msg) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  Future<void> _syncNow() async {
-    if (_syncing) return;
-    setState(() => _syncing = true);
-    try {
-      final summary = await SettingsSync.syncNow();
-      if (!mounted) return;
-      if (summary == null) {
-        _toast(Loc.t('No internet connection', 'انٹرنیٹ کنکشن نہیں'));
-      } else {
-        _lastSyncedAt = DateTime.now().millisecondsSinceEpoch;
-        _toast(summary);
-      }
-    } catch (_) {
-      if (mounted) _toast(Loc.t('Sync failed', 'سنک ناکام'));
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-      await _load(showSpinner: false);
-    }
   }
 
   Future<void> _pickReturnDate(ReturnReminder r) async {
@@ -140,38 +122,154 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
   }
 
   Future<void> _add() async {
-    final res = await showModalBottomSheet<_AddResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: _p.cardWhite,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-      builder: (_) => _AddSheet(repo: _repo),
-    );
+    final res = await _showSheet<_AddResult>(context, (_) => _AddSheet(repo: _repo));
     if (res == null || !mounted) return;
     if (res.existingId != null) {
-      final ok = await _repo.tagParty(partyId: res.existingId!, kind: res.kind, returnDateMillis: res.returnDate);
-      if (!ok && mounted) _toast(Loc.t('This party no longer exists', 'یہ پارٹی اب موجود نہیں'));
+      if (res.amount > 0) {
+        final out = await _repo.addReturnEntry(
+          partyId: res.existingId!,
+          kind: res.kind,
+          amount: res.amount,
+          dateMillis: res.date,
+          returnDateMillis: res.returnDate,
+          note: res.note,
+        );
+        if (mounted) _toastForResult(out);
+      } else {
+        final ok = await _repo.tagParty(partyId: res.existingId!, kind: res.kind, returnDateMillis: res.returnDate);
+        if (!ok && mounted) _toast(Loc.t('This party no longer exists', 'یہ پارٹی اب موجود نہیں'));
+      }
     } else {
       final r = await _repo.addNewReturnParty(
         name: res.name,
         phone: res.phone,
         kind: res.kind,
         returnDateMillis: res.returnDate,
-        openingBalance: res.openingBalance,
+        amount: res.amount,
+        dateMillis: res.date,
+        note: res.note,
       );
       if (r == SavePartyResult.nameRequired && mounted) _toast(Loc.t('Name is required', 'نام ضروری ہے'));
     }
     if (mounted) await _load(showSpinner: false);
   }
 
-  Future<void> _edit(ReturnReminder r) async {
-    final res = await showModalBottomSheet<_AddResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: _p.cardWhite,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-      builder: (_) => _AddSheet(repo: _repo, initial: r),
+  void _toastForResult(ReturnEntryResult out) {
+    switch (out) {
+      case ReturnEntryResult.ok:
+        break;
+      case ReturnEntryResult.notFound:
+        _toast(Loc.t('This party no longer exists', 'یہ پارٹی اب موجود نہیں'));
+      case ReturnEntryResult.kindMismatch:
+        _toast(Loc.t('This party is already the other type (Deposit/Loan). Remove it from Deposit / Loan first.',
+            'یہ پارٹی پہلے سے دوسری قسم (امانت/قرض) کی ہے۔ پہلے اسے امانت / قرض سے ہٹائیں۔'));
+      case ReturnEntryResult.invalidAmount:
+        _toast(Loc.t('Enter a valid amount', 'درست رقم لکھیں'));
+      case ReturnEntryResult.nothingToSettle:
+        _toast(Loc.t('No pending entry left to settle', 'واپس / وصول کرنے کے لیے کوئی انٹری باقی نہیں'));
+    }
+  }
+
+  /// Is party ko ek aur loan / amanat dena (ya customer ne ek aur amanat rakhwayi).
+  Future<void> _addAnother(ReturnReminder r) async {
+    final res = await _showSheet<_AddResult>(context, (_) => _AddSheet(repo: _repo, party: r));
+    if (res == null || !mounted) return;
+    final out = await _repo.addReturnEntry(
+      partyId: r.partyId,
+      kind: r.kind,
+      amount: res.amount,
+      dateMillis: res.date,
+      returnDateMillis: res.returnDate,
+      note: res.note,
     );
+    if (mounted) _toastForResult(out);
+    if (mounted) await _load(showSpinner: false);
+  }
+
+  /// Amanat wapas karo / Loan wasool karo: raqam + Cash/Bank chun kar. Balance aur cash register dono update.
+  Future<void> _settle(ReturnReminder r) async {
+    final total = returnEntriesTotal(r.entries);
+    if (total <= 0) {
+      _toast(Loc.t('No pending entry left to settle', 'واپس / وصول کرنے کے لیے کوئی انٹری باقی نہیں'));
+      return;
+    }
+    final ctrl = TextEditingController(text: total == total.roundToDouble() ? total.toStringAsFixed(0) : total.toStringAsFixed(2));
+    var method = 'cash';
+    String? err;
+    final res = await showDialog<({double amount, String method})>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: Text(r.isAmanat
+              ? Loc.t('Return Deposit', 'امانت واپس کریں')
+              : Loc.t('Collect Loan', 'قرض وصول کریں')),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${r.partyName} — ${Loc.t('pending', 'باقی')}: ${_rs(total)}'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: Loc.t('Amount', 'رقم'), errorText: err),
+            ),
+            const SizedBox(height: 10),
+            SegmentedButton<String>(
+              segments: [
+                ButtonSegment(value: 'cash', label: Text(Loc.t('Cash', 'کیش'))),
+                ButtonSegment(value: 'bank', label: Text(Loc.t('Bank', 'بینک'))),
+              ],
+              selected: {method},
+              onSelectionChanged: (v) => setS(() => method = v.first),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              r.isAmanat
+                  ? Loc.t('Cash OUT will be recorded.', 'کیش آؤٹ درج ہوگا۔')
+                  : Loc.t('Cash IN will be recorded.', 'کیش اِن درج ہوگا۔'),
+              style: TextStyle(fontSize: 12, color: _p.textMuted),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
+            TextButton(
+              onPressed: () {
+                final v = double.tryParse(ctrl.text.trim().replaceAll(',', ''));
+                if (v == null || !v.isFinite || v <= 0) {
+                  setS(() => err = Loc.t('Enter a valid amount', 'درست رقم لکھیں'));
+                  return;
+                }
+                if (v > total + 0.009) {
+                  setS(() => err = Loc.t('More than pending (${_rs(total)})', 'باقی رقم (${_rs(total)}) سے زیادہ ہے'));
+                  return;
+                }
+                Navigator.pop(ctx, (amount: v, method: method));
+              },
+              child: Text(r.isAmanat ? Loc.t('Return', 'واپس') : Loc.t('Collect', 'وصول')),
+            ),
+          ],
+        ),
+      ),
+    );
+    ctrl.dispose();
+    if (res == null || !mounted) return;
+    final out = await _repo.settleReturn(partyId: r.partyId, amount: res.amount, method: res.method);
+    if (!mounted) return;
+    _toastForResult(out);
+    if (out == ReturnEntryResult.ok) {
+      _toast(r.isAmanat
+          ? Loc.t('Deposit returned — Cash OUT recorded', 'امانت واپس — کیش آؤٹ درج ہو گیا')
+          : Loc.t('Loan collected — Cash IN recorded', 'قرض وصول — کیش اِن درج ہو گیا'));
+    }
+    await _load(showSpinner: false);
+  }
+
+  Future<void> _openEntries(ReturnReminder r) async {
+    await _showSheet<void>(context, (_) => _EntriesSheet(repo: _repo, partyId: r.partyId));
+    if (mounted) await _load(showSpinner: false);
+  }
+
+  Future<void> _edit(ReturnReminder r) async {
+    final res = await _showSheet<_AddResult>(context, (_) => _AddSheet(repo: _repo, initial: r));
     if (res == null || !mounted) return;
     final out = await _repo.editReturnParty(
       partyId: r.partyId,
@@ -179,6 +277,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
       phone: res.phone,
       kind: res.kind,
       returnDateMillis: res.returnDate,
+      baseAmount: res.baseAmount,
     );
     if (out == SavePartyResult.nameRequired && mounted) _toast(Loc.t('Name is required', 'نام ضروری ہے'));
     if (mounted) await _load(showSpinner: false);
@@ -201,7 +300,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
 
   Future<void> _remove(ReturnReminder r) async {
     final yes = await _confirm(
-      Loc.t('Remove from Amanat / Loan?', 'امانت / قرض سے ہٹائیں؟'),
+      Loc.t('Remove from Deposit / Loan?', 'امانت / قرض سے ہٹائیں؟'),
       Loc.t('${r.partyName} will become a normal customer. Ledger and bills stay as they are.',
           '${r.partyName} عام کسٹمر بن جائے گا۔ کھاتہ اور بل جیسے ہیں ویسے رہیں گے۔'),
       Loc.t('Remove', 'ہٹائیں'),
@@ -257,13 +356,12 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 100),
                   children: [
                     PremiumHeader(
-                      title: Loc.t('Amanat / Loan', 'امانت / قرض'),
-                      subtitle: Loc.t('All Amanat & Loan parties with sync status', 'تمام امانت اور قرض پارٹیاں، سنک کی حالت کے ساتھ'),
+                      title: Loc.t('Deposit / Loan', 'امانت / قرض'),
+                      subtitle: Loc.t('All Deposit & Loan parties', 'تمام امانت اور قرض پارٹیاں'),
                     ),
-                    _syncCard(),
                     const SizedBox(height: 10),
                     Row(children: [
-                      Expanded(child: _totalCard(Loc.t('Amanat', 'امانت'), '${amanat.length}', _rs(amanatTotal), _p.flatTealFg)),
+                      Expanded(child: _totalCard(Loc.t('Deposit', 'امانت'), '${amanat.length}', _rs(amanatTotal), _p.flatTealFg)),
                       const SizedBox(width: 10),
                       Expanded(child: _totalCard(Loc.t('Loan', 'قرض'), '${loans.length}', _rs(loanTotal), _p.flatAmberFg)),
                     ]),
@@ -274,7 +372,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
                         child: Text(
                           Loc.t(
-                              'No Amanat or Loan parties yet.\nTap "Add" to create one.',
+                              'No Deposit or Loan parties yet.\nTap "Add" to create one.',
                               'ابھی کوئی امانت یا قرض پارٹی نہیں۔\n"شامل کریں" دبائیں۔'),
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 13, color: _p.textMuted),
@@ -294,39 +392,6 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _p.border),
       );
-
-  Widget _syncCard() {
-    final n = _pending.length;
-    final ok = n == 0;
-    final color = ok ? _p.flatTealFg : _p.flatAmberFg;
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-      decoration: _cardDeco(),
-      child: Row(children: [
-        Icon(ok ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined, color: color, size: 26),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              ok ? Loc.t('All synced', 'سب سنک ہو چکا') : Loc.t('$n waiting to sync', '$n سنک کے منتظر'),
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
-            ),
-            if (_lastSyncedAt != null)
-              Text(Loc.t('Last sync: ${formatSyncTime(_lastSyncedAt!)}', 'آخری سنک: ${formatSyncTime(_lastSyncedAt!)}'),
-                  style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
-          ]),
-        ),
-        FilledButton.icon(
-          onPressed: _syncing ? null : _syncNow,
-          icon: _syncing
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.sync, size: 18),
-          label: Text(Loc.t('Sync Now', 'سنک')),
-        ),
-      ]),
-    );
-  }
 
   Widget _totalCard(String label, String count, String total, Color accent) => Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -365,7 +430,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
       child: Row(children: [
         pill(Loc.t('All', 'سب'), 0),
         const SizedBox(width: 8),
-        pill(Loc.t('Amanat', 'امانت'), 1),
+        pill(Loc.t('Deposit', 'امانت'), 1),
         const SizedBox(width: 8),
         pill(Loc.t('Loan', 'قرض'), 2),
       ]),
@@ -384,18 +449,16 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
 
   Widget _card(ReturnReminder r) {
     final hasPhone = r.partyPhone.trim().isNotEmpty;
-    final pending = _pending.contains(r.partyId);
     final overdue = r.returnDate > 0 && r.returnDate < DateTime.now().millisecondsSinceEpoch - 86400000;
     final kindLabel = r.isAmanat
-        ? Loc.t('Amanat — return to customer', 'امانت — کسٹمر کو واپس کرنی ہے')
+        ? Loc.t('Deposit — return to customer', 'امانت — کسٹمر کو واپس کرنی ہے')
         : Loc.t('Loan — collect from customer', 'قرض — کسٹمر سے وصول کرنا ہے');
-    final syncColor = pending ? _p.flatAmberFg : _p.flatTealFg;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: _cardDeco(),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _pickReturnDate(r),
+        onTap: () => _openEntries(r),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -407,23 +470,44 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                   Text(kindLabel, style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
                 ]),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: syncColor.withOpacity(0.14), borderRadius: BorderRadius.circular(8)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(pending ? Icons.schedule : Icons.check_circle_outline, size: 13, color: syncColor),
-                  const SizedBox(width: 4),
-                  Text(pending ? Loc.t('Pending', 'منتظر') : Loc.t('Synced', 'سنک'),
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: syncColor)),
-                ]),
-              ),
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
                 icon: Icon(Icons.more_vert, size: 20, color: _p.textMuted),
-                onSelected: (v) => v == 'edit' ? _edit(r) : v == 'remove' ? _remove(r) : _delete(r),
+                onSelected: (v) {
+                  switch (v) {
+                    case 'entries':
+                      _openEntries(r);
+                    case 'settle':
+                      _settle(r);
+                    case 'add':
+                      _addAnother(r);
+                    case 'date':
+                      _pickReturnDate(r);
+                    case 'edit':
+                      _edit(r);
+                    case 'remove':
+                      _remove(r);
+                    default:
+                      _delete(r);
+                  }
+                },
                 itemBuilder: (_) => [
-                  PopupMenuItem(value: 'edit', child: Text(Loc.t('Edit', 'ایڈٹ'))),
-                  PopupMenuItem(value: 'remove', child: Text(Loc.t('Remove from Amanat / Loan', 'امانت / قرض سے ہٹائیں'))),
+                  if (r.entries.isNotEmpty)
+                    PopupMenuItem(
+                        value: 'settle',
+                        child: Text(r.isAmanat
+                            ? Loc.t('Return Deposit (pay back)', 'امانت واپس کریں')
+                            : Loc.t('Collect Loan (receive)', 'قرض وصول کریں'))),
+                  PopupMenuItem(value: 'entries', child: Text(Loc.t('Entries / edit amount', 'انٹریاں / رقم ایڈٹ'))),
+                  PopupMenuItem(
+                      value: 'add',
+                      child: Text(r.isAmanat
+                          ? Loc.t('Add another Deposit', 'ایک اور امانت شامل کریں')
+                          : Loc.t('Add another Loan', 'ایک اور قرض شامل کریں'))),
+                  if (r.entries.isEmpty)
+                    PopupMenuItem(value: 'date', child: Text(Loc.t('Set return date', 'واپسی کی تاریخ'))),
+                  PopupMenuItem(value: 'edit', child: Text(Loc.t('Edit party', 'پارٹی ایڈٹ'))),
+                  PopupMenuItem(value: 'remove', child: Text(Loc.t('Remove from Deposit / Loan', 'امانت / قرض سے ہٹائیں'))),
                   PopupMenuItem(value: 'delete', child: Text(Loc.t('Delete party', 'پارٹی ڈیلیٹ کریں'), style: TextStyle(color: _p.red))),
                 ],
               ),
@@ -434,11 +518,19 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${Loc.t('Balance', 'بیلنس')}: ${_rs(r.closing)}',
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: _p.flatPurpleFg)),
+                  if (r.entries.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${r.entries.length} ${Loc.t(r.entries.length == 1 ? 'entry' : 'entries', 'انٹری')} • '
+                      '${Loc.t('Total', 'کل')}: ${_money(r.entriesTotal)}',
+                      style: TextStyle(fontSize: 11.5, color: _p.textMuted),
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   Text(
                     r.returnDate > 0
                         ? '${Loc.t('Return: ', 'واپسی: ')}${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(r.returnDate))}'
-                        : Loc.t('Tap to set a return date', 'تاریخ طے کرنے کے لیے دبائیں'),
+                        : Loc.t('Tap to see entries', 'انٹریاں دیکھنے کے لیے دبائیں'),
                     style: TextStyle(fontSize: 11.5, color: overdue ? _p.red : _p.textMuted, fontWeight: overdue ? FontWeight.bold : null),
                   ),
                 ]),
@@ -457,26 +549,231 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
 }
 
 
+String _money(double v) => 'Rs ${v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(2)}';
+
+int _dayMillis(DateTime? d) => d == null ? 0 : DateTime(d.year, d.month, d.day).millisecondsSinceEpoch;
+
+Future<T?> _showSheet<T>(BuildContext context, WidgetBuilder builder) => showModalBottomSheet<T>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: ThemeManager.palette.cardWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: builder,
+    );
+
 class _AddResult {
   final String kind;
   final int? existingId; // null => nayi party
-  final String name, phone;
-  final double openingBalance;
+  final String name, phone, note;
+  final double amount; // musbat; 0 = koi nahi
+  final int date; // kab liya / diya (0 = set nahi)
   final int returnDate;
+  final double? baseAmount; // sirf party edit: entries ke bahar ka amount
   const _AddResult({
     required this.kind,
     this.existingId,
     this.name = '',
     this.phone = '',
-    this.openingBalance = 0,
+    this.note = '',
+    this.amount = 0,
+    this.date = 0,
     this.returnDate = 0,
+    this.baseAmount,
   });
+}
+
+/// Ek party ki sab entries (kab, kitna, wapsi kab). Yahin se entry add / edit / delete hoti hai.
+class _EntriesSheet extends StatefulWidget {
+  final DueRemindersRepository repo;
+  final int partyId;
+  const _EntriesSheet({required this.repo, required this.partyId});
+
+  @override
+  State<_EntriesSheet> createState() => _EntriesSheetState();
+}
+
+class _EntriesSheetState extends State<_EntriesSheet> {
+  ReturnReminder? _r;
+  bool _loading = true;
+  final _dateFmt = DateFormat('d MMM yyyy');
+
+  AppPalette get _p => ThemeManager.palette;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final list = await widget.repo.returnReminders();
+    if (!mounted) return;
+    ReturnReminder? found;
+    for (final x in list) {
+      if (x.partyId == widget.partyId) found = x;
+    }
+    setState(() {
+      _r = found;
+      _loading = false;
+    });
+  }
+
+  void _toast(String m) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(m)));
+
+  Future<void> _add() async {
+    final r = _r;
+    if (r == null) return;
+    final res = await _showSheet<_AddResult>(context, (_) => _AddSheet(repo: widget.repo, party: r));
+    if (res == null || !mounted) return;
+    final out = await widget.repo.addReturnEntry(
+      partyId: r.partyId,
+      kind: r.kind,
+      amount: res.amount,
+      dateMillis: res.date,
+      returnDateMillis: res.returnDate,
+      note: res.note,
+    );
+    if (out != ReturnEntryResult.ok && mounted) _toast(Loc.t('Could not save', 'محفوظ نہیں ہو سکا'));
+    await _load();
+  }
+
+  Future<void> _editEntry(ReturnEntry e) async {
+    final r = _r;
+    if (r == null) return;
+    final res = await _showSheet<_AddResult>(context, (_) => _AddSheet(repo: widget.repo, party: r, entry: e));
+    if (res == null || !mounted) return;
+    final out = await widget.repo.editReturnEntry(
+      partyId: r.partyId,
+      entryId: e.id,
+      amount: res.amount,
+      dateMillis: res.date,
+      returnDateMillis: res.returnDate,
+      note: res.note,
+    );
+    if (out != ReturnEntryResult.ok && mounted) _toast(Loc.t('Could not save', 'محفوظ نہیں ہو سکا'));
+    await _load();
+  }
+
+  Future<void> _deleteEntry(ReturnEntry e) async {
+    final r = _r;
+    if (r == null) return;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Delete this entry?', 'یہ انٹری ڈیلیٹ کریں؟')),
+        content: Text(Loc.t('${_money(e.amount)} will be taken out of the balance.',
+            '${_money(e.amount)} بیلنس میں سے نکل جائے گی۔')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Delete', 'ڈیلیٹ'))),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return;
+    await widget.repo.deleteReturnEntry(partyId: r.partyId, entryId: e.id);
+    await _load();
+  }
+
+  Widget _entryTile(ReturnEntry e, ReturnReminder r) {
+    final overdue = e.returnDate > 0 && e.returnDate < DateTime.now().millisecondsSinceEpoch - 86400000;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+      decoration: BoxDecoration(color: _p.bg, borderRadius: BorderRadius.circular(14), border: Border.all(color: _p.border)),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_money(e.amount), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _p.textDark)),
+            const SizedBox(height: 2),
+            Text(
+              e.date > 0
+                  ? '${r.isAmanat ? Loc.t('Received', 'وصول') : Loc.t('Given', 'دیا')}: ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(e.date))}'
+                  : Loc.t('Date not set', 'تاریخ نہیں'),
+              style: TextStyle(fontSize: 11.5, color: _p.textMuted),
+            ),
+            Text(
+              e.returnDate > 0
+                  ? '${Loc.t('Return', 'واپسی')}: ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(e.returnDate))}'
+                  : Loc.t('No return date', 'واپسی کی تاریخ نہیں'),
+              style: TextStyle(fontSize: 11.5, color: overdue ? _p.red : _p.textMuted, fontWeight: overdue ? FontWeight.bold : null),
+            ),
+            if (e.note.isNotEmpty) Text(e.note, style: TextStyle(fontSize: 11.5, color: _p.textMuted, fontStyle: FontStyle.italic)),
+          ]),
+        ),
+        IconButton(icon: Icon(Icons.edit, size: 19, color: _p.flatPurpleFg), onPressed: () => _editEntry(e)),
+        IconButton(icon: Icon(Icons.delete_outline, size: 20, color: _p.red), onPressed: () => _deleteEntry(e)),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = _r;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        child: _loading
+            ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
+            : r == null
+                ? SizedBox(height: 100, child: Center(child: Text(Loc.t('This party no longer exists', 'یہ پارٹی اب موجود نہیں'))))
+                : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(r.partyName, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _p.textDark)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${r.isAmanat ? Loc.t('Deposit', 'امانت') : Loc.t('Loan', 'قرض')} • ${Loc.t('Balance', 'بیلنس')}: ${_money(r.closing)}',
+                      style: TextStyle(fontSize: 12.5, color: _p.textMuted),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: ListView(shrinkWrap: true, children: [
+                        if (r.entries.isEmpty && r.baseAmount <= 0)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: Center(child: Text(Loc.t('No entries yet', 'ابھی کوئی انٹری نہیں'), style: TextStyle(color: _p.textMuted))),
+                          ),
+                        for (final e in r.entries.reversed) _entryTile(e, r),
+                        if (r.baseAmount > 0)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(color: _p.bg, borderRadius: BorderRadius.circular(14), border: Border.all(color: _p.border)),
+                            child: Text(
+                              '${Loc.t('Earlier / opening amount', 'پرانی / ابتدائی رقم')}: ${_money(r.baseAmount)}\n'
+                              '${Loc.t('Change it from menu → Edit party', 'بدلنے کے لیے مینو ← پارٹی ایڈٹ')}',
+                              style: TextStyle(fontSize: 12, color: _p.textMuted),
+                            ),
+                          ),
+                      ]),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _add,
+                        icon: const Icon(Icons.add),
+                        label: Text(r.isAmanat
+                            ? Loc.t('Add another Deposit', 'ایک اور امانت شامل کریں')
+                            : Loc.t('Add another Loan', 'ایک اور قرض شامل کریں')),
+                      ),
+                    ),
+                  ]),
+      ),
+    );
+  }
 }
 
 class _AddSheet extends StatefulWidget {
   final DueRemindersRepository repo;
-  final ReturnReminder? initial; // null => naya add; warna Edit
-  const _AddSheet({required this.repo, this.initial});
+
+  /// Party edit (naam / phone / type / purana amount). null => add.
+  final ReturnReminder? initial;
+
+  /// Maujooda party ko ek aur entry (party) ya entry ka edit (party + entry).
+  final ReturnReminder? party;
+  final ReturnEntry? entry;
+  const _AddSheet({required this.repo, this.initial, this.party, this.entry});
 
   @override
   State<_AddSheet> createState() => _AddSheetState();
@@ -485,28 +782,55 @@ class _AddSheet extends StatefulWidget {
 class _AddSheetState extends State<_AddSheet> {
   String _kind = 'amanat';
   bool _existing = true;
-  ({int id, String name, String phone})? _picked;
-  DateTime? _date;
+  ({int id, String name, String phone, String kind})? _picked;
+  DateTime? _date; // kab liya / diya
+  DateTime? _returnDate;
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _amount = TextEditingController();
+  final _note = TextEditingController();
   String? _error;
 
   AppPalette get _p => ThemeManager.palette;
   final _dateFmt = DateFormat('d MMM yyyy');
 
-  bool get _editing => widget.initial != null;
+  bool get _editingParty => widget.initial != null;
+  bool get _forParty => widget.party != null; // ek aur entry / entry edit
+  bool get _editingEntry => widget.entry != null;
+  bool get _isNew => !_editingParty && !_forParty;
+  bool get _kindLocked =>
+      _forParty || (_editingParty && widget.initial!.entries.isNotEmpty);
+  // Entry wale fields (amount / tarikh / note): add, ek aur entry, entry edit.
+  bool get _showEntryFields => _isNew || _forParty;
+
+  static String _fmt(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
 
   @override
   void initState() {
     super.initState();
     final r = widget.initial;
+    final party = widget.party;
+    final e = widget.entry;
     if (r != null) {
       _kind = r.kind == 'loan' ? 'loan' : 'amanat';
       _existing = false;
       _name.text = r.partyName;
       _phone.text = r.partyPhone;
-      if (r.returnDate > 0) _date = DateTime.fromMillisecondsSinceEpoch(r.returnDate);
+      if (r.baseAmount > 0) _amount.text = _fmt(r.baseAmount);
+      if (r.entries.isEmpty && r.returnDate > 0) _returnDate = DateTime.fromMillisecondsSinceEpoch(r.returnDate);
+    } else if (party != null) {
+      _kind = party.kind == 'loan' ? 'loan' : 'amanat';
+      _existing = false;
+      if (e != null) {
+        _amount.text = _fmt(e.amount);
+        _note.text = e.note;
+        if (e.date > 0) _date = DateTime.fromMillisecondsSinceEpoch(e.date);
+        if (e.returnDate > 0) _returnDate = DateTime.fromMillisecondsSinceEpoch(e.returnDate);
+      } else {
+        _date = DateTime.now();
+      }
+    } else {
+      _date = DateTime.now();
     }
   }
 
@@ -515,6 +839,7 @@ class _AddSheetState extends State<_AddSheet> {
     _name.dispose();
     _phone.dispose();
     _amount.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -543,9 +868,9 @@ class _AddSheetState extends State<_AddSheet> {
       ]);
 
   Future<void> _pickCustomer() async {
-    final all = await widget.repo.normalCustomers();
+    final all = await widget.repo.pickableCustomers();
     if (!mounted) return;
-    final res = await showDialog<({int id, String name, String phone})>(
+    final res = await showDialog<({int id, String name, String phone, String kind})>(
       context: context,
       builder: (ctx) {
         var q = '';
@@ -568,12 +893,22 @@ class _AddSheetState extends State<_AddSheet> {
                       ? Center(child: Text(Loc.t('No customers', 'کوئی کسٹمر نہیں')))
                       : ListView.builder(
                           itemCount: list.length,
-                          itemBuilder: (_, i) => ListTile(
-                            dense: true,
-                            title: Text(list[i].name),
-                            subtitle: list[i].phone.isEmpty ? null : Text(list[i].phone),
-                            onTap: () => Navigator.pop(ctx, list[i]),
-                          ),
+                          itemBuilder: (_, i) {
+                            final c = list[i];
+                            final tag = c.kind == 'amanat'
+                                ? Loc.t('Deposit', 'امانت')
+                                : c.kind == 'loan'
+                                    ? Loc.t('Loan', 'قرض')
+                                    : '';
+                            return ListTile(
+                              dense: true,
+                              title: Text(c.name),
+                              subtitle: (c.phone.isEmpty && tag.isEmpty)
+                                  ? null
+                                  : Text([if (c.phone.isNotEmpty) c.phone, if (tag.isNotEmpty) tag].join('  •  ')),
+                              onTap: () => Navigator.pop(ctx, c),
+                            );
+                          },
                         ),
                 ),
               ]),
@@ -582,89 +917,164 @@ class _AddSheetState extends State<_AddSheet> {
         });
       },
     );
-    if (res != null) setState(() => _picked = res);
+    if (res != null) {
+      setState(() {
+        _picked = res;
+        _error = null;
+        // Pehle se Amanat/Loan party ho to uski qism khud lag jaye.
+        if (res.kind == 'amanat' || res.kind == 'loan') _kind = res.kind;
+      });
+    }
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickDate({required bool isReturn}) async {
+    final cur = isReturn ? _returnDate : _date;
     final d = await showDatePicker(
       context: context,
-      initialDate: _date ?? DateTime.now(),
+      initialDate: cur ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
-    if (d != null) setState(() => _date = d);
+    if (d != null) setState(() => isReturn ? _returnDate = d : _date = d);
   }
 
   void _save() {
-    if (!_editing && _existing && _picked == null) {
+    final amount = (double.tryParse(_amount.text.trim()) ?? 0).abs();
+    if (_isNew && _existing && _picked == null) {
       setState(() => _error = Loc.t('Select a customer', 'کسٹمر چنیں'));
       return;
     }
-    if (!_existing && _name.text.trim().isEmpty) {
+    if (_isNew && _existing && _picked != null && _picked!.kind.isNotEmpty && _picked!.kind != _kind) {
+      setState(() => _error = Loc.t(
+          'This party is already ${_picked!.kind == 'loan' ? 'Loan' : 'Deposit'}. Choose the same type.',
+          'یہ پارٹی پہلے سے ${_picked!.kind == 'loan' ? 'قرض' : 'امانت'} ہے۔ وہی قسم چنیں۔'));
+      return;
+    }
+    if ((!_isNew || !_existing) && !_forParty && _name.text.trim().isEmpty) {
       setState(() => _error = Loc.t('Name is required', 'نام ضروری ہے'));
       return;
     }
-    final d = _date;
+    if (_forParty && amount <= 0) {
+      setState(() => _error = Loc.t('Enter the amount', 'رقم لکھیں'));
+      return;
+    }
     Navigator.pop(
       context,
       _AddResult(
         kind: _kind,
-        existingId: _editing ? widget.initial!.partyId : (_existing ? _picked!.id : null),
+        existingId: _isNew && _existing ? _picked!.id : (_editingParty ? widget.initial!.partyId : null),
         name: _name.text,
         phone: _phone.text,
-        openingBalance: double.tryParse(_amount.text.trim()) ?? 0,
-        returnDate: d == null ? 0 : DateTime(d.year, d.month, d.day).millisecondsSinceEpoch,
+        note: _note.text,
+        amount: _editingParty ? 0 : amount,
+        date: _dayMillis(_date),
+        returnDate: _dayMillis(_returnDate),
+        baseAmount: _editingParty ? (_amount.text.trim().isEmpty ? 0.0 : amount) : null,
       ),
     );
   }
 
+  Widget _dateButton({required bool isReturn}) {
+    final d = isReturn ? _returnDate : _date;
+    final label = isReturn
+        ? (d == null ? Loc.t('Return date (optional)', 'واپسی کی تاریخ (اختیاری)') : '${Loc.t('Return: ', 'واپسی: ')}${_dateFmt.format(d)}')
+        : (d == null
+            ? Loc.t('Date (optional)', 'تاریخ (اختیاری)')
+            : '${_kind == 'amanat' ? Loc.t('Received: ', 'وصول: ') : Loc.t('Given: ', 'دیا: ')}${_dateFmt.format(d)}');
+    return Row(children: [
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: () => _pickDate(isReturn: isReturn),
+          icon: Icon(isReturn ? Icons.event_repeat : Icons.event),
+          label: Align(alignment: Alignment.centerLeft, child: Text(label)),
+        ),
+      ),
+      if (d != null)
+        IconButton(
+          icon: const Icon(Icons.close, size: 18),
+          onPressed: () => setState(() => isReturn ? _returnDate = null : _date = null),
+        ),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final title = _editingParty
+        ? Loc.t('Edit party', 'پارٹی ایڈٹ کریں')
+        : _editingEntry
+            ? Loc.t('Edit entry', 'انٹری ایڈٹ کریں')
+            : _forParty
+                ? (_kind == 'amanat'
+                    ? Loc.t('Add another Deposit', 'ایک اور امانت')
+                    : Loc.t('Add another Loan', 'ایک اور قرض'))
+                : Loc.t('Add Deposit / Loan', 'امانت / قرض شامل کریں');
     return Padding(
       padding: EdgeInsets.fromLTRB(18, 16, 18, 18 + MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_editing ? Loc.t('Edit Amanat / Loan', 'امانت / قرض ایڈٹ کریں') : Loc.t('Add Amanat / Loan', 'امانت / قرض شامل کریں'),
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _p.textDark)),
+          Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _p.textDark)),
+          if (_forParty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(widget.party!.partyName, style: TextStyle(fontSize: 12.5, color: _p.textMuted)),
+            ),
           const SizedBox(height: 14),
-          _seg([
-            (Loc.t('Amanat', 'امانت'), _kind == 'amanat', () => setState(() => _kind = 'amanat')),
-            (Loc.t('Loan', 'قرض'), _kind == 'loan', () => setState(() => _kind = 'loan')),
-          ]),
-          const SizedBox(height: 10),
-          if (!_editing) ...[
+          if (!_forParty && !_kindLocked) ...[
+            _seg([
+              (Loc.t('Deposit', 'امانت'), _kind == 'amanat', () => setState(() => _kind = 'amanat')),
+              (Loc.t('Loan', 'قرض'), _kind == 'loan', () => setState(() => _kind = 'loan')),
+            ]),
+            const SizedBox(height: 10),
+          ],
+          if (_isNew) ...[
             _seg([
               (Loc.t('Existing customer', 'موجودہ کسٹمر'), _existing, () => setState(() => _existing = true)),
               (Loc.t('New party', 'نئی پارٹی'), !_existing, () => setState(() => _existing = false)),
             ]),
             const SizedBox(height: 12),
           ],
-          if (_existing)
+          if (_isNew && _existing)
             OutlinedButton.icon(
               onPressed: _pickCustomer,
               icon: const Icon(Icons.person_search),
               label: Text(_picked?.name ?? Loc.t('Select customer', 'کسٹمر چنیں')),
             )
-          else ...[
+          else if (!_forParty) ...[
             TextField(controller: _name, decoration: InputDecoration(labelText: Loc.t('Name', 'نام'))),
             TextField(
                 controller: _phone,
                 keyboardType: TextInputType.phone,
-                decoration: InputDecoration(labelText: Loc.t('Phone (optional)', 'فون (اختیاری)'))),
-            if (!_editing)
-              TextField(
-                  controller: _amount,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(labelText: Loc.t('Opening balance (optional)', 'اوپننگ بیلنس (اختیاری)'))),
+                decoration: InputDecoration(
+                    labelText: Loc.t('Phone (optional)', 'فون (اختیاری)'),
+                    suffixIcon: ContactPickButton(phone: _phone, name: _name))),
           ],
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _pickDate,
-            icon: const Icon(Icons.event),
-            label: Text(_date == null
-                ? Loc.t('Return date (optional)', 'واپسی کی تاریخ (اختیاری)')
-                : '${Loc.t('Return: ', 'واپسی: ')}${_dateFmt.format(_date!)}'),
-          ),
+          if (_showEntryFields || _editingParty)
+            TextField(
+              controller: _amount,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: _editingParty ? Loc.t('Earlier / opening amount', 'پرانی / ابتدائی رقم') : Loc.t('Amount', 'رقم'),
+                prefixText: 'Rs ',
+                // Amanat dukaan ki zimmedari hai => balance mein minus; loan customer ka dena => plus.
+                // (keypad par '-' nahi hota, is liye sirf rakam likhein.)
+                helperText: _kind == 'amanat'
+                    ? Loc.t('Amount the shop holds for the customer (saved as minus: shop owes it)',
+                        'دکان کے پاس رکھی گاہک کی رقم (مائنس میں جمع ہوگی: دکان نے دینی ہے)')
+                    : Loc.t('Amount lent to the customer (saved as plus: customer owes it)',
+                        'گاہک کو دی گئی رقم (پلس میں جمع ہوگی: گاہک نے دینی ہے)'),
+                helperMaxLines: 2,
+              ),
+            ),
+          if (_showEntryFields) ...[
+            const SizedBox(height: 10),
+            _dateButton(isReturn: false),
+            const SizedBox(height: 8),
+            _dateButton(isReturn: true),
+            TextField(controller: _note, decoration: InputDecoration(labelText: Loc.t('Note (optional)', 'نوٹ (اختیاری)'))),
+          ] else if (_editingParty && widget.initial!.entries.isEmpty) ...[
+            const SizedBox(height: 10),
+            _dateButton(isReturn: true),
+          ],
           if (_error != null)
             Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: TextStyle(color: _p.red, fontSize: 12.5))),
           const SizedBox(height: 14),

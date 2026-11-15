@@ -46,8 +46,21 @@ class UserRepository {
   Future<void> upsert(User u) async {
     final db = await _db;
     await db.transaction((txn) async {
-      await txn.insert('users', u.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+      // Access rules sirf setPermissions se badalte hain: login / password / role ke upsert unhein na mitayen.
+      final cur = await txn.query('users', columns: ['permissions'], where: 'username = ?', whereArgs: [u.username], limit: 1);
+      final map = u.toMap();
+      map['permissions'] = cur.isEmpty ? u.permissions : ((cur.first['permissions'] as String?) ?? '');
+      await txn.insert('users', map, conflictAlgorithm: ConflictAlgorithm.replace);
       await SyncQueueHelper.enqueueUser(txn, u.username);
+    });
+  }
+
+  /// Per-user access rules (JSON overrides, khali = role ke default) + sync_queue ek transaction mein.
+  Future<void> setPermissions(String username, String permissions) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      await txn.update('users', {'permissions': permissions}, where: 'username = ?', whereArgs: [username]);
+      await SyncQueueHelper.enqueueUser(txn, username);
     });
   }
 
@@ -63,7 +76,9 @@ class UserRepository {
   Future<void> rename(User old, User updated) async {
     final db = await _db;
     await db.transaction((txn) async {
-      await txn.insert('users', updated.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+      final renamed = updated.toMap();
+      renamed['permissions'] = old.permissions;
+      await txn.insert('users', renamed, conflictAlgorithm: ConflictAlgorithm.replace);
       await SyncQueueHelper.enqueueUser(txn, updated.username);
       if (updated.username != old.username) {
         await txn.delete('users', where: 'username = ?', whereArgs: [old.username]);

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,6 +35,7 @@ import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/unit_dialog.dart';
 import '../theme/theme_manager.dart';
+import '../widgets/contact_pick_button.dart';
 
 /// Mirrors PurchaseActivity.kt.
 ///
@@ -111,6 +113,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   Timer? _draftTimer;
 
   bool _saving = false;
+  // Synchronous re-entry guard (see sale_screen.dart): _saving turns true only after several awaits.
+  bool _saveEntered = false;
   bool _loading = false;
 
   /// Bill save ho chuka => draft / adhoora-item dobara DISK par na likho. Pehle dispose() (DONE par screen band hote
@@ -521,6 +525,35 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         if (f.hasFocus) c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length);
       });
     });
+  }
+
+  /// SIRF haath se (tap) chunne ke baad — item list ya Unit dropdown — cursor agli field par aur
+  /// keyboard dobara khul jaye. Tap / dropdown menu focus le leta hai aur Android keyboard band kar deta
+  /// hai; pehle dobara field par tap karna padta tha. Keyboard se (Enter/Next) wala flow is ko chalata hi
+  /// nahi, woh bilkul pehle jaisa tez hai.
+  void _focusAfterTap(FocusNode n) {
+    void go() {
+      if (!mounted || !n.canRequestFocus) return;
+      final cur = FocusManager.instance.primaryFocus;
+      // User is dauran khud kisi aur number field par chala gaya ho to focus mat chheeno.
+      if (cur != null &&
+          cur != n &&
+          cur != _itemFocus &&
+          cur.context?.findAncestorWidgetOfExactType<EditableText>() != null) {
+        return;
+      }
+      if (!n.hasFocus) n.requestFocus();
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => go());
+    // Dropdown menu / list band hone ki animation ke baad ek dafa aur (focus wapas aa chuka ho).
+    Future.delayed(const Duration(milliseconds: 350), go);
+  }
+
+  void _onProductTapped(Product p) {
+    _onProductPicked(p);
+    _focusAfterTap(_qtyFocus);
   }
 
   /// Enter/Next dabane par agli KHALI field par jao; jo field pehle se bhari ho (auto-fill rate,
@@ -1003,7 +1036,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               children: [
                 Text(
                   Loc.t('Bill Total: Rs ${billTotal.round()}', 'بل کل: Rs ${billTotal.round()}'),
-                  style: const TextStyle(fontSize: 13, color: Colors.black54),
+                  style: TextStyle(fontSize: 13, color: ThemeManager.palette.textMuted),
                 ),
                 const SizedBox(height: 8),
                 for (var i = 0; i < amountCtrls.length; i++)
@@ -1103,6 +1136,16 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   }
 
   Future<void> _save() async {
+    if (_saveEntered || _saving) return;
+    _saveEntered = true;
+    try {
+      await _saveImpl();
+    } finally {
+      _saveEntered = false;
+    }
+  }
+
+  Future<void> _saveImpl() async {
     final party = _supplierCtrl.text.trim();
     if (party.isEmpty) {
       _toast('Supplier name is required');
@@ -1629,7 +1672,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       children: [
         Expanded(
           child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            // FIX: pehle `onDrag` tha — scroll karte hi keyboard band + Item field ka focus chala jata, aur
+            // item ki suggestion list gayab ho jati thi. Keyboard ab Back se band karein.
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 180),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1662,7 +1706,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           Expanded(
             flex: 13,
             child: SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              // FIX: pehle `onDrag` tha — scroll karte hi keyboard band + Item field ka focus chala jata, aur
+              // item ki suggestion list gayab ho jati thi. Keyboard ab Back se band karein.
               padding: const EdgeInsets.fromLTRB(4, 20, 16, 180),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1809,7 +1854,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           child: TextField(
             controller: c,
             keyboardType: type,
-            decoration: InputDecoration(labelText: label, hintText: hint, border: const OutlineInputBorder(), isDense: true),
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              border: const OutlineInputBorder(),
+              isDense: true,
+              // Phone field: contacts se chunne ka button (naam khali ho to woh bhi bhar jata hai).
+              suffixIcon: type == TextInputType.phone ? ContactPickButton(phone: c, name: nameCtrl) : null,
+            ),
           ),
         );
     final added = await showDialog<String?>(
@@ -2038,7 +2090,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       if (text.text.trim().isEmpty) return const Iterable<Product>.empty();
                       return _products.where((p) => p.matchesQuery(text.text));
                     },
-                    onSelected: _onProductPicked,
+                    onSelected: _onProductTapped,
                     fieldViewBuilder: (context, controller, focusNode, onSubmit) => ValueListenableBuilder<TextEditingValue>(
                       valueListenable: controller,
                       builder: (context, value, _) => TextField(
@@ -2139,6 +2191,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
                       onChanged: (v) {
                         if (v != null) _onUnitChanged(v);
+                        // Unit chunne ke baad keyboard wapas: Qty khali ho to Qty, warna Rate.
+                        _focusAfterTap(_qtyCtrl.text.trim().isEmpty ? _qtyFocus : _rateFocus);
                       },
                     ),
                   ),

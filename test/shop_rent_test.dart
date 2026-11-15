@@ -204,6 +204,16 @@ void main() {
       await expectLater(() => repo.waiveMonth(id2, '2026-10'), throwsA(isA<StateError>()));
     });
 
+    test('changeRent: maaf kiya hua mahina naye rent se dobara charge nahi hota', () async {
+      final id = await shop();
+      await repo.waiveMonth(id, '2026-10');
+      await repo.ensureCharges(now: DateTime(2026, 11, 10)); // Nov ka charge 15000
+      await repo.changeRent(id, fromYm: '2026-10', newRent: 16500);
+      final s = (await repo.summaryOf(id, now: DateTime(2026, 11, 10)))!;
+      expect(s.dues.map((d) => d.ym).toList(), ['2026-11'], reason: 'Oct maaf hai, wapas baqi nahi aana chahiye');
+      expect(s.dues.single.due, 16500);
+    });
+
     test('deleteEntry: payment hatao => rent wapas baqi, Expense + Cash dono hat jati hain', () async {
       final id = await shop();
       await repo.pay(id, amount: 15000, method: 'cash', now: oct);

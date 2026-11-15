@@ -86,6 +86,18 @@ class SaleItem {
   /// captured (rows from before DB v4) -> use the product's current ladder.
   final double conversionFactor;
 
+  /// costPending: is line ki jitni qty (smallest units) ki asal cost abhi maloom nahi (minus stock ya product
+  /// cost 0 par bechi gayi). 0 = cost pakki. Naya purchase aane par [CostBackfill] isay kam karta hai.
+  final double pendingQty;
+
+  /// [pendingQty] wale hisse ki andaza shuda cost jo [cost] mein abhi shamil hai.
+  final double pendingEst;
+
+  /// Purchase backfill ka JSON log (reverse ke liye): [{"b": billNo, "q": qty, "r": rate, "e": est}].
+  final String backfillLog;
+
+  bool get costPending => pendingQty > 1e-9;
+
   const SaleItem({
     this.id,
     required this.invoice,
@@ -97,6 +109,9 @@ class SaleItem {
     required this.cost,
     required this.amount,
     this.conversionFactor = 0.0,
+    this.pendingQty = 0.0,
+    this.pendingEst = 0.0,
+    this.backfillLog = '',
   });
 
   Map<String, Object?> toMap() => {
@@ -110,6 +125,9 @@ class SaleItem {
         'cost': cost,
         'amount': amount,
         'conversionFactor': conversionFactor,
+        'pendingQty': pendingQty,
+        'pendingEst': pendingEst,
+        'backfillLog': backfillLog,
       };
 
   factory SaleItem.fromMap(Map<String, Object?> m) => SaleItem(
@@ -123,5 +141,8 @@ class SaleItem {
         cost: (m['cost'] as num).toDouble(),
         amount: (m['amount'] as num).toDouble(),
         conversionFactor: (m['conversionFactor'] as num?)?.toDouble() ?? 0.0,
+        pendingQty: (m['pendingQty'] as num?)?.toDouble() ?? 0.0,
+        pendingEst: (m['pendingEst'] as num?)?.toDouble() ?? 0.0,
+        backfillLog: (m['backfillLog'] as String?) ?? '',
       );
 }

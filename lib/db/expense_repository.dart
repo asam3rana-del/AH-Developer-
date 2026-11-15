@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart' show Transaction;
 import '../models/misc_entities.dart';
 import 'app_database.dart';
 import 'cash_repository.dart' show planCashEntry;
+import 'recycle_bin_repository.dart';
 import '../sync/device_tag.dart';
 import '../sync/sync_queue_helper.dart';
 
@@ -122,13 +123,39 @@ class ExpenseRepository {
     final id = e.id;
     if (id == null) return;
     final db = await AppDatabase.instance.database;
-    await db.transaction((txn) => deleteInTxn(txn, e));
+    await db.transaction((txn) => deleteInTxn(txn, e, toBin: true));
   }
 
   /// [delete] ka kaam kisi aur transaction ke andar (jaise Shop Rent ki entry hatana).
-  static Future<void> deleteInTxn(Transaction txn, Expense e) async {
+  /// [toBin] sirf user ke seedhe delete par true: rent / utility bill ke andar ka kharcha khud us record ka hissa hai,
+  /// alag se restore karne par wo akela latakta rehta.
+  static Future<void> deleteInTxn(Transaction txn, Expense e, {bool toBin = false}) async {
     final id = e.id;
     if (id == null) return;
+    if (toBin) {
+      final madeHereBin = e.serverId == null || e.serverId!.startsWith('expense:${DeviceTag.current}-');
+      final refs = <String>{
+        expenseCashReference(id, serverId: e.serverId),
+        if (madeHereBin) legacyExpenseCashReference(id),
+      };
+      final cash = await txn.query('cash_transactions',
+          where: 'reference IN (${List.filled(refs.length, '?').join(',')})', whereArgs: refs.toList());
+      final row = await txn.query('expenses', where: 'id = ?', whereArgs: [id], limit: 1);
+      if (row.isNotEmpty) {
+        await RecycleBinRepository.record(
+          txn,
+          kind: RecycleBinRepository.kindExpense,
+          refKey: '$id',
+          title: e.category.isEmpty ? 'Expense' : e.category,
+          subtitle: e.description,
+          amount: e.amount,
+          rows: {
+            'expenses': [Map<String, Object?>.from(row.first)],
+            'cash_transactions': [for (final r in cash) Map<String, Object?>.from(r)],
+          },
+        );
+      }
+    }
     // Entity id (serverId-preferred) row delete se PEHLE — doosre device se aayi row ki asal id na khoye.
     final eid = await SyncQueueHelper.entityIdFor(txn, 'expense', '$id');
     await txn.delete('expenses', where: 'id = ?', whereArgs: [id]);

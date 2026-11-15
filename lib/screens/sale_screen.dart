@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
+import '../db/bill_cost_repair_repository.dart' show isSuspiciousLineCost;
 import '../db/customer_repository.dart';
 import '../db/party_dashboard_repository.dart';
 import '../db/product_repository.dart';
@@ -16,10 +17,13 @@ import '../models/product.dart';
 import '../models/sale.dart';
 import '../services/sale_draft.dart';
 import '../services/sale_hold_recall.dart';
+import '../services/credit_override_policy.dart';
+import '../services/credit_risk.dart' show CreditRisk, loadCreditRiskByName;
 import '../services/session.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
 import '../utils/discount_calculator.dart';
+import '../utils/due_days.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
 import '../utils/sale_cart.dart';
@@ -33,6 +37,8 @@ import '../widgets/premium_widgets.dart';
 import '../widgets/role_guard.dart';
 import 'sale_quick_sale.dart';
 import '../theme/theme_manager.dart';
+import '../db/unit_cost.dart';
+import '../widgets/contact_pick_button.dart';
 
 class SaleScreen extends StatefulWidget {
   /// null = new sale. An invoice number re-opens that SAVED bill for
@@ -69,6 +75,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   final _paidCtrl = TextEditingController();
   /// Udhaar bill par payment ki date (din ki shuruaat, millis). 0 = set nahi.
   int _dueDateMillis = 0;
+  int _shopDueDays = kFallbackDueDays; // dukaan ki default udhaar muddat (Settings), customer ki apni na ho tab
 
   DateTime _saleDate = DateTime.now();
   bool _isWholesale = false;
@@ -84,6 +91,9 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   final List<SaleLine> _lines = [];
   bool _saving = false;
+  // Synchronous re-entry guard: _saving only turns true AFTER the duplicate-check query, so a quick
+  // double tap / F9 + click could start two saves. Set before the first await.
+  bool _saveEntered = false;
   final _scrollCtrl = ScrollController();
 
   /// "Rs" mode: the Quantity box holds a rupee amount and the quantity is
@@ -95,6 +105,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
 
   /// Set when the price box was filled with THIS customer's usual rate.
   String? _customerRateName;
+  // Purana customer rate kyun nahi laga (item ka rate badla / cost se kam) — koi raqam nahi, har role ke liye mehfooz.
+  String? _customerRateSkipNote;
 
   // Draft autosave (new sales only).
   Timer? _draftTimer;
@@ -126,6 +138,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     StockPolicy.load();
+    _loadShopDueDays();
     WidgetsBinding.instance.addObserver(this);
     // Kotlin jaisa: qty / rate / discount / paid par focus aate hi purani value select.
     _selectAllOnFocus(_qtyFocus, _qtyCtrl);
@@ -496,6 +509,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _selectedUnit = defaultUnitFor(p);
       _lastMainPrice = 0.0;
       _customerRateName = null;
+      _customerRateSkipNote = null;
       _refillAutoPrice();
     });
     // A regular customer's own usual rate replaces the standard one.
@@ -544,7 +558,10 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _lastMainPrice = p.toPrimaryUnitRate(double.tryParse(v.trim()) ?? 0.0, unit);
     }
     // The shopkeeper typed their own number: it wins over the suggestion.
-    setState(() => _customerRateName = null);
+    setState(() {
+      _customerRateName = null;
+      _customerRateSkipNote = null;
+    });
   }
 
   /// If [customer] has bought the picked item before, use THEIR last rate
@@ -579,10 +596,25 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     if (_priceCtrl.text != priceBefore) return;
 
     final unit = _selectedUnit.isEmpty ? product.unit : _selectedUnit;
-    final suggestion = customerRateFor(product,
-        lastUnitPrice: last.unitPrice, lastUnit: last.unit, chosenUnit: unit);
-    if (suggestion == null) return;
+    final outcome = evaluateCustomerRate(product,
+        lastUnitPrice: last.unitPrice, lastUnit: last.unit, chosenUnit: unit, lastSoldAt: last.soldAt);
+    final suggestion = outcome.suggestion;
+    if (suggestion == null) {
+      // Purana rate nahi lagana: item ka apna (naya) rate rehta hai, bas wajah dikha do.
+      final note = switch (outcome.skip) {
+        CustomerRateSkip.rateChanged => Loc.t(
+            "Item's rate changed — new rate applied (not $customerDisplayName's old rate)",
+            'آئٹم کا ریٹ بدل گیا ہے — نیا ریٹ لگا دیا گیا ($customerDisplayName کا پرانا ریٹ نہیں)'),
+        CustomerRateSkip.belowCost => Loc.t(
+            "$customerDisplayName's old rate is now below cost — new rate applied",
+            '$customerDisplayName کا پرانا ریٹ اب لاگت سے کم ہے — نیا ریٹ لگا دیا گیا'),
+        CustomerRateSkip.none => null,
+      };
+      if (note != null) setState(() => _customerRateSkipNote = note);
+      return;
+    }
     setState(() {
+      _customerRateSkipNote = null;
       _lastMainPrice = suggestion.primaryRate;
       _priceCtrl.text = formatAmount(suggestion.priceInChosenUnit);
       _customerRateName = customerDisplayName;
@@ -625,6 +657,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _isShopkeeper = shopkeeper;
       _lastMainPrice = 0.0;
       _customerRateName = null;
+      _customerRateSkipNote = null;
       _refillAutoPrice();
       _applyBulkRate();
       // Lines already in the cart are re-rated too (cost untouched).
@@ -710,7 +743,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     }
 
     final factor = product.smallestUnitFactor();
-    final costPerSmallest = factor > 0 ? product.cost / factor : product.cost;
+    final costPerSmallest = costPerSmallestOf(product.cost, factor);
     final costForThisLine = costPerSmallest * neededSmallest;
 
     final newLine = SaleLine(
@@ -777,6 +810,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     _lastMainPrice = 0.0;
     _qtyIsAmountMode = false;
     _customerRateName = null;
+    _customerRateSkipNote = null;
   }
 
   /// Loads a billed line back into the entry fields so a mistake can be
@@ -809,6 +843,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       _qtyCtrl.text = formatQty(line.qty);
       _qtyIsAmountMode = false;
       _customerRateName = null;
+      _customerRateSkipNote = null;
       _priceCtrl.text = line.unitPrice == line.unitPrice.truncateToDouble()
           ? line.unitPrice.toInt().toString()
           : line.unitPrice.toString();
@@ -875,6 +910,16 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   // ------------------------------------------------------------------ save
 
   Future<void> _save({bool overrideCreditLimit = false, bool skipDuplicateCheck = false}) async {
+    if (_saveEntered || _saving) return;
+    _saveEntered = true;
+    try {
+      await _saveImpl(overrideCreditLimit: overrideCreditLimit, skipDuplicateCheck: skipDuplicateCheck);
+    } finally {
+      _saveEntered = false;
+    }
+  }
+
+  Future<void> _saveImpl({bool overrideCreditLimit = false, bool skipDuplicateCheck = false}) async {
     if (_lines.isEmpty) {
       _toast('Kam az kam ek item add karen');
       return;
@@ -898,6 +943,20 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       );
       if (!mounted) return;
       if (dup != null && !await _confirmDuplicate(dup, totals.total)) return;
+    }
+
+    // Cost guard: kisi line ki cost uski sale amount se bohat zyada ho to bill ka profit bigad jayega.
+    if (!skipDuplicateCheck) {
+      final suspects = [for (final l in _lines) if (isSuspiciousLineCost(l.cost, l.amount)) l];
+      if (suspects.isNotEmpty && !await _confirmSuspectCost(suspects)) return;
+    }
+
+    // Udhaar se pehle: is customer ka purana baqi late hai ya wada toota? (sirf naya udhaar bill; warning,
+    // aur "sirf admin/manager" policy ON ho to cashier ke liye rok.)
+    if (!skipDuplicateCheck && !_isEdit && totals.due > 0.009) {
+      final risk = await loadCreditRiskByName(_customerCtrl.text.trim());
+      if (!mounted) return;
+      if (risk.risky && !await _confirmCreditRisk(_customerCtrl.text.trim(), risk)) return;
     }
 
     // Snapshot for the bill preview — _clearAll() wipes the screen after save.
@@ -956,7 +1015,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() => _saving = false);
       if (await _confirmCreditLimit(e) == true && mounted) {
-        await _save(overrideCreditLimit: true, skipDuplicateCheck: true);
+        await _saveImpl(overrideCreditLimit: true, skipDuplicateCheck: true);
       }
       return;
     } on SaleStockException catch (e) {
@@ -1107,9 +1166,55 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Purana baqi late / wada toota: udhaar dene se pehle poochho. true = phir bhi udhaar do.
+  Future<bool> _confirmCreditRisk(String name, CreditRisk r) async {
+    final lines = <String>[
+      if (r.lateAmount > 0.009)
+        Loc.t('Rs ${formatQty(r.lateAmount)} is late (oldest by ${r.maxDaysLate} days).',
+            'Rs ${formatQty(r.lateAmount)} late hai (sab se purana ${r.maxDaysLate} din).'),
+      if (r.promiseBroken) Loc.t('Last payment promise was broken.', 'Pichla payment ka wada toot gaya.'),
+    ];
+    final mayOverride = await CreditOverridePolicy.currentUserMayOverride();
+    if (!mounted) return false;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Old dues pending — $name', 'Purana baqi — $name')),
+        content: Text('${lines.join('\n')}\n\n${mayOverride ? Loc.t('Give more credit anyway?', 'Phir bhi udhaar dein?') : Loc.t('Only admin or manager can give more credit to this customer.', 'Is customer ko mazeed udhaar sirf admin ya manager de sakta hai.')}'),
+        actions: mayOverride
+            ? [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: ThemeManager.palette.red),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(Loc.t('Give credit', 'Udhaar dein')),
+                ),
+              ]
+            : [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('OK'))],
+      ),
+    );
+    return ok == true;
+  }
+
   /// "Save Anyway?" prompt — a shopkeeper can knowingly let a trusted customer
   /// go over their limit, so this asks instead of hard-blocking.
-  Future<bool?> _confirmCreditLimit(SaleCreditLimitException e) {
+  Future<bool?> _confirmCreditLimit(SaleCreditLimitException e) async {
+    if (!await CreditOverridePolicy.currentUserMayOverride()) {
+      if (!mounted) return false;
+      return showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(Loc.t('Credit Limit Exceeded', 'کریڈٹ لیمٹ سے تجاوز')),
+          content: Text(
+            '${e.customerName} ki credit limit Rs.${formatQty(e.creditLimit)} hai. '
+            'Ye bill save karne ke baad balance Rs.${formatQty(e.projectedBalance)} ho jayega.\n\n'
+            'Is bill ko sirf admin ya manager "Save Anyway" kar sakta hai.',
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('OK'))],
+        ),
+      );
+    }
+    if (!mounted) return false;
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1163,6 +1268,32 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       final shortNeeded = r.product.toSmallestUnits(r.qty, r.unit);
       if (shortNeeded > r.product.stock) {
         _toast(StockPolicy.shortWarning(r.product.name, r.product.stock, shortNeeded, r.product.smallestUnitName()));
+      }
+      // Credit quick sale: normal sale ki tarah poori slip (Prev / Net Balance + shukriya) kholo.
+      if (result.isCredit && mounted) {
+        final amount = (r.qty * r.price).roundToDouble();
+        await _showBillPreview(
+          invoice: result.invoice,
+          date: DateTime.now(),
+          customer: r.customerName.trim(),
+          lines: [
+            SaleLine(
+              itemName: r.product.name,
+              barcode: r.product.barcode,
+              qty: r.qty,
+              unit: r.unit,
+              unitPrice: r.price,
+              cost: 0.0,
+              amount: amount,
+            ),
+          ],
+          subtotal: amount,
+          discount: 0.0,
+          total: amount,
+          paid: 0.0,
+          paymentLabel: 'Credit',
+          showNew: true,
+        );
       }
     } on SaleCreditLimitException catch (e) {
       if (!mounted) return;
@@ -1263,18 +1394,21 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     return 0;
   }
 
-  /// Haath se chuni date; na ho aur naya bill ho to customer ki default muddat (bill date + din).
+  Future<void> _loadShopDueDays() async {
+    try {
+      final raw = await UserRepository.instance.getSetting(kDueDaysSetting);
+      if (mounted) setState(() => _shopDueDays = parseShopDueDays(raw));
+    } catch (_) {}
+  }
+
+  /// Haath se chuni date; na ho aur naya bill ho to customer ki default muddat, wo bhi na ho to dukaan ki
+  /// default muddat (bill date + din). Is se udhaar bill kabhi "date nahi" ban kar reminders se bahar nahi rehta.
   int _effectiveDueMillis() {
     if (_dueDateMillis > 0) return _dueDateMillis;
-    final days = _isEdit ? 0 : _customerDueDays();
+    final days = _isEdit ? 0 : effectiveDueDays(customerDays: _customerDueDays(), shopDays: _shopDueDays);
     if (days <= 0) return 0;
     final base = DateTime(_saleDate.year, _saleDate.month, _saleDate.day);
     return base.add(Duration(days: days)).millisecondsSinceEpoch;
-  }
-
-  void _setDueInDays(int days) {
-    final base = DateTime(_saleDate.year, _saleDate.month, _saleDate.day);
-    setState(() => _dueDateMillis = base.add(Duration(days: days)).millisecondsSinceEpoch);
   }
 
   Future<void> _pickDueDate() async {
@@ -1308,9 +1442,6 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               : Loc.t('Set date', 'تاریخ چنیں')),
           onPressed: _pickDueDate,
         ),
-        for (final d in const [7, 15, 30])
-          ActionChip(label: Text('$d din'), onPressed: () => _setDueInDays(d)),
-        if (_dueDateMillis > 0) ActionChip(label: const Text('✕'), onPressed: () => setState(() => _dueDateMillis = 0)),
       ]),
     );
   }
@@ -1318,6 +1449,37 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
   String _paymentLabel(double paid) {
     final l = paymentMethodLabel(paid: paid, payments: _splitPayments, singleMethod: _paymentMethod);
     return l == 'credit' ? 'Credit' : l;
+  }
+
+  Future<bool> _confirmSuspectCost(List<SaleLine> suspects) async {
+    final showFigures = Session.isAdminOrManager;
+    final names = suspects.map((l) => l.itemName).take(5).join(', ');
+    final detail = showFigures
+        ? suspects
+            .take(5)
+            .map((l) => '${l.itemName}: cost Rs ${l.cost.toStringAsFixed(0)}, sale Rs ${l.amount.toStringAsFixed(0)}')
+            .join('\n')
+        : names;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Cost shak wali hai', 'لاگت مشکوک ہے')),
+        content: Text(Loc.t(
+          'In items ki cost sale amount se bohat zyada lag rahi hai:\n$detail\n\n'
+              'Is se bill ka profit bohat minus aayega. Product ki unit/cost check karen. Phir bhi save karen?',
+          'ان آئٹمز کی لاگت سیل رقم سے بہت زیادہ لگ رہی ہے:\n$detail\n\n'
+              'اس سے بل کا منافع بہت منفی آئے گا۔ پروڈکٹ کی یونٹ/لاگت چیک کریں۔ پھر بھی محفوظ کریں؟',
+        )),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں')),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Future<bool> _confirmDuplicate(Sale dup, double total) async {
@@ -1395,7 +1557,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
               children: [
                 Text(
                   Loc.t('Bill Total: Rs ${formatRound(billTotal)}', 'بل کل: Rs ${formatRound(billTotal)}'),
-                  style: const TextStyle(fontSize: 13, color: Colors.black54),
+                  style: TextStyle(fontSize: 13, color: ThemeManager.palette.textMuted),
                 ),
                 const SizedBox(height: 8),
                 for (var i = 0; i < rows.length; i++)
@@ -1492,7 +1654,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           child: TextField(
             controller: c,
             keyboardType: type,
-            decoration: InputDecoration(labelText: label, hintText: hint, border: const OutlineInputBorder(), isDense: true),
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              border: const OutlineInputBorder(),
+              isDense: true,
+              // Phone field: contacts se chunne ka button (naam khali ho to woh bhi bhar jata hai).
+              suffixIcon: type == TextInputType.phone ? ContactPickButton(phone: c, name: nameCtrl) : null,
+            ),
           ),
         );
 
@@ -2109,6 +2278,8 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                       _selectedUnit = '';
                       _lastMainPrice = 0.0;
                       _customerRateName = null;
+                      _customerRateSkipNote = null;
+      _customerRateSkipNote = null;
                     });
                   }
                 },
@@ -2225,6 +2396,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                   '$_customerRateName کا معمول کا ریٹ لگا دیا گیا: روپے ${price.toStringAsFixed(2)} / $unitValue',
                 ),
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeManager.palette.blue),
+              ),
+            ),
+          if (_customerRateSkipNote != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, left: 4),
+              child: Text(
+                _customerRateSkipNote!,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeManager.palette.flatAmberFg),
               ),
             ),
           _buildMarginWarning(),

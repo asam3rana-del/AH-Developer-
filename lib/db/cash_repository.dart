@@ -31,7 +31,40 @@ class CashCategories {
     miscellaneous,
     nonExpense,
   ];
+
+  /// Income (Cash IN) categories — profit mein "Other Income" ban kar judti hain (kharcha nahi).
+  static const rentReceived = 'Rent Received';
+  static const otherIncome = 'Other Income';
+  static const income = <String>[rentReceived, otherIncome];
+
+  static bool isIncome(String category) => income.contains(category.trim());
+
+  /// Malik ka apna paisa: na kharcha (munafa kam nahi) na income (munafa nahi barhta).
+  /// Capital = malik ne dukaan mein dala (sirf Cash In). Drawings = ghar ke liye nikala (sirf Cash Out).
+  /// Balance Sheet in ko alag line mein dikhati hai, taake "Capital" sirf andaza na rahe.
+  static const ownerCapital = 'Owner Capital (malik ne dala)';
+  static const ownerDrawings = 'Owner Drawings (ghar ke liye)';
+  static const owner = <String>[ownerCapital, ownerDrawings];
+
+  static bool isOwnerCapital(String category) => category.trim() == ownerCapital;
+  static bool isOwnerDrawings(String category) => category.trim() == ownerDrawings;
+  static bool isOwner(String category) => owner.contains(category.trim());
+
+  /// Cash screen ki category list: pehle kharche (Cash Out), phir income (Cash In), phir malik.
+  /// (Expense screen [all] hi use karti hai — malik wali categories wahan nahi aatin.)
+  static const withIncome = <String>[...all, ...income, ...owner];
 }
+
+/// Malik wali cash rows ka reason in prefixes se shuru hota hai; Balance Sheet inhi se jorti hai.
+const ownerCapitalReason = 'Owner: Capital';
+const ownerDrawingsReason = 'Owner: Drawings';
+const ownerCapitalReasonLike = 'Owner: Capital%';
+const ownerDrawingsReasonLike = 'Owner: Drawings%';
+
+/// Income wali cash IN row ka reason `Income: <category>` se shuru hota hai.
+/// Reports / Balance Sheet isi prefix se "Other Income" nikalte hain.
+const incomeReasonPrefix = 'Income: ';
+const incomeReasonLike = 'Income:%';
 
 /// What one tap on CASH IN / CASH OUT will write.
 class CashEntryPlan {
@@ -63,9 +96,19 @@ CashEntryPlan planCashEntry({
   final cat = category.trim();
   final m = misc.trim();
   final n = note.trim();
-  final isExpense = type == 'OUT' && cat.isNotEmpty && cat != CashCategories.nonExpense;
+  final isIncome = type == 'IN' && CashCategories.isIncome(cat);
+  final isCapital = type == 'IN' && CashCategories.isOwnerCapital(cat);
+  final isDrawings = type == 'OUT' && CashCategories.isOwnerDrawings(cat);
+  final isExpense = type == 'OUT' &&
+      cat.isNotEmpty &&
+      cat != CashCategories.nonExpense &&
+      !CashCategories.isIncome(cat) &&
+      !CashCategories.isOwner(cat);
 
   final reason = StringBuffer();
+  if (isIncome) reason.write('$incomeReasonPrefix$cat');
+  if (isCapital) reason.write(ownerCapitalReason);
+  if (isDrawings) reason.write(ownerDrawingsReason);
   if (isExpense) {
     reason.write(cat);
     if (cat == CashCategories.miscellaneous && m.isNotEmpty) {
@@ -126,6 +169,15 @@ class CashRepository {
     if (type != 'IN' && type != 'OUT') throw ArgumentError('type must be IN or OUT');
     if (method != 'cash' && method != 'bank') throw ArgumentError('method must be cash or bank');
     if (!amount.isFinite || amount <= 0) throw ArgumentError('Amount must be greater than 0');
+    if (type == 'OUT' && CashCategories.isIncome(category)) {
+      throw ArgumentError('Income category sirf Cash In ke liye hai');
+    }
+    if (type == 'OUT' && CashCategories.isOwnerCapital(category)) {
+      throw ArgumentError('Owner Capital sirf Cash In ke liye hai (malik ne paisa dala)');
+    }
+    if (type == 'IN' && CashCategories.isOwnerDrawings(category)) {
+      throw ArgumentError('Owner Drawings sirf Cash Out ke liye hai (ghar ke liye nikala)');
+    }
 
     final plan = planCashEntry(type: type, category: category, misc: misc, note: note);
     final now = DateTime.now().millisecondsSinceEpoch;

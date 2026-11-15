@@ -1,7 +1,8 @@
 import '../models/product.dart';
 import '../models/stock_movement.dart';
-import '../services/session.dart';
 import 'app_database.dart';
+import '../services/permissions.dart';
+import 'unit_cost.dart';
 
 /// Ports the data side of InventoryInsightsActivity.kt — 4 reports: Reorder, Damage/Loss, Margin, Movers.
 ///
@@ -39,7 +40,7 @@ double suggestedReorderQty(Product p) {
 /// product ki CURRENT smallestUnitFactor se taqseem karte hain (product delete ho gaya ho to raw cost).
 double damageLossValue(StockMovement m, Product? p) {
   final factor = p?.smallestUnitFactor() ?? 0.0;
-  final perSmallest = factor > 0 ? m.cost / factor : m.cost;
+  final perSmallest = costPerSmallestOf(m.cost, factor);
   return m.qty.abs() * perSmallest;
 }
 
@@ -137,7 +138,7 @@ class InventoryInsightsRepository {
   static final InventoryInsightsRepository instance = InventoryInsightsRepository._();
 
   void _guard() {
-    if (!Session.isAdminOrManager) {
+    if (!Permissions.can('inventory_insights')) {
       throw const InventoryInsightsException('Inventory Insights sirf Admin/Manager dekh sakta hai');
     }
   }

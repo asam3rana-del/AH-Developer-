@@ -5,14 +5,20 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../db/customer_repository.dart';
+import '../db/due_followup_repository.dart';
 import '../db/party_repository.dart';
 import '../db/supplier_repository.dart';
+import '../models/due_followup.dart';
 import '../models/party.dart';
 import '../services/contact_picker.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
+import '../widgets/party_avatar.dart';
+import 'edit_party_dialog.dart';
+import 'followup_sheets.dart';
+import 'qist_sheet.dart';
 
 /// Mirrors PartyActivity.kt — "Customers & Suppliers": add / edit / delete, search, "Dues only",
 /// tap-for-history, call, plus the maintenance chips (Fix Balances, Merge Duplicates, Cleanup
@@ -113,6 +119,10 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
 
   // ------------------------------------------------------------------ actions
 
+  String _dupNameMsg(String name) => Loc.t(
+      '"$name" already exists. Add something to tell them apart, e.g. "$name (Mohalla)".',
+      '"$name" پہلے سے موجود ہے۔ فرق کے لیے کچھ ساتھ لکھیں، مثلاً "$name (محلہ)"۔');
+
   Future<bool> _confirm(String title, String message, String confirmLabel, {bool destructive = false}) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -161,20 +171,15 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       return;
     }
 
-    // Kotlin "IMPROVEMENT PACK": ek jaise naam par warning (do asli log ka naam ek ho sakta hai,
-    // is liye rokta nahi, sirf sochne ka mauqa deta hai).
+    // Ek jaisa naam ab ROKA jata hai (pehle sirf warning thi): Sale/Purchase party ko naam se dhoondte hain,
+    // do "Ali" hon to har bill pehle wale ke khate mein chala jata. Farq ke liye naam mein ilaqa/dukaan likhein.
     final lower = name.toLowerCase();
     final exists = _showingCustomers
         ? _customers.any((c) => c.name.trim().toLowerCase() == lower)
         : _suppliers.any((s) => s.name.trim().toLowerCase() == lower);
     if (exists) {
-      final ok = await _confirm(
-        Loc.t('Name already exists', 'یہ نام پہلے سے موجود ہے'),
-        Loc.t('A party named "$name" already exists. Add another one with the same name?',
-            '"$name" نام کی ایک پارٹی پہلے سے موجود ہے۔ کیا اسی نام سے ایک اور شامل کی جائے؟'),
-        Loc.t('Add anyway', 'پھر بھی شامل کریں'),
-      );
-      if (!ok || !mounted) return;
+      _toast(_dupNameMsg(name));
+      return;
     }
 
     await _runBusy(() async {
@@ -185,6 +190,10 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       if (res == SavePartyResult.nameRequired) {
         _toast(Loc.t('Name is required', 'نام ضروری ہے'));
+        return;
+      }
+      if (res == SavePartyResult.duplicateName) {
+        _toast(_dupNameMsg(name));
         return;
       }
       _toast(Loc.t('Saved', 'محفوظ ہو گیا'));
@@ -225,240 +234,57 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
 
   void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
-  Future<void> _dial(String phone) async {
-    if (phone.trim().isEmpty) return;
+  /// true = dialer khul gaya.
+  Future<bool> _dial(String phone) async {
+    if (phone.trim().isEmpty) return false;
     try {
       final ok = await launchUrl(Uri(scheme: 'tel', path: phone.trim()));
       if (!ok && mounted) _toast(Loc.t("Couldn't open dialer", 'ڈائلر نہیں کھل سکا'));
+      return ok;
     } catch (_) {
       if (mounted) _toast(Loc.t("Couldn't open dialer", 'ڈائلر نہیں کھل سکا'));
+      return false;
     }
+  }
+
+  /// Customer ko call: dialer khulte hi "call" ki entry (Rabta history / Collection mein) ban jati hai, aur
+  /// nateeja likhne ki sheet khul jati hai — call se wapas aate hi wohi samne hoti hai (baat hui / nahi uthaya /
+  /// wada + tareekh). Sheet band kar dein to entry "sent" rehti hai (koshish to hui).
+  Future<void> _callCustomer(Customer c, double closing) async {
+    final id = c.id;
+    if (!await _dial(c.phone) || id == null || !mounted) return;
+    try {
+      final entryId = await DueFollowUpRepository.instance
+          .add(partyId: id, partyName: c.name, method: FollowUpMethod.call, outcome: FollowUpOutcome.sent);
+      final entry = await DueFollowUpRepository.instance.byId(entryId);
+      if (!mounted) return;
+      await showFollowUpSheet(context,
+          partyId: id,
+          partyName: c.name,
+          existing: entry,
+          method: FollowUpMethod.call,
+          suggestedAmount: closing > 0 ? closing : 0);
+    } catch (_) {}
+  }
+
+  /// Customer ki poori rabta history (call / WhatsApp / wade / nateeje), naya pehle.
+  Future<void> _showRabta(Customer c, double closing) async {
+    final id = c.id;
+    if (id == null) return;
+    await showFollowUpTimeline(context, partyId: id, partyName: c.name, totalDue: closing > 0 ? closing : 0);
   }
 
   // ------------------------------------------------------------------ edit dialogs
 
-  InputDecoration _dlgDeco(String label, {String? error}) =>
-      InputDecoration(labelText: label, errorText: error, isDense: true);
-
+  // Poora edit dialog ab edit_party_dialog.dart mein hai (Party Details ka ✏️ bhi wahi kholta hai).
   Future<void> _editCustomer(Customer c) async {
-    final name = TextEditingController(text: c.name);
-    final phone = TextEditingController(text: c.phone);
-    final limit = TextEditingController(text: c.creditLimit.toString());
-    final opening = TextEditingController(text: c.openingBalance.toString());
-    final stuck = _canEditStuck ? TextEditingController(text: c.stuckBalance == 0.0 ? '' : c.stuckBalance.toString()) : null;
-    const money = TextInputType.numberWithOptions(decimal: true);
-    var rateType = c.rateType;
-    final dueDays = TextEditingController(text: c.dueDays > 0 ? c.dueDays.toString() : '');
-    var kind = c.kind;
-    var returnDate = c.returnDate; // 0 = set nahi
-    final dateFmt = DateFormat('d MMM yyyy');
-
-    var nameError = false;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(Loc.t('Edit Customer', 'کسٹمر میں ترمیم کریں')),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
-                  controller: name,
-                  decoration: _dlgDeco(Loc.t('Name', 'نام'),
-                      error: nameError ? Loc.t('Name is required', 'نام ضروری ہے') : null)),
-              const SizedBox(height: 10),
-              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: _dlgDeco(Loc.t('Phone', 'فون'))),
-              const SizedBox(height: 10),
-              TextField(controller: limit, keyboardType: money, decoration: _dlgDeco(Loc.t('Credit Limit', 'کریڈٹ لیمٹ'))),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: opening, keyboardType: money, decoration: _dlgDeco(Loc.t('Opening Balance', 'ابتدائی بیلنس'))),
-              if (stuck != null) ...[
-                const SizedBox(height: 10),
-                TextField(
-                    controller: stuck,
-                    keyboardType: money,
-                    decoration: _dlgDeco(Loc.t('Stuck Balance (optional)', 'اسٹک بیلنس (اختیاری)'))),
-              ],
-              if (_canEditStuck) ...[
-                const SizedBox(height: 10),
-                // Rate-type: sale mein is customer ko chunte hi rate khud isi hisab se lagta hai.
-                DropdownButtonFormField<String>(
-                  value: const ['', 'retail', 'wholesale', 'shopkeeper'].contains(rateType) ? rateType : '',
-                  isExpanded: true,
-                  decoration: _dlgDeco(Loc.t('Rate Type', 'ریٹ کی قسم')),
-                  items: [
-                    DropdownMenuItem(value: '', child: Text(Loc.t('Follow bill (default)', 'بل کے مطابق (ڈیفالٹ)'))),
-                    DropdownMenuItem(value: 'retail', child: Text(Loc.t('Retail', 'ریٹیل'))),
-                    DropdownMenuItem(value: 'wholesale', child: Text(Loc.t('Wholesale', 'ہول سیل'))),
-                    DropdownMenuItem(value: 'shopkeeper', child: Text(Loc.t('Shopkeeper (lowest margin)', 'دکاندار (کم ترین مارجن)'))),
-                  ],
-                  onChanged: (v) => setLocal(() => rateType = v ?? ''),
-                ),
-                const SizedBox(height: 10),
-                // Default muddat: udhaar bill par due date = bill date + itne din (sale mein badal sakte hain).
-                TextField(
-                    controller: dueDays,
-                    keyboardType: TextInputType.number,
-                    decoration: _dlgDeco(Loc.t('Payment due in (days) — optional', 'ادائیگی کی مدت (دن) — اختیاری'))),
-                const SizedBox(height: 10),
-                // Amanat / Loan: sirf label + wapsi ki yaad-dahani; balance ka hisaab nahi badalta.
-                DropdownButtonFormField<String>(
-                  value: const ['', 'amanat', 'loan'].contains(kind) ? kind : '',
-                  isExpanded: true,
-                  decoration: _dlgDeco(Loc.t('Party type', 'پارٹی کی قسم')),
-                  items: [
-                    DropdownMenuItem(value: '', child: Text(Loc.t('Normal customer', 'عام کسٹمر'))),
-                    DropdownMenuItem(value: 'amanat', child: Text(Loc.t('Amanat (customer deposited money)', 'امانت (کسٹمر نے پیسے رکھوائے)'))),
-                    DropdownMenuItem(value: 'loan', child: Text(Loc.t('Loan (shop lent cash)', 'قرض (دکان نے نقد دیا)'))),
-                  ],
-                  onChanged: (v) => setLocal(() {
-                    kind = v ?? '';
-                    if (kind.isEmpty) returnDate = 0;
-                  }),
-                ),
-                if (kind.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: returnDate > 0 ? DateTime.fromMillisecondsSinceEpoch(returnDate) : DateTime.now(),
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) {
-                        setLocal(() => returnDate = DateTime(picked.year, picked.month, picked.day).millisecondsSinceEpoch);
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: _dlgDeco(kind == 'amanat'
-                          ? Loc.t('Return date (amanat)', 'واپسی کی تاریخ (امانت)')
-                          : Loc.t('Expected repayment date (loan)', 'وصولی کی تاریخ (قرض)')),
-                      child: Row(children: [
-                        Expanded(
-                          child: Text(returnDate > 0
-                              ? dateFmt.format(DateTime.fromMillisecondsSinceEpoch(returnDate))
-                              : Loc.t('Tap to set (optional)', 'تاریخ چنیں (اختیاری)')),
-                        ),
-                        if (returnDate > 0)
-                          InkWell(onTap: () => setLocal(() => returnDate = 0), child: const Icon(Icons.close, size: 18)),
-                      ]),
-                    ),
-                  ),
-                ],
-              ],
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
-            TextButton(
-              onPressed: () {
-                if (name.text.trim().isEmpty) {
-                  setLocal(() => nameError = true);
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: Text(Loc.t('Save', 'محفوظ کریں')),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      if (ok != true || !mounted) return;
-      // Kotlin: ghalat limit/opening => purani value; stuck ghalat => save roko + warning.
-      double? stuckValue;
-      if (stuck != null) {
-        stuckValue = parseMoneyOrWarn(context, stuck.text, 'Stuck Balance', 'پھنسا ہوا بیلنس');
-        if (stuckValue == null) return;
-      }
-      await _runBusy(() async {
-        await PartyRepository.instance.editCustomer(
-          c,
-          name: name.text,
-          phone: phone.text,
-          creditLimit: double.tryParse(limit.text.trim()) ?? c.creditLimit,
-          openingBalance: double.tryParse(opening.text.trim()) ?? c.openingBalance,
-          stuckBalance: stuckValue, // null (cashier) => purana stuck barqarar
-          rateType: _canEditStuck ? rateType : null, // cashier rate-type nahi badal sakta
-          dueDays: _canEditStuck ? (int.tryParse(dueDays.text.trim()) ?? 0).clamp(0, 365) : null,
-          kind: _canEditStuck ? kind : null, // cashier qism/tarikh nahi badal sakta
-          returnDate: _canEditStuck ? (kind.isEmpty ? 0 : returnDate) : null,
-        );
-        if (mounted) _toast(Loc.t('Updated', 'اپ ڈیٹ ہو گیا'));
-        await _reload();
-      });
-    } finally {
-      name.dispose();
-      phone.dispose();
-      limit.dispose();
-      opening.dispose();
-      stuck?.dispose();
-      dueDays.dispose();
-    }
+    if (_busy) return;
+    if (await showEditCustomerDialog(context, c) && mounted) await _reload();
   }
 
   Future<void> _editSupplier(Supplier s) async {
-    final name = TextEditingController(text: s.name);
-    final phone = TextEditingController(text: s.phone);
-    final opening = TextEditingController(text: s.openingBalance.toString());
-    var nameError = false;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(Loc.t('Edit Supplier', 'سپلائر میں ترمیم کریں')),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
-                  controller: name,
-                  decoration: _dlgDeco(Loc.t('Name', 'نام'),
-                      error: nameError ? Loc.t('Name is required', 'نام ضروری ہے') : null)),
-              const SizedBox(height: 10),
-              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: _dlgDeco(Loc.t('Phone', 'فون'))),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: opening,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: _dlgDeco(Loc.t('Opening Balance', 'ابتدائی بیلنس'))),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
-            TextButton(
-              onPressed: () {
-                if (name.text.trim().isEmpty) {
-                  setLocal(() => nameError = true);
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: Text(Loc.t('Save', 'محفوظ کریں')),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      if (ok != true || !mounted) return;
-      await _runBusy(() async {
-        await PartyRepository.instance.editSupplier(
-          s,
-          name: name.text,
-          phone: phone.text,
-          openingBalance: double.tryParse(opening.text.trim()) ?? s.openingBalance,
-        );
-        if (mounted) _toast(Loc.t('Updated', 'اپ ڈیٹ ہو گیا'));
-        await _reload();
-      });
-    } finally {
-      name.dispose();
-      phone.dispose();
-      opening.dispose();
-    }
+    if (_busy) return;
+    if (await showEditSupplierDialog(context, s) && mounted) await _reload();
   }
 
   // ------------------------------------------------------------------ delete
@@ -854,8 +680,18 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           accent: _customerAccent,
           icon: Icons.person,
           isCustomer: true,
-          kind: c.kind,
-          returnDate: c.returnDate,
+          partyId: c.id,
+          onCall: () => _callCustomer(
+              c, partyClosing(opening: c.openingBalance, running: _customerBalances[c.id] ?? 0.0, stuck: c.stuckBalance)),
+          onRabta: () => _showRabta(
+              c, partyClosing(opening: c.openingBalance, running: _customerBalances[c.id] ?? 0.0, stuck: c.stuckBalance)),
+          onQist: c.id == null
+              ? null
+              : () => showQistSheet(context,
+                  customerId: c.id!,
+                  name: c.name,
+                  due: partyClosing(
+                      opening: c.openingBalance, running: _customerBalances[c.id] ?? 0.0, stuck: c.stuckBalance)),
           onTap: () => _showCustomerHistory(c),
           onEdit: () => _editCustomer(c),
           onDelete: () => _deleteCustomer(c),
@@ -883,6 +719,7 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
           accent: _supplierAccent,
           icon: Icons.shopping_bag,
           isCustomer: false,
+          partyId: s.id,
           onTap: () => _showSupplierHistory(s),
           onEdit: () => _editSupplier(s),
           onDelete: () => _deleteSupplier(s),
@@ -1130,11 +967,13 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
     required Color accent,
     required IconData icon,
     required bool isCustomer,
+    int? partyId,
+    VoidCallback? onCall,
+    VoidCallback? onRabta,
+    VoidCallback? onQist,
     required VoidCallback onTap,
     required VoidCallback onEdit,
     required VoidCallback onDelete,
-    String kind = '',
-    int returnDate = 0,
   }) {
     final closing = partyClosing(opening: opening, running: running, stuck: stuck);
     final isGive = partyIsGive(isCustomer: isCustomer, closing: closing);
@@ -1165,29 +1004,18 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
         InkWell(
           onTap: onTap,
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(color: accent.withOpacity(0.14), shape: BoxShape.circle),
-              child: Icon(icon, size: 19, color: accent),
+            PartyAvatar(
+              isCustomer: isCustomer,
+              partyId: partyId,
+              name: name,
+              radius: 21,
+              onTap: partyId == null ? null : () => showPartyPhotoSheet(context, isCustomer: isCustomer, partyId: partyId),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.textDark)),
                 if (phone.isNotEmpty) Text(phone, style: TextStyle(fontSize: 12, color: p.textMuted)),
-                if (kind == 'amanat' || kind == 'loan')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '${kind == 'amanat' ? Loc.t('Amanat', 'امانت') : Loc.t('Loan', 'قرض')}'
-                      '${returnDate > 0 ? '  •  ${Loc.t('Return', 'واپسی')}: ${DateFormat('d MMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(returnDate))}' : ''}',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: returnDate > 0 && returnDate < DateTime.now().millisecondsSinceEpoch - 86400000 ? p.red : p.flatAmberFg),
-                    ),
-                  ),
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
@@ -1216,7 +1044,10 @@ class _PartyScreenState extends State<PartyScreen> with WidgetsBindingObserver {
         Align(
           alignment: AlignmentDirectional.centerEnd,
           child: Wrap(spacing: 10, runSpacing: 8, children: [
-            if (phone.isNotEmpty) action(Icons.phone, Loc.t('Call', 'کال کریں'), p.flatTealFg, () => _dial(phone)),
+            if (phone.isNotEmpty)
+              action(Icons.phone, Loc.t('Call', 'کال کریں'), p.flatTealFg, onCall ?? () => unawaited(_dial(phone))),
+            if (onRabta != null) action(Icons.forum_outlined, Loc.t('Rabta', 'رابطہ'), accent, onRabta),
+            if (onQist != null) action(Icons.calendar_month_outlined, Loc.t('Qist', 'قسط'), accent, onQist),
             action(Icons.edit, Loc.t('Edit', 'ترمیم'), accent, onEdit),
             action(Icons.delete, Loc.t('Delete', 'حذف کریں'), p.red, onDelete, danger: true),
           ]),

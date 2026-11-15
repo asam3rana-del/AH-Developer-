@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart' hide User;
+import 'package:firebase_core/firebase_core.dart';
 
 import '../models/misc_entities.dart';
 import '../sync/cloud_config_store.dart';
@@ -77,7 +78,26 @@ class PhoneOtpAuth {
         'اس ڈیوائس پر کلاؤڈ پراجیکٹ سیٹ نہیں — OTP لاگ اِن کے لیے ضروری ہے۔ پاس ورڈ سے لاگ اِن کریں اور Settings > Cloud Sync Setup میں سیٹ کریں۔',
       ));
     }
-    return FirebaseAuth.instanceFor(app: app);
+    // FIX: OTP ko sync wali app par sign-in NAHI karna. Wahan anonymous (ya staff) user hai jis ka UID
+    // branch_members/{uid} mein provisioned hai; signInWithCredential us user ko badal deta tha => sync par
+    // permission-denied, aur purana anonymous UID hamesha ke liye kho jata. Is liye OTP alag (secondary)
+    // Firebase app par — same project/options, alag auth session.
+    return FirebaseAuth.instanceFor(app: await _otpApp(app));
+  }
+
+  static const _otpAppName = 'otp_login';
+
+  Future<FirebaseApp> _otpApp(FirebaseApp main) async {
+    try {
+      final existing = Firebase.app(_otpAppName);
+      if (existing.options.appId == main.options.appId && existing.options.projectId == main.options.projectId) {
+        return existing;
+      }
+      await existing.delete(); // cloud config badal gayi
+    } catch (_) {
+      // abhi bani nahi
+    }
+    return Firebase.initializeApp(name: _otpAppName, options: main.options);
   }
 
   /// OTP bhejo. [onCodeSent] => verificationId; [onAutoVerified] => Android auto-retrieval (Kotlin
@@ -107,6 +127,10 @@ class PhoneOtpAuth {
     try {
       final auth = await _auth();
       await auth.signInWithCredential(credential);
+      // Sirf phone ki tasdeeq chahiye thi; is alag session ko zinda rakhne ki zaroorat nahi.
+      try {
+        await auth.signOut();
+      } catch (_) {}
       return true;
     } on OtpException {
       rethrow;

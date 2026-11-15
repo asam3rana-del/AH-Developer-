@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../db/maintenance_sync.dart';
 import '../utils/password_hasher.dart';
+import '../utils/qty_math.dart';
 import 'sync_apply_rest.dart';
 import 'sync_push_plan.dart' show decodePayload;
 import 'sync_queue_dao.dart';
@@ -63,6 +64,14 @@ Future<void> relinkOrphanedParties(DatabaseExecutor db) async {
       'UPDATE purchases SET supplierId = (SELECT s.id FROM suppliers s WHERE s.serverId = purchases.supplierServerId) '
       "WHERE supplierId IS NULL AND supplierServerId IS NOT NULL AND supplierServerId != '' "
       'AND EXISTS (SELECT 1 FROM suppliers s WHERE s.serverId = purchases.supplierServerId)');
+  // Due Reminders follow-ups: party us waqt nahi thi (partyId 0) => ab jod do. (Table check: chhote test schemas.)
+  final hasFollowups = await db.rawQuery("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'due_followups'");
+  if (hasFollowups.isNotEmpty) {
+    await db.execute(
+        'UPDATE due_followups SET partyId = (SELECT c.id FROM customers c WHERE c.serverId = due_followups.partyServerId) '
+        "WHERE partyId = 0 AND partyServerId IS NOT NULL AND partyServerId != '' "
+        'AND EXISTS (SELECT 1 FROM customers c WHERE c.serverId = due_followups.partyServerId)');
+  }
 }
 
 /// Abhi tak queue mein baithe (bheje na gaye) local deltas — pull ke server snapshot ke UPAR lagte hain,
@@ -115,6 +124,13 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
     // Amanat/Loan tag + wapsi tarikh: purane doc mein na ho to local value na todo.
     final kindRemote = row.containsKey('kind') ? (_s(row['kind']) ?? '') : null;
     final returnDateRemote = row.containsKey('returnDate') ? (_i(row['returnDate']) ?? 0) : null;
+    // Amanat/Loan entries: purane doc mein na ho to local entries na todo.
+    final returnEntriesRemote = row.containsKey('returnEntries') ? (_s(row['returnEntries']) ?? '') : null;
+    // Amanat/Loan log (DB v32): purane doc mein na ho to local log na todo.
+    final returnLogRemote = row.containsKey('returnLog') ? (_s(row['returnLog']) ?? '') : null;
+    // Payment ka din (DB v37): purane doc mein na ho to local value na todo.
+    final payScheduleRemote = row.containsKey('paySchedule') ? (_s(row['paySchedule']) ?? '') : null;
+    final qistPlanRemote = row.containsKey('qistPlan') ? (_s(row['qistPlan']) ?? '') : null;
     final serverUpdatedAt = _i(row['updatedAt']) ?? nowMs();
     final localPending = await pendingDelta(q, 'customer', serverId, 'increment_balance');
     // 2-device FIX: is device ka apna naam/phone edit abhi push nahi hua => server ki purani copy se
@@ -155,6 +171,10 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
           if (dueDaysRemote != null) 'dueDays': dueDaysRemote,
           if (kindRemote != null) 'kind': kindRemote,
           if (returnDateRemote != null) 'returnDate': returnDateRemote,
+          if (returnEntriesRemote != null) 'returnEntries': returnEntriesRemote,
+          if (returnLogRemote != null) 'returnLog': returnLogRemote,
+          if (payScheduleRemote != null) 'paySchedule': payScheduleRemote,
+          if (qistPlanRemote != null) 'qistPlan': qistPlanRemote,
           'updatedAt': serverUpdatedAt,
           'dirty': localPending != 0.0 ? 1 : 0,
         },
@@ -173,6 +193,10 @@ Future<void> applyCustomers(DatabaseExecutor db, List<SyncDoc> rows, {required i
         if (dueDaysRemote != null) 'dueDays': dueDaysRemote,
         if (kindRemote != null) 'kind': kindRemote,
         if (returnDateRemote != null) 'returnDate': returnDateRemote,
+        if (returnEntriesRemote != null) 'returnEntries': returnEntriesRemote,
+        if (returnLogRemote != null) 'returnLog': returnLogRemote,
+        if (payScheduleRemote != null) 'paySchedule': payScheduleRemote,
+        if (qistPlanRemote != null) 'qistPlan': qistPlanRemote,
         'serverId': serverId,
         'updatedAt': serverUpdatedAt,
         'dirty': localPending != 0.0 ? 1 : 0,
@@ -330,10 +354,10 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
       // baad product upsert queue mein atak jaye to pehle is product ka stock hamesha ke liye purana rehta tha.
       if (stock != null && !keepLocalStock) {
         await _logStockPullDrop(db,
-            barcode: barcode, cloudStock: stock, pending: localPendingStock, newStock: stock + localPendingStock, via: 'pending-upsert');
+            barcode: barcode, cloudStock: stock, pending: localPendingStock, newStock: roundQty(stock + localPendingStock), via: 'pending-upsert');
         await db.update(
           'products',
-          {'stock': stock + localPendingStock, 'dirty': 1},
+          {'stock': roundQty(stock + localPendingStock), 'dirty': 1},
           where: 'barcode = ?',
           whereArgs: [barcode],
         );
@@ -378,7 +402,7 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
             barcode: barcode,
             cloudStock: stock,
             pending: localPendingStock,
-            newStock: (stock ?? _dbl(existing['stock'])) + localPendingStock,
+            newStock: roundQty((stock ?? _dbl(existing['stock'])) + localPendingStock),
             via: 'normal');
       }
       if (existing['dirty'] == 1 && (existing['name'] != name || _dbl(existing['salePrice']) != salePrice)) {
@@ -389,7 +413,7 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
         'products',
         {
           ...common,
-          if (!keepLocalStock) 'stock': (stock ?? _dbl(existing['stock'])) + localPendingStock,
+          if (!keepLocalStock) 'stock': roundQty((stock ?? _dbl(existing['stock'])) + localPendingStock),
         },
         where: 'barcode = ?',
         whereArgs: [barcode],
@@ -397,7 +421,7 @@ Future<void> applyProducts(DatabaseExecutor db, List<SyncDoc> rows, {required in
     } else {
       await db.insert(
         'products',
-        {'barcode': barcode, ...common, 'stock': (stock ?? 0.0) + localPendingStock},
+        {'barcode': barcode, ...common, 'stock': roundQty((stock ?? 0.0) + localPendingStock)},
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
@@ -419,13 +443,22 @@ Future<void> applyUsers(DatabaseExecutor db, List<SyncDoc> rows, {required Passw
     final role = _s(row['role']) ?? 'cashier';
     final phone = _s(row['phone']) ?? '';
     final active = row['active'] is bool ? row['active'] as bool : true;
+    // Purane app version ki row mein 'permissions' nahi hoti: tab local rules na mitayen.
+    final hasPermissions = row.containsKey('permissions');
+    final permissions = _s(row['permissions']) ?? '';
 
     final existing = await _findBy(db, 'users', 'username', username);
     if (existing != null) {
       // passwordHash kabhi cloud se nahi aata/badalta.
       await db.update(
         'users',
-        {'displayName': displayName, 'role': role, 'phone': phone, 'active': active ? 1 : 0},
+        {
+          'displayName': displayName,
+          'role': role,
+          'phone': phone,
+          'active': active ? 1 : 0,
+          if (hasPermissions) 'permissions': permissions,
+        },
         where: 'username = ?',
         whereArgs: [username],
       );
@@ -441,6 +474,7 @@ Future<void> applyUsers(DatabaseExecutor db, List<SyncDoc> rows, {required Passw
           'passwordHash': await hashPassword(_randomSecret()),
           'active': active ? 1 : 0,
           'phone': phone,
+          'permissions': permissions,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );

@@ -4,8 +4,8 @@ import '../db/stock_audit_repository.dart';
 import '../models/product.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
-import '../widgets/role_guard.dart';
 import 'stock_movement_screen.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors StockAuditActivity.kt — "stock apni history se match nahi karta" wale products ek saath.
 ///
@@ -21,8 +21,8 @@ class StockAuditScreen extends StatelessWidget {
   const StockAuditScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const RoleGuard(
-        allowed: {'admin', 'manager'},
+  Widget build(BuildContext context) => const PermissionGuard(
+        permission: 'stock_audit',
         child: _StockAuditBody(),
       );
 }
@@ -69,8 +69,10 @@ class _StockAuditBodyState extends State<_StockAuditBody> {
     }
   }
 
-  void _toast(String m) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
+  }
 
   Future<bool> _confirm(String title, String message) async {
     final ok = await showDialog<bool>(

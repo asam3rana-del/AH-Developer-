@@ -6,6 +6,9 @@ import '../db/cash_repository.dart';
 import '../models/misc_entities.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
+import 'cash_register_screen.dart';
+import '../services/permissions.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors CashActivity.kt — record a Cash In / Cash Out, see today's totals
 /// and the latest 50 cash movements. All roles (same as Kotlin).
@@ -58,9 +61,12 @@ class _CashScreenState extends State<CashScreen> {
     });
   }
 
-  void _toast(String msg) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(msg)));
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(msg)));
+  }
 
   Future<void> _save(String type) async {
     if (_saving) return;
@@ -155,6 +161,13 @@ class _CashScreenState extends State<CashScreen> {
                 style: TextStyle(color: p.headerSubtitleColor, fontSize: 11)),
           ]),
         ),
+        if (Permissions.can('cash_register'))
+          IconButton(
+            tooltip: Loc.t('Cash Register (daily till open & close)', 'کیش رجسٹر (روزانہ کھولیں / بند کریں)'),
+            icon: const Icon(Icons.point_of_sale, color: Colors.white),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const PermissionGuard(permission: 'cash_register', child: CashRegisterScreen()))),
+          ),
       ]),
     );
   }
@@ -244,12 +257,15 @@ class _CashScreenState extends State<CashScreen> {
         const SizedBox(height: 14),
         _dropdown(p, _method, const ['cash', 'bank'], (v) => setState(() => _method = v)),
         const SizedBox(height: 14),
-        Text(Loc.t('Expense Category', 'خرچہ کیٹیگری'),
+        Text(Loc.t('Category', 'کیٹیگری'),
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.textDark)),
         const SizedBox(height: 2),
-        Text(Loc.t('Used for Cash Out only', 'صرف کیش آؤٹ کے لیے'), style: TextStyle(fontSize: 11, color: p.textMuted)),
+        Text(
+            Loc.t('Expense categories: Cash Out • Rent Received / Other Income: Cash In',
+                'خرچے: کیش آؤٹ • کرایہ وصول / دیگر آمدنی: کیش اِن'),
+            style: TextStyle(fontSize: 11, color: p.textMuted)),
         const SizedBox(height: 10),
-        _dropdown(p, _category, CashCategories.all, (v) => setState(() => _category = v)),
+        _dropdown(p, _category, CashCategories.withIncome, (v) => setState(() => _category = v)),
         const SizedBox(height: 14),
         if (showToggle)
           Padding(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../db/balance_sheet_repository.dart';
+import '../db/cash_repository.dart' show CashCategories;
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 
@@ -107,6 +108,11 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
           '${d.customersDrifted} customer(s) and ${d.suppliersDrifted} supplier(s) have a stored balance that does not match their bills/payments \u2014 run Fix Balances.',
           '${d.customersDrifted} کسٹمر اور ${d.suppliersDrifted} سپلائر کا بیلنس ان کے بلوں/ادائیگیوں سے میل نہیں کھاتا \u2014 Fix Balances چلائیں۔',
         ),
+      if (f.ownerDrawings > 0 && f.ownerDrawings > f.netProfit + f.ownerCapitalIn + 0.009)
+        Loc.t(
+          'Owner drawings are more than all profit + capital added \u2014 the shop is running on its opening money.',
+          'مالک نے کل منافع اور ڈالے گئے سرمائے سے زیادہ نکالا ہے \u2014 دکان اپنی ابتدائی رقم پر چل رہی ہے۔',
+        ),
       if (f.cashOrBankNegative)
         Loc.t(
           'Cash or Bank is negative \u2014 an opening balance was probably never entered (add it once as a Cash In entry) or an entry is wrong.',
@@ -138,8 +144,10 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
       const SizedBox(height: 16),
       _sectionHeader(p, Loc.t('CAPITAL / EQUITY', 'سرمایہ')),
       _card(p, [
+        _row(p, Loc.t('Owner Capital added', 'مالک نے ڈالا'), f.ownerCapitalIn),
+        _row(p, Loc.t('Less: Owner Drawings', 'منہا: مالک نے گھر کے لیے نکالا'), f.ownerDrawings == 0 ? 0.0 : -f.ownerDrawings),
+        _row(p, Loc.t('Opening balances & other (calculated)', 'ابتدائی بیلنس اور دیگر (حساب شدہ)'), f.openingAndOther),
         _row(p, Loc.t('Net Profit (all-time)', 'خالص منافع (تمام وقت)'), f.netProfit),
-        _row(p, Loc.t('Capital (calculated)', 'سرمایہ (حساب شدہ)'), f.capital),
         _divider(p),
         _row(p, Loc.t('Total Liabilities + Capital', 'کل واجبات + سرمایہ'), f.totalLiabilitiesAndCapital, bold: true),
       ]),
@@ -155,8 +163,12 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
         padding: const EdgeInsets.fromLTRB(6, 4, 6, 20),
         child: Text(
           Loc.t(
-            "Note: Capital is a calculated balancing figure (Total Assets \u2212 Total Liabilities \u2212 Net Profit), since owner's injected capital isn't entered separately in this app.",
-            'نوٹ: سرمایہ ایک حساب شدہ balancing figure ہے، کیونکہ مالک کا لگایا گیا سرمایہ اس ایپ میں الگ سے درج نہیں ہوتا۔',
+            'Note: record money you put into the shop as Cash In \u2192 "${CashCategories.ownerCapital}", and money taken home as Cash Out \u2192 "${CashCategories.ownerDrawings}". '
+                '"Opening balances & other" is the balancing part: opening stock, parties\' opening dues, opening cash not entered as Owner Capital, damage and rounding. '
+                'Drawings this month: Rs ${f.ownerDrawingsThisMonth.toStringAsFixed(0)}.',
+            'نوٹ: دکان میں ڈالی گئی رقم کیش اِن \u2192 "${CashCategories.ownerCapital}" میں، اور گھر لے جائی گئی رقم کیش آؤٹ \u2192 "${CashCategories.ownerDrawings}" میں لکھیں۔ '
+                '"ابتدائی بیلنس اور دیگر" حساب شدہ حصہ ہے: ابتدائی اسٹاک، پارٹیوں کے ابتدائی بقایا، نقصان اور rounding۔ '
+                'اس مہینے گھر کے لیے نکالا: Rs ${f.ownerDrawingsThisMonth.toStringAsFixed(0)}۔',
           ),
           style: TextStyle(fontSize: 11.5, color: p.textMuted),
         ),

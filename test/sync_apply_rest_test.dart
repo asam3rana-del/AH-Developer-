@@ -33,7 +33,7 @@ Future<Database> _memDb() async {
     defaultUnitIndex INTEGER NOT NULL DEFAULT -1, quickSaleDefaultUnitIndex INTEGER NOT NULL DEFAULT -1)''');
   await x('''CREATE TABLE users (username TEXT PRIMARY KEY NOT NULL, displayName TEXT NOT NULL,
     role TEXT NOT NULL, passwordHash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
-    phone TEXT NOT NULL DEFAULT '')''');
+    phone TEXT NOT NULL DEFAULT '', permissions TEXT NOT NULL DEFAULT '')''');
   await x('''CREATE TABLE audit (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
     action TEXT NOT NULL, reference TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '',
     createdAt INTEGER NOT NULL)''');
@@ -46,7 +46,8 @@ Future<Database> _memDb() async {
     status TEXT NOT NULL DEFAULT 'active', $_sync, dueDate INTEGER NOT NULL DEFAULT 0, customerServerId TEXT)''');
   await x('''CREATE TABLE sale_items (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice TEXT NOT NULL,
     barcode TEXT NOT NULL, product TEXT NOT NULL, qty REAL NOT NULL, unit TEXT NOT NULL DEFAULT '',
-    unitPrice REAL NOT NULL, cost REAL NOT NULL, amount REAL NOT NULL, conversionFactor REAL NOT NULL DEFAULT 0)''');
+    unitPrice REAL NOT NULL, cost REAL NOT NULL, amount REAL NOT NULL, conversionFactor REAL NOT NULL DEFAULT 0,
+    pendingQty REAL NOT NULL DEFAULT 0, pendingEst REAL NOT NULL DEFAULT 0, backfillLog TEXT NOT NULL DEFAULT '')''');
   await x('''CREATE TABLE purchases (billNo TEXT PRIMARY KEY NOT NULL, supplierId INTEGER, total REAL NOT NULL,
     paid REAL NOT NULL, createdAt INTEGER NOT NULL, subtotal REAL NOT NULL DEFAULT 0,
     discount REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', $_sync,
@@ -322,6 +323,24 @@ void main() {
       expect((await db.query('payments')).length, 2);
     });
 
+    test('pending local edit/delete: payment, expense, cash pull se overwrite / dobara zinda nahi', () async {
+      // Edit: local 700, cloud ki purani copy 500 — local edit push hone tak barqarar.
+      await db.insert('payments', {'reference': 'S1', 'partyType': 'customer', 'amount': 700.0, 'method': 'cash',
+        'note': '', 'billReference': '', 'createdAt': 1, 'serverId': 'p1'});
+      await _queue(db, 'payment', 'p1', 'upsert');
+      // Delete: local se hata diya, delete abhi push nahi hua — cloud ki copy wapas na aaye.
+      await _queue(db, 'expense', 'e1', 'delete');
+      await _queue(db, 'cash_transaction', 'c1', 'delete');
+      await _apply(db, PullResult(
+        payments: [{'serverId': 'p1', 'reference': 'S1', 'partyType': 'customer', 'amount': 500, 'method': 'cash', 'createdAt': 1}],
+        expenses: [{'serverId': 'e1', 'category': 'Rent', 'amount': 100, 'createdAt': 1}],
+        cashTransactions: [{'serverId': 'c1', 'type': 'in', 'amount': 100, 'createdAt': 1}],
+      ));
+      expect((await db.query('payments')).single['amount'], 700.0);
+      expect(await db.query('expenses'), isEmpty);
+      expect(await db.query('cash_transactions'), isEmpty);
+    });
+
     test('payment supplier partyType supplier table se resolve', () async {
       await db.insert('suppliers', {'name': 'X', 'serverId': 'sX'});
       await _apply(db, PullResult(payments: [
@@ -592,8 +611,8 @@ void main() {
     });
   });
 
-  test('branchScopedCollections: 24 (16 + Workers + Shop Rents + Utility Bills), users/shell nahi', () {
-    expect(branchScopedCollections.length, 24);
+  test('branchScopedCollections: 25 (16 + Workers + Shop Rents + Utility Bills + Due Follow-ups), users/shell nahi', () {
+    expect(branchScopedCollections.length, 25);
     expect(branchScopedCollections.contains('workers'), isTrue);
     expect(branchScopedCollections.contains('users'), isFalse);
     expect(branchScopedCollections.contains('shell_customers'), isFalse);

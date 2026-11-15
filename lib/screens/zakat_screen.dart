@@ -62,9 +62,12 @@ class _ZakatScreenState extends State<ZakatScreen> {
     }
   }
 
-  void _toast(String msg) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(msg)));
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(msg)));
+  }
 
   String _money(String cur, double v) => '$cur ${v.toStringAsFixed(0)}';
 

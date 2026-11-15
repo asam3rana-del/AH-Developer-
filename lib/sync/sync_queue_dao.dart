@@ -23,7 +23,8 @@ class SyncQueueDao {
       'sync_queue',
       where: 'syncedAt IS NULL AND retryCount < ?',
       whereArgs: [maxAutoRetries],
-      orderBy: 'createdAt ASC',
+      // FIX: ek hi millisecond mein bani entries (customer banana + us ka balance) ki tarteeb pakki — id se.
+      orderBy: 'createdAt ASC, id ASC',
       limit: limit,
     );
     return rows.map(SyncQueueEntry.fromMap).toList();
@@ -97,6 +98,12 @@ class SyncQueueDao {
     );
     return rows.map(SyncQueueEntry.fromMap).toList();
   }
+
+  /// Quota (resource-exhausted) ki wajah se stuck hui entries dobara pending (quota wapas aane par).
+  Future<int> resetQuotaStuck() => db.rawUpdate(
+      "UPDATE sync_queue SET retryCount = 0, lastError = NULL WHERE syncedAt IS NULL AND retryCount >= ? AND "
+      "(LOWER(lastError) LIKE '%quota%' OR LOWER(lastError) LIKE '%resource-exhausted%' OR LOWER(lastError) LIKE '%resource_exhausted%')",
+      [maxAutoRetries]);
 
   /// "Retry Now": ek stuck entry dobara pending.
   Future<void> resetRetry(int id) => db.update(

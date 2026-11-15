@@ -1,6 +1,6 @@
 import '../models/product.dart';
-import '../services/session.dart';
 import 'app_database.dart';
+import '../services/permissions.dart';
 
 /// Ek purchase line ka normalized rate (product ke PRIMARY unit par).
 class RateEntry {
@@ -69,7 +69,7 @@ class RateComparisonRepository {
   static final RateComparisonRepository instance = RateComparisonRepository._();
 
   Future<List<SupplierRateRow>> compare(Product product) async {
-    if (!Session.isAdminOrManager) return const [];
+    if (!Permissions.can('rate_comparison')) return const [];
     final db = await AppDatabase.instance.database;
     // Kotlin purchasesBySupplier() jaisa: sirf supplier wali purchases (Cash Purchase
     // ki supplierId NULL hoti hai), status filter nahi (Kotlin bhi nahi lagata).

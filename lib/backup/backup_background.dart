@@ -6,7 +6,9 @@ import 'package:workmanager/workmanager.dart';
 
 import '../services/bill_reminder_service.dart';
 import '../services/due_alert_service.dart';
+import '../services/return_alert_service.dart';
 import 'backup_scheduler.dart';
+import 'offsite_backup.dart';
 
 /// Kotlin `BackupCheckpointWorker` (WorkManager, har 15 min) ka Flutter jor.
 /// App band / swipe-out hone par bhi Android 12 PM / 9 PM checkpoint check chalata hai.
@@ -19,7 +21,12 @@ import 'backup_scheduler.dart';
 class BackupBackground {
   BackupBackground._();
 
-  static const uniqueName = 'grocery_pos_backup_checkpoints'; // Kotlin WORK_NAME
+  /// workmanager 0.5 → 0.10: plugin ka Android package badla (be.tramckrijte → dev.fluttercommunity).
+  /// Purane naam par registered kaam purani (ab na-maujood) worker class ki taraf ishara karta hai aur
+  /// `keep` policy use hamesha zinda rakhti — naya kaam kabhi register na hota. Is liye naya naam,
+  /// aur purana naam ek dafa cancel.
+  static const uniqueName = 'ah_backup_checkpoints_v2';
+  static const legacyUniqueName = 'grocery_pos_backup_checkpoints'; // Kotlin WORK_NAME / workmanager 0.5
   static const taskName = 'backup_checkpoint_check';
 
   static bool get _supported => !kIsWeb && Platform.isAndroid;
@@ -28,12 +35,16 @@ class BackupBackground {
   static Future<void> schedule() async {
     if (!_supported) return;
     try {
-      await Workmanager().initialize(backupCallbackDispatcher, isInDebugMode: false);
+      // workmanager 0.9: `isInDebugMode` hata diya gaya (debug ab hooks se).
+      await Workmanager().initialize(backupCallbackDispatcher);
+      try {
+        await Workmanager().cancelByUniqueName(legacyUniqueName);
+      } catch (_) {}
       await Workmanager().registerPeriodicTask(
         uniqueName,
         taskName,
         frequency: BackupScheduler.checkInterval, // 15 min = Android ka minimum
-        existingWorkPolicy: ExistingWorkPolicy.keep,
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep, // 0.9: periodic ka apna enum
       );
     } catch (_) {
       // Plugin na ho / OEM battery policy — foreground Timer fallback maujood hai.
@@ -50,10 +61,14 @@ void backupCallbackDispatcher() {
       // Naye isolate mein DB / prefs / secure storage foreground jaise hi khulte hain
       // (sqflite path file-based hai, isliye wahi live DB milti hai).
       await BackupScheduler.instance.checkCheckpoints();
+      // Raat 9 ke baad: "aaj ka backup phone se bahar bhejein" (din mein ek dafa, agar bheja nahi).
+      await OffsiteBackup.checkAndNotify();
       // Roz ki due-reminder notification (10 AM ke baad, din mein ek baar).
       await DueAlertService.checkAndNotify();
       // Utility bills: ek din pehle / due din / guzarne ke baad reminder.
       await BillReminderService.checkAndNotify();
+      // Amanat / Loan: wapsi ki tarikh aa gayi ho to ek notification.
+      await ReturnAlertService.checkAndNotify();
       return true;
     } catch (_) {
       return false; // Kotlin Result.retry()

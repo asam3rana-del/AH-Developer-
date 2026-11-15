@@ -1,6 +1,9 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../models/return_entry.dart';
+import '../services/demo_mode.dart';
+
 import 'stock_ledger.dart';
 
 /// Ports the Room schema from Database.kt table-for-table so data shape
@@ -17,21 +20,27 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 29;
+  static const _dbVersion = 37;
 
   Database? _db;
 
+  /// Jo file is waqt khuli hai. Demo mode badle to [database] purani band kar ke sahi file kholta hai —
+  /// taake kabhi bhi demo ki entry asal file mein (ya ulta) na jaye, chahe koi screen beech mein DB maange.
+  String? _openFileName;
+
   /// Backup/Restore (Phase 11) ko chahiye: schema version aur DB ka path.
   static int get schemaVersion => _dbVersion;
-  static String get databaseFileName => _dbName;
+  /// Demo mode mein alag file ([DemoMode.demoDbFileName]) — asal dukaan ki file ko haath nahi lagta.
+  static String get databaseFileName => DemoMode.dbFileName(_dbName);
 
   Future<Database> get database async {
+    if (_db != null && _openFileName != databaseFileName) await close();
     _db ??= await _open();
     return _db!;
   }
 
   /// Live DB file ka poora path (file abhi bani na ho tab bhi).
-  Future<String> get databasePath async => join(await getDatabasesPath(), _dbName);
+  Future<String> get databasePath async => join(await getDatabasesPath(), databaseFileName);
 
   /// Kotlin `PRAGMA wal_checkpoint(FULL)` — backup se pehle WAL ka data main file mein.
   Future<void> checkpointWal() async {
@@ -43,12 +52,15 @@ class AppDatabase {
   Future<void> close() async {
     final db = _db;
     _db = null;
+    _openFileName = null;
     if (db != null && db.isOpen) await db.close();
   }
 
   Future<Database> _open() async {
     final dir = await getDatabasesPath();
-    final path = join(dir, _dbName);
+    final name = databaseFileName;
+    final path = join(dir, name);
+    _openFileName = name;
     return openDatabase(
       path,
       version: _dbVersion,
@@ -119,6 +131,10 @@ class AppDatabase {
         dueDays INTEGER NOT NULL DEFAULT 0,
         kind TEXT NOT NULL DEFAULT '',
         returnDate INTEGER NOT NULL DEFAULT 0,
+        returnEntries TEXT NOT NULL DEFAULT '',
+        returnLog TEXT NOT NULL DEFAULT '',
+        paySchedule TEXT NOT NULL DEFAULT '',
+        qistPlan TEXT NOT NULL DEFAULT '',
         serverId TEXT,
         updatedAt INTEGER NOT NULL DEFAULT 0,
         dirty INTEGER NOT NULL DEFAULT 1
@@ -169,7 +185,10 @@ class AppDatabase {
         unitPrice REAL NOT NULL,
         cost REAL NOT NULL,
         amount REAL NOT NULL,
-        conversionFactor REAL NOT NULL DEFAULT 0
+        conversionFactor REAL NOT NULL DEFAULT 0,
+        pendingQty REAL NOT NULL DEFAULT 0,
+        pendingEst REAL NOT NULL DEFAULT 0,
+        backfillLog TEXT NOT NULL DEFAULT ''
       )
     ''');
 
@@ -248,7 +267,8 @@ class AppDatabase {
         role TEXT NOT NULL,
         passwordHash TEXT NOT NULL,
         active INTEGER NOT NULL DEFAULT 1,
-        phone TEXT NOT NULL DEFAULT ''
+        phone TEXT NOT NULL DEFAULT '',
+        permissions TEXT NOT NULL DEFAULT ''
       )
     ''');
 
@@ -332,11 +352,13 @@ class AppDatabase {
       )
     ''');
 
-    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql, ..._shopRentTablesSql, ..._utilityBillTablesSql]) {
+    for (final sql in [..._zakatTablesSql, ..._shellTablesSql, ..._stockMovementsSql, ..._rentTablesSql, ..._workerTablesSql, ..._shopRentTablesSql, ..._utilityBillTablesSql, ..._dueFollowupTablesSql]) {
       batch.execute(sql);
     }
 
     // Seed defaults — mirrors the Kotlin app's first-run defaults.
+    batch.execute(_recycleBinSql);
+
     batch.insert('categories', {'name': 'General'});
     batch.insert('units', {'name': 'pcs'});
 
@@ -511,12 +533,108 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'customers', 'kind', "TEXT NOT NULL DEFAULT ''");
       await _addColumnIfMissing(db, 'customers', 'returnDate', 'INTEGER NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 30) {
+      // v30: Recycle Bin (delete hue records wapas lane ke liye).
+      await db.execute(_recycleBinSql);
+    }
+    if (oldVersion < 31) {
+      // v31: Amanat / Loan ki alag alag entries (ek customer kai bar loan/amanat le sakta hai).
+      await _addColumnIfMissing(db, 'customers', 'returnEntries', "TEXT NOT NULL DEFAULT ''");
+    }
+    if (oldVersion < 32) {
+      // v32: Amanat / Loan log (given / recovered / adjusted) — party ledger / statement mein dikhane ke liye.
+      // Maujooda entries se 'given' rows banti hain (asal raqam maloom nahi => bachi hui raqam). Balance nahi chhedta.
+      await _addColumnIfMissing(db, 'customers', 'returnLog', "TEXT NOT NULL DEFAULT ''");
+      final rows = await db.query('customers',
+          columns: ['id', 'kind', 'returnEntries'], where: "returnEntries IS NOT NULL AND returnEntries != ''");
+      for (final r in rows) {
+        final entries = decodeReturnEntries(r['returnEntries'] as String?);
+        if (entries.isEmpty) continue;
+        final kind = (r['kind'] as String?) == 'amanat' ? 'amanat' : 'loan';
+        await db.update('customers', {'returnLog': encodeReturnLog(backfillReturnLog(kind, entries))},
+            where: 'id = ?', whereArgs: [r['id']]);
+      }
+    }
+    if (oldVersion < 33) {
+      // v33: minus stock / cost 0 par bani sale line ki cost "pending" (costPending): pendingQty = abhi tak
+      // purchase se na dhaki hui qty (smallest units), pendingEst = us hisse ki andaza shuda cost jo `cost`
+      // mein shamil hai, backfillLog = kin purchase bills se kitni cost bhari gayi (reverse ke liye, JSON).
+      await _addColumnIfMissing(db, 'sale_items', 'pendingQty', 'REAL NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'sale_items', 'pendingEst', 'REAL NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'sale_items', 'backfillLog', "TEXT NOT NULL DEFAULT ''");
+    }
+    if (oldVersion < 34) {
+      // v34: per-user access rules (JSON overrides, khali = role ke default). Users ke saath sync hota hai.
+      await _addColumnIfMissing(db, 'users', 'permissions', "TEXT NOT NULL DEFAULT ''");
+    }
+    if (oldVersion < 35) {
+      // v35: Due Reminders follow-up log (kis customer se kab, kis tareeqe se baat hui, wada, agla follow-up).
+      for (final sql in _dueFollowupTablesSql) {
+        await db.execute(sql);
+      }
+    }
+    if (oldVersion < 36) {
+      // v36: Due Reminders follow-up sync — serverId / partyServerId (v35 mein bane table ke liye; naye table mein pehle se hain).
+      await _addColumnIfMissing(db, 'due_followups', 'serverId', 'TEXT');
+      await _addColumnIfMissing(db, 'due_followups', 'partyServerId', 'TEXT');
+    }
+    if (oldVersion < 37) {
+      // v37: customer ki "payment ka din" (models/pay_schedule.dart) — Wasooli Autopilot usi din upar laata hai —
+      // aur qist plan (models/qist_plan.dart, JSON).
+      await _addColumnIfMissing(db, 'customers', 'paySchedule', "TEXT NOT NULL DEFAULT ''");
+      await _addColumnIfMissing(db, 'customers', 'qistPlan', "TEXT NOT NULL DEFAULT ''");
+    }
+    // products.searchTag was added to _onCreate WITHOUT a migration step, so a database created by the
+    // earliest builds (schema v1) never got the column. Found by the real-file migration test
+    // (test/db_migration_fixtures_test.dart, legacy_v1.db). Idempotent: does nothing when the column exists.
+    await _addColumnIfMissing(db, 'products', 'searchTag', "TEXT NOT NULL DEFAULT ''");
   }
+
+  /// v30: Recycle Bin — delete hone wale record ka poora snapshot (JSON). Sirf is device par; sync nahi hota.
+  static const _recycleBinSql = '''
+      CREATE TABLE IF NOT EXISTS recycle_bin (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        refKey TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        subtitle TEXT NOT NULL DEFAULT '',
+        amount REAL NOT NULL DEFAULT 0,
+        deletedBy TEXT NOT NULL DEFAULT '',
+        deletedAt INTEGER NOT NULL DEFAULT 0,
+        dataJson TEXT NOT NULL DEFAULT '{}'
+      )
+    ''';
 
   /// Utility Bills (v27, sync v28): mahana bills (bijli, gas, pani, internet, mobile...) ki list aur har mahine ki
   /// payment. `dueDay` = mahine ki tarikh (1-31; chhote mahine mein aakhri din). `utility_bill_payments` mein ek bill
   /// ka ek mahina (`month` = YYYY-MM) sirf ek baar. `expenseId` = payment ke saath bani Expense (undo par wo bhi
   /// hat'ti hai). Dono tables sync hote hain (`serverId` + `updatedAt`); payment `expenseServerId` se Expense se judti hai.
+  /// Due Reminders follow-up log: customer se wasooli ki har koshish / baat ka record.
+  /// `outcome`: sent | paid | promised | partial | no_answer | refused | dispute | note.
+  /// `method`: whatsapp | call | visit | sms | note. `promiseDate` / `nextFollowUp` = din ki shuruaat (millis),
+  /// 0 = nahi. Sab devices par sync hota hai (v36: `serverId` + `partyServerId` + `updatedAt`); backup mein bhi shamil hai.
+  static const _dueFollowupTablesSql = <String>[
+    '''
+      CREATE TABLE IF NOT EXISTS due_followups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        partyId INTEGER NOT NULL,
+        partyName TEXT NOT NULL DEFAULT '',
+        method TEXT NOT NULL DEFAULT 'note',
+        outcome TEXT NOT NULL DEFAULT 'note',
+        amount REAL NOT NULL DEFAULT 0,
+        promiseDate INTEGER NOT NULL DEFAULT 0,
+        nextFollowUp INTEGER NOT NULL DEFAULT 0,
+        note TEXT NOT NULL DEFAULT '',
+        staff TEXT NOT NULL DEFAULT '',
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL DEFAULT 0,
+        serverId TEXT,
+        partyServerId TEXT
+      )
+    ''',
+    'CREATE INDEX IF NOT EXISTS index_due_followups_party ON due_followups (partyId, createdAt)',
+  ];
+
   static const _utilityBillTablesSql = <String>[
     '''
       CREATE TABLE IF NOT EXISTS utility_bills (

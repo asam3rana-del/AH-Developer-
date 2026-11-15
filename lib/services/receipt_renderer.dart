@@ -60,7 +60,8 @@ Future<ReceiptImage> renderReceipt(List<ReceiptLine> lines, {double fontSizePx =
   // Columns (left -> right): amount 22%, rate 17%, qty 22%, item 39%.
   // Amount left par, Item right par (Urdu naam right se shuru hota hai).
   // Qty column thoda chaura: "0.615 Qtr" / "9.091 Gram" jaisi lambi qty ab `...` mein nahi katti.
-  final cw = [inner * 0.22, inner * 0.17, inner * 0.22, inner * 0.39];
+  // 5th column = serial no (#), sab se right par.
+  final cw = [inner * 0.20, inner * 0.16, inner * 0.20, inner * 0.33, inner * 0.11];
 
   for (final l in lines) {
     switch (l) {
@@ -81,10 +82,10 @@ Future<ReceiptImage> renderReceipt(List<ReceiptLine> lines, {double fontSizePx =
         });
       case RlItemRow():
         final hdr = l.header;
-        final cells = [l.amount, l.rate, l.qty, l.name];
+        final cells = [l.amount, l.rate, l.qty, l.name, l.no];
         final tps = <TextPainter>[];
-        for (var i = 0; i < 4; i++) {
-          tps.add(_tp(cells[i], tableFont, bold: hdr, maxWidth: cw[i] - _cellPadH, maxLines: i == 3 ? 3 : (i == 2 ? 2 : 1), // qty: lambi ho to space par 2 lines (number / unit)
+        for (var i = 0; i < 5; i++) {
+          tps.add(_tp(cells[i], tableFont, bold: hdr, maxWidth: i == 4 ? null : cw[i] - _cellPadH, maxLines: i == 3 ? 3 : (i == 2 ? 2 : 1), // qty: lambi ho to space par 2 lines (number / unit)
               align: TextAlign.right));
         }
         var h = 0.0;
@@ -94,7 +95,7 @@ Future<ReceiptImage> renderReceipt(List<ReceiptLine> lines, {double fontSizePx =
         h += _rowPadV;
         add(h, (c, y) {
           var x = _padX;
-          for (var i = 0; i < 4; i++) {
+          for (var i = 0; i < 5; i++) {
             final t = tps[i];
             final dx = x + cw[i] - _cellPadH / 2 - t.width;
             t.paint(c, Offset(dx, y + _rowPadV / 2));

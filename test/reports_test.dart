@@ -61,6 +61,12 @@ void main() {
       expect(pl.isLoss, true);
     });
 
+    test('Other Income (Rent Received) net profit mein judti hai', () {
+      final pl = buildProfitLoss(sales: 1000, cogs: 700, expenses: 100, otherIncome: 500);
+      expect(pl.grossProfit, 300);
+      expect(pl.netProfit, 700);
+    });
+
     test('kuch nahi to sab zero', () {
       final pl = buildProfitLoss(sales: 0, cogs: 0, expenses: 0);
       expect(pl.netProfit, 0);

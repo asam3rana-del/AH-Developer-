@@ -1,11 +1,14 @@
-# Root par galti se paste hui module folders (db/, screens/, sync/) analyze
-# se bahar rakhte hain. Asli code lib/ mein hai.
+# Sab code lib/ aur test/ mein hai.
+# Root par galti se aa jane wali purani/stray copies (db, models, sync, screens)
+# analyze se bahar rakhi hain, taake CI "Target of URI doesn't exist" par fail na ho.
 analyzer:
   exclude:
     - db/**
-    - screens/**
-    - sync/**
-    - services/**
     - models/**
+    - sync/**
+    - screens/**
+    - services/**
     - widgets/**
-    - kotlin_reference/**
+    - utils/**
+    - theme/**
+    - backup/**

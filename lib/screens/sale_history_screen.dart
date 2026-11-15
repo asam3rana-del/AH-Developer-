@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../db/sale_history_repository.dart';
+import '../db/purchase_history_repository.dart' show ReturnableLine;
 import '../db/sale_repository.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
@@ -9,6 +10,7 @@ import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
 import '../utils/loc.dart';
+import '../widgets/return_qty_dialog.dart';
 import 'sale_screen.dart';
 
 /// Mirrors SaleHistoryActivity.kt.
@@ -37,6 +39,7 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
   List<SaleWithCustomer> _all = const [];
   List<SaleGroup> _groups = const [];
   Map<String, double> _profits = const {};
+  Set<String> _pendingCost = const {};
   SaleHistorySummary _summary = const SaleHistorySummary(0, 0);
   String _query = '';
 
@@ -72,8 +75,10 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
     if (showSpinner) setState(() => _loading = true);
     final all = await _repo.allSales();
     final profits = await _repo.saleProfits();
+    final pendingCost = await _repo.pendingCostInvoices();
     if (!mounted) return;
     setState(() {
+      _pendingCost = pendingCost;
       _all = all;
       _groups = groupSalesByCustomer(all);
       _profits = profits;
@@ -100,7 +105,10 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
     if (_expanded.contains(invoice) && !_items.containsKey(invoice)) _loadItems(invoice);
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   // ------------------------------------------------------------------ actions
 
@@ -125,16 +133,28 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
   }
 
   Future<void> _return(SaleWithCustomer s) async {
-    final ok = await _confirm(
-      Loc.t('Return sale', 'سیل واپس'),
-      Loc.t('Return this sale? Stock will be added back and any outstanding customer balance from it will be reversed.',
-          'یہ سیل واپس کریں؟ اسٹاک واپس جمع ہو گا اور گاہک کا بقایا الٹ دیا جائے گا۔'),
-      Loc.t('Return', 'واپس'),
+    final items = await _repo.itemsForInvoice(s.invoice);
+    if (items.isEmpty || !mounted) return;
+    final lines = [
+      for (final i in items)
+        if (i.id != null) ReturnableLine(itemId: i.id!, name: i.product, unit: i.unit, qty: i.qty),
+    ];
+    if (lines.isEmpty) return;
+    final requested = await showDialog<Map<int, double>>(
+      context: context,
+      builder: (ctx) => ReturnQtyDialog(
+        lines: lines,
+        palette: _p,
+        description: 'Enter how many units of each item the customer is returning. Stock and customer balance will be adjusted only for those quantities. Returning every item in full returns the whole sale.',
+        descriptionUr: 'ہر آئٹم کی کتنی مقدار گاہک واپس کر رہا ہے درج کریں۔ صرف انہی مقداروں کے مطابق اسٹاک اور گاہک کا بیلنس ایڈجسٹ ہو گا۔ تمام آئٹمز پوری واپس ہوں تو پوری سیل واپس ہو جاتی ہے۔',
+        qtyLabel: 'Sold',
+        qtyLabelUr: 'بیچی گئی مقدار',
+      ),
     );
-    if (!ok) return;
+    if (requested == null) return;
     try {
-      await SaleRepository.instance.returnSale(s.invoice);
-      _toast(Loc.t('Sale returned', 'سیل واپس ہو گئی'));
+      await SaleRepository.instance.returnSaleItems(s.invoice, requested);
+      _toast(Loc.t('Items returned', 'آئٹمز واپس ہو گئے'));
     } catch (e) {
       _toast('$e');
     }
@@ -290,12 +310,13 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
               Expanded(
                 child: Text(g.customerName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _p.textDark)),
               ),
-              Text('${g.sales.length} ${Loc.t('sales', 'سیلز')} · ${_rs(g.total)}', style: TextStyle(fontSize: 12, color: _p.textMuted)),
+              Text('${g.activeCount} ${Loc.t('sales', 'سیلز')} · ${_rs(g.total)}', style: TextStyle(fontSize: 12, color: _p.textMuted)),
             ]),
             if (_admin)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: Text('${Loc.t('Profit', 'منافع')}: ${_rs(g.profit(_profits))}',
+                child: Text(
+                    '${Loc.t('Profit', 'منافع')}${g.sales.any((x) => _pendingCost.contains(x.invoice)) ? ' ${Loc.t('(est.)', '(اندازہ)')}' : ''}: ${_rs(g.profit(_profits))}',
                     style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: _p.teal)),
               ),
           ]),
@@ -339,7 +360,9 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
                   Text(_rs(s.total),
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: s.isReturned ? _p.red : _p.teal)),
                   if (_admin && profit != null)
-                    Text('${Loc.t('Profit', 'منافع')}: ${_rs(profit)}', style: TextStyle(fontSize: 10.5, color: _p.textMuted)),
+                    Text(
+                        '${Loc.t('Profit', 'منافع')}${_pendingCost.contains(s.invoice) ? ' ${Loc.t('(est. - cost pending)', '(اندازہ - لاگت باقی)')}' : ''}: ${_rs(profit)}',
+                        style: TextStyle(fontSize: 10.5, color: _pendingCost.contains(s.invoice) ? Colors.orange.shade800 : _p.textMuted)),
                 ]),
               ),
               icon(Icons.print_outlined, _p.navy, () => _print(s)),
@@ -354,9 +377,68 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
         if (items.isEmpty)
           _itemLine(Loc.t('No items on this sale.', 'اس سیل میں کوئی آئٹم نہیں۔'), muted: true)
         else
-          for (final si in items)
-            _itemLine('${si.product}  —  ${_qty(si.qty)} ${si.unit} × Rs ${_qty(si.unitPrice)} = ${_rs(si.amount)}'),
+          _itemsPanel(s, items),
     ];
+  }
+
+  /// Bill ki tafseel: har item do lines mein (naam alag, neeche "qty unit × rate"), amount saaf daayen taraf,
+  /// aur neeche hisaab (items ka jod, discount, total, paid, baqi). Naam alag line mein hone se Urdu / English
+  /// naam qty aur unit ke beech nahi ghusta.
+  Widget _itemsPanel(SaleWithCustomer s, List<SaleItem> items) {
+    final itemsTotal = items.fold<double>(0.0, (a, i) => a + i.amount);
+    final discount = itemsTotal - s.total;
+    final due = s.total - s.paid;
+    Widget sumRow(String label, String value, {bool bold = false, Color? color}) => Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Row(children: [
+            Expanded(
+                child: Text(label,
+                    style: TextStyle(fontSize: 12.5, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: color ?? _p.textMuted))),
+            Text(value,
+                style: TextStyle(fontSize: bold ? 14 : 12.5, fontWeight: bold ? FontWeight.bold : FontWeight.w600, color: color ?? _p.textDark)),
+          ]),
+        );
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 0, 0, 12),
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      decoration: BoxDecoration(
+        color: _p.fieldFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _p.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: _p.border),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(
+                width: 24,
+                child: Text('${i + 1}.', style: TextStyle(fontSize: 12, color: _p.textMuted)),
+              ),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(items[i].product,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _p.textDark)),
+                  const SizedBox(height: 2),
+                  Text('${_qty(items[i].qty)} ${items[i].unit}  ×  Rs ${_qty(items[i].unitPrice)}',
+                      style: TextStyle(fontSize: 12.5, color: _p.textMuted)),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Text(_rs(items[i].amount), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _p.textDark)),
+            ]),
+          ),
+        ],
+        Divider(height: 8, thickness: 1.5, color: _p.border),
+        sumRow('${Loc.t('Items', 'آئٹمز')}: ${items.length}', _rs(itemsTotal)),
+        if (discount > 0.5) sumRow(Loc.t('Discount', 'رعایت'), '- ${_rs(discount)}'),
+        sumRow(Loc.t('Total', 'کل'), _rs(s.total), bold: true, color: s.isReturned ? _p.red : _p.teal),
+        if (!s.isReturned && s.partialReturned > 0.009) sumRow(Loc.t('Returned', 'واپس'), '- ${_rs(s.partialReturned)}', color: _p.red),
+        if (!s.isReturned && s.paid > 0.009) sumRow(Loc.t('Paid', 'ادا شدہ'), _rs(s.paid)),
+        if (!s.isReturned && due > 0.5) sumRow(Loc.t('Due', 'باقی'), _rs(due), bold: true, color: _p.red),
+      ]),
+    );
   }
 
   Widget _itemLine(String text, {bool muted = false}) => Padding(

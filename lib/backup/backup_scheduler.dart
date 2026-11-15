@@ -32,6 +32,7 @@ class BackupScheduler with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _timer = Timer.periodic(checkInterval, (_) => checkCheckpoints());
     checkCheckpoints();
+    BackupHelper.flushPendingDownloadsCopies(); // background backups ki Downloads copy
     BackupBackground.schedule(); // Kotlin scheduleDailyCheckpoints (Android only, KEEP)
   }
 
@@ -46,6 +47,7 @@ class BackupScheduler with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       checkCheckpoints();
+      BackupHelper.flushPendingDownloadsCopies();
     } else if (state == AppLifecycleState.paused) {
       // Kuch bhi nazar nahi aa raha — app minimize/close (Kotlin `startedCount <= 0`).
       _runBackup();

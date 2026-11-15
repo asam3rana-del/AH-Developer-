@@ -9,7 +9,7 @@ SRC=$(find /tmp/x -mindepth 1 -maxdepth 1 -type d | head -1)
 [ -n "$SRC" ] || SRC=/tmp/x
 
 # Poore folders (zaroori)
-for d in lib tools docs assets kotlin_reference; do
+for d in lib tools docs assets; do
   [ -d "$SRC/$d" ] && { mkdir -p "$d"; cp -a "$SRC/$d"/. "$d"/; echo "PASTE: $d/"; }
 done
 # test/: sirf Dart tests (.kt nahi)
@@ -24,13 +24,10 @@ fi
 for f in pubspec.yaml pubspec.lock analysis_options.yaml PORTING_PLAN.md PORT_STATUS.md ANDROID_CHANGELOG.md; do
   [ -f "$SRC/$f" ] && { cp -a "$SRC/$f" "$f"; echo "PASTE: $f"; }
 done
-# Purane layout wali Kotlin folders -> sirf kotlin_reference/ mein jayen, root par nahi
-for d in main config androidTest; do
-  [ -d "$SRC/$d" ] && { mkdir -p "kotlin_reference/$d"; cp -a "$SRC/$d"/. "kotlin_reference/$d"/; echo "MERGE: $d/ -> kotlin_reference/$d/"; }
-done
+# Kotlin folders (main/config/androidTest) ab repo mein nahi — port complete, skip ho jate hain.
 # Jo kuch paste nahi hua woh skip
 for e in $(ls -A "$SRC"); do
-  case "$e" in lib|tools|docs|assets|kotlin_reference|test|main|config|androidTest|pubspec.yaml|pubspec.lock|analysis_options.yaml|PORTING_PLAN.md|PORT_STATUS.md|ANDROID_CHANGELOG.md) ;; *) echo "SKIP: $e";; esac
+  case "$e" in lib|tools|docs|assets|test|pubspec.yaml|pubspec.lock|analysis_options.yaml|PORTING_PLAN.md|PORT_STATUS.md|ANDROID_CHANGELOG.md) ;; *) echo "SKIP: $e";; esac
 done
 # Pehle se maujood stray copies saaf (kabhi fail nahi karta)
 [ -f tools/check_root.sh ] && bash tools/check_root.sh --fix || true

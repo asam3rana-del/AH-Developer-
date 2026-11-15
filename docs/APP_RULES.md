@@ -14,6 +14,9 @@ Ye app sirf Flutter mein chalti hai; Android Kotlin app se mukabla ya porting ab
   - admin + manager: Reports, Balance Sheet, Payments Report, Zakat, Audit log, **purchase/cost rates**.
   - sab roles: New Sale, Day Book, Stock, Parties, Cash, Expenses, sale rates.
   - Ghalat role par message: "Sirf Admin is screen ko access kar sakta hai" / "Sirf Admin/Manager ...".
+- **Access rules (per user)**: admin "Manage Users" -> Access se kisi bhi user ke liye koi report / tool ON ya OFF kar sakta hai
+  (`lib/services/permissions.dart`). Role ke default wahi rehte hain jo pehle thay; sirf badle hue items `users.permissions` (JSON)
+  mein save hote hain aur sync se har device par jate hain. Admin hamesha full access, kabhi lock nahi hota.
 - **Zabaan:** har text `Loc.t(en, ur)` se (English/Urdu). Urdu font: NotoNastaliqUrdu (assets/ se).
 - **Search:** product search hamesha `matchesQuery` (name + searchTag, har lafz).
 - **Sync:** Firestore schema wahi rehta hai jo pehle se chal raha hai (`firebase/` mein rules aur indexes). Deletes tombstone se, stock/balance atomic increment.

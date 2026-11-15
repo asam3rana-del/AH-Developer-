@@ -17,7 +17,30 @@ class UrduPdf {
   UrduPdf._();
 
   static const String family = 'NotoNastaliqUrdu';
-  static const double _scale = 4; // tasveer 4x bari banti hai, PDF mein chhoti dikhti hai => saaf
+  // Tasveer _scale x bari banti hai, PDF mein chhoti dikhti hai => saaf. 3x kaafi saaf hai aur 4x se kam RAM leta hai.
+  // Lean mode (RAM kam padne par dobara koshish): 2x.
+  static const double _normalScale = 3;
+  static const double _leanScale = 2;
+  static double _scale = _normalScale;
+
+  /// Ek tasveer ke pixel is se zyada hon to wo text tasveer nahi banta (aam pw.Text par chhoot jata hai) —
+  /// ek ajeeb lamba text poori RAM na kha jaye.
+  static const int _maxPixels = 1500000;
+
+  /// true => 2x tasveerein (kam RAM). Scale badalne par purani tasveerein hata di jati hain.
+  static void setLean(bool lean) {
+    final next = lean ? _leanScale : _normalScale;
+    if (next == _scale) return;
+    _scale = next;
+    _cache.clear();
+    _pending.clear();
+  }
+
+  /// Yaad rakhi hui tasveerein chhor do (RAM wapas).
+  static void clearCache() {
+    _cache.clear();
+    _pending.clear();
+  }
   static final RegExp _urdu = RegExp(r'[\u0590-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]');
 
   static bool hasUrdu(String s) => _urdu.hasMatch(s);
@@ -42,7 +65,7 @@ class UrduPdf {
     return pw.FittedBox(
       fit: pw.BoxFit.scaleDown,
       alignment: rtl ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
-      child: pw.Image(r.image, width: r.width / _scale, height: r.height / _scale),
+      child: pw.Image(r.image, width: r.width / r.scale, height: r.height / r.scale),
     );
   }
 
@@ -90,6 +113,7 @@ class UrduPdf {
     final pad = 2.0 * _scale;
     final w = (tp.width + pad * 2).ceil();
     final h = (tp.height + pad * 2).ceil();
+    if (w * h > _maxPixels) return null;
     final rec = ui.PictureRecorder();
     final canvas = ui.Canvas(rec);
     tp.paint(canvas, ui.Offset(pad, pad));
@@ -97,7 +121,7 @@ class UrduPdf {
     final data = await img.toByteData(format: ui.ImageByteFormat.png);
     img.dispose();
     if (data == null) return null;
-    return _Rendered(pw.MemoryImage(data.buffer.asUint8List()), w.toDouble(), h.toDouble());
+    return _Rendered(pw.MemoryImage(data.buffer.asUint8List()), w.toDouble(), h.toDouble(), _scale);
   }
 }
 
@@ -112,5 +136,6 @@ class _Req {
 class _Rendered {
   final pw.MemoryImage image;
   final double width, height;
-  const _Rendered(this.image, this.width, this.height);
+  final double scale;
+  const _Rendered(this.image, this.width, this.height, this.scale);
 }

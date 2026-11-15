@@ -8,6 +8,7 @@ import '../models/stock_movement.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/role_guard.dart';
+import '../widgets/permission_guard.dart';
 
 /// Mirrors InventoryInsightsActivity.kt — 4 reports ek tab switcher ke peeche:
 /// Reorder Suggestions, Damage / Loss, Profit Margin per Item, Fast / Slow Movers.
@@ -24,8 +25,8 @@ class InventoryInsightsScreen extends StatelessWidget {
   const InventoryInsightsScreen({super.key, this.initialMode = InsightsMode.reorder});
 
   @override
-  Widget build(BuildContext context) => RoleGuard(
-        allowed: const {'admin', 'manager'},
+  Widget build(BuildContext context) => PermissionGuard(
+        permission: 'inventory_insights',
         child: _InsightsBody(initialMode: initialMode),
       );
 }

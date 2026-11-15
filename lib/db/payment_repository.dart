@@ -1,9 +1,11 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../models/due_renewal.dart';
 import '../models/misc_entities.dart';
 import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
+import 'recycle_bin_repository.dart';
 import 'supplier_repository.dart';
 import '../sync/device_tag.dart';
 import '../sync/sync_queue_helper.dart';
@@ -48,6 +50,13 @@ class PaymentRepository {
     await SyncQueueHelper.enqueueBalanceDelta(txn, customer: isCustomer, partyId: partyId, delta: delta);
   }
 
+  /// Recycle Bin restore: delete ka ulta — party balance wapas ghata (payment dubara lagi) aur bill ka `paid` barhao.
+  Future<void> reapplyRestored(DatabaseExecutor txn,
+      {required bool isCustomer, int? partyId, required double amount, String billReference = ''}) async {
+    if (partyId != null) await _adjustBalance(txn, isCustomer, partyId, -amount);
+    await _applyBillPaidDelta(txn, isCustomer, billReference, amount);
+  }
+
   /// Applies [delta] to the linked bill's `paid`, clamped to [0, total].
   Future<void> _applyBillPaidDelta(DatabaseExecutor txn, bool isCustomer, String billRef, double delta) async {
     if (billRef.isEmpty || delta == 0) return;
@@ -67,6 +76,32 @@ class PaymentRepository {
     await _enqueue(txn, isCustomer ? 'sale' : 'purchase', billRef, 'update', {'paid': newPaid});
   }
 
+  /// Customer ne partial payment di (bill abhi baqi) => us ke open bills ki due date aage (aaj + muddat).
+  /// Sirf wo bills jin par date set thi; poora ada bill open nahi hota isliye na chhua jata.
+  Future<void> _renewDueDates(DatabaseExecutor txn, int partyId) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final rows = await txn.rawQuery(
+      'SELECT s.invoice AS invoice, s.dueDate AS dueDate, s.createdAt AS createdAt, c.dueDays AS dueDays '
+      'FROM sales s LEFT JOIN customers c ON c.id = s.customerId '
+      "WHERE s.customerId = ? AND s.status = 'active' AND (s.total - s.paid) > 0.009 AND s.dueDate > 0",
+      [partyId],
+    );
+    for (final r in rows) {
+      final old = (r['dueDate'] as num).toInt();
+      final next = renewedDueDate(
+        nowMillis: now,
+        oldDue: old,
+        createdAt: (r['createdAt'] as num).toInt(),
+        customerDays: (r['dueDays'] as num?)?.toInt() ?? 0,
+      );
+      if (next <= 0 || next == old) continue;
+      final invoice = r['invoice'] as String;
+      await txn.update('sales', {'dueDate': next, 'dirty': 1, 'updatedAt': now},
+          where: 'invoice = ?', whereArgs: [invoice]);
+      await _enqueue(txn, 'sale', invoice, 'update', {'dueDate': next});
+    }
+  }
+
   /// Bill ka baaqi (total - paid); bill na mile to null.
   Future<double?> _billRemaining(DatabaseExecutor txn, bool isCustomer, String billRef) async {
     if (billRef.isEmpty) return null;
@@ -75,6 +110,13 @@ class PaymentRepository {
     if (rows.isEmpty) return null;
     final left = (rows.first['total'] as num).toDouble() - (rows.first['paid'] as num).toDouble();
     return left < 0 ? 0.0 : left;
+  }
+
+  /// Dropdown label: "INV-1 \u2022 Rs 5000 \u2022 baqi Rs 2000" (poora ada ho to "ada").
+  static String _billLabel(String ref, Map<String, Object?> r) {
+    final total = (r['total'] as num).toDouble();
+    final left = total - ((r['paid'] as num?) ?? 0).toDouble();
+    return '$ref \u2022 Rs ${total.round()} \u2022 ${left > 0.009 ? 'baqi Rs ${left.round()}' : 'ada'}';
   }
 
   /// Recent (unreturned) bills of one party, newest first, max 50.
@@ -95,13 +137,13 @@ class PaymentRepository {
     final key = isCustomer ? 'invoice' : 'billNo';
     final out = rows.map((r) {
       final ref = (r[key] as String);
-      return BillOption('$ref \u2022 Rs ${(r['total'] as num).round()}', ref);
+      return BillOption(_billLabel(ref, r), ref);
     }).toList();
     if (alsoInclude.isNotEmpty && !out.any((b) => b.ref == alsoInclude)) {
       final extra = await db.query(isCustomer ? 'sales' : 'purchases',
           where: '$key = ?', whereArgs: [alsoInclude], limit: 1);
       if (extra.isNotEmpty) {
-        out.add(BillOption('$alsoInclude \u2022 Rs ${(extra.first['total'] as num).round()}', alsoInclude));
+        out.add(BillOption(_billLabel(alsoInclude, extra.first), alsoInclude));
       }
     }
     return out;
@@ -166,6 +208,60 @@ class PaymentRepository {
             dateMillis: dateMillis,
             reference: linked > 0.009 ? '$reference-x' : reference);
       }
+      if (isCustomer) await _renewDueDates(txn, partyId);
+    });
+    await _refreshParties();
+  }
+
+  /// Customer ki ek raqam KAI bills par (purane pehle) — ek transaction, har bill ka alag payment row
+  /// (bill ka `paid` + party balance + cash entry sab theek). [shares] ke baad bachi [generalAmount] bina bill
+  /// ke (previous balance / advance) payment banti hai.
+  Future<void> saveAllocated({
+    required bool isCustomer,
+    required int partyId,
+    required String partyName,
+    required List<MapEntry<String, double>> shares,
+    required double generalAmount,
+    required String method,
+    required String note,
+    required int dateMillis,
+  }) async {
+    final total = shares.fold<double>(0.0, (s, e) => s + e.value) + generalAmount;
+    if (!total.isFinite || total <= 0) throw ArgumentError('Amount must be greater than 0');
+    final db = await AppDatabase.instance.database;
+    final partyType = isCustomer ? 'customer' : 'supplier';
+    final base = 'manual-$partyType-$partyId-${DeviceTag.current}-${DateTime.now().millisecondsSinceEpoch}';
+    await db.transaction((txn) async {
+      var i = 0;
+      for (final s in shares) {
+        if (s.value <= 0.009) continue;
+        await _insertPayment(txn,
+            isCustomer: isCustomer,
+            partyType: partyType,
+            partyId: partyId,
+            partyName: partyName,
+            amount: s.value,
+            method: method,
+            note: note,
+            billRef: s.key,
+            dateMillis: dateMillis,
+            reference: i == 0 ? base : '$base-b$i');
+        i++;
+      }
+      if (generalAmount > 0.009) {
+        await _insertPayment(txn,
+            isCustomer: isCustomer,
+            partyType: partyType,
+            partyId: partyId,
+            partyName: partyName,
+            amount: generalAmount,
+            method: method,
+            note: note,
+            billRef: '',
+            dateMillis: dateMillis,
+            reference: i == 0 ? base : '$base-g');
+      }
+      if (isCustomer) await _renewDueDates(txn, partyId);
     });
     await _refreshParties();
   }
@@ -286,6 +382,36 @@ class PaymentRepository {
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       // Tombstone ki entity id (serverId-preferred) row delete se PEHLE nikalti hai.
+      // Recycle Bin snapshot (payment + cash rows + balance/bill asar ka meta) delete se pehle.
+      final payRows = await txn.query('payments', where: 'reference = ?', whereArgs: [payment.reference]);
+      final cashRows = await txn.query('cash_transactions', where: 'reference = ?', whereArgs: [payment.reference]);
+      String who = isCustomer ? 'Customer' : 'Supplier';
+      if (payment.partyId != null) {
+        final pr = await txn.query(isCustomer ? 'customers' : 'suppliers',
+            columns: ['name'], where: 'id = ?', whereArgs: [payment.partyId], limit: 1);
+        if (pr.isNotEmpty) who = (pr.first['name'] as String?) ?? who;
+      }
+      await RecycleBinRepository.record(
+        txn,
+        kind: RecycleBinRepository.kindPayment,
+        refKey: payment.reference,
+        title: isCustomer ? 'Payment received: $who' : 'Payment made: $who',
+        subtitle: payment.billReference.isEmpty ? payment.reference : 'Bill ${payment.billReference}',
+        amount: payment.amount,
+        rows: {
+          'payments': [for (final r in payRows) Map<String, Object?>.from(r)],
+          'cash_transactions': [for (final r in cashRows) Map<String, Object?>.from(r)],
+          'meta': [
+            {
+              'isCustomer': isCustomer ? 1 : 0,
+              'partyId': payment.partyId,
+              'amount': payment.amount,
+              'billReference': payment.billReference,
+            }
+          ],
+        },
+      );
+
       await SyncQueueHelper.deletePaymentsByReference(txn, payment.reference);
       await SyncQueueHelper.deleteCashTransactionsByReference(txn, payment.reference);
 
