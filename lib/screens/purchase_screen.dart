@@ -527,16 +527,33 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     });
   }
 
-  /// SIRF list se haath se (tap) item chunne par: cursor Qty par aur keyboard khula rahe.
-  /// Tap par focus ek pal ke liye hat jata tha aur Android keyboard band kar deta tha. Keyboard se
-  /// (Enter/Next) wala flow bilkul pehle jaisa hai — yeh wahan chalta hi nahi.
+  /// SIRF haath se (tap) chunne ke baad — item list ya Unit dropdown — cursor agli field par aur
+  /// keyboard dobara khul jaye. Tap / dropdown menu focus le leta hai aur Android keyboard band kar deta
+  /// hai; pehle dobara field par tap karna padta tha. Keyboard se (Enter/Next) wala flow is ko chalata hi
+  /// nahi, woh bilkul pehle jaisa tez hai.
+  void _focusAfterTap(FocusNode n) {
+    void go() {
+      if (!mounted || !n.canRequestFocus) return;
+      final cur = FocusManager.instance.primaryFocus;
+      // User is dauran khud kisi aur number field par chala gaya ho to focus mat chheeno.
+      if (cur != null &&
+          cur != n &&
+          cur != _itemFocus &&
+          cur.context?.findAncestorWidgetOfExactType<EditableText>() != null) {
+        return;
+      }
+      if (!n.hasFocus) n.requestFocus();
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => go());
+    // Dropdown menu / list band hone ki animation ke baad ek dafa aur (focus wapas aa chuka ho).
+    Future.delayed(const Duration(milliseconds: 350), go);
+  }
+
   void _onProductTapped(Product p) {
     _onProductPicked(p);
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (!mounted || !_qtyFocus.hasFocus) return;
-      if (View.of(context).viewInsets.bottom > 0) return; // keyboard khula hai: kuch na karo
-      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-    });
+    _focusAfterTap(_qtyFocus);
   }
 
   /// Enter/Next dabane par agli KHALI field par jao; jo field pehle se bhari ho (auto-fill rate,
@@ -2174,6 +2191,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
                       onChanged: (v) {
                         if (v != null) _onUnitChanged(v);
+                        // Unit chunne ke baad keyboard wapas: Qty khali ho to Qty, warna Rate.
+                        _focusAfterTap(_qtyCtrl.text.trim().isEmpty ? _qtyFocus : _rateFocus);
                       },
                     ),
                   ),
