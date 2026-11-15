@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../db/due_reminders_repository.dart' show whatsAppDigits;
 import '../db/user_repository.dart';
 import '../utils/loc.dart';
+import '../widgets/contact_pick_button.dart';
 
 /// Dukaan ka naam aur phone (Settings se) — har slip / bill ke header ke liye.
 class ShopHeader {
@@ -38,7 +39,7 @@ Future<void> sendOnWhatsApp(BuildContext context, {required String phone, requir
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(hintText: '03001234567'),
+          decoration: InputDecoration(hintText: '03001234567', suffixIcon: ContactPickButton(phone: ctrl)),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
@@ -79,7 +80,7 @@ Future<String?> askWhatsAppNumber(BuildContext context) async {
         controller: ctrl,
         autofocus: true,
         keyboardType: TextInputType.phone,
-        decoration: const InputDecoration(hintText: '03001234567'),
+        decoration: InputDecoration(hintText: '03001234567', suffixIcon: ContactPickButton(phone: ctrl)),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),

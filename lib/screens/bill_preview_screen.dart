@@ -16,6 +16,7 @@ import '../utils/loc.dart';
 import '../utils/slip_pdf_data.dart';
 import '../utils/slip_text.dart';
 import '../theme/theme_manager.dart';
+import '../widgets/contact_pick_button.dart';
 
 /// Kotlin BillPreviewActivity: bill ka receipt-jaisa preview + PRINT (Bluetooth), WhatsApp par bhejein,
 /// DONE, aur (naye bill ke baad) "+ NAYI SALE / PURCHASE BILL".
@@ -147,8 +148,9 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
           title: Text(Loc.t('WhatsApp number', 'واٹس ایپ نمبر')),
           content: TextField(
             controller: ctrl,
+            autofocus: true,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(hintText: '03001234567'),
+            decoration: InputDecoration(hintText: '03001234567', suffixIcon: ContactPickButton(phone: ctrl)),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),

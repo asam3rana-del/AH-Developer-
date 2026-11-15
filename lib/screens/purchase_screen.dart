@@ -34,6 +34,7 @@ import '../widgets/premium_header.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/unit_dialog.dart';
 import '../theme/theme_manager.dart';
+import '../widgets/contact_pick_button.dart';
 
 /// Mirrors PurchaseActivity.kt.
 ///
@@ -1641,7 +1642,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       children: [
         Expanded(
           child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            // FIX: pehle `onDrag` tha — scroll karte hi keyboard band + Item field ka focus chala jata, aur
+            // item ki suggestion list gayab ho jati thi. Keyboard ab Back se band karein.
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 180),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1674,7 +1676,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           Expanded(
             flex: 13,
             child: SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              // FIX: pehle `onDrag` tha — scroll karte hi keyboard band + Item field ka focus chala jata, aur
+              // item ki suggestion list gayab ho jati thi. Keyboard ab Back se band karein.
               padding: const EdgeInsets.fromLTRB(4, 20, 16, 180),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1821,7 +1824,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
           child: TextField(
             controller: c,
             keyboardType: type,
-            decoration: InputDecoration(labelText: label, hintText: hint, border: const OutlineInputBorder(), isDense: true),
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              border: const OutlineInputBorder(),
+              isDense: true,
+              // Phone field: contacts se chunne ka button (naam khali ho to woh bhi bhar jata hai).
+              suffixIcon: type == TextInputType.phone ? ContactPickButton(phone: c, name: nameCtrl) : null,
+            ),
           ),
         );
     final added = await showDialog<String?>(

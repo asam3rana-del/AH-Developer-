@@ -38,6 +38,7 @@ import '../widgets/role_guard.dart';
 import 'sale_quick_sale.dart';
 import '../theme/theme_manager.dart';
 import '../db/unit_cost.dart';
+import '../widgets/contact_pick_button.dart';
 
 class SaleScreen extends StatefulWidget {
   /// null = new sale. An invoice number re-opens that SAVED bill for
@@ -1653,7 +1654,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
           child: TextField(
             controller: c,
             keyboardType: type,
-            decoration: InputDecoration(labelText: label, hintText: hint, border: const OutlineInputBorder(), isDense: true),
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              border: const OutlineInputBorder(),
+              isDense: true,
+              // Phone field: contacts se chunne ka button (naam khali ho to woh bhi bhar jata hai).
+              suffixIcon: type == TextInputType.phone ? ContactPickButton(phone: c, name: nameCtrl) : null,
+            ),
           ),
         );
 

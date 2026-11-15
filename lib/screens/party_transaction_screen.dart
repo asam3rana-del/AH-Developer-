@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../db/app_database.dart';
 import '../db/due_reminders_repository.dart' show whatsAppDigits;
 import '../db/party_repository.dart';
 import '../db/party_transaction_repository.dart';
@@ -12,6 +13,7 @@ import '../db/purchase_history_repository.dart';
 import '../db/sale_history_repository.dart';
 import '../db/payment_repository.dart';
 import '../models/misc_entities.dart';
+import '../models/party.dart';
 import '../models/purchase.dart';
 import '../models/return_entry.dart';
 import '../models/sale.dart';
@@ -27,9 +29,11 @@ import '../widgets/party_avatar.dart';
 import '../widgets/slip_share.dart';
 import '../widgets/role_guard.dart';
 import 'bill_preview_screen.dart';
+import 'edit_party_dialog.dart';
 import 'payments_screen.dart' show showPaymentDialog;
 import 'purchase_screen.dart';
 import 'sale_screen.dart';
+import '../widgets/contact_pick_button.dart';
 
 /// Mirrors PartyTransactionActivity.kt.
 ///
@@ -245,41 +249,37 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
 
   // ---------------------------------------------------------------- actions
 
-  Future<void> _editName() async {
-    final ctrl = TextEditingController(text: _name);
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Edit Name', 'نام ترمیم کریں')),
-        content: TextField(controller: ctrl, autofocus: true),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
-          TextButton(
-            onPressed: () {
-              final v = ctrl.text.trim();
-              if (v.isEmpty) {
-                _toast(Loc.t('Name cannot be empty', 'نام خالی نہیں ہو سکتا'));
-                return;
-              }
-              Navigator.pop(ctx, v);
-            },
-            child: Text(Loc.t('Save', 'محفوظ کریں')),
-          ),
-        ],
-      ),
-    );
-    if (newName == null) return;
+  /// ✏️ = POORA edit (naam, phone, credit limit, opening balance, stuck, rate type…) seedha yahin se.
+  /// Pehle yeh sirf naam badalta tha; opening balance ke liye wapas list > card > Edit jana padta tha.
+  Future<void> _editParty() async {
     try {
-      final ok = await _repo.renameParty(isCustomer: widget.isCustomer, partyId: widget.partyId, newName: newName);
+      final db = await AppDatabase.instance.database;
+      final rows = await db.query(widget.isCustomer ? 'customers' : 'suppliers',
+          where: 'id = ?', whereArgs: [widget.partyId], limit: 1);
       if (!mounted) return;
-      if (ok) {
-        setState(() => _name = newName);
-        _toast(Loc.t('Name updated', 'نام اپ ڈیٹ ہو گیا'));
-      } else {
+      if (rows.isEmpty) {
         _toast(Loc.t('Party not found', 'پارٹی نہیں ملی'));
+        return;
       }
+      final String newName;
+      if (widget.isCustomer) {
+        final c = Customer.fromMap(rows.first);
+        if (!await showEditCustomerDialog(context, c)) return;
+        newName = (await db.query('customers', columns: ['name'], where: 'id = ?', whereArgs: [widget.partyId]))
+                .firstOrNull?['name'] as String? ??
+            c.name;
+      } else {
+        final sp = Supplier.fromMap(rows.first);
+        if (!await showEditSupplierDialog(context, sp)) return;
+        newName = (await db.query('suppliers', columns: ['name'], where: 'id = ?', whereArgs: [widget.partyId]))
+                .firstOrNull?['name'] as String? ??
+            sp.name;
+      }
+      if (!mounted) return;
+      setState(() => _name = newName);
+      await _load(); // opening / limit / phone badla ho to card turant theek ho
     } catch (e) {
-      _toast('Could not update name: $e');
+      _toast('Could not edit party: $e');
     }
   }
 
@@ -515,7 +515,11 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(Loc.t('Phone number', 'فون نمبر')),
-        content: TextField(controller: ctrl, autofocus: true, keyboardType: TextInputType.phone),
+        content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(hintText: '03001234567', suffixIcon: ContactPickButton(phone: ctrl))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
           TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text(Loc.t('Save', 'محفوظ کریں'))),
@@ -746,7 +750,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         scrolledUnderElevation: 1,
         title: Text(Loc.t('Party Details', 'پارٹی کی تفصیل'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 21)),
         actions: [
-          IconButton(tooltip: Loc.t('Edit', 'ترمیم'), icon: const Icon(Icons.edit_outlined), onPressed: _editName),
+          IconButton(tooltip: Loc.t('Edit', 'ترمیم'), icon: const Icon(Icons.edit_outlined), onPressed: _editParty),
           PopupMenuButton<String>(
             onSelected: (v) {
               if (v == 'statement') _copyStatement();

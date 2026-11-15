@@ -9,6 +9,7 @@ import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
+import '../widgets/contact_pick_button.dart';
 
 /// Dashboard ki "Amanat / Loan" screen.
 ///
@@ -1043,7 +1044,9 @@ class _AddSheetState extends State<_AddSheet> {
             TextField(
                 controller: _phone,
                 keyboardType: TextInputType.phone,
-                decoration: InputDecoration(labelText: Loc.t('Phone (optional)', 'فون (اختیاری)'))),
+                decoration: InputDecoration(
+                    labelText: Loc.t('Phone (optional)', 'فون (اختیاری)'),
+                    suffixIcon: ContactPickButton(phone: _phone, name: _name))),
           ],
           if (_showEntryFields || _editingParty)
             TextField(
