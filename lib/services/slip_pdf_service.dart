@@ -119,22 +119,32 @@ class SlipPdfService {
     ];
   }
 
-  /// Header: logo ek taraf, aur uske barabar dukaan ka naam, malik ka naam, phone (teeno bold, center).
+  static const _gold = PdfColor.fromInt(0xFFC9A24A);
+
+  /// Header: dukaan ka naam, malik ka naam, phone (bold, center) + sunehri/navy patli lakeerein.
+  /// Logo header mein NAHI — sirf page ke peeche watermark ke taur par ([_watermark]).
   static pw.Widget _header(SlipPdfData d) {
     final name = d.shopName.trim();
     final phone = d.shopPhone.trim();
-    final lines = <pw.Widget>[
+    return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
       if (name.isNotEmpty) pw.Center(child: _text(name, size: 16, bold: true)),
-      if (_owner.isNotEmpty) pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(top: 3), child: _text(_owner, size: 13, bold: true))),
-      if (phone.isNotEmpty) pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(top: 3), child: _text(phone, size: 13, bold: true))),
-    ];
-    if (_logo == null) return pw.Column(children: lines);
-    return pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
-      pw.Image(_logo!, width: 70, height: 70),
-      pw.SizedBox(width: 10),
-      pw.Expanded(child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.center, children: lines)),
-      pw.SizedBox(width: 80), // logo jitni jagah khali, taake naam bilkul beech mein rahe
+      if (_owner.isNotEmpty) pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(top: 3), child: _text(_owner, size: 12.5, bold: true))),
+      if (phone.isNotEmpty) pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.only(top: 3), child: _text(phone, size: 12.5, bold: true))),
+      pw.SizedBox(height: 7),
+      pw.Container(height: 1.6, color: _gold),
+      pw.SizedBox(height: 1.2),
+      pw.Container(height: 0.6, color: _navy),
     ]);
+  }
+
+  /// Har page ke beech mein logo ka bohat halka watermark — bill "asli / dukaan ka chhapa" lage.
+  static pw.Widget _watermark(pw.Context ctx) {
+    final logo = _logo;
+    if (logo == null) return pw.SizedBox();
+    return pw.FullPage(
+      ignoreMargins: true,
+      child: pw.Center(child: pw.Opacity(opacity: 0.07, child: pw.Image(logo, width: 300, height: 300))),
+    );
   }
 
   /// Supplier ki taraf ki slips par apni payment ki maloomat nahi chhapti.
@@ -206,8 +216,11 @@ class SlipPdfService {
     for (final d in ds) {
       final widgets = _widgets(d);
       doc.addPage(pw.MultiPage(
-        pageFormat: PdfPageFormat.a5,
-        margin: const pw.EdgeInsets.fromLTRB(28, 30, 28, 30),
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a5,
+          margin: const pw.EdgeInsets.fromLTRB(28, 30, 28, 30),
+          buildBackground: _watermark,
+        ),
         maxPages: 80, // bahut zyada page ban rahe hon to RAM khatam hone se pehle saaf error
         build: (ctx) => widgets,
       ));
