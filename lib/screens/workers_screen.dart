@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../db/worker_repository.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
-import '../widgets/contact_pick_button.dart';
 
 /// Workers: profile, roz ki hazri/chhutti, advance aur mahine ki salary.
 /// Sirf Admin/Manager (Settings mein row aur RoleGuard dono).
@@ -285,8 +284,7 @@ class _WorkerFormState extends State<_WorkerForm> {
             controller: _phone,
             keyboardType: TextInputType.phone,
             style: TextStyle(color: p.textDark),
-            decoration: _deco(p, Loc.t('Phone (optional)', 'فون (اختیاری)'))
-                .copyWith(suffixIcon: ContactPickButton(phone: _phone, name: _name)),
+            decoration: _deco(p, Loc.t('Phone (optional)', 'فون (اختیاری)')),
           ),
           const SizedBox(height: 12),
           Wrap(spacing: 8, children: [

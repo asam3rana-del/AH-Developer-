@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../db/shop_rent_repository.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
-import '../widgets/contact_pick_button.dart';
 
 /// Shop Rents — jo dukaneen hum kiraye par lete hain: har dukaan ka malik, mahana rent, advance, advance se rent
 /// katna, saal baad rent badalna, history aur mahine ki report. Admin/Manager (RoleGuard se kholein).
@@ -53,12 +52,9 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
     }
   }
 
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(msg)));
-  }
+  void _toast(String msg) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(msg)));
 
   String _rs(double v) => 'Rs ${NumberFormat('#,##0').format(v.round())}';
 
@@ -416,11 +412,7 @@ class _ShopRentScreenState extends State<ShopRentScreen> {
               const SizedBox(height: 10),
               TextField(controller: landlord, decoration: _deco(p, Loc.t('Landlord name', 'مالک کا نام'))),
               const SizedBox(height: 10),
-              TextField(
-                  controller: phone,
-                  keyboardType: TextInputType.phone,
-                  decoration: _deco(p, Loc.t('Landlord phone', 'مالک کا فون'))
-                      .copyWith(suffixIcon: ContactPickButton(phone: phone, name: landlord))),
+              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: _deco(p, Loc.t('Landlord phone', 'مالک کا فون'))),
               const SizedBox(height: 10),
               if (edit == null) ...[
                 _numField(p, rent, Loc.t('Monthly rent', 'ماہانہ کرایہ')),

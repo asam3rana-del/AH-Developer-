@@ -12,7 +12,6 @@ String _qty(double v) {
 /// Pure function so it is unit-tested.
 String buildSaleBillText({
   required String shopName,
-  String shopOwner = '',
   String shopPhone = '',
   required String invoice,
   required DateTime date,
@@ -40,20 +39,17 @@ String buildSaleBillText({
 
   final rule = '-' * width;
   b.writeln(center(shopName.isEmpty ? 'IBTISAAM Kiryana Store' : shopName));
-  if (shopOwner.trim().isNotEmpty) b.writeln(center(shopOwner.trim()));
   if (shopPhone.isNotEmpty) b.writeln(center(shopPhone));
   b.writeln(rule);
   b.writeln('Invoice: $invoice');
   b.writeln('Date: ${DateFormat('dd/MM/yyyy hh:mm a').format(date)}');
   b.writeln('Customer: ${customer.trim().isEmpty ? 'Walk-in' : customer.trim()}');
   b.writeln(rule);
-  for (var n = 0; n < lines.length; n++) {
-    final l = lines[n];
-    b.writeln('${n + 1}. ${l.itemName}');
+  for (final l in lines) {
+    b.writeln(l.itemName);
     b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitPrice.toStringAsFixed(2)}', l.amount.round().toString()));
   }
   b.writeln(rule);
-  b.writeln('Total Items: ${lines.length}');
   b.writeln(row('Subtotal', subtotal.round().toString()));
   if (discount > 0.009) b.writeln(row('Discount', '-${discount.round()}'));
   b.writeln(row('TOTAL', total.round().toString()));
@@ -65,7 +61,7 @@ String buildSaleBillText({
     b.writeln(row('Net Balance', netBalance.round().toString()));
   }
   b.writeln(rule);
-  b.writeln(center('Thank you! Please visit again.'));
+  b.writeln(center('Shukriya! Dobara tashreef layen'));
   return b.toString();
 }
 
@@ -74,7 +70,6 @@ String buildSaleBillText({
 /// [lines] = (naam, qty, unit, unitCost, amount).
 String buildPurchaseBillText({
   required String shopName,
-  String shopOwner = '',
   String shopPhone = '',
   required String billNo,
   required DateTime date,
@@ -102,7 +97,6 @@ String buildPurchaseBillText({
 
   final rule = '-' * width;
   b.writeln(center(shopName.isEmpty ? 'IBTISAAM Kiryana Store' : shopName));
-  if (shopOwner.trim().isNotEmpty) b.writeln(center(shopOwner.trim()));
   if (shopPhone.isNotEmpty) b.writeln(center(shopPhone));
   b.writeln(center('PURCHASE BILL'));
   b.writeln(rule);
@@ -110,13 +104,11 @@ String buildPurchaseBillText({
   b.writeln('Date: ${DateFormat('dd/MM/yyyy hh:mm a').format(date)}');
   b.writeln('Supplier: ${supplier.trim().isEmpty ? 'Cash Purchase' : supplier.trim()}');
   b.writeln(rule);
-  for (var n = 0; n < lines.length; n++) {
-    final l = lines[n];
-    b.writeln('${n + 1}. ${l.name}');
+  for (final l in lines) {
+    b.writeln(l.name);
     b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitCost.toStringAsFixed(2)}', l.amount.round().toString()));
   }
   b.writeln(rule);
-  b.writeln('Total Items: ${lines.length}');
   b.writeln(row('Subtotal', subtotal.round().toString()));
   if (discount > 0.009) b.writeln(row('Discount', '-${discount.round()}'));
   b.writeln(row('TOTAL', total.round().toString()));

@@ -16,7 +16,6 @@ class BillItem {
 class BillDoc {
   final bool isPurchase;
   final String shopName;
-  final String shopOwner;
   final String shopPhone;
   final String receiptFooter;
 
@@ -43,7 +42,6 @@ class BillDoc {
     required this.total,
     required this.paid,
     this.shopName = '',
-    this.shopOwner = '',
     this.shopPhone = '',
     this.receiptFooter = '',
     this.partyName = '',
@@ -54,7 +52,7 @@ class BillDoc {
 
   double get balance => total - paid;
 
-  BillDoc copyWith({String? shopName, String? shopOwner, String? shopPhone, String? receiptFooter, String? partyPhone}) => BillDoc(
+  BillDoc copyWith({String? shopName, String? shopPhone, String? receiptFooter, String? partyPhone}) => BillDoc(
         isPurchase: isPurchase,
         ref: ref,
         date: date,
@@ -64,7 +62,6 @@ class BillDoc {
         total: total,
         paid: paid,
         shopName: shopName ?? this.shopName,
-        shopOwner: shopOwner ?? this.shopOwner,
         shopPhone: shopPhone ?? this.shopPhone,
         receiptFooter: receiptFooter ?? this.receiptFooter,
         partyName: partyName,
@@ -78,7 +75,6 @@ class BillDoc {
     if (isPurchase) {
       return buildPurchaseBillText(
         shopName: shopName,
-        shopOwner: shopOwner,
         shopPhone: shopPhone,
         billNo: ref,
         date: date,
@@ -94,7 +90,6 @@ class BillDoc {
     }
     return buildSaleBillText(
       shopName: shopName,
-      shopOwner: shopOwner,
       shopPhone: shopPhone,
       invoice: ref,
       date: date,

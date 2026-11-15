@@ -22,20 +22,6 @@ void main() {
     expect(p.cashReason, 'Owner capital');
   });
 
-  test('Cash In under Rent Received is Income (reason prefix, no Expense)', () {
-    final p = planCashEntry(type: 'IN', category: CashCategories.rentReceived, misc: '', note: 'Shop 3 tenant');
-    expect(p.createsExpense, isFalse);
-    expect(p.cashReason, 'Income: Rent Received | Shop 3 tenant');
-    expect(p.cashReason.startsWith(incomeReasonPrefix), isTrue);
-    final q = planCashEntry(type: 'IN', category: CashCategories.otherIncome, misc: '', note: '');
-    expect(q.cashReason, 'Income: Other Income');
-  });
-
-  test('Income category on Cash Out is never an Expense', () {
-    final p = planCashEntry(type: 'OUT', category: CashCategories.rentReceived, misc: '', note: '');
-    expect(p.createsExpense, isFalse);
-  });
-
   test('Miscellaneous joins description and note', () {
     final p = planCashEntry(type: 'OUT', category: CashCategories.miscellaneous, misc: ' Broom ', note: 'urgent');
     expect(p.createsExpense, isTrue);
@@ -65,24 +51,5 @@ void main() {
     expect(Expense.fromMap(e.toMap()).method, 'bank');
     final old = Expense.fromMap({'category': 'Rent', 'description': '', 'amount': 5, 'createdAt': 1});
     expect(old.method, 'cash'); // rows from before DB v6
-  });
-
-  test('Owner Capital (Cash In) is neither income nor expense, reason prefixed', () {
-    final p = planCashEntry(type: 'IN', category: CashCategories.ownerCapital, misc: '', note: 'Shuru ka paisa');
-    expect(p.createsExpense, isFalse);
-    expect(p.cashReason, '$ownerCapitalReason | Shuru ka paisa');
-    expect(p.cashReason.startsWith(incomeReasonPrefix), isFalse);
-  });
-
-  test('Owner Drawings (Cash Out) does not create an Expense', () {
-    final p = planCashEntry(type: 'OUT', category: CashCategories.ownerDrawings, misc: '', note: '');
-    expect(p.createsExpense, isFalse);
-    expect(p.cashReason, ownerDrawingsReason);
-  });
-
-  test('Owner categories are on the Cash screen but not in the Expense list', () {
-    expect(CashCategories.withIncome, containsAll(CashCategories.owner));
-    expect(CashCategories.all, isNot(contains(CashCategories.ownerCapital)));
-    expect(CashCategories.all, isNot(contains(CashCategories.ownerDrawings)));
   });
 }

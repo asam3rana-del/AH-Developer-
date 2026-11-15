@@ -8,7 +8,6 @@ import '../services/session.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'supplier_repository.dart';
-import 'recycle_bin_repository.dart';
 import '../sync/sync_queue_helper.dart';
 
 /// Ports PartyRepository.kt + PartyUseCases.kt (ViewModel/Factory skip — PORTING_PLAN).
@@ -162,9 +161,7 @@ List<Payment> pickOrphanedPayments(
 // ---------------------------------------------------------------------------
 
 /// Kotlin `SavePartyResult`.
-/// [duplicateName]: isi naam (case/space ignore) ki doosri party pehle se hai. Sale/Purchase party ko NAAM se
-/// dhoondte hain, is liye do "Ali" hon to bill hamesha pehle wale ke khate mein jata — is liye rok.
-enum SavePartyResult { success, nameRequired, duplicateName }
+enum SavePartyResult { success, nameRequired }
 
 /// How many customers/suppliers had a drifted balance corrected (0/0 = sab theek).
 class RecalcResult {
@@ -201,22 +198,7 @@ class PartyRepository {
   Future<void> _deleteParty(DatabaseExecutor ex, {required bool customer, required int id}) async {
     final type = customer ? 'customer' : 'supplier';
     final eid = await SyncQueueHelper.entityIdFor(ex, type, '$id');
-    final table = customer ? 'customers' : 'suppliers';
-    final snap = await ex.query(table, where: 'id = ?', whereArgs: [id], limit: 1);
-    if (snap.isNotEmpty) {
-      await RecycleBinRepository.record(
-        ex,
-        kind: customer ? RecycleBinRepository.kindCustomer : RecycleBinRepository.kindSupplier,
-        refKey: '$id',
-        title: (snap.first['name'] as String?) ?? '',
-        subtitle: (snap.first['phone'] as String?) ?? '',
-        amount: (snap.first['balance'] as num?)?.toDouble() ?? 0.0,
-        rows: {
-          table: [Map<String, Object?>.from(snap.first)],
-        },
-      );
-    }
-    await ex.delete(table, where: 'id = ?', whereArgs: [id]);
+    await ex.delete(customer ? 'customers' : 'suppliers', where: 'id = ?', whereArgs: [id]);
     await SyncQueueHelper.enqueueDelete(ex, type, eid);
   }
 
@@ -226,16 +208,6 @@ class PartyRepository {
   }
 
   // ---- use cases: validate + save / update -------------------------------
-
-  /// [table] mein [name] (trim + case ignore) wali koi aur row ([exceptId] ke ilawa) hai?
-  Future<bool> _nameTaken(String table, String name, {int? exceptId}) async {
-    final db = await AppDatabase.instance.database;
-    final rows = await db.rawQuery(
-      'SELECT id FROM $table WHERE LOWER(TRIM(name)) = ? AND id != ? LIMIT 1',
-      [name.trim().toLowerCase(), exceptId ?? -1],
-    );
-    return rows.isNotEmpty;
-  }
 
   /// Kotlin SaveCustomerUseCase. Naam trim; khali naam => [SavePartyResult.nameRequired].
   Future<SavePartyResult> addCustomer({
@@ -247,7 +219,6 @@ class PartyRepository {
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
-    if (await _nameTaken('customers', trimmed)) return SavePartyResult.duplicateName;
     await saveCustomer(Customer(
       name: trimmed,
       phone: phone.trim(),
@@ -266,7 +237,6 @@ class PartyRepository {
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
-    if (await _nameTaken('suppliers', trimmed)) return SavePartyResult.duplicateName;
     await saveSupplier(Supplier(name: trimmed, phone: phone.trim(), openingBalance: openingBalance, balance: 0.0));
     return SavePartyResult.success;
   }
@@ -283,15 +253,9 @@ class PartyRepository {
     int? dueDays,
     String? kind,
     int? returnDate,
-    String? paySchedule,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
-    // Naam badla ho tab hi check (purane duplicate wali party ka phone/limit edit na ruke).
-    if (trimmed.toLowerCase() != existing.name.trim().toLowerCase() &&
-        await _nameTaken('customers', trimmed, exceptId: existing.id)) {
-      return SavePartyResult.duplicateName;
-    }
     await updateCustomer(existing.copyWith(
       name: trimmed,
       phone: phone.trim(),
@@ -302,7 +266,6 @@ class PartyRepository {
       dueDays: dueDays ?? existing.dueDays,
       kind: kind ?? existing.kind,
       returnDate: returnDate ?? existing.returnDate,
-      paySchedule: paySchedule ?? existing.paySchedule,
     ));
     return SavePartyResult.success;
   }
@@ -315,11 +278,6 @@ class PartyRepository {
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
-    // Naam badla ho tab hi check (purane duplicate wali party ka phone/limit edit na ruke).
-    if (trimmed.toLowerCase() != existing.name.trim().toLowerCase() &&
-        await _nameTaken('suppliers', trimmed, exceptId: existing.id)) {
-      return SavePartyResult.duplicateName;
-    }
     await updateSupplier(existing.copyWith(name: trimmed, phone: phone.trim(), openingBalance: openingBalance));
     return SavePartyResult.success;
   }
@@ -502,14 +460,6 @@ class PartyRepository {
   Future<double> liveCustomerBalance(int customerId) async {
     final l = await _loadLedgers(await AppDatabase.instance.database, customers: true, onlyPartyId: customerId);
     return l.isEmpty ? 0.0 : trueBalance(l.first);
-  }
-
-  /// Recompute a customer's running balance using the caller's active SQLite
-  /// transaction. Use this for business rules (such as credit limits) that
-  /// must observe the same database snapshot as the write they protect.
-  Future<double> liveCustomerBalanceIn(DatabaseExecutor executor, int customerId) async {
-    final ledgers = await _loadLedgers(executor, customers: true, onlyPartyId: customerId);
-    return ledgers.isEmpty ? 0.0 : trueBalance(ledgers.first);
   }
 
   Future<double> liveSupplierBalance(int supplierId) async {

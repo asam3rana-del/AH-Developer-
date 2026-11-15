@@ -1,56 +1,33 @@
-# Android ka generated project (flutter create) yahan theek hota hai.
-# Do template sambhale jate hain:
-#   * Kotlin DSL  (android/settings.gradle.kts, android/app/build.gradle.kts) — Flutter 3.29+ ka default
-#   * Groovy      (android/settings.gradle,     android/app/build.gradle)     — purana (Flutter 3.24)
-# Play Store (31 Aug 2026 se): naye apps / updates ka targetSdk 36 zaroori.
-TARGET_SDK=36
-# Play Store App ID (2026-11-10 faisla). Kabhi na badlein — badalne se nayi app ban jati hai.
-# `namespace` (Kotlin/Java code ka package) jaan boojh kar wahi rehta hai; sirf applicationId badalta hai.
-APP_ID="${APP_ID:-com.hannasolutions.pos}"
-MIN_SDK=23   # flutter_secure_storage (backup password); Flutter ka apna minimum is se zyada ho to wahi rehta hai
+# --- Versions: Kotlin 2.1.0 + AGP 8.7.3 + Gradle 8.9 (Firebase 23.x libs need Kotlin 2.1 metadata; AGP 8.3's R8 can't read it) ---
+sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
+sed -i -E 's/(com.android.application" version )"[0-9.]+"/\1"8.7.3"/' android/settings.gradle
+sed -i -E 's/gradle-[0-9.]+-(all|bin)/gradle-8.9-all/' android/gradle/wrapper/gradle-wrapper.properties
+echo "=== settings.gradle (verify versions) ==="
+cat android/settings.gradle
+grep -q '"org.jetbrains.kotlin.android" version "2.1.0"' android/settings.gradle || { echo "ERROR: Kotlin 2.1.0 not applied"; exit 1; }
+grep -q '"com.android.application" version "8.7.3"' android/settings.gradle || { echo "ERROR: AGP 8.7.3 not applied"; exit 1; }
+cat android/gradle/wrapper/gradle-wrapper.properties
 
+# Firebase/sqflite/url_launcher/... plugins need NDK 25.1.8937393 (Flutter 3.24 template pins 23.1.7779620)
+# and some need compileSdk 35. Handles both Groovy forms: `ndkVersion = x` and `ndkVersion x`.
 GRADLE=android/app/build.gradle
 [ -f android/app/build.gradle.kts ] && GRADLE=android/app/build.gradle.kts
-case "$GRADLE" in *.kts) KTS=1 ;; *) KTS=0 ;; esac
-echo "=== Gradle file: $GRADLE (KTS=$KTS) ==="
-[ -f "$GRADLE" ] || { echo "ERROR: $GRADLE nahi mili — pehle 'flutter create --platforms=android .' chalayein"; exit 1; }
+sed -i -E 's/ndkVersion[[:space:]]*=?[[:space:]]*flutter\.ndkVersion/ndkVersion = "25.1.8937393"/' "$GRADLE"
+sed -i -E 's/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/compileSdk = 35/' "$GRADLE"
+echo "android.suppressUnsupportedCompileSdk=35" >> android/gradle.properties
+grep -n "ndkVersion\|compileSdk" "$GRADLE"
 
-if [ "$KTS" = 0 ]; then
-  # --- Purana template: Kotlin 2.1.0 + AGP 8.7.3 + Gradle 8.9 (Firebase 23.x libs need Kotlin 2.1 metadata) ---
-  sed -i -E 's/(org.jetbrains.kotlin.android" version )"[0-9.]+"/\1"2.1.0"/' android/settings.gradle
-  sed -i -E 's/(com.android.application" version )"[0-9.]+"/\1"8.7.3"/' android/settings.gradle
-  sed -i -E 's/gradle-[0-9.]+-(all|bin)/gradle-8.9-all/' android/gradle/wrapper/gradle-wrapper.properties
-  echo "=== settings.gradle (verify versions) ==="
-  cat android/settings.gradle
-  grep -q '"org.jetbrains.kotlin.android" version "2.1.0"' android/settings.gradle || { echo "ERROR: Kotlin 2.1.0 not applied"; exit 1; }
-  grep -q '"com.android.application" version "8.7.3"' android/settings.gradle || { echo "ERROR: AGP 8.7.3 not applied"; exit 1; }
-  cat android/gradle/wrapper/gradle-wrapper.properties
-  # NDK 25.1 (3.24 template 23.1 pin karta tha), compileSdk/targetSdk, minSdk.
-  sed -i -E 's/ndkVersion[[:space:]]*=?[[:space:]]*flutter\.ndkVersion/ndkVersion = "25.1.8937393"/' "$GRADLE"
-  sed -i -E "s/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/compileSdk = $TARGET_SDK/" "$GRADLE"
-  sed -i -E "s/targetSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.targetSdkVersion/targetSdk = $TARGET_SDK/" "$GRADLE"
-  sed -i -E "s/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/minSdk = $MIN_SDK/" "$GRADLE"
-  sed -i -E "s/applicationId[[:space:]]*=?[[:space:]]*\"[^\"]*\"/applicationId = \"$APP_ID\"/" "$GRADLE"
-else
-  # --- Naya (KTS) template: Flutter khud naye AGP / Kotlin / Gradle deta hai. Sirf check: Kotlin >= 2.1 (Firebase). ---
-  SETTINGS=android/settings.gradle.kts
-  echo "=== $SETTINGS ==="; cat "$SETTINGS"
-  KV=$(grep -oE 'org\.jetbrains\.kotlin\.android"\)[[:space:]]*version[[:space:]]*"[0-9.]+"' "$SETTINGS" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
-  echo "Kotlin plugin: ${KV:-?}"
-  case "$KV" in
-    1.*|2.0.*) sed -i -E 's/(org\.jetbrains\.kotlin\.android"\)[[:space:]]*version[[:space:]]*)"[0-9.]+"/\1"2.1.0"/' "$SETTINGS"; echo "Kotlin -> 2.1.0" ;;
-  esac
-  cat android/gradle/wrapper/gradle-wrapper.properties
-fi
-echo "android.suppressUnsupportedCompileSdk=$TARGET_SDK" >> android/gradle.properties
+# flutter_secure_storage (backup password) needs minSdk 23; Flutter 3.24 template default is 21.
+sed -i -E 's/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/minSdk = 23/' "$GRADLE"
+grep -n "minSdk" "$GRADLE"
 
 # Phase 12 (Print & Scan): Bluetooth printer + camera permissions. `flutter create` manifest mein
 # yeh nahi hoti; sirf tab jodo jab pehle se na hon.
 MANIFEST=android/app/src/main/AndroidManifest.xml
 
-# App ka naam (phone par icon ke neeche): Hanna POS.
-sed -i -E 's/android:label="[^"]*"/android:label="Hanna POS"/' "$MANIFEST"
-grep -q 'android:label="Hanna POS"' "$MANIFEST" || { echo "ERROR: app label not set"; exit 1; }
+# App ka naam (phone par icon ke neeche): Hanna Solutions.
+sed -i -E 's/android:label="[^"]*"/android:label="Hanna Solutions"/' "$MANIFEST"
+grep -q 'android:label="Hanna Solutions"' "$MANIFEST" || { echo "ERROR: app label not set"; exit 1; }
 if ! grep -q "BLUETOOTH_CONNECT" "$MANIFEST"; then
   sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>/' "$MANIFEST"
 fi
@@ -69,100 +46,25 @@ cat > android/app/proguard-rules.pro <<'EOF'
 -dontwarn com.google.mlkit.vision.text.korean.**
 -dontwarn com.google.mlkit.vision.text.devanagari.**
 EOF
+# Release buildType mein proguard file jodo (`signingConfig signingConfigs.debug` ke baad).
+sed -i -E "s/^([[:space:]]*)signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/&\n\1proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'/" "$GRADLE"
+echo "=== app build.gradle (verify proguard) ==="
+grep -n "proguard\|signingConfig" "$GRADLE"
+grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build.gradle"; exit 1; }
 
-# --- Production signing is mandatory: never publish a release APK signed with the debug key. ---
-: "${KEYSTORE_BASE64:=}"
-: "${KEYSTORE_PASSWORD:=}"
-: "${KEY_PASSWORD:=}"
-[ -n "$KEYSTORE_BASE64" ] || { echo "ERROR: KEYSTORE_BASE64 secret missing; refusing an update-incompatible debug-signed release."; exit 1; }
-[ -n "$KEYSTORE_PASSWORD" ] || { echo "ERROR: KEYSTORE_PASSWORD secret missing."; exit 1; }
-[ -n "$KEY_PASSWORD" ] || { echo "ERROR: KEY_PASSWORD secret missing."; exit 1; }
-printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/upload.jks || { echo "ERROR: KEYSTORE_BASE64 is not valid base64."; exit 1; }
-[ -s android/app/upload.jks ] || { echo "ERROR: decoded keystore is empty."; exit 1; }
-keytool -list -keystore android/app/upload.jks -storepass "$KEYSTORE_PASSWORD" -alias ahkey >/dev/null 2>&1 || { echo "ERROR: keystore is invalid or alias 'ahkey' / store password is incorrect."; exit 1; }
-# Firebase / Play ke liye signing fingerprints (public hain, secret nahi) — Firebase Console > Android app > SHA.
-echo "=== Signing key fingerprints (Firebase Console mein Android app ke saath lagayein) ==="
-keytool -list -v -keystore android/app/upload.jks -storepass "$KEYSTORE_PASSWORD" -alias ahkey 2>/dev/null | grep -E "SHA1:|SHA256:" || true
-
-if [ "$KTS" = 0 ]; then
-  # Release buildType mein proguard file jodo (`signingConfig signingConfigs.debug` ke baad).
-  sed -i -E "s/^([[:space:]]*)signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/&\n\1proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'/" "$GRADLE"
-  sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword System.getenv('KEYSTORE_PASSWORD')\n\1        keyAlias 'ahkey'\n\1        keyPassword System.getenv('KEY_PASSWORD')\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
-  sed -i -E 's/signingConfig[[:space:]]*=?[[:space:]]*signingConfigs\.debug/signingConfig signingConfigs.release/' "$GRADLE"
+# --- Fixed signing key: har build par wahi key, taake APK purani app ke upar update ho sake. ---
+# Secret KEYSTORE_BASE64 (GitHub repo secret) se keystore banti hai. Na ho to debug key (update nahi hoga).
+if [ -n "$KEYSTORE_BASE64" ]; then
+  [ -n "$KEYSTORE_PASSWORD" ] || { echo "ERROR: KEYSTORE_PASSWORD secret set nahi (GitHub repo secret banayein)"; exit 1; }
+  echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload.jks
+  sed -i -E "s/^([[:space:]]*)buildTypes[[:space:]]*\{/\1signingConfigs {\n\1    release {\n\1        storeFile file('upload.jks')\n\1        storePassword System.getenv('KEYSTORE_PASSWORD')\n\1        keyAlias 'ahkey'\n\1        keyPassword System.getenv('KEY_PASSWORD') ?: System.getenv('KEYSTORE_PASSWORD')\n\1    }\n\1}\n\1buildTypes {/" "$GRADLE"
+  sed -i -E 's/signingConfigs\.debug/signingConfigs.release/' "$GRADLE"
+  echo "=== app build.gradle (verify signing) ==="
+  grep -n "signingConfig\|upload.jks" "$GRADLE"
+  grep -q "signingConfigs.release" "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
 else
-  # KTS: template ke text par sed ke bajaye aakhir mein ek aur `android {}` block. Gradle mein blocks jurte hain
-  # aur baad wali value jeet'ti hai — template ki wording badle tab bhi ye chalta hai.
-  cat >> "$GRADLE" <<KTS
-
-// ---- tools/android_fix.sh (CI) ----
-android {
-    compileSdk = maxOf(flutter.compileSdkVersion, $TARGET_SDK)
-    defaultConfig {
-        applicationId = "$APP_ID"
-        minSdk = maxOf(flutter.minSdkVersion, $MIN_SDK)
-        targetSdk = $TARGET_SDK
-    }
-    compileOptions {
-        // flutter_local_notifications (DueAlertService)
-        isCoreLibraryDesugaringEnabled = true
-    }
-    signingConfigs {
-        create("release") {
-            storeFile = file("upload.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD")
-            keyAlias = "ahkey"
-            keyPassword = System.getenv("KEY_PASSWORD")
-        }
-    }
-    buildTypes {
-        getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
-            // proguardFiles yahan NAHI: Flutter ka Gradle plugin release mein khud
-            // proguard-android-optimize.txt + android/app/proguard-rules.pro jorta hai. Naya AGP purani
-            // `proguard-android.txt` par build hi rok deta hai.
-        }
-    }
-}
-
-dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-}
-KTS
+  echo "WARNING: KEYSTORE_BASE64 secret nahi mila, debug key use hogi (update install nahi hoga)"
 fi
-# --- Purane plugins (e.g. file_picker 8.x: compileSdk 34) ko bhi compileSdk >= TARGET_SDK par compile karo. ---
-# Naye AndroidX libraries (flutter_plugin_android_lifecycle) 35+ maangti hain, warna checkReleaseAarMetadata fail.
-# `finalizeDsl` AGP ka rasmi hook hai (plugin ki apni build.gradle ke BAAD, DSL lock hone se PEHLE chalta hai).
-# Root build file ke SHURU mein, taake koi plugin project is se pehle evaluate na ho.
-ROOT_KTS=android/build.gradle.kts
-if [ "$KTS" = 1 ] && [ -f "$ROOT_KTS" ] && ! grep -q "ah-compile-sdk-floor" "$ROOT_KTS"; then
-  { cat <<ROOTKTS
-// ---- tools/android_fix.sh (CI): ah-compile-sdk-floor ----
-subprojects {
-    pluginManager.withPlugin("com.android.library") {
-        extensions.configure<com.android.build.api.variant.LibraryAndroidComponentsExtension> {
-            finalizeDsl { ext ->
-                if ((ext.compileSdk ?: 0) < $TARGET_SDK) ext.compileSdk = $TARGET_SDK
-            }
-        }
-    }
-}
-
-ROOTKTS
-    cat "$ROOT_KTS"; } > "$ROOT_KTS.new" && mv "$ROOT_KTS.new" "$ROOT_KTS"
-  echo "=== $ROOT_KTS ==="; cat "$ROOT_KTS"
-fi
-
-echo "=== app gradle (verify sdk / signing / proguard) ==="
-grep -n "compileSdk\|targetSdk\|minSdk\|ndkVersion\|signingConfig\|upload.jks\|proguard" "$GRADLE"
-if [ "$KTS" = 0 ]; then
-  grep -q "proguard-rules.pro" "$GRADLE" || { echo "ERROR: proguard rules not wired into build gradle"; exit 1; }
-else
-  [ -s android/app/proguard-rules.pro ] || { echo "ERROR: android/app/proguard-rules.pro missing"; exit 1; }
-fi
-grep -q 'signingConfigs.release\|signingConfigs.getByName("release")' "$GRADLE" || { echo "ERROR: release signing not applied"; exit 1; }
-grep -q "targetSdk = $TARGET_SDK" "$GRADLE" || { echo "ERROR: targetSdk $TARGET_SDK not applied"; exit 1; }
-grep -q "applicationId = \"$APP_ID\"" "$GRADLE" || { echo "ERROR: applicationId $APP_ID not applied"; exit 1; }
-echo "App ID: $APP_ID"
 
 # --- Security: Android auto-backup band (DeviceTag/sync prefs doosre phone par copy na hon). ---
 if ! grep -q 'android:allowBackup' "$MANIFEST"; then
@@ -205,30 +107,6 @@ if ! grep -q "flutter_foreground_task.service.ForegroundService" "$MANIFEST"; th
 fi
 grep -n "FOREGROUND_SERVICE\|ForegroundService" "$MANIFEST" || { echo "ERROR: foreground service not added to manifest"; exit 1; }
 
-# --- PDF seedha customer ke WhatsApp chat mein (lib/services/whatsapp_pdf.dart, channel "ah_developer/wa") ---
-# Apna FileProvider (authority <applicationId>.slipshare) sirf cache/slips folder ke liye — share_plus ke provider par
-# bharosa nahi. Na ho to Dart side chupchap aam share sheet kholti hai.
-mkdir -p android/app/src/main/res/xml
-cat > android/app/src/main/res/xml/slip_paths.xml <<'XML'
-<?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <cache-path name="slips" path="slips/" />
-</paths>
-XML
-if ! grep -q 'slip_paths' "$MANIFEST"; then
-  sed -i 's#</application>#    <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.slipshare" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/slip_paths" /></provider>\n    </application>#' "$MANIFEST"
-fi
-grep -q 'slip_paths' "$MANIFEST" || { echo "ERROR: slipshare FileProvider not added to manifest"; exit 1; }
-# WhatsApp ko queries mein (Android 11+ package visibility) — sirf tab jodo jab <queries> pehle se na ho.
-if ! grep -q 'com.whatsapp' "$MANIFEST"; then
-  if grep -q '<queries>' "$MANIFEST"; then
-    sed -i 's#<queries>#<queries>\n        <package android:name="com.whatsapp" />\n        <package android:name="com.whatsapp.w4b" />#' "$MANIFEST"
-  else
-    sed -i '0,/<application/s##<queries>\n        <package android:name="com.whatsapp" />\n        <package android:name="com.whatsapp.w4b" />\n    </queries>\n    <application#' "$MANIFEST"
-  fi
-fi
-grep -q 'com.whatsapp' "$MANIFEST" || { echo "ERROR: WhatsApp queries not added"; exit 1; }
-
 # --- Backup ki public Downloads copy (Kotlin BackupHelper.copyToDownloads): MediaStore MethodChannel ---
 # lib/backup/downloads_copy.dart isi channel ("ah_developer/downloads") ko bulata hai. Android 10+ par
 # permission nahi chahiye; 9 aur us se purane par WRITE_EXTERNAL_STORAGE (maxSdk 28) chahiye.
@@ -252,9 +130,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
-import android.net.Uri
-import androidx.core.content.FileProvider
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
@@ -301,7 +176,6 @@ class MainActivity : FlutterFragmentActivity() {
             }
         setupUsbChannel(flutterEngine)
         setupBtChannel(flutterEngine)
-        setupWaChannel(flutterEngine)
     }
 
     // ---- USB thermal printer (Kotlin PrinterHelper USB hissa: host mode, bulk OUT endpoint). Plugin nahi. ----
@@ -500,51 +374,6 @@ class MainActivity : FlutterFragmentActivity() {
                         }.start()
                     }
                     else -> result.notImplemented()
-                }
-            }
-    }
-
-    // ---- PDF seedha WhatsApp chat mein: channel "ah_developer/wa", method sendPdf(path, digits, text). ----
-    // WhatsApp ka "jid" extra (number@s.whatsapp.net) chat khol deta hai, PDF laga hota hai — sirf Send dabana hai.
-    // Kisi bhi masle par false lautata hai; Dart aam share sheet khol deta hai. (Is block mein dollar sign nahi: heredoc.)
-    private fun setupWaChannel(flutterEngine: FlutterEngine) {
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ah_developer/wa")
-            .setMethodCallHandler { call, result ->
-                if (call.method != "sendPdf") {
-                    result.notImplemented()
-                    return@setMethodCallHandler
-                }
-                val path = call.argument<String>("path")
-                val digits = call.argument<String>("digits")
-                val text = call.argument<String>("text") ?: ""
-                if (path == null || digits == null || digits.isEmpty()) {
-                    result.success(false)
-                    return@setMethodCallHandler
-                }
-                try {
-                    val uri: Uri = FileProvider.getUriForFile(this, packageName + ".slipshare", File(path))
-                    var started = false
-                    for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b")) {
-                        try {
-                            packageManager.getPackageInfo(pkg, 0)
-                        } catch (e: PackageManager.NameNotFoundException) {
-                            continue
-                        }
-                        val i = Intent(Intent.ACTION_SEND)
-                        i.type = "application/pdf"
-                        i.setPackage(pkg)
-                        i.putExtra(Intent.EXTRA_STREAM, uri)
-                        if (text.isNotEmpty()) i.putExtra(Intent.EXTRA_TEXT, text)
-                        i.putExtra("jid", digits + "@s.whatsapp.net")
-                        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        startActivity(i)
-                        started = true
-                        break
-                    }
-                    result.success(started)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    result.success(false)
                 }
             }
     }

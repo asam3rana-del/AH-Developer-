@@ -11,7 +11,6 @@ import 'package:share_plus/share_plus.dart';
 import '../backup/backup_export.dart';
 import '../backup/backup_helper.dart';
 import '../backup/backup_password_store.dart';
-import '../backup/offsite_backup.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
@@ -50,7 +49,6 @@ class _BackupBodyState extends State<_BackupBody> {
 
   List<File> _backups = [];
   bool _loadingBackups = false;
-  int _lastOffsite = 0; // OffsiteBackup: aakhri dafa phone se bahar share (0 = kabhi nahi)
 
   bool get _isAdmin => Session.isAdmin;
 
@@ -73,13 +71,7 @@ class _BackupBodyState extends State<_BackupBody> {
     setState(() => _loadingBackups = true);
     try {
       final list = await BackupHelper.listBackups();
-      final last = await OffsiteBackup.lastSharedMillis();
-      if (mounted) {
-        setState(() {
-          _backups = list;
-          _lastOffsite = last;
-        });
-      }
+      if (mounted) setState(() => _backups = list);
     } catch (_) {
       if (mounted) setState(() => _backups = []);
     } finally {
@@ -158,7 +150,6 @@ class _BackupBodyState extends State<_BackupBody> {
 
   Future<void> _backupNow() async {
     if (!_isAdmin) return;
-    if (!await _confirmPasswordWritten()) return;
     setState(() => _busy = true);
     final f = await BackupHelper.backupNow();
     if (!mounted) return;
@@ -171,60 +162,9 @@ class _BackupBodyState extends State<_BackupBody> {
     await _loadBackups();
   }
 
-  /// Pehle backup se pehle password ek dafa dikha kar "maine likh liya" confirm karwata hai.
-  /// true => backup aage barhe.
-  Future<bool> _confirmPasswordWritten() async {
-    if (await BackupPasswordStore.isAcknowledged()) return true;
-    String pass;
-    try {
-      pass = await BackupPasswordStore.getOrCreate();
-    } on BackupPasswordUnavailableException catch (e) {
-      _toast(e.message);
-      return false;
-    }
-    if (!mounted) return false;
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Write down your backup password', 'بیک اپ پاسورڈ لکھ لیں')),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            Loc.t(
-              'Your backups are locked with this password. If you reinstall the app or change phone, you cannot open them without it.',
-              'آپ کے بیک اپ اسی پاسورڈ سے لاک ہیں۔ ایپ دوبارہ انسٹال کرنے یا فون بدلنے پر اس کے بغیر کھل نہیں سکیں گے۔',
-            ),
-            style: TextStyle(fontSize: 12.5, color: _p.textMuted),
-          ),
-          const SizedBox(height: 12),
-          SelectableText(
-            pass,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 17, fontWeight: FontWeight.bold),
-          ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(Loc.t("I've written it down", 'میں نے لکھ لیا')),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return false;
-    await BackupPasswordStore.markAcknowledged();
-    return true;
-  }
-
   Future<void> _showPassword() async {
     if (!_isAdmin) return;
-    String current;
-    try {
-      current = await BackupPasswordStore.getOrCreate();
-    } on BackupPasswordUnavailableException {
-      // Keystore kharab: purana password dikha nahi sakte, magar owner naya khud set kar sakta hai.
-      current = '';
-    }
+    final current = await BackupPasswordStore.getOrCreate();
     if (!mounted) return;
     final ctrl = TextEditingController();
     var reveal = false;
@@ -245,9 +185,7 @@ class _BackupBodyState extends State<_BackupBody> {
             Row(children: [
               Expanded(
                 child: SelectableText(
-                  current.isEmpty
-                      ? Loc.t('Unavailable on this phone — set a new password below', 'اس فون پر دستیاب نہیں — نیچے نیا پاسورڈ سیٹ کریں')
-                      : (reveal ? current : '•' * current.length),
+                  reveal ? current : '•' * current.length,
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -367,7 +305,7 @@ class _BackupBodyState extends State<_BackupBody> {
 
   Future<String?> _askPassword() async {
     final ctrl = TextEditingController();
-    final stored = await BackupPasswordStore.peek(); // kabhi naya password nahi banata
+    final stored = await BackupPasswordStore.getOrCreate();
     if (!mounted) return null;
     var reveal = false;
     final r = await showDialog<String>(
@@ -388,14 +326,13 @@ class _BackupBodyState extends State<_BackupBody> {
                 ),
               ),
             ),
-            if (stored != null)
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: TextButton(
-                  onPressed: () => setD(() => ctrl.text = stored),
-                  child: Text(Loc.t("Use this device's password", 'اس ڈیوائس کا پاسورڈ استعمال کریں')),
-                ),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(
+                onPressed: () => setD(() => ctrl.text = stored),
+                child: Text(Loc.t("Use this device's password", 'اس ڈیوائس کا پاسورڈ استعمال کریں')),
               ),
+            ),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
@@ -413,52 +350,6 @@ class _BackupBodyState extends State<_BackupBody> {
   }
 
   // ---------------- UI ----------------
-
-  /// Phone se bahar backup ki halat: kab bheja, abhi bhejo, password ki yaad.
-  Widget _offsiteCard() {
-    final days = daysSinceShared(_lastOffsite);
-    final ok = days >= 0 && days <= 1;
-    final color = ok ? _p.teal : _p.red;
-    final status = days < 0
-        ? Loc.t('Never sent outside this phone', 'کبھی فون سے باہر نہیں بھیجا')
-        : days == 0
-            ? Loc.t('Sent outside today ✓', 'آج باہر بھیجا ✓')
-            : Loc.t('Last sent outside $days day(s) ago', 'آخری بار $days دن پہلے باہر بھیجا');
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _p.cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(status, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-        const SizedBox(height: 4),
-        Text(
-          Loc.t(
-            'If the phone is lost, backups on it are lost too. Send the newest backup to WhatsApp (your own number) or '
-                'Google Drive every day. Write down the Backup Password — it is needed to restore on a new phone.',
-            'فون گم ہو تو اس پر رکھے بیک اپ بھی جاتے ہیں۔ روز تازہ بیک اپ واٹس ایپ (اپنا نمبر) یا Google Drive پر بھیجیں۔ '
-                'Backup Password لکھ کر رکھیں — نئے فون پر بحال کرنے کے لیے ضروری ہے۔',
-          ),
-          style: TextStyle(fontSize: 12, color: _p.textMuted),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.ios_share),
-          label: Text(Loc.t('SEND NEWEST BACKUP OUTSIDE', 'تازہ بیک اپ باہر بھیجیں')),
-          onPressed: _backups.isEmpty
-              ? null
-              : () async {
-                  if (!await OffsiteBackup.shareLatest()) {
-                    _toast(Loc.t('Could not share backup.', 'بیک اپ شیئر نہیں ہو سکا۔'));
-                  }
-                  await _loadBackups();
-                },
-        ),
-      ]),
-    );
-  }
 
   Widget _bigButton(String label, Color color, VoidCallback? onTap) => SizedBox(
         width: double.infinity,
@@ -543,7 +434,6 @@ class _BackupBodyState extends State<_BackupBody> {
               ? null
               : () async {
                   if (!await BackupHelper.shareBackup(f)) _toast(Loc.t('Could not share backup.', 'بیک اپ شیئر نہیں ہو سکا۔'));
-                  await _loadBackups();
                 },
         ),
         IconButton(
@@ -606,8 +496,6 @@ class _BackupBodyState extends State<_BackupBody> {
               _bigButton(Loc.t('🔑 Backup Password', '🔑 بیک اپ پاسورڈ'), _p.flatPurpleFg, _showPassword),
               const SizedBox(height: 12),
               _bigButton(Loc.t('📂 Restore from file…', '📂 فائل سے بحال کریں…'), _p.red, _restoreFromFile),
-              const SizedBox(height: 12),
-              _offsiteCard(),
               _sectionTitle(Loc.t('Saved backups', 'محفوظ بیک اپ')),
               if (_loadingBackups)
                 const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))

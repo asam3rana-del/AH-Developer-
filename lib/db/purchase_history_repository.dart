@@ -1,18 +1,15 @@
 
 import 'package:sqflite/sqflite.dart';
 
-import '../utils/qty_math.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../models/purchase.dart';
 import '../services/session.dart';
 import 'app_database.dart';
-import 'cost_backfill.dart';
 import 'party_transaction_repository.dart'
     show InsufficientStockException, purchaseItemSmallestQty, reconcilePaid, reversePurchaseLineCost;
 import '../models/stock_movement.dart' show MovementType;
 import 'product_repository.dart';
-import 'recycle_bin_repository.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
 import '../sync/sync_queue_helper.dart';
@@ -76,18 +73,10 @@ PurchaseHistorySummary summarizePurchases(List<PurchaseHistoryRow> rows) {
 }
 
 /// Bill number ya supplier naam (case-insensitive); khali = sab.
-/// [itemText] (optional): billNo -> us bill ke items ke naam (lowercase). Is se "Capstan" likh kar bhi
-/// wo bills milte hain jin mein Capstan khareeda gaya (kis supplier se liya tha).
-List<PurchaseHistoryRow> filterPurchaseRows(List<PurchaseHistoryRow> rows, String query,
-    {Map<String, String> itemText = const {}}) {
+List<PurchaseHistoryRow> filterPurchaseRows(List<PurchaseHistoryRow> rows, String query) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return rows;
-  return rows
-      .where((r) =>
-          r.billNo.toLowerCase().contains(q) ||
-          r.supplierName.toLowerCase().contains(q) ||
-          (itemText[r.billNo]?.contains(q) ?? false))
-      .toList();
+  return rows.where((r) => r.billNo.toLowerCase().contains(q) || r.supplierName.toLowerCase().contains(q)).toList();
 }
 
 /// Return dialog ki ek line: kitni khareedi gayi thi.
@@ -114,7 +103,7 @@ ReturnRequest parseReturnRequest(List<ReturnableLine> lines, Map<int, String> in
     final text = (inputs[l.itemId] ?? '').trim();
     if (text.isEmpty) continue;
     final qty = double.tryParse(text);
-    if (qty == null || !qty.isFinite || qty < 0) return ReturnRequest(const {}, 'Enter a valid quantity for "${l.name}"');
+    if (qty == null || qty < 0) return ReturnRequest(const {}, 'Enter a valid quantity for "${l.name}"');
     if (qty == 0) continue;
     if (qty > l.qty + 0.0001) {
       return ReturnRequest(const {}, 'Return qty for "${l.name}" can\'t exceed purchased qty (${fmt(l.qty)})');
@@ -166,24 +155,6 @@ class PurchaseHistoryRepository {
               status: (r['status'] as String?) ?? 'active',
             ))
         .toList();
-  }
-
-  /// billNo -> sab items ke naam + search tag (lowercase, ek string). Search mein item ka naam shamil karne ke liye.
-  Future<Map<String, String>> itemTextByBill() async {
-    final db = await AppDatabase.instance.database;
-    final rows = await db.rawQuery('''
-      SELECT pi.billNo AS billNo, pi.itemName AS itemName, p.name AS pname, p.searchTag AS tag
-      FROM purchase_items pi LEFT JOIN products p ON p.barcode = pi.barcode
-    ''');
-    final out = <String, StringBuffer>{};
-    for (final r in rows) {
-      final b = out.putIfAbsent(r['billNo'] as String, () => StringBuffer());
-      for (final k in ['itemName', 'pname', 'tag']) {
-        final v = (r[k] as String?)?.trim() ?? '';
-        if (v.isNotEmpty) b.write('${v.toLowerCase()} ');
-      }
-    }
-    return {for (final e in out.entries) e.key: e.value.toString()};
   }
 
   Future<Purchase?> findPurchase(String billNo) async {
@@ -339,15 +310,11 @@ class PurchaseHistoryRepository {
       if (purchase.status == 'returned') throw StateError('Ye purchase pehle hi return ho chuki hai');
       final now = _now();
 
-      final backfillBarcodes = <String>{};
       for (final e in requested.entries) {
-        // NaN / Infinity UI se bypass ho kar aaye to bhi stock/cost/balance kharab na ho.
-        if (!e.value.isFinite) throw StateError('Return ki miqdaar darust nahi');
         if (e.value <= 0) continue;
         final ir = await txn.query('purchase_items', where: 'id = ?', whereArgs: [e.key], limit: 1);
         if (ir.isEmpty) continue;
         final item = PurchaseItem.fromMap(ir.first);
-        backfillBarcodes.add(item.barcode);
         final qty = e.value > item.qty ? item.qty : e.value;
         if (qty <= 0) continue;
 
@@ -356,7 +323,7 @@ class PurchaseHistoryRepository {
         final amount = returnedLineAmount(lineQty: item.qty, lineAmount: item.amount, unitCost: item.unitCost, returnQty: qty);
 
         if (product != null && smallest > 0) {
-          if (!hasEnoughStock(product.stock, smallest)) {
+          if (smallest > product.stock) {
             throw InsufficientStockException(
                 '"${product.name}" ka stock is purchase ke baad already kam ho chuka hai (sale ya doosri entry se) — itni miqdaar wapas karna cost ko galat kar dega.');
           }
@@ -392,11 +359,6 @@ class PurchaseHistoryRepository {
           await txn.update('purchase_items', {'qty': remainingQty, 'amount': item.amount - amount}, where: 'id = ?', whereArgs: [item.id]);
         }
         returnedTotal += amount;
-      }
-
-      // costPending: wapas hui qty ki bhari hui cost wapas pending; bachi qty dobara bill ke rate se.
-      for (final bc in backfillBarcodes) {
-        await CostBackfill.reallocateBill(txn, billNo: billNo, barcode: bc);
       }
 
       if (returnedTotal <= 0) return;
@@ -449,12 +411,6 @@ class PurchaseHistoryRepository {
       final items = (await txn.query('purchase_items', where: 'billNo = ?', whereArgs: [billNo])).map(PurchaseItem.fromMap).toList();
       final now = _now();
 
-      // costPending: is bill ki bhari hui cost sab sale lines par wapas "pending".
-      await CostBackfill.reverse(txn, billNo: billNo);
-
-      // Recycle Bin: har item ka asal asar (kitna stock nikla, cost pehle/baad) restore ke liye.
-      final effects = <Map<String, Object?>>[];
-
       // Returned bill ka stock pehle hi nikal chuka hai — dobara nahi nikalna.
       if (purchase.status != 'returned') {
         for (final it in items) {
@@ -469,7 +425,7 @@ class PurchaseHistoryRepository {
             itemAmount: it.amount,
             smallestQtyToRemove: smallest,
           );
-          if (!hasEnoughStock(product.stock, smallest)) {
+          if (product.stock < smallest) {
             if (!force) {
               throw InsufficientStockException(
                   '\"${product.name}\" ka stock is purchase ke baad kam ho chuka hai — delete karne se stock/cost galat ho jayega.');
@@ -491,7 +447,6 @@ class PurchaseHistoryRepository {
                 unitCost: newCost,
                 now: now);
           }
-          effects.add({'barcode': it.barcode, 'removed': removed, 'costBefore': product.cost, 'costAfter': newCost});
           await _enqueueProduct(txn, it.barcode);
         }
         final outstanding = purchase.total - purchase.paid;
@@ -500,50 +455,10 @@ class PurchaseHistoryRepository {
         }
       }
 
-      // Recycle Bin snapshot (bill + items + payments + cash rows) — rows hatne se pehle.
-      final linkedPays = await txn.query('payments', where: 'billReference = ? AND reference != ?', whereArgs: [billNo, billNo]);
-      final ownPays = await txn.query('payments', where: 'reference = ?', whereArgs: [billNo]);
-      final cashRefs = <String>{
-        billNo,
-        'return:$billNo',
-        for (final p in linkedPays) (p['reference'] as String?) ?? '',
-      }..remove('');
-      final cashRows = await txn.query('cash_transactions',
-          where: 'reference IN (${List.filled(cashRefs.length, '?').join(',')})', whereArgs: cashRefs.toList());
-      var supplierName = 'Cash purchase';
-      if (purchase.supplierId != null) {
-        final sr = await txn.query('suppliers', columns: ['name'], where: 'id = ?', whereArgs: [purchase.supplierId], limit: 1);
-        if (sr.isNotEmpty) supplierName = (sr.first['name'] as String?) ?? supplierName;
-      }
-      await RecycleBinRepository.record(
-        txn,
-        kind: RecycleBinRepository.kindPurchase,
-        refKey: billNo,
-        title: 'Purchase $billNo',
-        subtitle: supplierName,
-        amount: purchase.total,
-        rows: {
-          'purchases': [Map<String, Object?>.from(pr.first)],
-          'purchase_items': [
-            for (final r in await txn.query('purchase_items', where: 'billNo = ?', whereArgs: [billNo]))
-              Map<String, Object?>.from(r)
-          ],
-          'payments': [for (final r in [...ownPays, ...linkedPays]) Map<String, Object?>.from(r)],
-          'cash_transactions': [for (final r in cashRows) Map<String, Object?>.from(r)],
-          'stock_effects': effects,
-          'meta': [
-            {'alreadyReturned': purchase.status == 'returned' ? 1 : 0}
-          ],
-        },
-      );
-
       await txn.delete('purchase_items', where: 'billNo = ?', whereArgs: [billNo]);
       await txn.delete('purchases', where: 'billNo = ?', whereArgs: [billNo]);
       await _deletePaymentsByReference(txn, billNo);
       await _deleteCashByReference(txn, billNo);
-      // Poori/aadhi return ki dated reversal rows bhi: asli rows hat gayin, akeli reversal cash book ko
-      // galat (zyada IN) kar deti.
-      await _deleteCashByReference(txn, 'return:$billNo');
       await _voidLinkedPayments(txn, billNo);
       await _enqueue(txn, 'purchase', billNo, 'delete', {'billNo': billNo});
       deleted = purchase;

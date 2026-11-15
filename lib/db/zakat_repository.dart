@@ -4,14 +4,13 @@ import 'package:sqflite/sqflite.dart' show Transaction;
 
 import '../models/product.dart';
 import '../models/zakat.dart';
+import '../services/session.dart';
 import '../utils/hijri.dart';
 import 'app_database.dart';
 import 'balance_sheet_repository.dart' show stockValueAtCost;
-import 'party_dashboard_repository.dart' show PartyDashboardRepository, partyTotals;
 import 'expense_repository.dart';
 import 'user_repository.dart';
 import '../sync/sync_queue_helper.dart';
-import '../services/permissions.dart';
 
 /// Ports ZakatActivity.kt + ZakatDao: Ramadan-to-Ramadan Zakat year,
 /// (cash + bank + stock at cost + receivables - payables) x 2.5%, payments
@@ -134,7 +133,7 @@ class ZakatRepository {
   static final ZakatRepository instance = ZakatRepository._();
 
   static void _requireAccess() {
-    if (!Permissions.can('zakat')) {
+    if (!Session.isAdminOrManager) {
       throw StateError('Sirf Admin/Manager is screen ko access kar sakta hai');
     }
   }
@@ -197,14 +196,12 @@ class ZakatRepository {
         scalar('SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type=? AND method=?', [type, method]);
 
     final products = (await db.query('products')).map(Product.fromMap).toList();
-    // Receivable / payable LIVE ledger se (Dashboard ke You'll Get / You'll Give jaisa) — stored `balance` se nahi.
-    final party = partyTotals(await PartyDashboardRepository.instance.loadParties());
     return ZakatAutoFigures(
       await total('IN', 'cash') - await total('OUT', 'cash'),
       await total('IN', 'bank') - await total('OUT', 'bank'),
       stockValueAtCost(products),
-      party.toGet,
-      party.toGive,
+      await scalar('SELECT COALESCE(SUM(balance),0) FROM customers WHERE balance>0'),
+      await scalar('SELECT COALESCE(SUM(balance),0) FROM suppliers WHERE balance>0'),
     );
   }
 

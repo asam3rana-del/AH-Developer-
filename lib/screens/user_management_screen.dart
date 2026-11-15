@@ -4,13 +4,11 @@ import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
 import '../services/biometric.dart';
 import '../services/session.dart';
-import '../services/staff_auth.dart';
 import '../utils/loc.dart';
 import '../utils/password_hasher.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import '../theme/theme_manager.dart';
-import '../services/permissions.dart';
 
 /// Mirrors UserManagementActivity.kt — Admin-only, pehle admin ka password verify.
 /// Lock: fingerprint pehle khud khulta hai, password hamesha fallback.
@@ -51,14 +49,6 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
     _tryFingerprint();
   }
 
-  @override
-  void dispose() {
-    for (final c in [_lockPass, _username, _displayName, _phone, _password]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
   /// Lock screen dikhte hi fingerprint prompt (Kotlin tryLockFingerprint). Fail/cancel par password field hi rehta hai.
   Future<void> _tryFingerprint({bool manual = false}) async {
     if (!await Biometric.isAvailable()) {
@@ -80,10 +70,7 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
     if (mounted) setState(() => _users = u);
   }
 
-  void _toast(String m) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
-  }
+  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   bool _isLastActiveAdmin(User u) =>
       u.role == 'admin' && u.active && _users.where((x) => x.role == 'admin' && x.active).length <= 1;
@@ -125,7 +112,6 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
       active: existing?.active ?? true,
       phone: _phone.text.trim(),
     ));
-    await _syncCloudAccount(username, _role, existing?.active ?? true, password: pass);
     _toast(Loc.t('User saved', 'یوزر محفوظ ہو گیا'));
     _username.clear(); _displayName.clear(); _phone.clear(); _password.clear();
     _reload();
@@ -146,13 +132,11 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
       ),
     );
     if (go != true) return;
-    // Naye user / Update Login jaisa hi kam az kam 6 (pehle yahan 8 tha — ek hi app mein do qaide).
-    if (c.text.length < 6) return _toast(Loc.t('Password must be at least 6 characters', 'پاس ورڈ کم از کم 6 حروف کا ہو'));
+    if (c.text.length < 8) return _toast(Loc.t('Password must be at least 8 characters', 'پاس ورڈ کم از کم 8 حروف کا ہو'));
     await _repo.upsert(User(
       username: u.username, displayName: u.displayName, role: u.role,
       passwordHash: await PasswordHasher.hash(c.text), active: u.active, phone: u.phone,
     ));
-    await _syncCloudAccount(u.username, u.role, u.active, password: c.text);
     // Hash device-local rehta hai; sirf audit mein likhte hain.
     await _repo.insertAudit(Session.username ?? 'admin', 'password_reset', u.username, 'Password reset locally by admin');
     _toast(Loc.t('Password reset (on this device)', 'پاس ورڈ ری سیٹ ہو گیا (اس ڈیوائس پر)'));
@@ -171,17 +155,6 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
         ),
       )) == true;
 
-  /// Secure cloud login ON ho to server ke staff_accounts bhi badlo (server admin + branch khud check karta hai).
-  /// Local save pehle ho chuka hota hai; cloud nakaam ho to sirf bata dete hain.
-  Future<void> _syncCloudAccount(String username, String role, bool active, {String? password}) async {
-    if (!await StaffAuth.isEnabled()) return;
-    final ok = await StaffAuth.adminSetAccount(username: username, role: role, active: active, password: password);
-    if (!ok) {
-      _toast(Loc.t('Saved on this device, but cloud account not updated: ${StaffAuth.lastError}',
-          'اس ڈیوائس پر محفوظ ہو گیا، مگر کلاؤڈ اکاؤنٹ اپڈیٹ نہیں ہوا: ${StaffAuth.lastError}'));
-    }
-  }
-
   Future<void> _toggleActive(User u) async {
     if (u.username == Session.username || _isLastActiveAdmin(u)) {
       return _toast(Loc.t('You cannot deactivate yourself or the last active admin', 'آپ خود کو یا آخری ایکٹو ایڈمن کو غیر فعال نہیں کر سکتے'));
@@ -197,7 +170,6 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
       username: u.username, displayName: u.displayName, role: u.role,
       passwordHash: u.passwordHash, active: !u.active, phone: u.phone,
     ));
-    await _syncCloudAccount(u.username, u.role, !u.active);
     _toast(!u.active ? Loc.t('User activated', 'یوزر فعال ہو گیا') : Loc.t('User deactivated', 'یوزر غیر فعال ہو گیا'));
     _reload();
   }
@@ -209,80 +181,7 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
     final ok = await _confirm(Loc.t('Delete User?', 'یوزر حذف کریں؟'), '${u.displayName} (${u.username})', Loc.t('Delete', 'حذف'));
     if (!ok) return;
     await _repo.delete(u.username);
-    await _syncCloudAccount(u.username, u.role, false); // cloud mein delete nahi, sirf band (login na ho sake)
     _toast(Loc.t('User deleted', 'یوزر حذف ہو گیا'));
-    _reload();
-  }
-
-  // ---------- access (per-user rules) ----------
-  Future<void> _editAccess(User u) async {
-    if (u.role == 'admin') {
-      return _toast(Loc.t('Admin always has full access', 'ایڈمن کے پاس ہمیشہ مکمل رسائی ہوتی ہے'));
-    }
-    final current = Permissions.parse(u.permissions);
-    final values = <String, bool>{
-      for (final d in Permissions.all) d.key: Permissions.resolve(u.role, current, d.key),
-    };
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
-        final children = <Widget>[];
-        String? group;
-        for (final d in Permissions.all) {
-          if (d.group != group) {
-            group = d.group;
-            children.add(Padding(
-              padding: const EdgeInsets.fromLTRB(4, 12, 0, 2),
-              child: Text(
-                d.group == Permissions.groupReports ? Loc.t('Reports', 'رپورٹس') : Loc.t('Tools', 'ٹولز'),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ));
-          }
-          final isDefault = values[d.key] == Permissions.defaultFor(u.role, d.key);
-          children.add(SwitchListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: Text(Loc.t(d.en, d.ur)),
-            subtitle: isDefault
-                ? null
-                : Text(Loc.t('Custom', 'کسٹم'), style: TextStyle(color: ThemeManager.palette.blue, fontSize: 11)),
-            value: values[d.key] ?? false,
-            onChanged: (v) => setD(() => values[d.key] = v),
-          ));
-        }
-        return AlertDialog(
-          title: Text('${Loc.t('Access', 'رسائی')} — ${u.displayName}'),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: children),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => setD(() {
-                for (final d in Permissions.all) {
-                  values[d.key] = Permissions.defaultFor(u.role, d.key);
-                }
-              }),
-              child: Text(Loc.t('Role defaults', 'رول کے مطابق')),
-            ),
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Save', 'محفوظ کریں'))),
-          ],
-        );
-      }),
-    );
-    if (saved != true) return;
-    final overrides = <String, bool>{
-      for (final d in Permissions.all)
-        if ((values[d.key] ?? false) != Permissions.defaultFor(u.role, d.key)) d.key: values[d.key] ?? false,
-    };
-    final encoded = Permissions.encode(overrides);
-    await _repo.setPermissions(u.username, encoded);
-    await _repo.insertAudit(Session.username ?? 'admin', 'access_changed', u.username, encoded);
-    _toast(Loc.t('Access saved', 'رسائی محفوظ ہو گئی'));
     _reload();
   }
 
@@ -378,14 +277,11 @@ class _UserManagementBodyState extends State<_UserManagementBody> {
                 const SizedBox(height: 6),
                 Wrap(spacing: 8, children: [
                   Chip(label: Text(u.role[0].toUpperCase() + u.role.substring(1)), labelStyle: TextStyle(color: _roleColor(u.role), fontSize: 11)),
-                  if (u.permissions.isNotEmpty)
-                    Chip(label: Text(Loc.t('Custom access', 'کسٹم رسائی')), labelStyle: TextStyle(color: ThemeManager.palette.blue, fontSize: 11)),
                   Chip(label: Text(u.active ? Loc.t('Active', 'فعال') : Loc.t('Inactive', 'غیر فعال')),
                       labelStyle: TextStyle(color: u.active ? ThemeManager.palette.teal : ThemeManager.palette.textMuted, fontSize: 11)),
                 ]),
                 Wrap(spacing: 8, children: [
                   TextButton.icon(onPressed: () => _resetPassword(u), icon: const Icon(Icons.key, size: 16), label: Text(Loc.t('Reset PW', 'پاس ورڈ ری سیٹ'))),
-                  TextButton.icon(onPressed: () => _editAccess(u), icon: const Icon(Icons.lock_open, size: 16), label: Text(Loc.t('Access', 'رسائی'))),
                   TextButton(onPressed: () => _toggleActive(u), child: Text(u.active ? Loc.t('Deactivate', 'غیر فعال') : Loc.t('Activate', 'فعال'))),
                   TextButton(onPressed: () => _delete(u), child: Text(Loc.t('Delete', 'حذف'), style: TextStyle(color: ThemeManager.palette.red))),
                 ]),

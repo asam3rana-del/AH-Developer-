@@ -1,12 +1,11 @@
 
-import '../utils/qty_math.dart';
 import '../models/product.dart';
 import '../models/stock_movement.dart';
+import '../services/session.dart';
 import 'app_database.dart';
 import 'product_repository.dart';
 import 'stock_ledger.dart';
 import '../sync/sync_queue_helper.dart';
-import '../services/permissions.dart';
 
 /// Ports the data side of StockAdjustmentActivity.kt.
 ///
@@ -34,11 +33,11 @@ String adjustmentType(AdjustmentKind kind) =>
 ///  * piece-based item (smallest unit Piece/Bottle...) mein 1.5 jaisi fraction nahi (Product.isValidSmallestQty);
 ///  * kam karne par itna stock hona chahiye (Kotlin DAO `decrease` guard).
 String? validateAdjustment(Product p, AdjustmentKind kind, double? qty) {
-  if (qty == null || !qty.isFinite || qty <= 0) return 'Darust miqdaar likhen'; // NaN / Infinity bhi rad
+  if (qty == null || qty <= 0) return 'Darust miqdaar likhen';
   if (!p.isValidSmallestQty(qty)) {
     return 'Miqdaar poori ${p.smallestUnitName()} mein honi chahiye (fraction nahi)';
   }
-  if (adjustmentDelta(kind, qty) < 0 && !hasEnoughStock(p.stock, qty)) {
+  if (adjustmentDelta(kind, qty) < 0 && qty > p.stock + 1e-9) {
     return 'Itna stock kam karne ke liye kaafi nahi hai (maujooda: ${p.formatStockBreakdown()})';
   }
   return null;
@@ -67,7 +66,7 @@ class StockAdjustmentRepository {
   /// Stock badlo + DAMAGE/ADJUSTMENT ledger row (cost = us waqt ka product.cost) + product sync_queue,
   /// ek transaction mein. Admin/Manager only (role repository mein bhi check hota hai).
   Future<void> save(String barcode, AdjustmentKind kind, double qty, {String note = ''}) async {
-    if (!Permissions.can('stock_adjustment')) {
+    if (!Session.isAdminOrManager) {
       throw const StockAdjustmentException('Stock Adjustment sirf Admin/Manager kar sakta hai');
     }
     final db = await AppDatabase.instance.database;
@@ -83,7 +82,7 @@ class StockAdjustmentRepository {
       // Guard SQL mein bhi: do device/tap ek saath ho to stock negative na ho.
       final n = await txn.rawUpdate(
         delta < 0
-            ? 'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= -$kStockEpsilon'
+            ? 'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= 0'
             : 'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
         delta < 0 ? [delta, now, barcode, delta] : [delta, now, barcode],
       );

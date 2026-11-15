@@ -1,32 +1,4 @@
-## Flutter side (2026-11-06) — Wasooli Autopilot
-- [x] Naya `lib/models/collection_autopilot.dart` + `lib/db/collection_autopilot_repository.dart` + `lib/screens/wasooli_queue_screen.dart`: late / pending / toote wade ki aaj ki list khud banti hai (TODO / DONE / WAITING), gap: toota wada 1 din, 30+ din 2 din, baaqi 3 din; dispute roz nahi.
-- [x] "Agla bhejo" button: har tap par agli party ka WhatsApp + follow-up entry khud; row par WhatsApp / Call / Paisa mila.
-- [x] Dashboard tile "Collection Autopilot" (badge = aaj baqi). `DueAlertService` ab autopilot queue se notification banati hai, tap par Wasooli Queue; jo aaj ho chuka wo dobara nahi.
-- [x] Naya `collection_hub_screen.dart`: Autopilot + saari due list ek screen mein (2 tabs); dashboard par ek "Collection" tile; notification tap hub kholta hai.
-- [x] Partial payment par due date renew: `lib/models/due_renewal.dart` + `PaymentRepository._renewDueDates` (aaj + customer dueDays / bill ki muddat / 7 din). Test `due_renewal_test.dart`.
-- [x] Sale screen: due date ke quick day-chips (Tomorrow/1/3/7/15/30) aur ✕ hata kar sirf date picker rakha.
-- [x] Rent: Daily Rent sheet mein "Fix rent" (spanner) button — `RentRepository.repairRent`: chuni date se aaj tak chhutti (returned) wale rent bills wapas lagte hain aur missing din ban jate hain; theek bills nahi chhute, balance usi hisaab se.
-- [x] Naya `collection_ticker_screen.dart`: LCD/LED jaisa display board — aaj wasooli wale naam + raqam chalte hain, beech mein ek ek party bari; Collection screen ke TV icon se.
-- [x] Quick Sale (credit) ke baad ab normal sale jaisi Bill Preview khulti hai (Prev / Net Balance + shukriya). Party Details ke sale card ka share button bhi poori slip bhejta hai (items, Prev / Net Balance, shukriya), sirf Total / Balance wali chhoti slip nahi.
-- [x] Fix rent ab theek rent bills ko dobara sync queue mein bhi daalta hai (doosri device par na pahunche hon to pahunch jayen); balance nahi badalta.
-- [x] Collection plan patch: FIFO payment plan (`collection_plan.dart`), itemized reminder, `due_followup_repository` / `due_reminders_repository` / `payment_repository` / `due_reminders_screen` updates.
-- [x] Test: `test/collection_autopilot_test.dart` (9). Detail: `docs/COLLECTION_AUTOPILOT.md`.
-- [ ] Bina `flutter analyze` / `flutter test` ke likha gaya (Flutter SDK nahi) — CI par `Analyze + Test` dekhein.
-
 # ANDROID_CHANGELOG — Android/Web mein jo badla, Flutter mein port hona baaki
-
-## Flutter side (2026-11-03) — Due Reminders follow-up sync + Firestore rules
-- [x] Follow-up log (`due_followups`, DB v35) ab sab devices par sync hota hai: DB v36 (`serverId`, `partyServerId`), push/pull/apply (`lib/sync/*`), repository ke har likhne par queue, purani v35 entries ek baar backfill.
-- [x] Firestore: `due_followups` teeno rules files (`firestore.rules`, `firestore.staff-claims.rules`, `firestore.secure-draft.rules`) + 2 indexes (`firestore.indexes.json`) + rules tests. Ab sync ki collections 29 (pull / push / branch cleanup list barabar).
-- [ ] **Pehle rules + indexes deploy karein, phir app build install karein.** Bina flutter analyze / flutter test ke likha gaya (is environment mein Flutter SDK nahi) — CI par `Analyze + Test`, `Migration tests`, `Firebase rules test` dekhein.
-
-## Flutter side (2026-10-25) — Deep assessment + Amanat / Loan fixes
-- [x] Assessment (bina Flutter SDK, sirf static): sab 185 lib + 77 test files ke brackets/strings saaf; har `import` asal file par; SQL ke columns schema (v29) se mel; project ki classes ke `X.instance.method` / `X.static` / named-args call-sites sab maujood; sync ki 28 collections `pullCollections` = `firestore.rules` = `firestore.indexes.json`; CI actions (`checkout@v5`, `upload-artifact@v7`) maujood versions hain. Koi compile-level ghalti nahi mili.
-- [x] **Amanat / Loan: wapsi ki tarikh ki notification.** Pehle tarikh sirf screen par dikhti thi — aaj / guzri hui tarikh par koi yaad-dahani nahi aati thi. Ab roz 10 baje ke baad (din mein ek baar) ek notification: kitni parties, pehle 3 naam, kitni ki tarikh guzar chuki. Tap par Amanat / Loan screen. `lib/services/return_alert_service.dart` (naya), `returnDueNow` / `returnAlertBody` (pure, `due_reminders_repository.dart`), payload routing `due_alert_service.dart`, foreground `main.dart` + background `backup_background.dart` (WorkManager) dono se. Sirf admin/manager login par (background isolate mein session khud load hota hai); `DueAlertService.keyEnabled` off ho to ye bhi band.
-- [x] Amanat / Loan screen: list load fail hone par spinner hamesha chalta rehta tha — ab error toast + spinner band.
-- [x] Naya Amanat / Loan banate waqt Opening balance ka sign: Amanat dukaan ki zimmedari hai (customer balance minus), pehle positive likhne par customer "dukaan ko dega" ban jata tha aur Due Reminders / daily due notification mein ghalat aata. Ab Amanat ka amount khud minus mein jama hota hai, Loan ka plus mein (field ke neeche wazahat). Purani parties nahi badalti.
-- [x] Test: `test/amanat_loan_test.dart` mein 5 naye tests (aaj / guzri / kal / mahine ka aakhri din / body).
-- [ ] Ye sab bina `flutter analyze` / `flutter test` ke likha gaya (is environment mein Flutter SDK nahi) — CI par `Analyze + Test` dekhein. Device par: Android 13+ par notification permission, aur Oppo/Xiaomi par background notification.
 
 ## Flutter side (2026-10-21) — Shop Rents (kiraye ki dukaneen) + Kotlin files hata di gayin
 - [x] Repo cleanup: saari `.kt` files (kotlin_reference/main, test, androidTest aur root `androidTest/`) hata di gayin; `kotlin_reference/config/` rakhi gayi.
@@ -700,51 +672,6 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [x] App ka naam "Hanna Solutions": Android icon label (tools/android_fix.sh), iOS home-screen naam aur Windows window title (build.yml), app ke andar title (lib/main.dart).
 - Package id (`com.…` / project name) nahi badla — warna purani app ke upar update nahi hota aur Firebase dobara set karna parta.
 
-## Robustness audit (2026-10-25)
-- [x] Controller leaks band: `SettingsScreen` (_shopName/_shopPhone/_newUsername/_newPassword) aur `UserManagementBody` (_lockPass/_username/_displayName/_phone/_password) ko `dispose()` mila.
-- [x] `SettingsScreen._load()`: await ke baad `mounted` check — screen jaldi band ho to disposed controller par likhne ka crash nahi.
-- [x] 17 screens ka `_toast()` ab `if (!mounted) return;` se shuru hota hai (await ke baad screen pop ho jaye to "deactivated widget" error nahi): bill_preview, bulk_default_unit, bulk_missing_rates, bulk_rate_tool, cash_register, cash, daily_bills (2), expense, items, purchase_history, sale_history, shell_ledger, shop_rent, stock_audit, user_management, zakat.
-- Check kiya, theek mila: global error handler (CrashHandler), int.parse wale sab sites pehle validate hote hain, dialog ke `Navigator.pop(ctx)` sahi context par.
-- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein.
-
-## Cleanup (2026-10-25)
-- [x] Root par galti se paste hui purani copies hata di gayin: `db/`, `screens/`, `androidTest/` (kotlin_reference/androidTest jaisi hi), `firestore.rules` + `firestore.indexes.json` (firebase/ mein wahi files hain), aur 3 purani root tests (`sync_apply_test.dart`, `sync_apply_rest_test.dart`, `worker_sync_test.dart` — asli, naye versions test/ mein hain).
-- [x] `analysis_options.yaml` ab sirf `kotlin_reference/**` exclude karta hai.
-- Note: repo mein ye purani files pehle se hain to GitHub se inhe haath se delete karna hoga (import-zip sirf files add/overwrite karta hai).
-
-- [x] `kotlin_reference/` poora hata diya (port complete, Flutter zyada updated). `tools/import_zip.sh` aur `tools/check_root.sh` ab Kotlin folders ko merge ke bajaye skip/delete karte hain; `analysis_options.yaml` mein ab koi exclude nahi.
-
-## Dependencies / build / docs update (2026-10-25)
-- [x] `build.yml`: Flutter version ab ek hi jagah (`env.FLUTTER_VERSION`, abhi 3.24.0, Run workflow mein `flutter_version` input se naya version aazma sakte hain); pub cache (`cache: true`); `concurrency` (purani run cancel); har job par `timeout-minutes`; sirf `.md`/`docs/` badalne par push build nahi.
-- [x] Actions: `actions/checkout` v4 -> v5, `actions/upload-artifact` v4 -> v7 (Node 20 deprecation warnings ke liye).
-- [x] `README.md` naye sire se (Hanna Solutions, build/secrets/zip-import/checks).
-- [x] Packages: (purani baat, ab badal chuki) pehle `pubspec.lock` repo mein nahi thi aur har build par naye packages aate the. **Ab `pubspec.lock` repo ke root mein maujood hai** aur CI (`build.yml`) har job par `flutter pub get` ke baad check karti hai ke wo maujood aur pubspec.yaml se mutabiq hai (warna build fail). Pubspec mein version badalne ke baad `flutter pub get` chala kar naya lockfile commit karna hai. Flutter 3.24 -> naya stable (3.47.x) abhi NAHI kiya: Kotlin/AGP/Gradle/compileSdk fixes (`tools/android_fix.sh`) naye template par toot sakte hain; pehle manual Run workflow se aazmayen.
-- Note: `.github/` import-zip se paste nahi hota — `build.yml` aur `import-zip.yml` GitHub par haath se update karni hongi.
-
-## UI / dark mode polish (2026-10-25)
-- [x] `lib/main.dart`: `_buildTheme(p, dark)` — poori app ka ThemeData ab ThemeManager palette se (ColorScheme surface/onSurface/outline/error + surfaceContainer* = cardWhite/fieldFill, textTheme textDark, divider = border). Pehle sirf `colorSchemeSeed: navy` tha, is liye dialog / bottom sheet / popup menu / dropdown / card / unstyled Text dark mode mein Material ke apne (palette se alag) rang lete the. Sirf stable ColorScheme/ThemeData fields use huin (DialogTheme jaisi classes nahi, jin ke naam naye Flutter mein badle).
-- [x] Sale aur Purchase ke Split Payment dialog ka "Bill Total" text `Colors.black54` tha (dark dialog par nazar nahi aata) -> `palette.textMuted`.
-- [x] `utility_bills_screen.dart`: status chip (Paid / Overdue / Due today / Due tomorrow / In N days), Delete bill, error text aur Overdue amount ke `Colors.red/green/orange/blueGrey.shadeNNN` -> palette teal/red/amber/textMuted (dark mode mein theek contrast).
-- Check kiya, theek mila: header par safed pill/icons (navy header dono modes mein), login ka safed avatar, `Colors.black` sirf shadows/barrier mein.
-- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test`, phir device par light aur dark dono mein dialogs, bottom sheets aur dropdowns dekh lein. Light mode mein surfaces ab pure white (palette cardWhite) hain, pehle halka lavender tint tha.
-
-## Amanat wapsi / Loan wasooli + sync error message (2026-10-27)
-- [x] Amanat / Loan card ke menu mein naya "Amanat wapas karein" / "Loan wasool karein": raqam (poori ya adhoori) + Cash/Bank. `DueRemindersRepository.settleReturn()` ek transaction mein: entries FIFO se kam (`settleEntriesFifo`, sab se purani wapsi ki tarikh pehle; poori ho to hat jati hai), balance 0 ki taraf, wapsi ki tarikh bachi entries ki sab se purani (koi nahi to saaf), aur Cash register mein row (amanat = OUT, loan = IN, reference `manual-return-entry-…` taake Day Book mein alag line aaye). Customer + cash dono sync queue mein.
-- [x] Sync error: pehle sign-in fail, khali Branch Code aur khali Firebase project sab par ek hi "Cloud not reachable" aata tha. Ab `SyncApi.connectIssue` asal wajah batata hai: Branch Code khali / Firebase project nahi / Anonymous Auth band / internet nahi / API key-project ghalat.
-- Test: `test/settle_return_test.dart`. Note: Flutter SDK nahi tha, compile/test nahi hua — `flutter analyze && flutter test` chalayein.
-
-## Due Reminders quick dates + unit-change note + Pending Cost tool (2026-10-31)
-- [x] Due Reminders: har party card par naya "event" button (sirf asli bills wali party, advance / sirf-balance nahi). Sheet mein: **Today + 7 / 15 / 30 din**, **Pick a date…**, aur **Bill date + default din** (customer ki default muddat > 0 ho to). "Sirf bina date wale bills" switch (pehle se set dates na chhedne ke liye). Ek transaction, har bill sync queue mein (`DueRemindersRepository.setDueDateForParty`). Sales aur Purchases dono tab.
-- [x] Customer ki default muddat (din) ab isi sheet se badal sakte hain (`setCustomerDueDays`, 0-365, customer sync queue mein); card par "Term: N days" dikhta hai. Suppliers mein ye field nahi hai (sirf customers).
-- [x] Product edit: unit ladder badalne ka "Unit badli — rates update karen?" dialog ab stock ka purana -> naya breakdown bhi dikhata hai aur likhta hai ke purane bills ki cost/profit nahi badlegi. (Old -> new rates pehle se dikhte the: `LadderRatePlan`.)
-- [x] Naya admin tool **Pending Cost** (Items > tools pills, permission `fix_bill_cost`): wo bill lines jin ki cost abhi "pending/andaza" hai (minus stock ya product cost 0 par bechi) — agar product ki cost baad mein likhi gayi ho to yahan se product ki maujooda cost (per smallest unit) se pakki karo; apply se pehle total cost/profit change dikhta hai. Purchase aane par ye pehle ki tarah khud hota hai. Log mein tag `product-cost` (purchase delete se wapas pending nahi hoti). `CostBackfill.fillFromProductCost`, `PendingCostRepository`, `PendingCostScreen`.
-- Shop Rent / Workers: code dekha, koi adhoori jagah (TODO / "coming soon") nahi mili.
-- Tests: `test/due_reminders_test.dart` (clampDueDays, dueDateAfterDays), `test/pending_cost_test.dart`. Note: Flutter SDK nahi tha, compile/test nahi hua — `flutter analyze && flutter test` chalayein.
-
-## Photo + PDF fixes (2026-11-04)
-- [x] Party list (Customers/Suppliers) mein ab asli tasveer wala avatar (tap = Camera/Gallery/Hata dein). Pehle sirf icon tha, tasveer sirf statement aur Daily Bills mein dikhti thi.
-- [x] Camera: Android app band kar de (kam RAM) to `retrieveLostData()` se tasveer wapas li jati hai.
-- [x] Sale aur Purchase bill (Bill Preview / Purchase Saved) par naya \"Share as PDF\" (`billDocSlipData`). Pehle in par PDF ka option tha hi nahi.
-- [x] PDF share sheet fail ho to file PDF viewer mein khul jati hai.
-- Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein. `test/bill_pdf_data_test.dart` naya.
-- Baqi: Party Summary PDF (`partySummarySlipData`) abhi kisi button se jura nahi; tasveer sirf usi phone mein hai (backup/sync mein nahi).
+## Delete Month Data (2026-11-15)
+- [x] Settings > Delete Month Data (admin): mahina/saal chun kar Preview (bills + total), phir DELETE likh kar confirm. Har bill existing deleteSale/deletePurchase(force) se delete hota hai => stock, party balance, cash/payments reverse + cloud delete sync. Files: lib/db/month_cleanup_repository.dart, lib/screens/month_cleanup_screen.dart.
+- Note: compile/test nahi hua. Standalone payments, expenses aur cash in/out ko yeh tool nahi chhoota.

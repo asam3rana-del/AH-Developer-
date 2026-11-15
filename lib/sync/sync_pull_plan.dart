@@ -15,16 +15,9 @@ const int pullOverlapMs = 10 * 60 * 1000;
 const int stockPullOverlapMs = 60 * 60 * 1000;
 
 /// Un collections ke naam jin par [stockPullOverlapMs] lagta hai.
-/// FIX (payment sync nahi hui, edit ke baad hui): paise wali collections bhi 1 ghante ka overlap. Device A ki
-/// entry ka `updatedAt` A ki clock se aur enqueue ke waqt ka hota hai; A der se push kare (net nahi / app band)
-/// ya A ki clock peeche ho, to B ka checkpoint aage nikal chuka hota tha aur payment kabhi pull nahi hoti thi —
-/// edit karne par naya `updatedAt` milta tha, tab jaa kar aati. (Late push ka asal ilaaj `pushedAt` index hai.)
-const Set<String> stockPullCollections = {
-  'products', 'customers', 'suppliers',
-  'payments', 'cash_transactions', 'sales', 'purchases', 'expenses',
-};
+const Set<String> stockPullCollections = {'products', 'customers', 'suppliers'};
 
-/// Kotlin `pull()` ki tarteeb mein 20 collections + Flutter ki 4 Workers + 2 Shop Rents + 2 Utility Bills + 1 Due Follow-ups collections (Firestore naam).
+/// Kotlin `pull()` ki tarteeb mein 20 collections + Flutter ki 4 Workers + 2 Shop Rents + 2 Utility Bills collections (Firestore naam).
 const List<String> pullCollections = [
   'customers',
   'suppliers',
@@ -54,7 +47,6 @@ const List<String> pullCollections = [
   'shop_rent_ledger',
   'utility_bills',
   'utility_bill_payments',
-  'due_followups',
 ];
 
 /// Har collection ke documents (`byCollection[collectionName]`) se `PullResult` banao.
@@ -101,7 +93,6 @@ PullResult assemblePullResult(Map<String, List<SyncDoc>> byCollection, int since
     shopRentEntries: of('shop_rent_ledger'),
     utilityBills: of('utility_bills'),
     utilityBillPayments: of('utility_bill_payments'),
-    dueFollowups: of('due_followups'),
     serverTime: maxUpdatedAt,
   );
 }
@@ -134,7 +125,6 @@ const List<String> branchScopedCollections = [
   'shop_rent_ledger',
   'utility_bills',
   'utility_bill_payments',
-  'due_followups',
 ];
 
 /// Firestore batch delete ka hissa (limit 500 se neeche) — Kotlin `.limit(400)`.

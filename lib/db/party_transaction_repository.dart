@@ -1,9 +1,7 @@
 
 import 'package:sqflite/sqflite.dart';
 
-import '../utils/qty_math.dart';
 import '../models/misc_entities.dart';
-import '../models/return_entry.dart';
 import '../models/product.dart';
 import '../models/purchase.dart';
 import '../models/sale.dart';
@@ -11,12 +9,10 @@ import '../services/session.dart';
 import '../utils/stock_touch_policy.dart' show saleItemSmallestQty;
 import '../models/stock_movement.dart' show MovementType;
 import 'app_database.dart';
-import 'cost_backfill.dart';
 import 'customer_repository.dart';
 import 'stock_ledger.dart';
 import 'supplier_repository.dart';
 import '../sync/sync_queue_helper.dart';
-import 'unit_cost.dart';
 
 /// Ports the data/logic half of PartyTransactionActivity.kt.
 ///
@@ -34,7 +30,7 @@ import 'unit_cost.dart';
 // Pure helpers
 // ---------------------------------------------------------------------------
 
-enum TxFilter { all, bills, payments, loan }
+enum TxFilter { all, bills, payments }
 
 /// Ek row: bill (sale / purchase) ya standalone payment.
 class TxEntry {
@@ -44,9 +40,6 @@ class TxEntry {
   final Sale? sale;
   final Purchase? purchase;
   final Payment? payment;
-
-  /// Amanat / Loan ki ledger row (sirf dikhane ke liye; bill / payment nahi).
-  final ReturnLogRow? loan;
   const TxEntry({
     required this.createdAt,
     required this.isPayment,
@@ -54,11 +47,9 @@ class TxEntry {
     this.sale,
     this.purchase,
     this.payment,
-    this.loan,
   });
 
-  bool get isLoan => loan != null;
-  double get amount => sale?.total ?? purchase?.total ?? payment?.amount ?? loan?.amount.abs() ?? 0.0;
+  double get amount => sale?.total ?? purchase?.total ?? payment?.amount ?? 0.0;
   String get status => sale?.status ?? purchase?.status ?? 'active';
 }
 
@@ -68,9 +59,8 @@ List<TxEntry> filterTxEntries(List<TxEntry> all, TxFilter filter, String query) 
   return all.where((e) {
     final ok = switch (filter) {
       TxFilter.all => true,
-      TxFilter.bills => !e.isPayment && !e.isLoan,
+      TxFilter.bills => !e.isPayment,
       TxFilter.payments => e.isPayment,
-      TxFilter.loan => e.isLoan,
     };
     return ok && (q.isEmpty || e.searchText.contains(q));
   }).toList();
@@ -166,7 +156,7 @@ double reversePurchaseLineCost({
   required double smallestQtyToRemove,
 }) {
   if (smallestQtyToRemove <= 0) return productCost;
-  final costPerSmallest = costPerSmallestOf(productCost, factor);
+  final costPerSmallest = factor > 0 ? productCost / factor : productCost;
   final newStock = productStock - smallestQtyToRemove;
   final valueBefore = productStock * costPerSmallest;
   final valueAfter = (valueBefore - itemAmount) < 0 ? 0.0 : (valueBefore - itemAmount);
@@ -184,7 +174,7 @@ double addPurchaseLineCost({
   required double lineAmount,
 }) {
   if (addedSmallestQty <= 0) return productCost;
-  final oldPer = costPerSmallestOf(productCost, factor);
+  final oldPer = factor > 0 ? productCost / factor : productCost;
   final ratePer = lineAmount / addedSmallestQty;
   final newPer = productStock <= 0
       ? ratePer
@@ -220,16 +210,8 @@ class PartyTxData {
   final List<Purchase> purchases;
   final List<Payment> payments; // sirf standalone
   final String phone;
-
-  /// Amanat / Loan: party ki qism ('' = normal), maujooda entries aur history log (sirf customers).
-  final String loanKind;
-  final List<ReturnEntry> loanEntries;
-  final List<ReturnLogRow> loanLog;
   const PartyTxData({
     this.phone = '',
-    this.loanKind = '',
-    this.loanEntries = const [],
-    this.loanLog = const [],
     this.opening = 0,
     this.stuck = 0,
     this.creditLimit = 0,
@@ -251,14 +233,6 @@ class PartyTransactionRepository {
 
   int _now() => DateTime.now().millisecondsSinceEpoch;
 
-  /// Returned bill ki stock/balance/cash wapsi ho chuki hai — item edit/delete se wohi asar dobara lagta
-  /// (stock do baar wapas, balance do baar ulta). Poora bill History se delete karen.
-  void _rejectReturned(String status) {
-    if (status == 'returned') {
-      throw StateError('Returned bill ke item badle nahi ja sakte — poora bill History se delete karen.');
-    }
-  }
-
   /// SyncQueueHelper.enqueueLegacy: asal payload DB se (Android shape) — hamesha data likhne ke BAAD.
   Future<void> _enqueue(DatabaseExecutor ex, String type, String id, String op, Map<String, Object?> payload) =>
       SyncQueueHelper.enqueueLegacy(ex, type, id, op, payload);
@@ -277,9 +251,6 @@ class PartyTransactionRepository {
     final db = await AppDatabase.instance.database;
     var opening = 0.0, stuck = 0.0, credit = 0.0;
     var phone = '';
-    var loanKind = '';
-    var loanEntries = <ReturnEntry>[];
-    var loanLog = <ReturnLogRow>[];
     if (isCustomer) {
       final r = await db.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
       if (r.isNotEmpty) {
@@ -287,9 +258,6 @@ class PartyTransactionRepository {
         stuck = (r.first['stuckBalance'] as num?)?.toDouble() ?? 0.0;
         credit = (r.first['creditLimit'] as num?)?.toDouble() ?? 0.0;
         phone = (r.first['phone'] as String?) ?? '';
-        loanKind = (r.first['kind'] as String?) ?? '';
-        loanEntries = decodeReturnEntries(r.first['returnEntries'] as String?);
-        loanLog = decodeReturnLog(r.first['returnLog'] as String?);
       }
     } else {
       final r = await db.query('suppliers', where: 'id = ?', whereArgs: [partyId], limit: 1);
@@ -318,9 +286,6 @@ class PartyTransactionRepository {
 
     return PartyTxData(
       phone: phone,
-      loanKind: loanKind,
-      loanEntries: loanEntries,
-      loanLog: loanLog,
       opening: opening,
       stuck: stuck,
       creditLimit: credit,
@@ -535,7 +500,6 @@ class PartyTransactionRepository {
       if (itemRows.isEmpty) throw StateError('Item not found');
       final cur = SaleItem.fromMap(itemRows.first);
       final sale = (await findSaleIn(txn, cur.invoice)) ?? (throw StateError('Sale not found'));
-      _rejectReturned(sale.status);
       final product = await _product(txn, cur.barcode);
       final oldQty = cur.qty;
 
@@ -550,7 +514,7 @@ class PartyTransactionRepository {
       if (product != null && net != 0) {
         if (net > 0) {
           final rows = await txn.rawUpdate(
-              'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + $kStockEpsilon >= ?',
+              'UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock >= ?',
               [net, _now(), cur.barcode, net]);
           if (rows == 0) throw const InsufficientStockException('Not enough stock');
         } else {
@@ -575,13 +539,6 @@ class PartyTransactionRepository {
           'conversionFactor': qtyChanged
               ? (product != null ? product.smallestPerUnitOf(cur.unit) : cur.conversionFactor)
               : cur.conversionFactor,
-          // costPending: cost ki tarah pending qty / andaza / backfill log bhi nayi qty ke ratio se.
-          ...scaledPendingColumns(
-            pendingQty: cur.pendingQty,
-            pendingEst: cur.pendingEst,
-            backfillLog: cur.backfillLog,
-            ratio: oldQty != 0 ? newQty / oldQty : 1.0,
-          ),
         },
         where: 'id = ?',
         whereArgs: [cur.id],
@@ -624,7 +581,6 @@ class PartyTransactionRepository {
       if (itemRows.isEmpty) throw StateError('Item not found');
       final cur = SaleItem.fromMap(itemRows.first);
       final sale = (await findSaleIn(txn, cur.invoice)) ?? (throw StateError('Sale not found'));
-      _rejectReturned(sale.status);
       final product = await _product(txn, cur.barcode);
 
       if (product != null) {
@@ -681,7 +637,6 @@ class PartyTransactionRepository {
       if (itemRows.isEmpty) throw StateError('Item not found');
       final cur = PurchaseItem.fromMap(itemRows.first);
       final purchase = (await findPurchaseIn(txn, cur.billNo)) ?? (throw StateError('Purchase not found'));
-      _rejectReturned(purchase.status);
       final product = await _product(txn, cur.barcode);
 
       final qtyChanged = (newQty - cur.qty).abs() > 1e-9;
@@ -719,7 +674,7 @@ class PartyTransactionRepository {
                 lineAmount: newAmount)
             : costAfterReversal;
         final rows = await txn.rawUpdate(
-            'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= -$kStockEpsilon',
+            'UPDATE products SET stock = stock + ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ? AND stock + ? >= 0',
             [net, finalCost, _now(), cur.barcode, net]);
         if (rows == 0) throw const InsufficientStockException('Not enough stock to reduce');
         await SyncQueueHelper.enqueueStockDelta(txn, cur.barcode, net);
@@ -734,8 +689,6 @@ class PartyTransactionRepository {
 
       await txn.update('purchase_items', {'qty': newQty, 'unitCost': newRate, 'amount': newAmount},
           where: 'id = ?', whereArgs: [cur.id]);
-      // costPending: nayi qty / rate se minus stock par bani sale lines ki cost dobara.
-      await CostBackfill.reallocateBill(txn, billNo: cur.billNo, barcode: cur.barcode);
 
       final deltaAmount = newAmount - cur.amount;
       final newTotal = purchase.total + deltaAmount;
@@ -762,7 +715,6 @@ class PartyTransactionRepository {
       if (itemRows.isEmpty) throw StateError('Item not found');
       final cur = PurchaseItem.fromMap(itemRows.first);
       final purchase = (await findPurchaseIn(txn, cur.billNo)) ?? (throw StateError('Purchase not found'));
-      _rejectReturned(purchase.status);
       final product = await _product(txn, cur.barcode);
 
       if (product != null) {
@@ -774,7 +726,7 @@ class PartyTransactionRepository {
             factor: product.smallestUnitFactor(),
             itemAmount: cur.amount,
             smallestQtyToRemove: fullQty);
-        if (!hasEnoughStock(product.stock, fullQty)) {
+        if (product.stock < fullQty) {
           if (!force) throw const InsufficientStockException('Cannot delete: stock already used');
           // Force: jitna stock bacha hai bas utna nikalo (0 se neeche nahi), cost jo thi wahi.
           delta = product.stock > 0 ? product.stock : 0.0;
@@ -795,8 +747,6 @@ class PartyTransactionRepository {
         await _enqueueProduct(txn, cur.barcode);
       }
       await txn.delete('purchase_items', where: 'id = ?', whereArgs: [cur.id]);
-      // costPending: delete hui line ki bhari hui cost wapas pending (bachi lines dobara).
-      await CostBackfill.reallocateBill(txn, billNo: cur.billNo, barcode: cur.barcode);
 
       final remaining = Sqflite.firstIntValue(await txn
               .rawQuery('SELECT COUNT(*) FROM purchase_items WHERE billNo = ?', [purchase.billNo])) ??

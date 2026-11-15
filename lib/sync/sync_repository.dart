@@ -1,9 +1,7 @@
-import '../utils/loc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/app_database.dart';
-import '../services/demo_mode.dart';
 import 'cloud_config_store.dart';
 import 'sync_queue_dao.dart';
 import 'sync_types.dart';
@@ -53,43 +51,7 @@ class SyncRepository {
     return p.getInt(prefsLastSync) ?? 0;
   }
 
-  static Future<SyncResult>? _running;
-
-  /// FIX (do sync ek saath): SyncWorker 5 minute baad intezar chhor deta hai magar Dart mein chalti sync
-  /// rukti nahi — agli sync usi waqt doosri copy chala deti thi (wahi queue rows do baar push, do transactions
-  /// ek saath apply, checkpoint ki race). Ab pichli abhi chal rahi ho to nayi foran laut aati hai.
-  static Future<SyncResult> syncNow() {
-    final running = _running;
-    if (running != null) {
-      return Future.value(const SyncResult(
-        pushedCount: 0,
-        failedCount: 0,
-        pulledOk: false,
-        error: 'Previous sync is still running (slow internet) — it will finish on its own; try again in a minute.',
-      ));
-    }
-    final f = _syncNowImpl();
-    _running = f;
-    return f.whenComplete(() {
-      if (identical(_running, f)) _running = null;
-    });
-  }
-
-  /// Chalti sync (agar hai) khatam hone tak ruko — Demo mode badalne se pehle DB band karne ke liye.
-  static Future<void> waitIdle() async {
-    final running = _running;
-    if (running != null) {
-      try {
-        await running;
-      } catch (_) {}
-    }
-  }
-
-  static Future<SyncResult> _syncNowImpl() async {
-    // Demo / training dukaan: kabhi cloud par kuch na jaye, na aaye.
-    if (DemoMode.enabled) {
-      return const SyncResult(pushedCount: 0, failedCount: 0, pulledOk: false, error: DemoMode.syncBlockedMessage);
-    }
+  static Future<SyncResult> syncNow() async {
     // Kotlin FIX (multi-tenant): koi Firebase project hi nahi => saaf batao, chupke na chalo.
     if (!await isCloudReady()) {
       return SyncResult(
@@ -110,35 +72,17 @@ class SyncRepository {
 
     var pushed = 0;
     var failed = 0;
-    String? pushBlocked; // server ne push rad kiya (permission denied) — retryCount nahi barhta
 
     // ---- 1. PUSH ----
-    // Pehle quota ki wajah se stuck hui entries wapas pending (quota reset ho chuka ho sakta hai).
-    await queue.resetQuotaStuck();
     final pending = await queue.pending(limit: pushBatchLimit);
     for (final entry in pending) {
       var ok = false;
       var offline = false;
-      String error = 'push failed';
       try {
-        // Timeout: koi push (Firestore transaction / sign-in) atak jaye to poori sync hamesha ke liye na ruke.
-        ok = await api.push(entry).timeout(const Duration(seconds: 45));
+        ok = await api.push(entry);
       } catch (e) {
-        ok = false; // ek entry ka crash poori sync na roke
-        if (e is SyncPermissionDeniedException || api.isPermissionDenied(e)) {
-          // Security rules ka masla poori queue ka hai: retryCount na barhao (warna rules theek hone se
-          // pehle sab entries 10 baar fail ho kar stuck ho jati hain), baqi bhi abhi na bhejo.
-          pushBlocked = e is SyncPermissionDeniedException ? e.message : api.permissionDeniedMessage();
-          break;
-        }
         offline = isNetworkError(e);
-        // FIX: asli wajah PEHLE nikalo — pehle neeche wali line `error` ki default 'push failed' dikhati thi.
-        error = _messageOf(e);
-        if (error.length > 300) error = error.substring(0, 300);
-        // Quota khatam: user ko Sync Now ke natije mein saaf dikhao (chup chap "Already up to date" nahi).
-        if (e is SyncOfflineException && looksLikeQuotaMessage(e.message)) pushBlocked = e.message;
-        // Push kisi bhi wajah se ruka (sign-in / network / server): asli wajah Sync Now ke natije mein dikhao.
-        if (offline) pushBlocked ??= error.length > 200 ? error.substring(0, 200) : error;
+        ok = false; // ek entry ka crash poori sync na roke
       }
       if (offline) {
         // Internet nahi: retryCount na barhao, baqi entries bhi abhi na bhejo (agli sync par chalengi).
@@ -148,8 +92,7 @@ class SyncRepository {
         await queue.markSynced(entry.id!);
         pushed++;
       } else {
-        // Asli wajah lastError mein (Sync History / stuck list mein dikhti hai).
-        await queue.markFailed(entry.id!, error);
+        await queue.markFailed(entry.id!, 'push failed');
         failed++;
       }
     }
@@ -161,19 +104,12 @@ class SyncRepository {
     final pullStartedAt = nowMs();
     final PullResult changes;
     try {
-      changes = await api.pull(since).timeout(const Duration(seconds: 90));
+      changes = await api.pull(since);
     } on BranchNotConfiguredException catch (e) {
       return SyncResult(
-          pushedCount: pushed, failedCount: failed, pulledOk: false, error: pushBlocked ?? e.message);
+          pushedCount: pushed, failedCount: failed, pulledOk: false, error: e.message);
     } catch (e) {
-      final msg = api.isPermissionDenied(e)
-          ? api.permissionDeniedMessage()
-          : isNetworkError(e)
-              ? Loc.t(
-                  'Cloud is not reachable right now (no/slow internet or Firebase temporarily down). Your data is safe on this device and will sync automatically — try Sync again in a minute. If it keeps happening: try mobile data instead of Wi-Fi, and check Firebase status.',
-                  'کلاؤڈ ابھی دستیاب نہیں (انٹرنیٹ نہیں/سست یا Firebase عارضی بند)۔ آپ کا ڈیٹا اس ڈیوائس پر محفوظ ہے اور خود سنک ہو جائے گا — ایک منٹ بعد دوبارہ Sync کریں۔ بار بار ہو تو Wi-Fi کی جگہ موبائل ڈیٹا آزمائیں۔',
-                )
-              : _messageOf(e);
+      final msg = api.isPermissionDenied(e) ? api.permissionDeniedMessage() : _messageOf(e);
       return SyncResult(pushedCount: pushed, failedCount: failed, pulledOk: false, error: msg);
     }
 
@@ -198,7 +134,6 @@ class SyncRepository {
       pushedCount: pushed,
       failedCount: failed,
       pulledOk: true,
-      pushError: pushBlocked,
       customersReceived: changes.customers.length,
       suppliersReceived: changes.suppliers.length,
       productsReceived: changes.products.length,
@@ -219,8 +154,7 @@ class SyncRepository {
           changes.shopRents.length +
           changes.shopRentEntries.length +
           changes.utilityBills.length +
-          changes.utilityBillPayments.length +
-          changes.dueFollowups.length,
+          changes.utilityBillPayments.length,
     );
   }
 
@@ -251,9 +185,6 @@ class SyncResult {
   final int workersReceived;
   final String? error;
 
-  /// Push server ne rad kiya (permission denied) lekin pull chal gaya — user ko batana zaroori hai.
-  final String? pushError;
-
   const SyncResult({
     required this.pushedCount,
     required this.failedCount,
@@ -273,7 +204,6 @@ class SyncResult {
     this.cashRegistersReceived = 0,
     this.workersReceived = 0,
     this.error,
-    this.pushError,
   });
 
   int get totalReceived =>
@@ -299,8 +229,6 @@ class SyncResult {
     if (pushedCount > 0) parts.add('sent $pushedCount');
     if (totalReceived > 0) parts.add('received $totalReceived');
     if (failedCount > 0) parts.add('$failedCount failed');
-    if (pushError != null) parts.add('push blocked: $pushError');
-    if (PullDiagnostics.lateQueryIssue.isNotEmpty) parts.add('warning: ${PullDiagnostics.lateQueryIssue}');
     if (parts.isEmpty) return 'Already up to date';
     final s = parts.join(', ');
     return s[0].toUpperCase() + s.substring(1);

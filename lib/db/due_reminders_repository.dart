@@ -1,9 +1,6 @@
 
 import 'app_database.dart';
-import '../models/misc_entities.dart' show CashTransaction;
-import '../sync/device_tag.dart';
 import '../models/party.dart';
-import '../models/return_entry.dart';
 import 'customer_repository.dart';
 import 'party_repository.dart';
 import '../sync/sync_queue_helper.dart';
@@ -269,146 +266,6 @@ Map<int, double> partyDueTotals(Iterable<DueBill> bills) {
   return out;
 }
 
-/// Ek party ke SAARE baqi bills ek jagah (Due Reminders mein ek card, har bill ka alag nahi).
-/// Walk-in / Cash Purchase (partyId null) ka har bill apna alag group rehta hai (koi ek party nahi).
-class DueParty {
-  final int? partyId;
-  final String partyName;
-  final String partyPhone;
-  final bool isSale;
-  final List<DueBill> bills;
-  const DueParty({
-    required this.partyId,
-    required this.partyName,
-    required this.partyPhone,
-    required this.isSale,
-    required this.bills,
-  });
-
-  /// Group ki pehchan (advance rows alag, taake bills mein na milen).
-  String get key => '${partyId ?? 'x${bills.first.id}'}:${isAdvance ? 'a' : 'b'}';
-
-  double get total => bills.fold<double>(0.0, (a, b) => a + b.due);
-
-  /// Sirf advance wali row(s): reminder nahi bhejna.
-  bool get isAdvance => bills.isNotEmpty && bills.every((b) => b.isAdvance);
-
-  /// Asli bills ki ginti ("Previous balance" / advance rows nahi).
-  int get billCount => bills.where((b) => !b.isBalance && !b.isAdvance).length;
-
-  bool get hasBalanceRow => bills.any((b) => b.isBalance && !b.isAdvance);
-
-  /// Jin asli bills par date nahi.
-  int get undatedCount => bills.where((b) => !b.isBalance && !b.isAdvance && b.dueDate == 0).length;
-
-  /// Sab se purani (overdue ho to) ya sab se qareeb date. 0 = kisi bill par date nahi.
-  int get earliestDue {
-    var m = 0;
-    for (final b in bills) {
-      if (b.isBalance || b.dueDate <= 0) continue;
-      if (m == 0 || b.dueDate < m) m = b.dueDate;
-    }
-    return m;
-  }
-
-  int get earliestCreated => bills.map((b) => b.createdAt).reduce((a, b) => a < b ? a : b);
-
-  /// Jin bills par date nahi, unhein bhi follow-up chahiye: itne din purane hon to "late" ginte hain.
-  static const undatedGraceDays = 7;
-
-  /// Bina-date asli bills mein sab se purane bill ki umar (din). 0 = koi bina-date bill nahi.
-  int undatedAgeDays({int? nowMillis}) {
-    final today = startOfDayMillis(nowMillis ?? DateTime.now().millisecondsSinceEpoch);
-    var oldest = 0;
-    for (final b in bills) {
-      if (b.isBalance || b.isAdvance || b.dueDate > 0 || b.createdAt <= 0) continue;
-      final d = ((today - startOfDayMillis(b.createdAt)) / 86400000).round();
-      if (d > oldest) oldest = d;
-    }
-    return oldest;
-  }
-
-  /// Koi bina-date bill [graceDays] se zyada purana hai (aur abhi tak baqi).
-  bool hasStaleUndated({int? nowMillis, int graceDays = undatedGraceDays}) =>
-      undatedAgeDays(nowMillis: nowMillis) >= graceDays;
-
-  /// Sab se purane baqi bill ke din: dated overdue ke din, ya (agar late ho chuka) bina-date bill ki umar.
-  int oldestAgeDays({int? nowMillis}) {
-    final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
-    final today = startOfDayMillis(now);
-    var oldest = 0;
-    if (hasOverdue(nowMillis: now) && earliestDue > 0) {
-      oldest = ((today - startOfDayMillis(earliestDue)) / 86400000).round();
-      if (oldest < 0) oldest = 0;
-    }
-    if (hasStaleUndated(nowMillis: now)) {
-      final u = undatedAgeDays(nowMillis: now);
-      if (u > oldest) oldest = u;
-    }
-    return oldest;
-  }
-
-  bool hasOverdue({int? nowMillis}) {
-    final today = startOfDayMillis(nowMillis ?? DateTime.now().millisecondsSinceEpoch);
-    return bills.any((b) => b.dueDate > 0 && b.dueDate < today);
-  }
-
-  /// Poore group ka ek hi reminder: total ke saath (WhatsApp message "aapke hisab mein Rs X baaki hai").
-  DueBill toTotalBill() => DueBill(
-        id: 'Total',
-        partyId: partyId,
-        partyName: partyName,
-        partyPhone: partyPhone,
-        total: total,
-        paid: 0.0,
-        dueDate: earliestDue,
-        createdAt: earliestCreated,
-        isSale: isSale,
-        isBalance: true,
-      );
-}
-
-/// Bills ko party ke hisaab se jama karo. Sort: date wale pehle (sab se purani/qareeb date pehle),
-/// phir "date nahi" wale (purane bill pehle); barabar par naam.
-List<DueParty> groupDueByParty(Iterable<DueBill> bills) {
-  final map = <String, List<DueBill>>{};
-  final order = <String>[];
-  for (final b in bills) {
-    final k = b.partyId == null ? 'x${b.id}' : '${b.partyId}:${b.isAdvance ? 'a' : 'b'}';
-    if (!map.containsKey(k)) order.add(k);
-    (map[k] ??= []).add(b);
-  }
-  final out = <DueParty>[
-    for (final k in order)
-      DueParty(
-        partyId: map[k]!.first.partyId,
-        partyName: map[k]!.first.partyName,
-        partyPhone: map[k]!.first.partyPhone,
-        isSale: map[k]!.first.isSale,
-        bills: sortDueBills(map[k]!),
-      ),
-  ];
-  out.sort((a, b) {
-    final ae = a.earliestDue, be = b.earliestDue;
-    final aNo = ae == 0 ? 1 : 0, bNo = be == 0 ? 1 : 0;
-    if (aNo != bNo) return aNo.compareTo(bNo);
-    if (ae != be) return ae.compareTo(be);
-    final c = a.earliestCreated.compareTo(b.earliestCreated);
-    return c != 0 ? c : a.partyName.toLowerCase().compareTo(b.partyName.toLowerCase());
-  });
-  return out;
-}
-
-/// Search: naam, phone (sirf digits se bhi) ya kisi bhi bill ka invoice / bill number. Khali => sab.
-bool dueMatches(DueParty g, String query) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) return true;
-  if (g.partyName.toLowerCase().contains(q)) return true;
-  final qd = q.replaceAll(RegExp(r'[^0-9]'), '');
-  if (qd.isNotEmpty && g.partyPhone.replaceAll(RegExp(r'[^0-9]'), '').contains(qd)) return true;
-  return g.bills.any((b) => !b.isBalance && !b.isAdvance && b.id.toLowerCase().contains(q));
-}
-
 /// Kotlin message (Roman Urdu, jaisa Android mein hai). Rs poore rupay (%.0f).
 /// [partyTotal]: party ka kul baqi. "Previous balance" wali row ka reminder bhi poora balance batata hai
 /// (warna party ko sirf bina-bill hissa, jaise 35350, likha jata tha jab ke asal balance 75866 hota).
@@ -440,10 +297,6 @@ class ReturnReminder {
   final int returnDate; // 0 = set nahi
   final double closing;
 
-  /// Customer ka opening balance (entries is mein jama hoti hain) aur alag alag entries.
-  final double opening;
-  final List<ReturnEntry> entries;
-
   const ReturnReminder({
     required this.partyId,
     required this.partyName,
@@ -451,23 +304,10 @@ class ReturnReminder {
     required this.kind,
     required this.returnDate,
     required this.closing,
-    this.opening = 0,
-    this.entries = const [],
   });
 
   bool get isAmanat => kind == 'amanat';
-
-  /// Entries ka kul (musbat) — kitni baar kitna liya / diya.
-  double get entriesTotal => entries.fold<double>(0.0, (a, e) => a + e.amount);
-
-  /// Entries ke bahar ka (purana / opening) hissa, musbat amount. 0 = koi nahi.
-  double get baseAmount {
-    final base = opening - signedReturnTotal(kind, entries);
-    return base.abs() < 0.009 ? 0.0 : base.abs();
-  }
 }
-
-enum ReturnEntryResult { ok, notFound, kindMismatch, invalidAmount, nothingToSettle }
 
 /// Sort: date wale pehle (purani date pehle), phir "date nahi" wale (naam se).
 List<ReturnReminder> sortReturnReminders(List<ReturnReminder> list) {
@@ -481,39 +321,16 @@ List<ReturnReminder> sortReturnReminders(List<ReturnReminder> list) {
   return out;
 }
 
-/// English message: amanat (deposit) => "time to return your deposit", loan => "loan repayment is due".
+/// Roman-Urdu message: amanat => "aapki amanat wapas karni hai", loan => "udhar wapas karein".
 String returnReminderMessage(ReturnReminder r) {
   return r.isAmanat
-      ? 'Assalam o Alaikum ${r.partyName}, it is time to return your deposit. Please contact us. Thank you!'
-      : 'Assalam o Alaikum ${r.partyName}, your loan repayment is due. Please pay as soon as possible. Thank you!';
+      ? 'Assalam o Alaikum ${r.partyName}, aapki amanat wapas karne ka waqt aa gaya hai. Barah-e-karam rabta karein. Shukriya!'
+      : 'Assalam o Alaikum ${r.partyName}, aapko diya hua udhar wapas karne ka waqt aa gaya hai. Barah-e-karam jald ada karein. Shukriya!';
 }
 
 Uri returnWhatsAppUri(ReturnReminder r) {
   final digits = whatsAppDigits(r.partyPhone);
   return Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(returnReminderMessage(r))}');
-}
-
-/// Wapsi ki tarikh AAJ ya guzar chuki wali Amanat / Loan parties (tarikh set ho). Purani pehle.
-/// Roz ki notification (`ReturnAlertService`) isi se tay hoti hai; tarikh na ho to notification nahi.
-List<ReturnReminder> returnDueNow(List<ReturnReminder> all, {required int nowMillis}) {
-  final d = DateTime.fromMillisecondsSinceEpoch(nowMillis);
-  final tomorrow = DateTime(d.year, d.month, d.day + 1).millisecondsSinceEpoch;
-  return sortReturnReminders([
-    for (final r in all)
-      if (r.returnDate > 0 && r.returnDate < tomorrow) r,
-  ]);
-}
-
-/// Notification ka matan: kitni parties, pehle 3 ke naam, aur kitni ki tarikh guzar chuki.
-String returnAlertBody(List<ReturnReminder> due, {required int nowMillis}) {
-  final today = startOfDayMillis(nowMillis);
-  final overdue = due.where((r) => r.returnDate < today).length;
-  final names = due.take(3).map((r) => r.partyName).join(', ');
-  final more = due.length > 3 ? ' +${due.length - 3}' : '';
-  final b = StringBuffer('${due.length} Deposit/Loan return dates are due: $names$more');
-  if (overdue > 0) b.write(' ($overdue overdue)');
-  b.write('. Tap to view.');
-  return b.toString();
 }
 
 // ---------------------------------------------------------------------------
@@ -630,8 +447,6 @@ class DueRemindersRepository {
           closing: ((m['openingBalance'] as num?)?.toDouble() ?? 0.0) +
               (live[m['id']] ?? 0.0) +
               ((m['stuckBalance'] as num?)?.toDouble() ?? 0.0),
-          opening: (m['openingBalance'] as num?)?.toDouble() ?? 0.0,
-          entries: decodeReturnEntries(m['returnEntries'] as String?),
         ),
     ]);
   }
@@ -676,225 +491,10 @@ class DueRemindersRepository {
     ];
   }
 
-  /// "Existing customer" chunne ke liye: SAB customers (pehle se Amanat/Loan wale bhi — unhein dobara
-  /// loan/amanat diya ja sakta hai). `kind` khali = normal customer.
-  Future<List<({int id, String name, String phone, String kind})>> pickableCustomers() async {
-    final db = await AppDatabase.instance.database;
-    final rows = await db.query('customers', columns: ['id', 'name', 'phone', 'kind'], orderBy: 'name COLLATE NOCASE');
-    return [
-      for (final m in rows)
-        (
-          id: m['id'] as int,
-          name: (m['name'] as String?) ?? '',
-          phone: (m['phone'] as String?) ?? '',
-          kind: (m['kind'] as String?) ?? '',
-        ),
-    ];
-  }
-
-  int _day(int millis) => millis <= 0 ? 0 : startOfDayMillis(millis);
-
-  /// Naya loan / amanat (ek aur entry) kisi bhi customer ko. Balance mein jama hota hai (amanat = minus,
-  /// loan = plus) aur customer ke saath sync hota hai. Pehle se doosri qism ki ho to [ReturnEntryResult.kindMismatch].
-  Future<ReturnEntryResult> addReturnEntry({
-    required int partyId,
-    required String kind,
-    required double amount,
-    required int dateMillis,
-    required int returnDateMillis,
-    String note = '',
-  }) async {
-    if (!(amount > 0) || !amount.isFinite) return ReturnEntryResult.invalidAmount;
-    final db = await AppDatabase.instance.database;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final res = await db.transaction((txn) async {
-      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
-      if (rows.isEmpty) return ReturnEntryResult.notFound;
-      final cur = rows.first;
-      final curKind = (cur['kind'] as String?) ?? '';
-      if (curKind.isNotEmpty && curKind != kind) return ReturnEntryResult.kindMismatch;
-      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
-      final entry = ReturnEntry(
-        id: nextReturnEntryId(entries),
-        amount: amount,
-        date: _day(dateMillis),
-        returnDate: _day(returnDateMillis),
-        note: note.trim(),
-      );
-      entries.add(entry);
-      final log = logAddGiven(decodeReturnLog(cur['returnLog'] as String?), kind, entry, atMillis: now);
-      final earliest = earliestReturnDate(entries);
-      await txn.update(
-        'customers',
-        {
-          'kind': kind,
-          'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + signedReturnAmount(kind, amount),
-          'returnEntries': encodeReturnEntries(entries),
-          'returnLog': encodeReturnLog(log),
-          if (earliest > 0) 'returnDate': earliest,
-          'updatedAt': now,
-          'dirty': 1,
-        },
-        where: 'id = ?',
-        whereArgs: [partyId],
-      );
-      await SyncQueueHelper.enqueueCustomer(txn, partyId);
-      return ReturnEntryResult.ok;
-    });
-    await CustomerRepository.instance.refresh();
-    return res;
-  }
-
-  /// Ek entry ka amount / tarikh / wapsi / note badalna. Amount ka farq balance mein jata hai.
-  Future<ReturnEntryResult> editReturnEntry({
-    required int partyId,
-    required int entryId,
-    required double amount,
-    required int dateMillis,
-    required int returnDateMillis,
-    String note = '',
-  }) async {
-    if (!(amount > 0) || !amount.isFinite) return ReturnEntryResult.invalidAmount;
-    final db = await AppDatabase.instance.database;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final res = await db.transaction((txn) async {
-      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
-      if (rows.isEmpty) return ReturnEntryResult.notFound;
-      final cur = rows.first;
-      final kind = (cur['kind'] as String?) ?? '';
-      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
-      final i = entries.indexWhere((e) => e.id == entryId);
-      if (i < 0) return ReturnEntryResult.notFound;
-      final old = entries[i];
-      entries[i] = old.copyWith(amount: amount, date: _day(dateMillis), returnDate: _day(returnDateMillis), note: note.trim());
-      final log = logEditEntry(decodeReturnLog(cur['returnLog'] as String?), kind, old, entries[i], atMillis: now);
-      final delta = signedReturnAmount(kind, amount) - signedReturnAmount(kind, old.amount);
-      await txn.update(
-        'customers',
-        {
-          'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + delta,
-          'returnEntries': encodeReturnEntries(entries),
-          'returnLog': encodeReturnLog(log),
-          'returnDate': earliestReturnDate(entries),
-          'updatedAt': now,
-          'dirty': 1,
-        },
-        where: 'id = ?',
-        whereArgs: [partyId],
-      );
-      await SyncQueueHelper.enqueueCustomer(txn, partyId);
-      return ReturnEntryResult.ok;
-    });
-    await CustomerRepository.instance.refresh();
-    return res;
-  }
-
-  /// Ek entry hatana (galat entry): uska amount balance se wapas nikal jata hai.
-  Future<ReturnEntryResult> deleteReturnEntry({required int partyId, required int entryId}) async {
-    final db = await AppDatabase.instance.database;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final res = await db.transaction((txn) async {
-      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
-      if (rows.isEmpty) return ReturnEntryResult.notFound;
-      final cur = rows.first;
-      final kind = (cur['kind'] as String?) ?? '';
-      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
-      final i = entries.indexWhere((e) => e.id == entryId);
-      if (i < 0) return ReturnEntryResult.notFound;
-      final old = entries.removeAt(i);
-      final log = logRemoveEntry(decodeReturnLog(cur['returnLog'] as String?), kind, old, atMillis: now);
-      await txn.update(
-        'customers',
-        {
-          'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) - signedReturnAmount(kind, old.amount),
-          'returnEntries': encodeReturnEntries(entries),
-          'returnLog': encodeReturnLog(log),
-          if (entries.isNotEmpty) 'returnDate': earliestReturnDate(entries),
-          'updatedAt': now,
-          'dirty': 1,
-        },
-        where: 'id = ?',
-        whereArgs: [partyId],
-      );
-      await SyncQueueHelper.enqueueCustomer(txn, partyId);
-      return ReturnEntryResult.ok;
-    });
-    await CustomerRepository.instance.refresh();
-    return res;
-  }
-
-  /// Amanat wapas karna (dukaan paisa deti hai => Cash OUT) / Loan wasool karna (paisa aata hai => Cash IN).
-  /// Ek transaction mein: entries FIFO se kam (poori ho to hat jati hai), opening balance 0 ki taraf
-  /// (amanat +, loan -), wapsi ki tarikh bachi entries ki sab se purani (koi nahi to 0) aur Cash register
-  /// mein ek row (reference `manual-return-entry-<partyId>-<tag>-<ms>`: `manual-` se Day Book mein alag line). Customer + cash
-  /// dono sync hote hain. [amount] bachi raqam se zyada ho to bachi raqam tak settle hota hai.
-  Future<ReturnEntryResult> settleReturn({
-    required int partyId,
-    required double amount,
-    required String method,
-    String note = '',
-  }) async {
-    if (!(amount > 0) || !amount.isFinite) return ReturnEntryResult.invalidAmount;
-    final m = method == 'bank' ? 'bank' : 'cash';
-    final db = await AppDatabase.instance.database;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final res = await db.transaction((txn) async {
-      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
-      if (rows.isEmpty) return ReturnEntryResult.notFound;
-      final cur = rows.first;
-      final kind = (cur['kind'] as String?) ?? '';
-      if (kind != 'amanat' && kind != 'loan') return ReturnEntryResult.kindMismatch;
-      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
-      if (entries.isEmpty) return ReturnEntryResult.nothingToSettle;
-      final out = settleEntriesFifo(entries, amount);
-      if (!(out.settled > 0)) return ReturnEntryResult.nothingToSettle;
-      // amanat wapas: balance (minus) upar aata hai; loan wasool: balance (plus) neeche aata hai.
-      final delta = -signedReturnAmount(kind, out.settled);
-      final log = logRecovered(decodeReturnLog(cur['returnLog'] as String?), kind, out.settled,
-          atMillis: now, note: note.trim());
-      await txn.update(
-        'customers',
-        {
-          'openingBalance': ((cur['openingBalance'] as num?)?.toDouble() ?? 0.0) + delta,
-          'returnEntries': encodeReturnEntries(out.remaining),
-          'returnLog': encodeReturnLog(log),
-          'returnDate': earliestReturnDate(out.remaining),
-          'updatedAt': now,
-          'dirty': 1,
-        },
-        where: 'id = ?',
-        whereArgs: [partyId],
-      );
-      await SyncQueueHelper.enqueueCustomer(txn, partyId);
-      final name = (cur['name'] as String?) ?? '';
-      final isAmanat = kind == 'amanat';
-      final n = note.trim();
-      final cash = CashTransaction(
-        type: isAmanat ? 'OUT' : 'IN',
-        method: m,
-        amount: out.settled,
-        reason: '${isAmanat ? 'Amanat wapas' : 'Loan wasool'}: $name${n.isEmpty ? '' : ' | $n'}',
-        reference: 'manual-return-entry-$partyId-${DeviceTag.current}-$now',
-        createdAt: now,
-        updatedAt: now,
-      );
-      final cashId = await txn.insert('cash_transactions', cash.toMap());
-      await SyncQueueHelper.enqueueCashTransaction(txn, cashId);
-      return ReturnEntryResult.ok;
-    });
-    await CustomerRepository.instance.refresh();
-    return res;
-  }
-
-  Future<bool> _setKind(int partyId, String kind, int returnDateMillis, {double amount = 0}) async {
+  Future<bool> _setKind(int partyId, String kind, int returnDateMillis) async {
     final db = await AppDatabase.instance.database;
     final now = DateTime.now().millisecondsSinceEpoch;
     final ok = await db.transaction((txn) async {
-      // Amount ho to maujooda opening balance mein jama (amanat = minus, loan = plus).
-      if (amount != 0) {
-        await txn.rawUpdate(
-            'UPDATE customers SET openingBalance = COALESCE(openingBalance, 0) + ? WHERE id = ?', [amount, partyId]);
-      }
       final n = await txn.update(
         'customers',
         {
@@ -914,91 +514,60 @@ class DueRemindersRepository {
     return ok;
   }
 
-  /// Maujooda customer ko Amanat / Loan tag karna. `amount` (optional) opening balance mein jama hota hai.
-  Future<bool> tagParty(
-          {required int partyId, required String kind, required int returnDateMillis, double amount = 0}) =>
-      _setKind(partyId, kind, returnDateMillis, amount: amount);
+  /// Maujooda customer ko Amanat / Loan tag karna (balance / ledger nahi chhedta).
+  Future<bool> tagParty({required int partyId, required String kind, required int returnDateMillis}) =>
+      _setKind(partyId, kind, returnDateMillis);
 
   /// Tag hatana => party wapas normal customer. Ledger aur bills jaise hain waise.
   Future<bool> clearReturnTag(int partyId) => _setKind(partyId, '', 0);
 
   /// Nayi Amanat / Loan party banana. Khali naam => [SavePartyResult.nameRequired].
-  /// [amount] (musbat, optional) pehli entry ban jati hai (taareekh + wapsi ki taareekh + note ke saath).
   Future<SavePartyResult> addNewReturnParty({
     required String name,
     required String phone,
     required String kind,
     required int returnDateMillis,
-    required double amount,
-    int dateMillis = 0,
-    String note = '',
+    required double openingBalance,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
-    final entries = <ReturnEntry>[
-      if (amount > 0 && amount.isFinite)
-        ReturnEntry(id: 1, amount: amount, date: _day(dateMillis), returnDate: _day(returnDateMillis), note: note.trim()),
-    ];
     await PartyRepository.instance.saveCustomer(Customer(
       name: trimmed,
       phone: phone.trim(),
-      openingBalance: entries.isEmpty ? 0.0 : signedReturnAmount(kind, amount),
+      openingBalance: openingBalance,
       kind: kind,
       returnDate: returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
-      returnEntries: encodeReturnEntries(entries),
-      returnLog: encodeReturnLog(backfillReturnLog(kind, entries, atMillis: DateTime.now().millisecondsSinceEpoch)),
     ));
     return SavePartyResult.success;
   }
 
   /// Amanat / Loan party ki details badalna: naam, phone, type, wapsi ki tarikh (0 = hatana).
-  /// [baseAmount] (musbat; null = na chhedo) = entries ke bahar ka purana / opening amount — sirf tab badalta hai
-  /// jab purani value se alag ho. Type tab hi badalta hai jab party par koi entry na ho.
-  /// Ledger / bills nahi chhedta (history naam se rehti hai, jaise Party -> Edit).
+  /// Balance / ledger / bills nahi chhedta (history naam se rehti hai, jaise Party -> Edit).
   Future<SavePartyResult> editReturnParty({
     required int partyId,
     required String name,
     required String phone,
     required String kind,
     required int returnDateMillis,
-    double? baseAmount,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return SavePartyResult.nameRequired;
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
-      final rows = await txn.query('customers', where: 'id = ?', whereArgs: [partyId], limit: 1);
-      if (rows.isEmpty) return;
-      final cur = rows.first;
-      final curKind = (cur['kind'] as String?) ?? '';
-      final entries = decodeReturnEntries(cur['returnEntries'] as String?);
-      final useKind = entries.isNotEmpty && curKind.isNotEmpty ? curKind : kind;
-      final opening = (cur['openingBalance'] as num?)?.toDouble() ?? 0.0;
-      var newOpening = opening;
-      if (baseAmount != null && baseAmount >= 0 && baseAmount.isFinite) {
-        final base = opening - signedReturnTotal(useKind, entries);
-        if ((baseAmount - base.abs()).abs() > 0.009) {
-          newOpening = signedReturnTotal(useKind, entries) + signedReturnAmount(useKind, baseAmount);
-        }
-      }
-      await txn.update(
+      final n = await txn.update(
         'customers',
         {
           'name': trimmed,
           'phone': phone.trim(),
-          'kind': useKind,
-          'openingBalance': newOpening,
-          // Entries hon to tarikh unhi se aati hai; warna yahan ki tarikh.
-          'returnDate': entries.isNotEmpty
-              ? earliestReturnDate(entries)
-              : (returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis)),
+          'kind': kind,
+          'returnDate': returnDateMillis <= 0 ? 0 : startOfDayMillis(returnDateMillis),
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
           'dirty': 1,
         },
         where: 'id = ?',
         whereArgs: [partyId],
       );
-      await SyncQueueHelper.enqueueCustomer(txn, partyId);
+      if (n > 0) await SyncQueueHelper.enqueueCustomer(txn, partyId);
     });
     await CustomerRepository.instance.refresh();
     return SavePartyResult.success;
@@ -1031,88 +600,4 @@ class DueRemindersRepository {
       return true;
     });
   }
-
-  /// Party ke SAARE baqi (active, total > paid) bills ki date ek saath. Ek transaction, har bill sync queue mein.
-  /// Date [dueDateMillis] (sab ke liye ek) YA [days] (har bill ki apni date + days) — dono mein se ek do.
-  /// [onlyUndated]: sirf jin par date nahi (pehle se set dates na chhedein). Return: kitne bills badle.
-  Future<int> setDueDateForParty({
-    required bool isSale,
-    required int partyId,
-    int? dueDateMillis,
-    int? days,
-    bool onlyUndated = false,
-  }) async {
-    assert((dueDateMillis == null) != (days == null), 'dueDateMillis ya days, dono mein se ek');
-    final db = await AppDatabase.instance.database;
-    final table = isSale ? 'sales' : 'purchases';
-    final key = isSale ? 'invoice' : 'billNo';
-    final partyCol = isSale ? 'customerId' : 'supplierId';
-    final now = DateTime.now().millisecondsSinceEpoch;
-    return db.transaction((txn) async {
-      final rows = await txn.rawQuery(
-        "SELECT $key AS id, createdAt, dueDate FROM $table "
-        "WHERE $partyCol = ? AND status = 'active' AND (total - paid) > 0.009",
-        [partyId],
-      );
-      var changed = 0;
-      for (final r in rows) {
-        final current = (r['dueDate'] as num?)?.toInt() ?? 0;
-        if (onlyUndated && current > 0) continue;
-        final target = dueDateMillis != null
-            ? startOfDayMillis(dueDateMillis)
-            : dueDateAfterDays((r['createdAt'] as num).toInt(), days!);
-        if (target == current) continue;
-        await txn.update(
-          table,
-          {'dueDate': target, 'updatedAt': now, 'dirty': 1},
-          where: '$key = ?',
-          whereArgs: [r['id']],
-        );
-        final id = r['id'] as String;
-        if (isSale) {
-          await SyncQueueHelper.enqueueSale(txn, id);
-        } else {
-          await SyncQueueHelper.enqueuePurchase(txn, id);
-        }
-        changed++;
-      }
-      return changed;
-    });
-  }
-
-  /// customerId => default due-days (sirf jin ka > 0). Due Reminders card par dikhane ke liye.
-  Future<Map<int, int>> customerDueDaysMap() async {
-    final db = await AppDatabase.instance.database;
-    final rows = await db.rawQuery('SELECT id, dueDays FROM customers WHERE dueDays > 0');
-    return {for (final r in rows) (r['id'] as num).toInt(): (r['dueDays'] as num).toInt()};
-  }
-
-  /// Customer ki default muddat (din) badlo (0 = hata do). Sirf customers (suppliers mein ye column nahi).
-  Future<bool> setCustomerDueDays(int customerId, int days) async {
-    final db = await AppDatabase.instance.database;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final value = clampDueDays(days);
-    final ok = await db.transaction((txn) async {
-      final n = await txn.update(
-        'customers',
-        {'dueDays': value, 'updatedAt': now, 'dirty': 1},
-        where: 'id = ?',
-        whereArgs: [customerId],
-      );
-      if (n == 0) return false;
-      await SyncQueueHelper.enqueueCustomer(txn, customerId);
-      return true;
-    });
-    if (ok) await CustomerRepository.instance.refresh();
-    return ok;
-  }
-}
-
-/// Muddat (din) ki hadd: 0 .. 365 (Party screen ke edit dialog jaisi).
-int clampDueDays(int days) => days.clamp(0, 365);
-
-/// Bill ki date (createdAt) + [days] din, din ki shuruaat par (DST se bachne ke liye calendar arithmetic).
-int dueDateAfterDays(int billCreatedAtMillis, int days) {
-  final d = DateTime.fromMillisecondsSinceEpoch(billCreatedAtMillis);
-  return DateTime(d.year, d.month, d.day + clampDueDays(days)).millisecondsSinceEpoch;
 }

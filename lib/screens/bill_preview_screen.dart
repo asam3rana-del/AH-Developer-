@@ -10,13 +10,9 @@ import '../db/supplier_repository.dart';
 import '../db/user_repository.dart';
 import '../services/printer_service.dart';
 import '../services/session.dart';
-import '../widgets/slip_share.dart';
 import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
-import '../utils/slip_pdf_data.dart';
-import '../utils/slip_text.dart';
 import '../theme/theme_manager.dart';
-import '../widgets/contact_pick_button.dart';
 
 /// Kotlin BillPreviewActivity: bill ka receipt-jaisa preview + PRINT (Bluetooth), WhatsApp par bhejein,
 /// DONE, aur (naye bill ke baad) "+ NAYI SALE / PURCHASE BILL".
@@ -58,7 +54,6 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       _shopAddress = ((await repo.getSetting('shop_address')) ?? '').trim();
       d = d.copyWith(
         shopName: d.shopName.isEmpty ? (await repo.getSetting('shop_name')) ?? '' : d.shopName,
-        shopOwner: d.shopOwner.isEmpty ? (await repo.getSetting('shop_owner')) ?? '' : d.shopOwner,
         shopPhone: d.shopPhone.isEmpty ? (await repo.getSetting('shop_phone')) ?? '' : d.shopPhone,
         receiptFooter: (await repo.getSetting('receipt_footer')) ?? '',
       );
@@ -92,10 +87,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     if (mounted) setState(() => _doc = d);
   }
 
-  void _toast(String m) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
-  }
+  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   Future<void> _print() async {
     if (_printing) return;
@@ -123,7 +115,6 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         total: d.total,
         paid: d.paid,
         shopName: d.shopName,
-        shopOwner: d.shopOwner,
         shopPhone: d.shopPhone,
         receiptFooter: d.receiptFooter,
         partyName: d.partyName,
@@ -131,12 +122,6 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         partyId: id,
         paymentMethod: d.paymentMethod,
       );
-
-  Future<void> _sharePdf() async {
-    final base = '${_doc.isPurchase ? 'Purchase' : 'Sale'}_${_doc.ref}';
-    final data = billDocSlipData(_doc, netBalance: _partyId == null ? null : _net);
-    await shareSlip(context, data, fileBase: base, fileName: slipAutoFileName(data, ref: _doc.ref), whatsappPhone: _doc.partyPhone);
-  }
 
   Future<void> _whatsApp() async {
     var phone = _doc.partyPhone.trim();
@@ -148,9 +133,8 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
           title: Text(Loc.t('WhatsApp number', 'واٹس ایپ نمبر')),
           content: TextField(
             controller: ctrl,
-            autofocus: true,
             keyboardType: TextInputType.phone,
-            decoration: InputDecoration(hintText: '03001234567', suffixIcon: ContactPickButton(phone: ctrl)),
+            decoration: const InputDecoration(hintText: '03001234567'),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
@@ -164,16 +148,14 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     }
     final digits = whatsAppDigits(phone);
     if (digits.isEmpty) return _toast(Loc.t('Invalid number', 'نمبر درست نہیں'));
-    // Header (shop naam + phone) WhatsApp mein center dikhane ke liye monospace block mein.
-    final waText = wrapBillHeaderForWhatsApp(_doc.toText(netBalance: _partyId == null ? null : _net));
-    final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(waText)}');
+    final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(_doc.toText(netBalance: _partyId == null ? null : _net))}');
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        await Clipboard.setData(ClipboardData(text: waText));
+        await Clipboard.setData(ClipboardData(text: _doc.toText(netBalance: _partyId == null ? null : _net)));
         _toast(Loc.t('WhatsApp not found — bill copied', 'واٹس ایپ نہیں ملا — بل کاپی ہو گیا'));
       }
     } catch (_) {
-      await Clipboard.setData(ClipboardData(text: waText));
+      await Clipboard.setData(ClipboardData(text: _doc.toText(netBalance: _partyId == null ? null : _net)));
       _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
     }
   }
@@ -302,20 +284,16 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
               _sKv('Payment Method', d.paymentMethod),
               const Divider(height: 22),
               Row(children: const [
-                SizedBox(width: 26, child: Text('#', style: hStyle)),
                 Expanded(flex: 4, child: Text('ITEM', style: hStyle)),
                 Expanded(flex: 3, child: Text('AMOUNT', textAlign: TextAlign.center, style: hStyle)),
                 Expanded(flex: 3, child: Text('QTY', textAlign: TextAlign.center, style: hStyle)),
                 Expanded(flex: 3, child: Text('RATE', textAlign: TextAlign.right, style: hStyle)),
               ]),
               const SizedBox(height: 6),
-              for (var n = 0; n < d.items.length; n++)
-                Builder(builder: (_) {
-                  final i = d.items[n];
-                  return Padding(
+              for (final i in d.items)
+                Padding(
                   padding: const EdgeInsets.symmetric(vertical: 7),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                    SizedBox(width: 26, child: Text('${n + 1}', style: TextStyle(fontSize: 15, color: ThemeManager.palette.textMuted))),
                     Expanded(flex: 4, child: Text(i.name, style: TextStyle(fontSize: 17, color: ThemeManager.palette.textDark))),
                     Expanded(
                         flex: 3,
@@ -331,10 +309,8 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                         child: Text(i.rate.toStringAsFixed(2),
                             textAlign: TextAlign.right, style: TextStyle(fontSize: 16, color: ThemeManager.palette.textDark))),
                   ]),
-                  );
-                }),
+                ),
               const Divider(height: 22),
-              _sKv('Total Items', '${d.items.length}'),
               _sKv('Subtotal', _m(d.subtotal)),
               if (d.discount > 0.009) _sKv('Discount', '-${_m(d.discount)}'),
               _sKv('Total', _m(d.total), bold: true),
@@ -345,18 +321,15 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                 _sKv('Net Balance', _m(_net!), bold: true, color: _net! > 0.009 ? ThemeManager.palette.red : null),
               ],
               const SizedBox(height: 8),
-              Text(d.receiptFooter.trim().isEmpty ? 'Thank you! Please visit again.' : d.receiptFooter.trim(),
+              Text(d.receiptFooter.trim().isEmpty ? 'Shukriya! Dobara tashreef layen.' : d.receiptFooter.trim(),
                   textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 14)),
             ]),
           ),
           const SizedBox(height: 14),
-          _gBtn(Loc.t('Send on WhatsApp', 'واٹس ایپ پر بھیجیں'), Icons.send,
+          _gBtn(Loc.t('WhatsApp par bhejein', 'واٹس ایپ پر بھیجیں'), Icons.send,
               const [Color(0xFF25D366), Color(0xFF1DA851)], _whatsApp),
           const SizedBox(height: 12),
-          _gBtn(Loc.t('Share as PDF', 'پی ڈی ایف شیئر کریں'), Icons.picture_as_pdf,
-              const [Color(0xFFE05252), Color(0xFFC03A3A)], _sharePdf),
-          const SizedBox(height: 12),
-          _gBtn(Loc.t('+ NEW PURCHASE BILL', '+ نیا خریداری بل'), Icons.check,
+          _gBtn(Loc.t('+ NAYA PURCHASE BILL', '+ نیا خریداری بل'), Icons.check,
               const [Color(0xFF16915F), Color(0xFF0F7A55)], () => Navigator.of(context).pop('new')),
           const SizedBox(height: 12),
           Row(children: [
@@ -395,8 +368,6 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(d.shopName.trim().isEmpty ? 'IBTISAAM Kiryana Store' : d.shopName.trim(),
                 textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ThemeManager.palette.navyInk)),
-            if (d.shopOwner.trim().isNotEmpty)
-              Text(d.shopOwner.trim(), textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.navyInk, fontSize: 14, fontWeight: FontWeight.w600)),
             if (d.shopPhone.trim().isNotEmpty)
               Text('📞 ${d.shopPhone.trim()}', textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 12)),
             const Divider(height: 20),
@@ -410,25 +381,19 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
               Expanded(flex: 2, child: Text('RATE', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
               Expanded(flex: 2, child: Text('QTY', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
               Expanded(flex: 4, child: Text('ITEM', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-              SizedBox(width: 24, child: Text('#', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
             ]),
             const SizedBox(height: 6),
-            for (var n = 0; n < d.items.length; n++)
-              Builder(builder: (_) {
-                final i = d.items[n];
-                return Padding(
+            for (final i in d.items)
+              Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(flex: 3, child: Text(i.amount.round().toString(), textAlign: TextAlign.left, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 2, child: Text(i.rate.toStringAsFixed(2), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 2, child: Text('${_q(i.qty)} ${i.unit}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                   Expanded(flex: 4, child: Text(i.name, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
-                  SizedBox(width: 24, child: Text('${n + 1}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                 ]),
-              );
-              }),
+              ),
             const Divider(height: 20),
-            _kv('Total Items', '${d.items.length}'),
             _kv('Subtotal', _m(d.subtotal)),
             if (d.discount > 0.009) _kv('Discount', '-${_m(d.discount)}'),
             _kv('Total', _m(d.total), bold: true),
@@ -439,23 +404,29 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
               _kv('Net Balance', _m(_net!), bold: true, color: _net! > 0.009 ? ThemeManager.palette.red : ThemeManager.palette.textDark),
             ],
             const SizedBox(height: 10),
-            Text(d.receiptFooter.trim().isEmpty ? 'Thank you! Please visit again.' : d.receiptFooter.trim(),
+            Text(d.receiptFooter.trim().isEmpty ? 'Shukriya! Dobara tashreef layen.' : d.receiptFooter.trim(),
                 textAlign: TextAlign.center, style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 12)),
           ]),
         ),
         const SizedBox(height: 16),
         _btn(_printing ? Loc.t('Printing…', 'پرنٹ ہو رہا ہے…') : Loc.t('PRINT', 'پرنٹ'), Icons.print, ThemeManager.palette.blue, _printing ? null : _print),
         const SizedBox(height: 10),
-        _btn(Loc.t('Send on WhatsApp', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
-        const SizedBox(height: 10),
-        _btn(Loc.t('Share as PDF', 'پی ڈی ایف شیئر کریں'), Icons.picture_as_pdf, const Color(0xFFD64545), _sharePdf),
+        _btn(Loc.t('WhatsApp par bhejein', 'واٹس ایپ پر بھیجیں'), Icons.send, const Color(0xFF25D366), _whatsApp),
+        // Save ke foran baad (Purchase ki tarah) Copy Text nahi dikhana.
+        if (!widget.justSaved) ...[
+          const SizedBox(height: 10),
+          _btn(Loc.t('COPY TEXT', 'ٹیکسٹ کاپی'), Icons.copy, ThemeManager.palette.navyLight, () async {
+            await Clipboard.setData(ClipboardData(text: d.toText(netBalance: _partyId == null ? null : _net)));
+            _toast(Loc.t('Bill copied', 'بل کاپی ہو گیا'));
+          }),
+        ],
         const SizedBox(height: 10),
         Row(children: [
           Expanded(child: _btn(Loc.t('DONE', 'مکمل'), Icons.check, ThemeManager.palette.teal, () => Navigator.of(context).pop())),
         ]),
         if (widget.showNewBill) ...[
           const SizedBox(height: 10),
-          _btn(d.isPurchase ? Loc.t('+ NEW PURCHASE BILL', '+ نیا خریداری بل') : Loc.t('+ NEW SALE BILL', '+ نیا سیل بل'),
+          _btn(d.isPurchase ? Loc.t('+ NAYA PURCHASE BILL', '+ نیا خریداری بل') : Loc.t('+ NAYI SALE BILL', '+ نیا سیل بل'),
               Icons.add, ThemeManager.palette.navyInk, () => Navigator.of(context).pop('new')),
         ],
         const SizedBox(height: 30),

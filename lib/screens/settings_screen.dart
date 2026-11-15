@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../db/app_database.dart';
 import '../db/user_repository.dart';
 import '../models/misc_entities.dart';
-import '../services/credit_guard.dart';
-import '../services/demo_mode.dart';
-import '../services/payment_info.dart';
-import '../services/credit_override_policy.dart';
-import '../services/staff_auth.dart';
 import '../services/app_lock.dart';
 import '../services/biometric.dart';
 import '../services/printer_service.dart';
@@ -15,7 +9,6 @@ import '../services/usb_printer.dart';
 import '../utils/escpos.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
-import '../utils/due_days.dart';
 import '../utils/loc.dart';
 import '../utils/stock_policy.dart';
 import '../utils/password_hasher.dart';
@@ -23,27 +16,21 @@ import '../widgets/menu_row.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import '../widgets/sync_section.dart';
-import '../sync/sync_repository.dart';
-import 'about_screen.dart';
 import 'backup_export_screen.dart';
 import 'cash_screen.dart';
 import 'expense_screen.dart';
 import 'items_screen.dart';
 import 'login_screen.dart';
+import 'month_cleanup_screen.dart';
 import 'party_dashboard_screen.dart';
 import 'purchase_screen.dart';
-import 'recycle_bin_screen.dart';
 import 'reports_screen.dart';
 import 'sale_screen.dart';
-import 'setup_guide_screen.dart';
 import 'shell_ledger_screen.dart';
 import 'shop_rent_screen.dart';
 import 'user_management_screen.dart';
 import 'utility_bills_screen.dart';
 import 'workers_screen.dart';
-import 'zakat_screen.dart';
-import '../services/permissions.dart';
-import '../widgets/permission_guard.dart';
 
 /// Receipt footer / address / currency / tax fields Kotlin mein user ke kehne par hata di gayi thin — yahan bhi nahi
 /// (stored receipt_footer value print par ab bhi parha jata hai, jaisa Kotlin mein).
@@ -62,10 +49,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _repo = UserRepository.instance;
   final _shopName = TextEditingController();
-  final _shopOwner = TextEditingController();
   final _shopPhone = TextEditingController();
-  final _paymentInfo = TextEditingController(); // Raast / JazzCash / bank — reminders ke neeche
-  final _dueDays = TextEditingController(); // default udhaar muddat (din)
   final _newUsername = TextEditingController();
   final _newPassword = TextEditingController();
   String _loginMethod = 'password';
@@ -81,31 +65,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _load();
-    Permissions.refresh().then((_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    for (final c in [_shopName, _shopOwner, _shopPhone, _paymentInfo, _dueDays, _newUsername, _newPassword]) {
-      c.dispose();
-    }
-    super.dispose();
   }
 
   Future<void> _load() async {
-    final shopName = await _repo.getSetting('shop_name') ?? '';
-    final shopOwner = await _repo.getSetting('shop_owner') ?? '';
-    final shopPhone = await _repo.getSetting('shop_phone') ?? '';
-    final paymentInfo = await PaymentInfo.load();
-    final dueDays = parseShopDueDays(await _repo.getSetting(kDueDaysSetting));
-    if (!mounted) return; // screen band ho chuki => disposed controller na chhedo
-    _shopName.text = shopName;
-    _shopOwner.text = shopOwner;
-    _shopPhone.text = shopPhone;
-    _paymentInfo.text = paymentInfo;
-    _dueDays.text = dueDays.toString();
+    _shopName.text = await _repo.getSetting('shop_name') ?? '';
+    _shopPhone.text = await _repo.getSetting('shop_phone') ?? '';
     if (_shopName.text.trim().isNotEmpty) _headerShop = _shopName.text.trim();
     final pr = await PrinterService.instance.selected();
     _printerName = pr?.name ?? '';
@@ -117,17 +81,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() => _loginMethod = const ['none', 'fingerprint', 'both', 'otp'].contains(m) ? m : 'password');
   }
 
-  void _toast(String m) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
-  }
+  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   Future<void> _saveShop() async {
     await _repo.setSetting('shop_name', _shopName.text.trim());
-    await _repo.setSetting('shop_owner', _shopOwner.text.trim());
     await _repo.setSetting('shop_phone', _shopPhone.text.trim());
-    await PaymentInfo.save(_paymentInfo.text);
-    await _repo.setSetting(kDueDaysSetting, parseShopDueDays(_dueDays.text).toString());
     if (_shopName.text.trim().isNotEmpty && mounted) setState(() => _headerShop = _shopName.text.trim());
     _toast(Loc.t('Settings saved', 'سیٹنگز محفوظ ہو گئیں'));
   }
@@ -300,9 +258,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final newPass = _newPassword.text;
     if (newName.contains(' ')) return _toast(Loc.t('Username must not contain spaces', 'یوزر نیم میں خالی جگہ نہیں ہونی چاہیے'));
     if (newPass.isNotEmpty && newPass.length < 6) return _toast(Loc.t('Password must be at least 6 characters', 'پاس ورڈ کم از کم 6 حروف کا ہو'));
-    if (newName.isEmpty && newPass.isEmpty) {
-      return _toast(Loc.t('Enter a new username or password', 'نیا یوزر نیم یا پاس ورڈ لکھیں'));
-    }
     final finalName = newName.isNotEmpty ? newName : user.username;
     if (finalName != user.username && await _repo.find(finalName) != null) {
       return _toast(Loc.t('Username already exists', 'یہ یوزر نیم پہلے سے موجود ہے'));
@@ -321,72 +276,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _newPassword.clear();
     setState(() {});
     _toast(Loc.t('Login updated', 'لاگ اِن اپڈیٹ ہو گیا'));
-    // Secure cloud login ON: cloud password alag hai — purana cloud password server par check hota hai.
-    if (newPass.isNotEmpty && await StaffAuth.isEnabled()) {
-      if (finalName != user.username) {
-        _toast(Loc.t('Cloud username/password not changed (username changed). Ask your admin to update the cloud account.',
-            'کلاؤڈ یوزر نیم/پاس ورڈ نہیں بدلا (یوزر نیم بدلا ہے)۔ ایڈمن سے کلاؤڈ اکاؤنٹ اپڈیٹ کروائیں۔'));
-      } else {
-        final old = await _askCloudPassword();
-        if (old != null && old.isNotEmpty) {
-          final ok = await StaffAuth.changeMyPassword(user.username, old, newPass);
-          _toast(ok
-              ? Loc.t('Cloud password changed', 'کلاؤڈ پاس ورڈ بدل گیا')
-              : Loc.t('Cloud password NOT changed: ${StaffAuth.lastError}', 'کلاؤڈ پاس ورڈ نہیں بدلا: ${StaffAuth.lastError}'));
-        } else {
-          _toast(Loc.t('Cloud password not changed (still the old one)', 'کلاؤڈ پاس ورڈ نہیں بدلا (پرانا ہی ہے)'));
-        }
-      }
-    }
-  }
-
-  Future<String?> _askCloudPassword() async {
-    if (!mounted) return null;
-    final field = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Change cloud password', 'کلاؤڈ پاس ورڈ بدلیں')),
-        content: TextField(
-          controller: field,
-          obscureText: true,
-          decoration: InputDecoration(hintText: Loc.t('Current cloud password', 'موجودہ کلاؤڈ پاس ورڈ')),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Skip', 'چھوڑیں'))),
-          FilledButton(onPressed: () => Navigator.pop(ctx, field.text), child: Text(Loc.t('Change', 'بدلیں'))),
-        ],
-      ),
-    );
-  }
-
-  /// Demo dukaan on / off. Pehle chalti sync ruke, DB band ho, session saaf ho; phir flag badalte hi
-  /// MaterialApp (key mein demo) naya banta hai aur login screen nayi file se khulti hai.
-  Future<void> _switchDemo(bool on) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(on ? Loc.t('Open Demo shop?', 'ڈیمو دکان کھولیں؟') : Loc.t('Exit Demo?', 'ڈیمو بند کریں؟')),
-        content: Text(on
-            ? Loc.t(
-                'The app will switch to a separate practice shop. First time, create a demo admin user. '
-                    'Sync and backups stay off until you exit Demo. Your real shop is not changed.',
-                'ایپ ایک الگ پریکٹس دکان پر چلی جائے گی۔ پہلی بار ڈیمو ایڈمن یوزر بنائیں۔ '
-                    'ڈیمو بند کرنے تک سنک اور بیک اپ بند رہیں گے۔ اصل دکان میں کچھ نہیں بدلے گا۔')
-            : Loc.t('Back to the real shop. Log in with your real password.',
-                'اصل دکان پر واپس۔ اپنے اصل پاس ورڈ سے لاگ اِن کریں۔')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Continue', 'جاری رکھیں'))),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    await SyncRepository.waitIdle();
-    await AppDatabase.instance.close();
-    await Session.clear();
-    // Is ke baad yeh screen dispose ho jati hai (MaterialApp ka key badalta hai) — context ab use nahi.
-    await DemoMode.setEnabled(on);
   }
 
   Future<void> _logout() async {
@@ -407,11 +296,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
 
-  Widget _tf(TextEditingController c, String label, {bool obscure = false, bool enabled = true, bool number = false}) => Padding(
+  Widget _tf(TextEditingController c, String label, {bool obscure = false, bool enabled = true}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: TextField(
           controller: c, obscureText: obscure, enabled: enabled,
-          keyboardType: number ? TextInputType.number : null,
           decoration: InputDecoration(labelText: label, filled: true, fillColor: ThemeManager.palette.fieldFill,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
         ),
@@ -434,14 +322,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return [
       row(Icons.people_outline, 'Parties', 'پارٹیز', const PartyDashboardScreen()),
       row(Icons.list_alt, 'Items', 'آئٹمز', const ItemsScreen()),
-      if (Permissions.canAnyReport()) row(Icons.trending_up, 'Reports', 'رپورٹس', const ReportsScreen()),
+      if (Session.isAdminOrManager) row(Icons.trending_up, 'Reports', 'رپورٹس', const ReportsScreen()),
       row(Icons.receipt_outlined, 'Sale', 'سیل', const SaleScreen()),
       if (Session.isAdmin)
         row(Icons.shopping_cart_outlined, 'Purchase', 'خریداری',
             const RoleGuard(allowed: {'admin'}, child: PurchaseScreen())),
-      if (Permissions.can('expense'))
-        row(Icons.business_center_outlined, 'Expense', 'اخراجات',
-            const PermissionGuard(permission: 'expense', child: ExpenseScreen()), color: p.navyInk),
+      row(Icons.business_center_outlined, 'Expense', 'اخراجات', const ExpenseScreen(), color: p.navyInk),
       if (Session.isAdminOrManager)
         row(Icons.storefront_outlined, 'Shop Rents', 'دکانوں کا کرایہ',
             const RoleGuard(allowed: {'admin', 'manager'}, child: ShopRentScreen()), color: p.navyInk),
@@ -451,15 +337,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (Session.isAdminOrManager)
         row(Icons.receipt_long_outlined, 'Utility Bills', 'یوٹیلیٹی بلز',
             const RoleGuard(allowed: {'admin', 'manager'}, child: UtilityBillsScreen()), color: p.navyInk),
-      if (Permissions.can('cash_register'))
-        row(Icons.account_balance_outlined, 'Cash & Bank', 'کیش اور بینک',
-            const PermissionGuard(permission: 'cash_register', child: CashScreen()), color: p.navyInk),
-      if (Permissions.can('zakat'))
-        row(Icons.volunteer_activism_outlined, 'Zakat', 'زکوٰۃ',
-            const PermissionGuard(permission: 'zakat', child: ZakatScreen()), color: p.navyInk),
-      if (Permissions.can('shell_ledger'))
-        row(Icons.inventory_2_outlined, 'Shell Ledger', 'شیل لیجر',
-            const PermissionGuard(permission: 'shell_ledger', child: ShellLedgerScreen()), color: p.navyInk),
+      row(Icons.account_balance_outlined, 'Cash & Bank', 'کیش اور بینک', const CashScreen(), color: p.navyInk),
+      row(Icons.inventory_2_outlined, 'Shell Ledger', 'شیل لیجر', const ShellLedgerScreen(), color: p.navyInk),
     ];
   }
 
@@ -476,34 +355,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (admin)
           _card(Loc.t('Shop Information', 'دکان کی معلومات'), Icons.store, [
             _tf(_shopName, Loc.t('Shop Name', 'دکان کا نام')),
-            _tf(_shopOwner, Loc.t('Owner Name', 'مالک کا نام')),
             _tf(_shopPhone, Loc.t('Phone', 'فون')),
-            _tf(_dueDays, Loc.t('Default credit period (days, 0 = off)', 'ڈیفالٹ ادھار مدت (دن، 0 = بند)'), number: true),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: TextField(
-                controller: _paymentInfo,
-                minLines: 2,
-                maxLines: 5,
-                decoration: InputDecoration(
-                  labelText: Loc.t('Payment details for reminders', 'یاد دہانی میں ادائیگی کی تفصیل'),
-                  hintText: 'Raast ID: 03001234567\nJazzCash: 03001234567 (Asam)\nBank: Meezan PK00MEZN0000000000000000',
-                  helperText: Loc.t('Added under every WhatsApp due reminder', 'ہر واٹس ایپ یاد دہانی کے نیچے لگے گا'),
-                  filled: true,
-                  fillColor: ThemeManager.palette.fieldFill,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
             FilledButton(onPressed: _saveShop, child: Text(Loc.t('SAVE SETTINGS', 'محفوظ کریں'))),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(context)
-                  .push(MaterialPageRoute(builder: (_) => const RoleGuard(allowed: {'admin'}, child: SetupGuideScreen())))
-                  .then((_) => _load()),
-              icon: const Icon(Icons.checklist_rtl),
-              label: Text(Loc.t('SHOP SETUP GUIDE (new shop)', 'دکان سیٹ اپ گائیڈ (نئی دکان)')),
-            ),
           ]),
         if (admin)
           _card(Loc.t('Sale', 'سیل'), Icons.point_of_sale, [
@@ -546,60 +399,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(Loc.t('Needs Cloud Sync Setup; staff phone in Manage Users', 'Cloud Sync Setup ضروری؛ اسٹاف کا فون Manage Users میں')),
             ),
           ]),
-        _card(Loc.t('Secure Cloud Login (staff)', 'سیکیور کلاؤڈ لاگ اِن (اسٹاف)'), Icons.verified_user, [
-          FutureBuilder<bool>(
-            future: StaffAuth.isEnabled(),
-            builder: (context, snap) => SwitchListTile(
-              value: snap.data ?? false,
-              onChanged: !Session.isAdmin
-                  ? null
-                  : (v) async {
-                      await StaffAuth.setEnabled(v);
-                      if (mounted) setState(() {});
-                    },
-              title: Text(Loc.t('Sign in to cloud with staff account', 'اسٹاف اکاؤنٹ سے کلاؤڈ میں سائن اِن')),
-              subtitle: Text(Loc.t(
-                  'OFF = current behaviour. ON needs the staff backend + App Check set up (see docs/STAFF_AUTH_BACKEND_SETUP.md); sync never falls back to anonymous.',
-                  'آف = موجودہ طریقہ۔ آن کے لیے اسٹاف بیک اینڈ + App Check سیٹ اپ ضروری ہے؛ سنک کبھی anonymous پر واپس نہیں جاتا۔')),
-            ),
-          ),
-        ]),
-        _card(Loc.t('Credit limit override', 'کریڈٹ لیمٹ اجازت'), Icons.lock, [
-          FutureBuilder<bool>(
-            future: CreditOverridePolicy.managersOnly(),
-            builder: (context, snap) => SwitchListTile(
-              value: snap.data ?? false,
-              onChanged: Session.isAdmin
-                  ? (v) async {
-                      await CreditOverridePolicy.setManagersOnly(v);
-                      if (mounted) setState(() {});
-                    }
-                  : null,
-              title: Text(Loc.t('Only admin/manager can "Save Anyway"', 'صرف ایڈمن/منیجر "پھر بھی محفوظ کریں" کر سکتا ہے')),
-              subtitle: Text(Loc.t(
-                  'OFF = any user can save a bill over the credit limit after confirming (current behaviour). ON = cashier cannot. Only admin can change this.',
-                  'آف = کوئی بھی صارف تصدیق کے بعد لیمٹ سے اوپر بل محفوظ کر سکتا ہے (موجودہ طریقہ)۔ آن = کیشیئر نہیں کر سکتا۔ صرف ایڈمن بدل سکتا ہے۔')),
-            ),
-          ),
-        ]),
-        _card(Loc.t('Server credit-limit check', 'سرور کریڈٹ لیمٹ چیک'), Icons.shield, [
-          FutureBuilder<bool>(
-            future: const CreditGuard().isEnabled(),
-            builder: (context, snap) => SwitchListTile(
-              value: snap.data ?? false,
-              onChanged: !Session.isAdmin
-                  ? null
-                  : (v) async {
-                      await const CreditGuard().setEnabled(v);
-                      if (mounted) setState(() {});
-                    },
-              title: Text(Loc.t('Check credit limit with the server (online)', 'کریڈٹ لیمٹ سرور سے چیک کریں (آن لائن)')),
-              subtitle: Text(Loc.t(
-                  'OFF = current behaviour. ON needs the reserveCredit function deployed (docs/SERVER_CREDIT_CHECK.md). Offline sales still go through and use only the local check.',
-                  'آف = موجودہ طریقہ۔ آن کے لیے reserveCredit فنکشن ڈیپلائے ہونا ضروری ہے۔ آف لائن سیل پھر بھی ہوتی ہے اور صرف مقامی چیک چلتا ہے۔')),
-            ),
-          ),
-        ]),
         _card(Loc.t('My Login', 'میرا لاگ اِن'), Icons.person, [
           _tf(TextEditingController(text: Session.username ?? ''), Loc.t('Current Username', 'موجودہ یوزر نیم'), enabled: false),
           _tf(_newUsername, Loc.t('New Username', 'نیا یوزر نیم')),
@@ -690,13 +489,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ]),
         if (admin)
-          _card(Loc.t('Recycle Bin', 'ری سائیکل بِن'), Icons.restore_from_trash_outlined, [
-            Text(Loc.t('Restore deleted bills, expenses, payments, parties, items and workers',
-                'حذف کیے گئے بل، خرچے، ادائیگیاں، پارٹیاں، آئٹمز اور ورکرز واپس لائیں')),
+          _card(Loc.t('Delete Month Data', 'مہینے کا ڈیٹا ڈیلیٹ'), Icons.delete_sweep_outlined, [
+            Text(Loc.t('Ek mahine ke saare Sale/Purchase bills delete (stock, balance, cash reverse)', 'ایک مہینے کے سب سیل/پرچیز بل ڈیلیٹ')),
             const SizedBox(height: 10),
             OutlinedButton(
-              onPressed: () => _open(const RecycleBinScreen()),
-              child: Text(Loc.t('OPEN RECYCLE BIN', 'ری سائیکل بن کھولیں')),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MonthCleanupScreen())),
+              child: Text(Loc.t('OPEN', 'کھولیں')),
             ),
           ]),
         if (admin)
@@ -704,30 +502,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             OutlinedButton(
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UserManagementScreen())),
               child: Text(Loc.t('MANAGE USERS', 'یوزرز مینیج کریں')),
-            ),
-          ]),
-        _card(Loc.t('About & Privacy', 'ایپ اور پرائیویسی'), Icons.info_outline, [
-          Text(Loc.t('Privacy policy, support, delete my data', 'پرائیویسی پالیسی، سپورٹ، ڈیٹا ختم کروانا')),
-          const SizedBox(height: 10),
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
-            child: Text(Loc.t('OPEN ABOUT', 'کھولیں')),
-          ),
-        ]),
-        if (admin || DemoMode.enabled)
-          _card(Loc.t('Demo / Training shop', 'ڈیمو / ٹریننگ دکان'), Icons.school_outlined, [
-            Text(DemoMode.enabled
-                ? Loc.t('You are in the DEMO shop. Nothing here goes to the real shop, the cloud or other phones.',
-                    'آپ ڈیمو دکان میں ہیں۔ یہاں کی کوئی انٹری اصل دکان، کلاؤڈ یا دوسرے فون پر نہیں جاتی۔')
-                : Loc.t('A separate practice shop for staff training and testing. Real data, sync and backups are not touched.',
-                    'اسٹاف کی ٹریننگ اور ٹیسٹنگ کے لیے الگ دکان۔ اصل ڈیٹا، سنک اور بیک اپ کو ہاتھ نہیں لگتا۔')),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => _switchDemo(!DemoMode.enabled),
-              icon: Icon(DemoMode.enabled ? Icons.storefront : Icons.school_outlined),
-              label: Text(DemoMode.enabled
-                  ? Loc.t('EXIT DEMO — back to real shop', 'ڈیمو بند کریں — اصل دکان')
-                  : Loc.t('OPEN DEMO SHOP', 'ڈیمو دکان کھولیں')),
             ),
           ]),
         OutlinedButton.icon(

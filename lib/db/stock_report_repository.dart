@@ -1,7 +1,6 @@
 import '../models/product.dart';
 import '../services/session.dart';
 import 'app_database.dart';
-import 'unit_cost.dart';
 
 /// Ports the data side of StockReportActivity.kt.
 ///
@@ -14,7 +13,8 @@ import 'unit_cost.dart';
 /// (PORTING_PLAN: cost sirf admin/manager) aur screen cost cards/values chhupati hai.
 
 double costPerSmallestUnit(Product p) {
-  return costPerSmallestOf(p.cost, p.smallestUnitFactor());
+  final factor = p.smallestUnitFactor();
+  return factor > 0 ? p.cost / factor : p.cost;
 }
 
 double salePerSmallestUnit(Product p) {

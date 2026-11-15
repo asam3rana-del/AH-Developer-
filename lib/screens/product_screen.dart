@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart' show DateFormat;
 
 import '../db/category_unit_repository.dart';
 import '../db/product_repository.dart';
 import '../models/category_unit.dart' as models;
 import '../models/product.dart';
 import '../utils/input_validation.dart';
-import '../utils/ladder_rate_plan.dart';
-import '../utils/expiry.dart';
 import '../utils/loc.dart';
 import '../utils/rate_list_export.dart';
 import '../widgets/premium_header.dart';
@@ -41,8 +38,6 @@ class _ProductScreenState extends State<ProductScreen> {
   final _saleCtrl = TextEditingController();
   final _stockCtrl = TextEditingController();
   final _reorderCtrl = TextEditingController();
-  /// products.expiry (`yyyy-MM-dd`, khali = nahi). Pehle form save par ye field mit jati thi (Product() mein nahi thi).
-  String _expiry = '';
   final _searchCtrl = TextEditingController();
 
   String _primaryUnit = 'pcs';
@@ -203,56 +198,8 @@ class _ProductScreenState extends State<ProductScreen> {
       _wBulkQtyCtrl.text = p.wholesaleBulkMinQty > 0 ? _trimNum(p.wholesaleBulkMinQty) : '';
       _saleCtrl.text = p.salePrice > 0 ? p.salePrice.toString() : '';
       _reorderCtrl.text = p.reorderLevel > 0 ? _trimNum(p.reorderLevel) : '';
-      _expiry = p.expiry;
       _stockCtrl.text = _trimNum(p.stock);
     });
-  }
-
-  /// Expiry date: tap = calendar, ✕ = hatao. Report: Reports → Expiry Report.
-  Widget _expiryField() {
-    final p = ThemeManager.palette;
-    final d = parseExpiry(_expiry);
-    final label = d == null
-        ? (_expiry.trim().isEmpty ? Loc.t('Not set (optional)', 'نہیں لگی (اختیاری)') : _expiry.trim())
-        : DateFormat('dd MMM yyyy').format(d);
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () async {
-        final now = DateTime.now();
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: d ?? DateTime(now.year, now.month + 3, now.day),
-          firstDate: DateTime(2000),
-          lastDate: DateTime(2100),
-          helpText: Loc.t('Expiry date', 'ایکسپائری تاریخ'),
-        );
-        if (picked != null && mounted) setState(() => _expiry = formatExpiryForStorage(picked));
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: p.fieldFill,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: p.border),
-        ),
-        child: Row(children: [
-          const Text('📅', style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(Loc.t('Expiry date', 'ایکسپائری تاریخ'), style: TextStyle(fontSize: 11, color: p.textMuted)),
-              Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p.textDark)),
-            ]),
-          ),
-          if (_expiry.trim().isNotEmpty)
-            IconButton(
-              tooltip: Loc.t('Remove', 'ہٹائیں'),
-              icon: Icon(Icons.close, color: p.textMuted),
-              onPressed: () => setState(() => _expiry = ''),
-            ),
-        ]),
-      ),
-    );
   }
 
   void _clearForm() {
@@ -270,7 +217,6 @@ class _ProductScreenState extends State<ProductScreen> {
       _saleCtrl.clear();
       _stockCtrl.clear();
       _reorderCtrl.clear();
-      _expiry = '';
       _primaryUnit = 'pcs';
       _secondaryUnit = 'None';
       _secondaryQty = 0.0;
@@ -387,7 +333,7 @@ class _ProductScreenState extends State<ProductScreen> {
     final wBulkQtyVal = parseMoneyOrWarn(context, _wBulkQtyCtrl.text, 'Wholesale Bulk Min Qty', 'تھوک بلک کم از کم مقدار');
     if (wBulkQtyVal == null) return;
 
-    var product = Product(
+    final product = Product(
       barcode: barcode,
       name: name,
       category: category,
@@ -408,7 +354,6 @@ class _ProductScreenState extends State<ProductScreen> {
       tertiaryUnit: _tertiaryUnit == 'None' ? '' : _tertiaryUnit,
       tertiaryUnitQty: _tertiaryUnit == 'None' ? 0.0 : _tertiaryQty,
       reorderLevel: (double.tryParse(_reorderCtrl.text.trim()) ?? 0.0).clamp(0.0, double.infinity),
-      expiry: _expiry.trim(),
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       dirty: true,
       // Manual default-unit choices (unit dialog). Loaded from the product on
@@ -416,50 +361,6 @@ class _ProductScreenState extends State<ProductScreen> {
       defaultUnitIndex: _defaultUnitIndex,
       quickSaleDefaultUnitIndex: _quickSaleDefaultUnitIndex,
     );
-
-    // Unit ladder badli ho (jaise ctn hata kar outer/dabbi) to cost aur rates naye primary unit par aani chahiyen,
-    // warna profit bigadta hai. User ko purani/nayi qeemat dikha kar poochte hain.
-    if (existing != null) {
-      final plan = LadderRatePlan.build(existing, product);
-      if (plan != null) {
-        final choice = await _confirmLadderRates(plan, existing, product);
-        if (choice == null || !mounted) return;
-        if (choice) product = plan.apply(product);
-      }
-    }
-
-    // Sale rate cost se kam ho to profit minus aayega: sirf tab poochte hain jab cost/rate is save mein badli ho.
-    final ratesTouched = existing == null ||
-        product.cost != existing.cost ||
-        product.salePrice != existing.salePrice ||
-        product.wholesalePrice != existing.wholesalePrice ||
-        product.shopkeeperPrice != existing.shopkeeperPrice;
-    if (ratesTouched && product.cost > 0) {
-      final low = <String>[
-        if (product.salePrice > 0 && product.salePrice < product.cost) Loc.t('Retail', 'ریٹیل'),
-        if (product.wholesalePrice > 0 && product.wholesalePrice < product.cost) Loc.t('Wholesale', 'ہول سیل'),
-        if (product.shopkeeperPrice > 0 && product.shopkeeperPrice < product.cost) Loc.t('Shopkeeper', 'دکاندار'),
-      ];
-      if (low.isNotEmpty) {
-        final ok = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(Loc.t('Rate cost se kam hai', 'ریٹ لاگت سے کم ہے')),
-            content: Text(Loc.t(
-              '${low.join(', ')} rate Purchase rate (${_trimNum(product.cost)}) se kam hai, is se har sale par loss hoga.\n\n'
-                  'Unit ya rates check karen. Phir bhi save karen?',
-              '${low.join('، ')} ریٹ خریداری ریٹ (${_trimNum(product.cost)}) سے کم ہے، اس سے ہر سیل پر نقصان ہوگا۔\n\n'
-                  'یونٹ یا ریٹس چیک کریں۔ پھر بھی محفوظ کریں؟',
-            )),
-            actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
-              FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں'))),
-            ],
-          ),
-        );
-        if (ok != true || !mounted) return;
-      }
-    }
 
     try {
       final categories = await CategoryRepository.instance.listAll();
@@ -481,80 +382,6 @@ class _ProductScreenState extends State<ProductScreen> {
       if (!mounted) return;
       _toast('Could not save product: $e');
     }
-  }
-
-  /// Unit ladder badalne par rates ka dialog. true = naye unit ke hisaab se rescale, false = jaisa likha waisa
-  /// (cost phir bhi purane qaide se rescale hoti hai), null = wapas jao.
-  Future<bool?> _confirmLadderRates(LadderRatePlan plan, Product existing, Product draft) {
-    String n(double v) => _trimNum(v);
-    // Stock wahi rehta hai, sirf naye unit mein likha jata hai (purana -> naya breakdown).
-    final r = rescaleStockForLadderChange(existing, draft);
-    final stockBefore = existing.formatStockBreakdown();
-    final stockAfter = draft.copyWith(stock: r.stock).formatStockBreakdown();
-    final Widget content;
-    if (!plan.convertible) {
-      content = Text(Loc.t(
-        'Sab se chhoti unit badal gayi hai, is liye cost aur rates apne aap nahi badal sakte.\n\n'
-            'Save se pehle Purchase rate aur sab Sale rates naye primary unit ke hisaab se khud check karen, '
-            'warna profit galat aayega.\n\nPurane bills ki cost/profit nahi badlegi.',
-        'سب سے چھوٹی یونٹ بدل گئی ہے، اس لیے لاگت اور ریٹس خود بخود نہیں بدل سکتے۔\n\n'
-            'محفوظ کرنے سے پہلے خریداری ریٹ اور تمام سیل ریٹس نئی پرائمری یونٹ کے مطابق خود چیک کریں، '
-            'ورنہ منافع غلط آئے گا۔',
-      ));
-    } else {
-      content = SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Loc.t(
-              'Primary unit badal gayi hai. Rates naye unit par is tarah aayenge:',
-              'پرائمری یونٹ بدل گئی ہے۔ ریٹس نئی یونٹ پر یوں آئیں گے:',
-            )),
-            const SizedBox(height: 8),
-            for (final c in plan.changes)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Text(
-                  '${Loc.t(c.labelEn, c.labelUr)}: ${n(c.oldValue)} → ${n(c.newValue)}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            if (stockBefore != stockAfter) ...[
-              const SizedBox(height: 6),
-              Text(
-                '${Loc.t('Stock', 'اسٹاک')}: $stockBefore → $stockAfter',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(Loc.t(
-              'Purane bills ki cost/profit nahi badlegi. Jo rate aap ne is form mein khud badli hai wo nahi chhedi gayi.',
-              'پرانے بلوں کی لاگت/منافع نہیں بدلے گا۔ جو ریٹ آپ نے اس فارم میں خود بدلا ہے اسے نہیں چھیڑا گیا۔',
-            )),
-          ],
-        ),
-      );
-    }
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(Loc.t('Unit badli — rates update karen?', 'یونٹ بدلی — ریٹس اپ ڈیٹ کریں؟')),
-        content: content,
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
-          if (plan.convertible)
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(Loc.t('Sirf cost badlo', 'صرف لاگت بدلیں')),
-            ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(plan.convertible),
-            child: Text(plan.convertible ? Loc.t('Rescale karen', 'ریٹس بدلیں') : Loc.t('Samajh gaya, save karen', 'سمجھ گیا، محفوظ کریں')),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _confirmDelete(Product product) async {
@@ -880,8 +707,6 @@ class _ProductScreenState extends State<ProductScreen> {
                   style: TextStyle(color: ThemeManager.palette.textMuted, fontSize: 11),
                 ),
               ),
-              const SizedBox(height: 12),
-              _expiryField(),
             ],
           );
         },

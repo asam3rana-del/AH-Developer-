@@ -24,9 +24,6 @@ class SaleWithCustomer {
   final int createdAt;
   final String status;
 
-  /// Partial return ki raqam (active bill par `returns` table se). Poori return shuda bill par 0 (total hi return hai).
-  final double partialReturned;
-
   const SaleWithCustomer({
     required this.invoice,
     required this.customerName,
@@ -35,7 +32,6 @@ class SaleWithCustomer {
     required this.paymentMethod,
     required this.createdAt,
     required this.status,
-    this.partialReturned = 0,
   });
 
   bool get isReturned => status == 'returned';
@@ -47,9 +43,7 @@ class SaleGroup {
   const SaleGroup(this.customerName, this.sales);
 
   int get lastActiveAt => sales.map((s) => s.createdAt).fold(0, (a, b) => a > b ? a : b);
-  /// Returned bills ke bina (upar ke "Total Sales" card jaisa) — header ka count / total returned bill ko nahi ginta.
-  int get activeCount => sales.where((s) => !s.isReturned).length;
-  double get total => sales.fold(0.0, (a, s) => s.isReturned ? a : a + s.total);
+  double get total => sales.fold(0.0, (a, s) => a + s.total);
   double profit(Map<String, double> profits) => sales.fold(0.0, (a, s) => a + (profits[s.invoice] ?? 0.0));
 }
 
@@ -81,7 +75,6 @@ SaleHistorySummary summarizeSales(List<SaleWithCustomer> sales) {
       returned += s.total;
     } else {
       sold += s.total;
-      returned += s.partialReturned;
     }
   }
   return SaleHistorySummary(sold, returned);
@@ -104,8 +97,7 @@ class SaleHistoryRepository {
     final rows = await db.rawQuery('''
       SELECT invoice,
              COALESCE((SELECT name FROM customers WHERE customers.id = sales.customerId), 'Walk-in') AS customerName,
-             total, paid, paymentMethod, createdAt, status,
-             COALESCE((SELECT SUM(amount) FROM returns WHERE returns.reference = sales.invoice AND returns.type = 'sale'), 0) AS partialReturned
+             total, paid, paymentMethod, createdAt, status
       FROM sales ORDER BY createdAt DESC
     ''');
     return rows
@@ -117,7 +109,6 @@ class SaleHistoryRepository {
               paymentMethod: (r['paymentMethod'] as String?) ?? '',
               createdAt: (r['createdAt'] as num).toInt(),
               status: (r['status'] as String?) ?? 'active',
-              partialReturned: ((r['status'] as String?) ?? 'active') == 'returned' ? 0 : ((r['partialReturned'] as num?)?.toDouble() ?? 0),
             ))
         .toList();
   }
@@ -132,17 +123,6 @@ class SaleHistoryRepository {
       FROM sales s WHERE s.status != 'returned'
     ''');
     return {for (final r in rows) r['invoice'] as String: (r['profit'] as num).toDouble()};
-  }
-
-  /// costPending: wo bills jin ki koi line ki asal cost purchase se abhi tak nahi bhari (profit "estimated").
-  Future<Set<String>> pendingCostInvoices() async {
-    if (!Session.isAdmin) return const {};
-    final db = await AppDatabase.instance.database;
-    final rows = await db.rawQuery(
-      'SELECT DISTINCT si.invoice AS invoice FROM sale_items si JOIN sales s ON s.invoice = si.invoice '
-      "WHERE si.pendingQty > 0.000001 AND s.status != 'returned'",
-    );
-    return {for (final r in rows) r['invoice'] as String};
   }
 
   Future<List<SaleItem>> itemsForInvoice(String invoice) async {

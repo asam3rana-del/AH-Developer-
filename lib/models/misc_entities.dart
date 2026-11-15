@@ -135,8 +135,6 @@ class User {
   final String passwordHash;
   final bool active;
   final String phone;
-  /// Per-user access overrides (JSON). Khali = role ke default. Sirf UserRepository.setPermissions likhta hai.
-  final String permissions;
 
   const User({
     required this.username,
@@ -145,7 +143,6 @@ class User {
     required this.passwordHash,
     this.active = true,
     this.phone = '',
-    this.permissions = '',
   });
 
   Map<String, Object?> toMap() => {
@@ -155,7 +152,6 @@ class User {
         'passwordHash': passwordHash,
         'active': active ? 1 : 0,
         'phone': phone,
-        'permissions': permissions,
       };
 
   factory User.fromMap(Map<String, Object?> m) => User(
@@ -165,7 +161,6 @@ class User {
         passwordHash: m['passwordHash'] as String,
         active: (m['active'] as int?) != 0,
         phone: (m['phone'] as String?) ?? '',
-        permissions: (m['permissions'] as String?) ?? '',
       );
 }
 

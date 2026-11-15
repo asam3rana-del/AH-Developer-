@@ -10,9 +10,8 @@ void main() {
   sqfliteFfiInit();
 
   group('collectionFor / ops', () {
-    test('20 Kotlin entity types + 4 Workers + 2 Shop Rents + 2 Utility Bills + 1 Due Follow-ups; anjaan => null', () {
-      expect(pushCollections.length, 29);
-      expect(collectionFor('due_followup'), 'due_followups');
+    test('20 Kotlin entity types + 4 Workers + 2 Shop Rents; anjaan => null', () {
+      expect(pushCollections.length, 28);
       expect(collectionFor('worker'), 'workers');
       expect(collectionFor('worker_attendance'), 'worker_attendance');
       expect(collectionFor('worker_advance'), 'worker_advances');
@@ -62,12 +61,9 @@ void main() {
       final doc = <String, Object?>{'updatedAt': 200, 'upsertAt': 50};
       expect(upsertClock(doc), 50);
       expect(shouldApplyUpsert(100, upsertClock(doc)), isTrue);
-      // Purana live doc (upsertAt nahi): updatedAt increment se bump ho sakti hai => upsert lag jata hai.
-      expect(upsertClock({'updatedAt': 200}), isNull);
-      expect(shouldApplyUpsert(100, upsertClock({'updatedAt': 200})), isTrue);
-      // Purana tombstone: purani updatedAt par hi chalta hai (hata hua record zinda nahi hota).
-      expect(upsertClock({'updatedAt': 200, '_deleted': true}), 200);
-      expect(shouldApplyUpsert(100, upsertClock({'updatedAt': 200, '_deleted': true})), isFalse);
+      // Purana doc (upsertAt nahi) => purani updatedAt par hi chalta hai.
+      expect(upsertClock({'updatedAt': 200}), 200);
+      expect(shouldApplyUpsert(100, upsertClock({'updatedAt': 200})), isFalse);
       // Naya doc.
       expect(upsertClock(null), isNull);
       expect(shouldApplyUpsert(1, upsertClock(null)), isTrue);

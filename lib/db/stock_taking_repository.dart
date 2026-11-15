@@ -6,9 +6,6 @@ import 'app_database.dart';
 import 'product_repository.dart';
 import 'stock_ledger.dart';
 import '../sync/sync_queue_helper.dart';
-import '../sync/sync_worker.dart';
-import '../services/permissions.dart';
-import 'unit_cost.dart';
 
 /// Ports the data side of StockTakingActivity.kt (physical count vs system stock).
 ///
@@ -47,7 +44,9 @@ String formatStockTakeQty(double v) => v == v.truncateToDouble() ? v.toInt().toS
 /// Kotlin valueImpact(): delta smallest unit mein, cost primary unit ka rate — is liye cost ko
 /// smallestUnitFactor se taqseem karte hain (warna carton/dozen wale items ka asar factor guna ziyada aata).
 double stockTakeValueImpact(Product p, double delta) {
-  return delta * costPerSmallestOf(p.cost, p.smallestUnitFactor());
+  final factor = p.smallestUnitFactor();
+  final costPerSmallest = factor > 0 ? p.cost / factor : p.cost;
+  return delta * costPerSmallest;
 }
 
 /// Kotlin renderList(): khali query = poori list, warna naam/searchTag (matchesQuery), category, barcode.
@@ -60,15 +59,12 @@ List<Product> filterStockTakeProducts(List<Product> all, String query) {
 }
 
 /// Kitne items ki gintee likhi ja chuki (sirf wo jo number hain) — Kotlin updateSummary().
-int countedItems(Map<String, String> entered) =>
-    entered.values.where((t) => double.tryParse(t.trim()) != null).length; // NaN/Infinity validateCount rokta hai
+int countedItems(Map<String, String> entered) => entered.values.where((t) => double.tryParse(t.trim()) != null).length;
 
 /// null = theek. Kotlin negative gintee bhi maan leta tha; yahan negative rad aur piece-based item mein fraction rad
 /// (Product.isValidSmallestQty), taake stock negative ya 1.5 pcs na ho jaye.
 String? validateCount(Product p, double? counted) {
   if (counted == null) return null; // khali = gina hi nahi
-  // double.tryParse('NaN') / ('Infinity') number ban jate hain — stock kharab na ho.
-  if (!counted.isFinite) return '${p.name}: gintee ka number darust nahi';
   if (counted < 0) return '${p.name}: gintee manfi nahi ho sakti';
   if (!p.isValidSmallestQty(counted)) {
     return '${p.name}: gintee poori ${p.smallestUnitName()} mein honi chahiye (fraction nahi)';
@@ -151,61 +147,41 @@ class StockTakingRepository {
   /// Kotlin `decreaseProductStockForce` jaisa: kam karne par SQL guard nahi (gintee >= 0 hai, is liye
   /// stock gintee se neeche nahi jata jab tak review ke baad bhi koi sale na ho).
   Future<String> commit(List<StockTakeVariance> variances, {String note = ''}) async {
-    if (!Permissions.can('stock_taking')) {
+    if (!Session.isAdminOrManager) {
       throw const StockTakingException('Stock Taking sirf Admin/Manager kar sakta hai');
     }
     if (variances.isEmpty) throw const StockTakingException('Koi farq nahi');
-    // Repository level par bhi: UI ke bypass ho jane par bhi NaN / Infinity / manfi gintee save nahi hoti.
-    for (final v in variances) {
-      final bad = validateCount(v.product, v.counted);
-      if (bad != null) throw StockTakingException(bad);
-    }
     final db = await AppDatabase.instance.database;
     final sessionId = stockTakeSessionId(DateTime.now());
     final cleanNote = note.trim();
 
-    // MULTI-DEVICE FIX: pehle sync (doosre device ki sales/purchases is device tak aayen, is device ke pending
-    // bahar jayen). Is device ka stock purana ho (jaise negative) to "gintee - purana stock" ka farq cloud par
-    // purchase/sale ko DO BAAR laga deta tha. Offline / fail ho to bhi save chalta hai.
-    try {
-      await SyncWorker.instance.syncNowOnce().timeout(const Duration(seconds: 25));
-    } catch (_) {}
-
-    final applied = <StockTakeVariance>[];
     await db.transaction((txn) async {
       for (final v in variances) {
         final barcode = v.product.barcode;
         final now = DateTime.now().millisecondsSinceEpoch;
-        // Farq TAAZA stock se (review ke baad sync/sale se stock badal chuka ho sakta hai): delta = gintee - abhi ka stock.
-        final curRows = await txn.query('products', columns: ['stock'], where: 'barcode=?', whereArgs: [barcode], limit: 1);
-        if (curRows.isEmpty) throw StockTakingException('${v.product.name}: product nahi mila');
-        final curStock = (curRows.first['stock'] as num?)?.toDouble() ?? 0.0;
-        final fresh = StockTakeVariance(v.product, v.counted, v.counted - curStock);
-        if (fresh.delta.abs() < 1e-9) continue; // pehle se gintee ke barabar
-        applied.add(fresh);
         final n = await txn.rawUpdate(
           'UPDATE products SET stock = stock + ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
-          [fresh.delta, now, barcode],
+          [v.delta, now, barcode],
         );
         if (n == 0) throw StockTakingException('${v.product.name}: product nahi mila');
 
         await StockLedger.log(txn,
             barcode: barcode,
             type: MovementType.stockTake,
-            signedQty: fresh.delta,
+            signedQty: v.delta,
             reference: sessionId,
-            note: stockTakeLineNote(curStock, v.counted, cleanNote),
+            note: stockTakeLineNote(v.product.stock, v.counted, cleanNote),
             now: now);
 
         // Stock ka DELTA (increment_stock) — do device ek hi product gine to koi gintee nahi khoti.
-        await SyncQueueHelper.enqueueStockDelta(txn, barcode, fresh.delta);
+        await SyncQueueHelper.enqueueStockDelta(txn, barcode, v.delta);
       }
     });
 
-    final total = applied.fold<double>(0, (a, v) => a + v.valueImpact);
+    final total = variances.fold<double>(0, (a, v) => a + v.valueImpact);
     var queueInfo = '';
     try {
-      for (final v in applied.take(3)) {
+      for (final v in variances.take(3)) {
         final qr = await db.query('sync_queue',
             columns: ['id', 'operation', 'syncedAt'],
             where: 'entityType = ? AND entityId = ?',

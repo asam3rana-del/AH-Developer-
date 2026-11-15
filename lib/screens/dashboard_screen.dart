@@ -1,34 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../models/due_followup.dart';
 import '../db/dashboard_repository.dart';
-import '../db/due_followup_repository.dart';
 import '../db/party_dashboard_repository.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../services/biometric.dart';
 import '../services/crash_handler.dart';
-import '../services/crash_reporter.dart';
-import '../services/permissions.dart';
 import '../services/session.dart';
-import '../sync/settings_sync.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 import '../widgets/menu_row.dart' show IconBadge;
 import '../widgets/party_quick_add_menu.dart' show showPartyPickerForPayment;
 import '../widgets/role_guard.dart';
-import '../widgets/todays_collection_card.dart';
 import 'amanat_loan_screen.dart';
 import 'backup_export_screen.dart';
 import 'daily_bills_screen.dart';
 import 'day_book_screen.dart';
-import 'collection_hub_screen.dart';
-import '../db/collection_autopilot_repository.dart';
-import 'receivables_screen.dart';
-import '../services/collection_actions.dart';
 import 'item_search_screen.dart';
 import 'items_screen.dart';
 import 'login_screen.dart';
@@ -46,15 +35,11 @@ class _Action {
   final Color bg, fg;
   final Widget Function()? open;
   final VoidCallback? onTap;
-
-  /// > 0 => icon ke saath chhota laal number (jaise overdue parties ki ginti).
-  final int badge;
-  const _Action(this.en, this.ur, this.subEn, this.subUr, this.icon, this.bg, this.fg,
-      {this.open, this.onTap, this.badge = 0});
+  const _Action(this.en, this.ur, this.subEn, this.subUr, this.icon, this.bg, this.fg, {this.open, this.onTap});
 }
 
 /// Mirrors MainActivity.kt — header (Settings / dark toggle / Quick Switch), live item-rate search,
-/// Customer/Supplier search, QUICK ACTIONS grid, DUES SUMMARY (You'll get / give).
+/// Today's sale/profit (tap = hide), QUICK ACTIONS grid, DUES SUMMARY (You'll get / give).
 ///
 /// Data + faislay `lib/db/dashboard_repository.dart` mein hain (pure functions, test/dashboard_test.dart).
 /// Kotlin Dashboard par sirf quick actions hain; baqi screens (Reports, Products, Zakat ...) Kotlin mein
@@ -85,19 +70,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Product> _matches = const [];
   String _query = '';
 
-  // Party (Customer + Supplier) nateeje — ab wahi ek search bar (_searchCtrl) chalata hai.
-  List<PartyRow>? _parties; // cache; doosri screen se wapas aane par reset
-  List<PartyRow> _partyMatches = const [];
-  bool _showCustomers = true;
-  bool _showSuppliers = true;
-
+  double _sale = 0;
+  double _profit = 0;
+  bool _saleHidden = false;
+  bool _profitHidden = false;
   double _toGet = 0;
   double _toGive = 0;
-  int _autopilotTodo = 0; // Wasooli Autopilot: aaj yaad dilana baqi
-  CollectionFocus? _focus; // "Aaj ki Wasooli" card (sirf jin ke paas due_reminders access hai)
   int _pending = 0;
   String _shopName = '';
-  bool _syncing = false;
 
   @override
   void initState() {
@@ -110,8 +90,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _checkLastCrash() async {
     final text = await CrashHandler.getLastCrash();
     if (text == null || !mounted) return;
-    // Cloud Sync juda ho to developer ko khud (Firestore crash_reports) — dialog ka intezar kiye baghair.
-    CrashReporter.uploadIfNew(text).ignore();
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -121,16 +99,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: SelectableText(CrashHandler.preview(text), style: const TextStyle(fontSize: 12)),
         ),
         actions: [
-          TextButton(
-            onPressed: () async {
-              try {
-                await launchUrl(CrashReporter.whatsAppUri(text), mode: LaunchMode.externalApplication);
-              } catch (_) {}
-              await CrashHandler.clearLastCrash();
-              if (ctx.mounted) Navigator.of(ctx).pop();
-            },
-            child: Text(Loc.t('Send to developer', 'ڈیولپر کو بھیجیں')),
-          ),
           TextButton(
             onPressed: () async {
               await Share.share(text, subject: 'IBTISAAM POS Crash Log');
@@ -176,20 +144,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final repo = DashboardRepository.instance;
     String? error;
 
+    DashboardTotals? totals;
     ({double toGet, double toGive})? party;
     int? pending;
     String? shop;
-    CollectionFocus? focus;
-    int autopilotTodo = 0;
-    // Wasooli card ka masla baqi dashboard ko na rokay: alag try, error toast nahi.
     try {
-      if (Permissions.can('due_reminders')) focus = await DueFollowUpRepository.instance.todaysFocus();
-    } catch (_) {}
-    try {
-      if (Permissions.can('due_reminders')) {
-        autopilotTodo = (await CollectionAutopilotRepository.instance.today()).queue.todo.length;
-      }
-    } catch (_) {}
+      totals = await repo.todayTotals();
+    } catch (e) {
+      error ??= e.toString();
+    }
     try {
       party = await repo.partyTotalsNow();
     } catch (e) {
@@ -207,27 +170,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     if (!mounted) return;
     setState(() {
+      if (totals != null) {
+        _sale = totals.sale;
+        _profit = totals.profit ?? 0;
+      }
       if (party != null) {
         _toGet = party.toGet;
         _toGive = party.toGive;
       }
       if (pending != null) _pending = pending;
       if (shop != null) _shopName = shop;
-      _focus = focus;
-      _autopilotTodo = autopilotTodo;
     });
     if (error != null) _toast(error);
   }
 
-  /// Ek hi search bar: items (rate) AUR parties (customer / supplier) dono ek sath dhundta hai.
   Future<void> _onSearch(String q) async {
     final t = q.trim();
     setState(() => _query = t);
     if (t.isEmpty) {
-      setState(() {
-        _matches = const [];
-        _partyMatches = const [];
-      });
+      setState(() => _matches = const []);
       return;
     }
     try {
@@ -236,41 +197,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _toast(e.toString());
       return;
     }
-    // Parties ka load fail ho jaye to bhi items dikhen.
-    try {
-      _parties ??= await PartyDashboardRepository.instance.loadParties();
-    } catch (_) {}
     // Is dauran user ne aur type kar diya ho to purana jawab na dikhayen.
     if (!mounted || _searchCtrl.text.trim() != t) return;
-    setState(() {
-      _matches = dashboardSearch(_products!, t);
-      _partyMatches = _parties == null
-          ? const []
-          : dashboardPartySearch(_parties!, t, customers: _showCustomers, suppliers: _showSuppliers);
-    });
+    setState(() => _matches = dashboardSearch(_products!, t));
   }
-
-  /// Header ka Sync button: Settings wala Sync Now (internet nahi => message). Baad mein dashboard refresh.
-  Future<void> _syncNow() async {
-    if (_syncing) return;
-    setState(() => _syncing = true);
-    try {
-      final summary = await SettingsSync.syncNow();
-      if (!mounted) return;
-      _toast(summary ?? Loc.t('No internet connection', 'انٹرنیٹ کنکشن نہیں'));
-    } catch (_) {
-      if (mounted) _toast(Loc.t('Sync failed', 'سنک ناکام'));
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-    }
-    if (!mounted) return;
-    _products = null;
-    _parties = null;
-    await _refresh();
-    if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
-  }
-
-  bool get _canSeeSuppliers => _am.contains(Session.role); // cashier ko supplier screen band
 
   // ------------------------------------------------------------ navigation
 
@@ -278,7 +208,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
     if (!mounted) return;
     _products = null; // products doosri screen par badal sakte hain
-    _parties = null; // baqaya badal gaya ho sakta hai
     _refresh();
     if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
   }
@@ -477,21 +406,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _Action('Payment\nMade', 'ادائیگی\nادا', 'Money paid to a supplier', 'سپلائر کو رقم ادا', Icons.north_east, p.flatCoralBg,
             p.flatCoralFg,
             onTap: () => _quickPayment(forCustomer: false)),
-      if (Permissions.can('due_reminders'))
-        _Action('Collection', 'وصولی', 'Remind today + all pending dues', 'آج کی یاد دہانی اور تمام بقایا', Icons.bolt_rounded,
-            p.flatAmberBg, p.flatAmberFg,
-            open: () => const CollectionHubScreen(), badge: _autopilotTodo > 0 ? _autopilotTodo : (_focus?.overdueCount ?? 0)),
-      if (Permissions.can('due_reminders'))
-        _Action('Receivables', 'وصولیاں', 'Who owes, for how long', 'کس سے کتنا، کب سے', Icons.bar_chart_rounded,
-            p.flatBlueBg, p.flatBlueFg,
-            open: () => const ReceivablesScreen()),
       _Action('Customers &\nSuppliers', 'گاہک اور\nسپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people_outline, p.flatPinkBg,
           p.flatPinkFg,
           open: () => const PartyDashboardScreen()),
       // Amanat / Loan: ab Due Reminders se alag, seedha dashboard par (add / edit / delete wahin;
       // party 'customers' table se hi sync hoti hai, is liye baqi parties ki tarah sab devices par auto-sync).
       if (_am.contains(role))
-        _Action('Deposit / Loan', 'امانت / قرض', 'Deposits held & loans given', 'رکھوائی امانت اور دیے گئے قرض', Icons.account_balance_wallet_outlined,
+        _Action('Amanat / Loan', 'امانت / قرض', 'Deposits held & loans given', 'رکھوائی امانت اور دیے گئے قرض', Icons.account_balance_wallet_outlined,
             p.flatAmberBg, p.flatAmberFg,
             open: () => const AmanatLoanScreen()),
       _Action('Low Stock', 'کم اسٹاک', 'Items needing restock', 'دوبارہ منگوانے والی اشیاء', Icons.warning_amber_rounded, _partyRedBg,
@@ -531,23 +452,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: EdgeInsets.fromLTRB(16, 20, 16, 28 + mq.padding.bottom),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _searchBar(p),
-                if (_query.isNotEmpty) _unifiedResults(p),
-                if (_focus != null) ...[
-                  const SizedBox(height: 18),
-                  TodaysCollectionCard(
-                    focus: _focus!,
-                    onOpen: () => _push(const CollectionHubScreen(initialFilter: FollowUpFilter.focus)),
-                    onOpenFilter: (f) => _push(CollectionHubScreen(initialFilter: f)),
-                    onChanged: _refresh,
-                    onOpenReceivables: () => _push(const ReceivablesScreen()),
-                    onReceive: (f) async {
-                      final id = f.party.partyId;
-                      if (id == null) return;
-                      final saved = await receiveFromParty(context, partyId: id, partyName: f.party.partyName, due: f.total);
-                      if (saved) await _refresh();
-                    },
-                  ),
-                ],
+                if (_query.isNotEmpty) _searchResults(p),
+                const SizedBox(height: 22),
+                _statRow(p),
                 const SizedBox(height: 26),
                 _sectionLabel(p, Loc.t('QUICK ACTIONS', 'فوری کام')),
                 _grid(_quickActions(p), cols, p),
@@ -579,8 +486,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _circleButton(Icons.settings_outlined, p.flatPurpleBg, p.flatPurpleFg, Loc.t('Settings', 'سیٹنگز'),
               () => _push(const SettingsScreen())),
           const SizedBox(width: 10),
-          // Dark mode ab sirf Settings mein; yahan Sync (pending ho to laal dot).
-          _syncButton(p),
+          // Us mode ka icon jis par switch hoga.
+          _circleButton(ThemeManager.isDark.value ? Icons.light_mode_outlined : Icons.dark_mode_outlined, p.flatAmberBg, p.flatAmberFg,
+              Loc.t('Dark mode', 'ڈارک موڈ'), () => ThemeManager.toggleDarkMode()),
           const SizedBox(width: 10),
           _circleButton(Icons.swap_horiz, p.flatTealBg, p.flatTealFg, Loc.t('Switch user', 'یوزر تبدیل کریں'), _openQuickSwitch),
           const Spacer(),
@@ -624,43 +532,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _syncButton(AppPalette p) {
-    return Tooltip(
-      message: Loc.t('Sync now', 'ابھی سنک کریں'),
-      child: Material(
-        color: p.flatAmberBg,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: _syncing ? null : _syncNow,
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Stack(alignment: Alignment.center, children: [
-              _syncing
-                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: p.flatAmberFg))
-                  : Icon(Icons.sync, size: 18, color: p.flatAmberFg),
-              if (_pending > 0 && !_syncing)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: _partyRed,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: p.flatAmberBg, width: 1.5),
-                    ),
-                  ),
-                ),
-            ]),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _searchBar(AppPalette p) {
     return Container(
       padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 8, 6),
@@ -681,9 +552,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             decoration: InputDecoration(
               isDense: true,
               border: InputBorder.none,
-              hintText: _canSeeSuppliers
-                  ? Loc.t('Search item, customer, supplier…', 'آئٹم، کسٹمر، سپلائر سرچ کریں…')
-                  : Loc.t('Search item, customer…', 'آئٹم، کسٹمر سرچ کریں…'),
+              hintText: Loc.t('Search Item Rate…', 'آئٹم ریٹ سرچ کریں…'),
               hintStyle: TextStyle(color: p.textMuted, fontWeight: FontWeight.bold),
             ),
           ),
@@ -701,16 +570,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Ek search ke nateeje: pehle Items (rate), phir Parties (chips ke sath).
-  Widget _unifiedResults(AppPalette p) {
-    Widget header(String text) => Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
-          child: Text(text, style: TextStyle(fontSize: 11.5, letterSpacing: 0.6, fontWeight: FontWeight.bold, color: p.textMuted)),
-        );
-    Widget empty(String text) => Padding(
-          padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
-          child: Text(text, style: TextStyle(fontSize: 13, color: p.textMuted)),
-        );
+  /// Kotlin runItemSearch(): pehle 6 match; tap => ItemSearchScreen usi item par khuli hui.
+  Widget _searchResults(AppPalette p) {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
@@ -718,54 +579,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: p.border),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        header(Loc.t('ITEMS', 'آئٹمز')),
-        if (_matches.isEmpty) empty(Loc.t('No matching items', 'کوئی آئٹم نہیں ملا')) else _itemRows(p),
-        Divider(height: 1, thickness: 1, color: p.border),
-        header(Loc.t('PARTIES', 'پارٹیاں')),
-        if (_canSeeSuppliers)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 2, 14, 0),
-            child: Wrap(spacing: 8, children: [
-              _partyChip(p, Loc.t('All', 'سب'), _showCustomers && _showSuppliers, () => _setPartyFilter(true, true)),
-              _partyChip(p, Loc.t('Customers', 'کسٹمرز'), _showCustomers && !_showSuppliers, () => _setPartyFilter(true, false)),
-              _partyChip(p, Loc.t('Suppliers', 'سپلائرز'), !_showCustomers && _showSuppliers, () => _setPartyFilter(false, true)),
+      child: _matches.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(18),
+              child: Text(Loc.t('No matching items', 'کوئی آئٹم نہیں ملا'), style: TextStyle(fontSize: 13, color: p.textMuted)),
+            )
+          : Column(children: [
+              for (var i = 0; i < _matches.length; i++) ...[
+                InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => _push(ItemSearchScreen(preselectBarcode: _matches[i].barcode)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(_matches[i].name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.textDark)),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(dashboardAmount(_matches[i].salePrice),
+                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.flatBlueFg)),
+                    ]),
+                  ),
+                ),
+                if (i != _matches.length - 1)
+                  Divider(height: 1, thickness: 1, indent: 18, endIndent: 18, color: p.border),
+              ],
             ]),
-          ),
-        if (_partyMatches.isEmpty)
-          empty(Loc.t('No matching party', 'کوئی پارٹی نہیں ملی'))
-        else
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: _partyResults(p)),
-        const SizedBox(height: 6),
-      ]),
     );
-  }
-
-  /// Kotlin runItemSearch(): pehle 6 match; tap => ItemSearchScreen usi item par khuli hui.
-  Widget _itemRows(AppPalette p) {
-    return Column(children: [
-      for (var i = 0; i < _matches.length; i++) ...[
-        InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () => _push(ItemSearchScreen(preselectBarcode: _matches[i].barcode)),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Row(children: [
-              Expanded(
-                child: Text(_matches[i].name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.textDark)),
-              ),
-              const SizedBox(width: 10),
-              Text(dashboardAmount(_matches[i].salePrice),
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.flatBlueFg)),
-            ]),
-          ),
-        ),
-        if (i != _matches.length - 1) Divider(height: 1, thickness: 1, indent: 18, endIndent: 18, color: p.border),
-      ],
-    ]);
   }
 
   Widget _sectionLabel(AppPalette p, String text) => Padding(
@@ -802,87 +645,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _setPartyFilter(bool customers, bool suppliers) {
-    setState(() {
-      _showCustomers = customers;
-      _showSuppliers = suppliers;
-    });
-    if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
-  }
-
-  Widget _partyChip(AppPalette p, String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: selected ? p.flatPinkFg : p.textMuted)),
-      selected: selected,
-      selectedColor: p.flatPinkBg,
-      backgroundColor: p.cardWhite,
-      side: BorderSide(color: p.border),
-      showCheckmark: false,
-      visualDensity: VisualDensity.compact,
-      onSelected: (_) => onTap(),
+  /// Today's sale (sab roles) + Today's profit (sirf admin). Tap = amount chhupao / dikhao.
+  Widget _statRow(AppPalette p) {
+    final sale = _statCard(
+      label: Loc.t("Today's sale", 'آج کی سیل'),
+      value: dashboardAmount(_sale, hidden: _saleHidden),
+      bg: p.flatTealBg,
+      fg: p.flatTealFg,
+      onTap: () => setState(() => _saleHidden = !_saleHidden),
     );
-  }
-
-  Widget _partyResults(AppPalette p) {
-    if (_partyMatches.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
-        child: Text(Loc.t('No matching party', 'کوئی پارٹی نہیں ملی'), style: TextStyle(fontSize: 13, color: p.textMuted)),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Column(children: [
-        for (var i = 0; i < _partyMatches.length; i++) ...[
-          _partyRow(p, _partyMatches[i]),
-          if (i != _partyMatches.length - 1) Divider(height: 1, thickness: 1, color: p.border),
-        ],
-      ]),
+    if (!showsProfitCard(Session.role)) return sale;
+    final profit = _statCard(
+      label: Loc.t("Today's profit", 'آج کا منافع'),
+      value: dashboardAmount(_profit, hidden: _profitHidden),
+      bg: p.flatBlueBg,
+      fg: p.flatBlueFg,
+      onTap: () => setState(() => _profitHidden = !_profitHidden),
     );
-  }
-
-  Widget _partyRow(AppPalette p, PartyRow r) {
-    final settled = r.isSettled;
-    final color = settled ? p.textMuted : (r.isGive ? _partyRed : _partyGreen);
-    final status = settled
-        ? Loc.t('Settled', 'برابر')
-        : (r.isGive ? Loc.t("You'll give", 'دینا ہے') : Loc.t("You'll get", 'ملنا ہے'));
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => _push(PartyTransactionScreen(
-        partyId: r.id,
-        partyName: r.name,
-        isCustomer: r.isCustomer,
-        dueHint: r.closing > 0 ? r.closing : 0,
-      )),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-        child: Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(r.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.textDark)),
-              const SizedBox(height: 3),
-              Text(
-                [
-                  r.isCustomer ? Loc.t('Customer', 'کسٹمر') : Loc.t('Supplier', 'سپلائر'),
-                  if (r.phone.isNotEmpty) r.phone,
-                ].join(' • '),
-                style: TextStyle(fontSize: 11, color: p.textMuted),
-              ),
-            ]),
-          ),
-          const SizedBox(width: 10),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(dashboardAmount(r.closing.abs()), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: color)),
-            const SizedBox(height: 3),
-            Text(status, style: TextStyle(fontSize: 11, color: color)),
-          ]),
-        ]),
-      ),
-    );
+    return Row(children: [Expanded(child: sale), const SizedBox(width: 18), Expanded(child: profit)]);
   }
 
   /// Kotlin: dono card tap => Party Dashboard.
@@ -951,16 +731,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              IconBadge(icon: a.icon, color: a.fg, bg: a.bg, size: 36, iconSize: 18),
-              const Spacer(),
-              if (a.badge > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: _partyRed, borderRadius: BorderRadius.circular(10)),
-                  child: Text('${a.badge}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-                ),
-            ]),
+            IconBadge(icon: a.icon, color: a.fg, bg: a.bg, size: 36, iconSize: 18),
             const SizedBox(height: 12),
             Text(
               Loc.t(a.en, a.ur),

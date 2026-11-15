@@ -74,9 +74,6 @@ Future<void> applyRestOfServerChanges(
   // Utility Bills: bill pehle (payment uski serverId se judti hai); expenses upar apply ho chuke.
   await applyUtilityBills(db, c.utilityBills, nowMs: nowMs);
   await applyUtilityBillPayments(db, c.utilityBillPayments, nowMs: nowMs);
-  // Due Reminders follow-ups: party (customers) upar apply ho chuki; na mile to partyId 0 rehti hai aur
-  // `relinkOrphanedParties` baad mein jod deti hai.
-  await applyDueFollowups(db, c.dueFollowups, nowMs: nowMs);
 }
 
 // -------------------------------------------------------------------- sales
@@ -174,10 +171,6 @@ Future<void> applySales(DatabaseExecutor db, List<SyncDoc> rows, {required int F
           'cost': _d(im['cost']) ?? 0.0,
           'amount': _d(im['amount']) ?? 0.0,
           'conversionFactor': _d(im['conversionFactor']) ?? 0.0,
-          // Purane device ki entry mein ye fields nahi => 0 / '' (cost pakki maani jati hai).
-          'pendingQty': _d(im['pendingQty']) ?? 0.0,
-          'pendingEst': _d(im['pendingEst']) ?? 0.0,
-          'backfillLog': _s(im['backfillLog']) ?? '',
         });
       }
       if (items.isNotEmpty) {
@@ -299,7 +292,6 @@ Future<void> applyPurchases(DatabaseExecutor db, List<SyncDoc> rows, {required i
 // ----------------------------------------------------------------- expenses
 
 Future<void> applyExpenses(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
-  final q = SyncQueueDao(db);
   for (final row in rows) {
     final serverId = _s(row['serverId']);
     if (serverId == null) continue;
@@ -307,11 +299,6 @@ Future<void> applyExpenses(DatabaseExecutor db, List<SyncDoc> rows, {required in
       await db.delete('expenses', where: 'serverId = ?', whereArgs: [serverId]);
       continue;
     }
-    // FIX: is device ka apna edit / delete abhi cloud par nahi gaya (push fail / stuck / quota) => cloud ki
-    // purani copy se overwrite NA karo. Pehle: edit ki hui raqam wapas purani ho jati, ya local delete ki hui
-    // entry dobara zinda ho jati (balance pehle hi ulta ho chuka => hisaab double). Sales/purchases mein ye
-    // check pehle se tha. Pending push ho jaye to agli pull cloud ki taaza copy le aati hai.
-    if (await q.pendingCountForEntity('expense', serverId) > 0) continue;
     final category = _s(row['category']);
     if (category == null) continue;
     final createdAt = _i(row['createdAt']) ?? nowMs();
@@ -337,7 +324,6 @@ Future<void> applyExpenses(DatabaseExecutor db, List<SyncDoc> rows, {required in
 // ----------------------------------------------------------------- payments
 
 Future<void> applyPayments(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
-  final q = SyncQueueDao(db);
   for (final row in rows) {
     final serverId = _s(row['serverId']);
     if (serverId == null) continue;
@@ -345,11 +331,6 @@ Future<void> applyPayments(DatabaseExecutor db, List<SyncDoc> rows, {required in
       await db.delete('payments', where: 'serverId = ?', whereArgs: [serverId]);
       continue;
     }
-    // FIX: is device ka apna edit / delete abhi cloud par nahi gaya (push fail / stuck / quota) => cloud ki
-    // purani copy se overwrite NA karo. Pehle: edit ki hui raqam wapas purani ho jati, ya local delete ki hui
-    // entry dobara zinda ho jati (balance pehle hi ulta ho chuka => hisaab double). Sales/purchases mein ye
-    // check pehle se tha. Pending push ho jaye to agli pull cloud ki taaza copy le aati hai.
-    if (await q.pendingCountForEntity('payment', serverId) > 0) continue;
     final reference = _s(row['reference']);
     if (reference == null) continue;
     final partyType = _s(row['partyType']) ?? '';
@@ -396,7 +377,6 @@ Future<void> applyPayments(DatabaseExecutor db, List<SyncDoc> rows, {required in
 
 Future<void> applyCashTransactions(DatabaseExecutor db, List<SyncDoc> rows,
     {required int Function() nowMs}) async {
-  final q = SyncQueueDao(db);
   for (final row in rows) {
     final serverId = _s(row['serverId']);
     if (serverId == null) continue;
@@ -404,11 +384,6 @@ Future<void> applyCashTransactions(DatabaseExecutor db, List<SyncDoc> rows,
       await db.delete('cash_transactions', where: 'serverId = ?', whereArgs: [serverId]);
       continue;
     }
-    // FIX: is device ka apna edit / delete abhi cloud par nahi gaya (push fail / stuck / quota) => cloud ki
-    // purani copy se overwrite NA karo. Pehle: edit ki hui raqam wapas purani ho jati, ya local delete ki hui
-    // entry dobara zinda ho jati (balance pehle hi ulta ho chuka => hisaab double). Sales/purchases mein ye
-    // check pehle se tha. Pending push ho jaye to agli pull cloud ki taaza copy le aati hai.
-    if (await q.pendingCountForEntity('cash_transaction', serverId) > 0) continue;
     final type = _s(row['type']);
     if (type == null) continue;
     final createdAt = _i(row['createdAt']) ?? nowMs();
@@ -1113,55 +1088,5 @@ Future<void> applyUtilityBillPayments(DatabaseExecutor db, List<SyncDoc> rows, {
       'serverId': serverId,
       'updatedAt': _i(row['updatedAt']) ?? paidAt,
     });
-  }
-}
-
-// ------------------------------------------------------------ due follow-ups
-
-const _followupMethods = {'whatsapp', 'call', 'visit', 'sms', 'note'};
-const _followupOutcomes = {'sent', 'paid', 'promised', 'partial', 'no_answer', 'refused', 'dispute', 'note'};
-
-/// Due Reminders follow-up log (collection `due_followups`). Entry badal bhi sakti hai (nateeja / wada / agla
-/// follow-up / note), is liye: is device ki unpushed edit na dabao, aur purani cloud copy naye local ko na dabaye.
-Future<void> applyDueFollowups(DatabaseExecutor db, List<SyncDoc> rows, {required int Function() nowMs}) async {
-  final q = SyncQueueDao(db);
-  for (final row in rows) {
-    final serverId = _s(row['serverId']);
-    if (serverId == null) continue;
-    // Is device par is entry ka koi edit / delete abhi push nahi hua => purani cloud copy se overwrite / wapas na lao.
-    if (await q.pendingCountForEntity('due_followup', serverId) > 0) continue;
-    if (row['_deleted'] == true) {
-      await db.delete('due_followups', where: 'serverId = ?', whereArgs: [serverId]);
-      continue;
-    }
-    final createdAt = _i(row['createdAt']);
-    if (createdAt == null) continue;
-    final updatedAt = _i(row['updatedAt']) ?? createdAt;
-    final psid = _s(row['partyServerId']);
-    final partyServerId = (psid != null && psid.trim().isNotEmpty) ? psid : null;
-    final party = partyServerId == null ? null : await _findBy(db, 'customers', 'serverId', partyServerId);
-    final method = _s(row['method']);
-    final outcome = _s(row['outcome']);
-    final values = <String, Object?>{
-      'partyId': (party?['id'] as num?)?.toInt() ?? 0,
-      'partyServerId': partyServerId,
-      'partyName': _s(row['partyName']) ?? (party == null ? '' : (_s(party['name']) ?? '')),
-      'method': method != null && _followupMethods.contains(method) ? method : 'note',
-      'outcome': outcome != null && _followupOutcomes.contains(outcome) ? outcome : 'note',
-      'amount': _d(row['amount']) ?? 0.0,
-      'promiseDate': _i(row['promiseDate']) ?? 0,
-      'nextFollowUp': _i(row['nextFollowUp']) ?? 0,
-      'note': _s(row['note']) ?? '',
-      'staff': _s(row['staff']) ?? '',
-      'updatedAt': updatedAt,
-    };
-    final existing = await _findBy(db, 'due_followups', 'serverId', serverId);
-    if (existing != null) {
-      // Is device ki copy naye waqt ki hai (pull ka overlap purani doc dobara laata hai) => na chhedo.
-      if (((existing['updatedAt'] as num?)?.toInt() ?? 0) > updatedAt) continue;
-      await db.update('due_followups', values, where: 'id = ?', whereArgs: [existing['id']]);
-    } else {
-      await db.insert('due_followups', {...values, 'createdAt': createdAt, 'serverId': serverId});
-    }
   }
 }

@@ -4,36 +4,24 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../db/app_database.dart';
 import '../db/due_reminders_repository.dart' show whatsAppDigits;
-import '../db/party_repository.dart';
 import '../db/party_transaction_repository.dart';
-import '../db/user_repository.dart';
 import '../db/purchase_history_repository.dart';
 import '../db/sale_history_repository.dart';
 import '../db/payment_repository.dart';
 import '../models/misc_entities.dart';
-import '../models/party.dart';
 import '../models/purchase.dart';
-import '../models/return_entry.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
-import '../services/whatsapp_sender.dart';
 import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
 import '../utils/loc.dart';
-import '../utils/slip_pdf_data.dart';
-import '../utils/slip_text.dart';
 import '../utils/sale_cart.dart' show formatQty;
-import '../widgets/party_avatar.dart';
-import '../widgets/slip_share.dart';
 import '../widgets/role_guard.dart';
 import 'bill_preview_screen.dart';
-import 'edit_party_dialog.dart';
 import 'payments_screen.dart' show showPaymentDialog;
 import 'purchase_screen.dart';
 import 'sale_screen.dart';
-import '../widgets/contact_pick_button.dart';
 
 /// Mirrors PartyTransactionActivity.kt.
 ///
@@ -87,9 +75,6 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
   PartyTxStats? _stats;
   List<TxEntry> _entries = const [];
   TxFilter _filter = TxFilter.all;
-  // Amanat / Loan (sirf customers): party ki qism aur bachi hui raqam (signed: loan +, amanat -). Display-only.
-  String _loanKind = '';
-  double _loanOutstanding = 0.0;
   bool _loading = true;
   int _loadSeq = 0; // Kotlin loadJob.cancel(): purani load ka late natija naya na bigaade.
 
@@ -138,33 +123,6 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         '${pay.note.isNotEmpty ? '  \u2022  ${pay.note}' : ''}'
         '${pay.billReference.isNotEmpty ? '  \u2022  ${Loc.t('Against', 'برائے راست')} ${pay.billReference}' : ''}';
   }
-
-  // ------------------------------------------------------------ amanat / loan
-
-  bool get _hasLoanRows => _entries.any((e) => e.isLoan);
-
-  /// Ledger row ka naam: kind (loan / amanat) x type (given / recovered / adjusted / removed).
-  String _loanLabel(ReturnLogRow r) {
-    final amanat = r.kind == 'amanat';
-    final String base;
-    switch (r.type) {
-      case kLogGiven:
-        base = amanat ? Loc.t('Deposit Received', 'امانت وصول ہوئی') : Loc.t('Loan Given', 'قرض دیا');
-        break;
-      case kLogRecovered:
-        base = amanat ? Loc.t('Deposit Returned', 'امانت واپس کی') : Loc.t('Loan Recovered', 'قرض وصول ہوا');
-        break;
-      case kLogRemoved:
-        base = amanat ? Loc.t('Deposit Entry Removed', 'امانت کی انٹری ہٹائی') : Loc.t('Loan Entry Removed', 'قرض کی انٹری ہٹائی');
-        break;
-      default:
-        base = amanat ? Loc.t('Deposit Adjusted', 'امانت ایڈجسٹ') : Loc.t('Loan Adjusted', 'قرض ایڈجسٹ');
-    }
-    return r.id == -1 ? '$base  \u2022  ${Loc.t('earlier records', 'پرانا ریکارڈ')}' : base;
-  }
-
-  String get _loanChipLabel =>
-      _loanKind == 'amanat' ? Loc.t('Deposit', 'امانت') : Loc.t('Loan', 'قرض');
 
   // ------------------------------------------------------------------- load
 
@@ -216,27 +174,11 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
                 '${_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(pay.createdAt))} ${_payLabel(pay)} ${pay.amount} ${pay.method} ${pay.note} ${pay.billReference}'
                     .toLowerCase(),
           ),
-        // Amanat / Loan: sirf dikhane wali rows (balance mein pehle se hain, dobara nahi ginti).
-        if (widget.isCustomer)
-          for (final r in ledgerLogRows(d.loanKind, d.loanEntries, d.loanLog))
-            TxEntry(
-              createdAt: r.date,
-              isPayment: false,
-              loan: r,
-              searchText: [
-                if (r.date > 0) _dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(r.date)),
-                _loanLabel(r),
-                r.amount.abs().toString(),
-                if (r.note.isNotEmpty) r.note,
-              ].join(' ').toLowerCase(),
-            ),
       ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       setState(() {
         _phone = d.phone;
         _stats = stats;
-        _loanKind = d.loanKind;
-        _loanOutstanding = widget.isCustomer ? signedReturnTotal(d.loanKind, d.loanEntries) : 0.0;
         _entries = entries;
         _loading = false;
       });
@@ -249,37 +191,41 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
 
   // ---------------------------------------------------------------- actions
 
-  /// ✏️ = POORA edit (naam, phone, credit limit, opening balance, stuck, rate type…) seedha yahin se.
-  /// Pehle yeh sirf naam badalta tha; opening balance ke liye wapas list > card > Edit jana padta tha.
-  Future<void> _editParty() async {
+  Future<void> _editName() async {
+    final ctrl = TextEditingController(text: _name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Edit Name', 'نام ترمیم کریں')),
+        content: TextField(controller: ctrl, autofocus: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
+          TextButton(
+            onPressed: () {
+              final v = ctrl.text.trim();
+              if (v.isEmpty) {
+                _toast(Loc.t('Name cannot be empty', 'نام خالی نہیں ہو سکتا'));
+                return;
+              }
+              Navigator.pop(ctx, v);
+            },
+            child: Text(Loc.t('Save', 'محفوظ کریں')),
+          ),
+        ],
+      ),
+    );
+    if (newName == null) return;
     try {
-      final db = await AppDatabase.instance.database;
-      final rows = await db.query(widget.isCustomer ? 'customers' : 'suppliers',
-          where: 'id = ?', whereArgs: [widget.partyId], limit: 1);
+      final ok = await _repo.renameParty(isCustomer: widget.isCustomer, partyId: widget.partyId, newName: newName);
       if (!mounted) return;
-      if (rows.isEmpty) {
-        _toast(Loc.t('Party not found', 'پارٹی نہیں ملی'));
-        return;
-      }
-      final String newName;
-      if (widget.isCustomer) {
-        final c = Customer.fromMap(rows.first);
-        if (!await showEditCustomerDialog(context, c)) return;
-        newName = (await db.query('customers', columns: ['name'], where: 'id = ?', whereArgs: [widget.partyId]))
-                .firstOrNull?['name'] as String? ??
-            c.name;
+      if (ok) {
+        setState(() => _name = newName);
+        _toast(Loc.t('Name updated', 'نام اپ ڈیٹ ہو گیا'));
       } else {
-        final sp = Supplier.fromMap(rows.first);
-        if (!await showEditSupplierDialog(context, sp)) return;
-        newName = (await db.query('suppliers', columns: ['name'], where: 'id = ?', whereArgs: [widget.partyId]))
-                .firstOrNull?['name'] as String? ??
-            sp.name;
+        _toast(Loc.t('Party not found', 'پارٹی نہیں ملی'));
       }
-      if (!mounted) return;
-      setState(() => _name = newName);
-      await _load(); // opening / limit / phone badla ho to card turant theek ho
     } catch (e) {
-      _toast('Could not edit party: $e');
+      _toast('Could not update name: $e');
     }
   }
 
@@ -323,83 +269,24 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     }
   }
 
-  /// WhatsApp (seedha party ke number par) ya koi bhi doosri app — slip ka text [text] ke saath.
-  Future<void> _sendSlip(String text, {SlipPdfData? pdf}) async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.send, color: Color(0xFF25D366)),
-            title: Text(Loc.t('Send on WhatsApp', 'واٹس ایپ پر بھیجیں')),
-            subtitle: Text(_phone.trim().isEmpty ? Loc.t('Number will be asked', 'نمبر پوچھا جائے گا') : _phone),
-            onTap: () => Navigator.pop(ctx, 'wa'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.share),
-            title: Text(Loc.t('Share in another app', 'کسی اور ایپ میں شیئر کریں')),
-            onTap: () => Navigator.pop(ctx, 'share'),
-          ),
-          if (pdf != null)
-            ListTile(
-              leading: const Icon(Icons.picture_as_pdf, color: Color(0xFFD64545)),
-              title: Text(Loc.t('Share as PDF', 'پی ڈی ایف شیئر کریں')),
-              onTap: () => Navigator.pop(ctx, 'pdf'),
-            ),
-        ]),
-      ),
-    );
-    if (choice == null || !mounted) return;
-    if (choice == 'wa') {
-      await sendOnWhatsApp(context, phone: _phone, text: text);
-      return;
-    }
-    if (choice == 'pdf' && pdf != null) {
-      await shareSlip(context, pdf, fallbackText: text, whatsappPhone: _phone);
-      return;
-    }
+  Future<void> _copyReceipt(Payment pay) async {
+    final verb = widget.isCustomer ? Loc.t('Payment Received', 'ادائیگی وصول ہوئی') : Loc.t('Payment Made', 'ادائیگی ہوئی');
+    final lines = <String>[
+      verb,
+      '${Loc.t('Party', 'پارٹی')}: $_name',
+      '${Loc.t('Amount', 'رقم')}: ${_rs(pay.amount)}',
+      '${Loc.t('Date', 'تاریخ')}: ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(pay.createdAt))}',
+      '${Loc.t('Method', 'ذریعہ')}: ${pay.method.toUpperCase()}',
+      if (pay.billReference.isNotEmpty) '${Loc.t('Against Bill', 'بل نمبر')}: ${pay.billReference}',
+      if (pay.note.isNotEmpty) '${Loc.t('Note', 'نوٹ')}: ${pay.note}',
+    ];
     try {
-      await Share.share(text);
+      await Share.share(lines.join('\n'));
     } catch (_) {
       // Share sheet na khule (jaise kuch iPad/desktop) to clipboard par wapas.
-      await Clipboard.setData(ClipboardData(text: text));
-      _toast(Loc.t('Copied — paste it in WhatsApp/SMS', 'کاپی ہو گیا — واٹس ایپ/ایس ایم ایس میں پیسٹ کریں'));
+      await Clipboard.setData(ClipboardData(text: lines.join('\n')));
+      _toast(Loc.t('Receipt copied — paste it in WhatsApp/SMS', 'رسید کاپی ہو گئی — واٹس ایپ/ایس ایم ایس میں پیسٹ کریں'));
     }
-  }
-
-  Future<void> _copyReceipt(Payment pay) async {
-    final shop = await loadShopHeader();
-    final st = _stats;
-    final text = buildPaymentSlipText(
-      received: widget.isCustomer,
-      shopName: shop.name,
-      shopPhone: shop.phone,
-      partyName: _name,
-      amount: pay.amount,
-      date: DateTime.fromMillisecondsSinceEpoch(pay.createdAt),
-      method: pay.method,
-      billRef: pay.billReference,
-      note: pay.note,
-      slipNo: pay.reference,
-      balanceNow: st?.closing,
-    );
-    if (!mounted) return;
-    await _sendSlip(
-      text,
-      pdf: paymentSlipData(
-        received: widget.isCustomer,
-        shopName: shop.name,
-        shopPhone: shop.phone,
-        partyName: _name,
-        amount: pay.amount,
-        date: DateTime.fromMillisecondsSinceEpoch(pay.createdAt),
-        method: pay.method,
-        billRef: pay.billReference,
-        note: pay.note,
-        slipNo: pay.reference,
-        balanceNow: st?.closing,
-      ),
-    );
   }
 
   Future<void> _copyStatement() async {
@@ -411,9 +298,6 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       ..writeln(widget.isCustomer ? Loc.t('Customer Statement', 'کسٹمر سٹیٹمنٹ') : Loc.t('Supplier Statement', 'سپلائر سٹیٹمنٹ'))
       ..writeln('${Loc.t('Outstanding', 'بقایا')}: ${_rs(st.closing.abs())}'
           ' (${give ? Loc.t("You'll Give", 'آپ کو دینے ہیں') : Loc.t("You'll Get", 'آپ کو ملیں گے')})');
-    if (widget.isCustomer && _loanKind.isNotEmpty && _loanOutstanding.abs() > 0.009) {
-      sb.writeln('${_loanKind == 'amanat' ? Loc.t('Deposit Held', 'امانت جمع') : Loc.t('Loan Outstanding', 'قرض بقایا')}: ${_rs(_loanOutstanding.abs())}');
-    }
     if (st.stuck != 0) {
       sb
         ..writeln('${Loc.t('Daily Payable', 'روزانہ واجب الادا')}: ${_rs(st.daily)}')
@@ -422,48 +306,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     sb.writeln('----------------------------');
     final oldestFirst = [..._entries]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
     for (final e in oldestFirst) {
-      sb.writeln(e.createdAt > 0
-          ? '${_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}  \u2014  ${e.searchText}'
-          : e.searchText);
-    }
-    final shop = await loadShopHeader();
-    if (!mounted) return;
-    final pdf = statementSlipData(
-      isCustomer: widget.isCustomer,
-      partyName: _name,
-      closing: st.closing,
-      youGive: give,
-      shopName: shop.name,
-      shopPhone: shop.phone,
-      loanLabel: widget.isCustomer && _loanKind.isNotEmpty
-          ? (_loanKind == 'amanat' ? 'Deposit Held' : 'Loan Outstanding')
-          : '',
-      loanOutstanding: _loanOutstanding,
-      daily: st.daily,
-      stuck: st.stuck,
-      entries: [for (final e in _entries) SlipStatementEntry(e.createdAt, e.searchText)],
-    );
-    final asPdf = await showModalBottomSheet<bool>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.share),
-            title: Text(Loc.t('Share as text', 'ٹیکسٹ شیئر کریں')),
-            onTap: () => Navigator.pop(ctx, false),
-          ),
-          ListTile(
-            leading: const Icon(Icons.picture_as_pdf, color: Color(0xFFD64545)),
-            title: Text(Loc.t('Share as PDF', 'پی ڈی ایف شیئر کریں')),
-            onTap: () => Navigator.pop(ctx, true),
-          ),
-        ]),
-      ),
-    );
-    if (asPdf == null || !mounted) return;
-    if (asPdf) {
-      await shareSlip(context, pdf, fallbackText: sb.toString());
-      return;
+      sb.writeln('${_dateTimeFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}  \u2014  ${e.searchText}');
     }
     try {
       await Share.share(sb.toString());
@@ -515,11 +358,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(Loc.t('Phone number', 'فون نمبر')),
-        content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(hintText: '03001234567', suffixIcon: ContactPickButton(phone: ctrl))),
+        content: TextField(controller: ctrl, autofocus: true, keyboardType: TextInputType.phone),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ کریں'))),
           TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text(Loc.t('Save', 'محفوظ کریں'))),
@@ -617,78 +456,24 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
     }
   }
 
-  /// Sale ki poori slip share karo (Bill Preview jaisi). Kamyab na ho to false => purani chhoti slip.
-  Future<bool> _shareSaleSlip(TxEntry e, ShopHeader shop) async {
-    try {
-      final sale = e.sale!;
-      final items = await SaleHistoryRepository.instance.itemsForInvoice(sale.invoice);
-      final date = DateTime.fromMillisecondsSinceEpoch(sale.createdAt);
-      final footer = ((await UserRepository.instance.getSetting('receipt_footer')) ?? '').trim();
-      final doc = BillDoc(
-        isPurchase: false,
-        ref: sale.invoice,
-        date: date,
-        shopName: shop.name,
-        shopPhone: shop.phone,
-        receiptFooter: footer,
-        partyName: _name,
-        partyId: widget.partyId,
-        partyPhone: _phone,
-        items: [for (final i in items) BillItem(name: i.product, qty: i.qty, unit: i.unit, rate: i.unitPrice, amount: i.amount)],
-        subtotal: sale.subtotal,
-        discount: sale.discount,
-        total: sale.total,
-        paid: sale.paid,
-        paymentMethod: sale.paymentMethod.isEmpty
-            ? ''
-            : sale.paymentMethod[0].toUpperCase() + sale.paymentMethod.substring(1),
-      );
-      final before = await PartyRepository.instance
-          .balanceBeforeBill(isCustomer: true, partyId: widget.partyId!, billRef: sale.invoice, billDate: date);
-      final net = before + doc.balance;
-      if (!mounted) return true;
-      await _sendSlip(
-        wrapBillHeaderForWhatsApp(doc.toText(netBalance: net)),
-        pdf: billDocSlipData(doc, netBalance: net),
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<void> _shareBill(TxEntry e) async {
     final isSale = e.sale != null;
     final ref = e.sale?.invoice ?? e.purchase?.billNo ?? '';
     final paid = e.sale?.paid ?? e.purchase?.paid ?? 0.0;
     final due = e.status == 'returned' ? 0.0 : (e.amount - paid).clamp(0, double.infinity).toDouble();
-    final shop = await loadShopHeader();
-    // Customer ki sale: Bill Preview jaisi poori slip (items, Prev / Net Balance, shukriya).
-    if (isSale && widget.isCustomer && widget.partyId != null && e.status != 'returned') {
-      if (await _shareSaleSlip(e, shop)) return;
-    }
-    final text = slipHeaderBlock(shopName: shop.name, shopPhone: shop.phone) +
-        [
+    final text = [
       _name,
       '${isSale ? Loc.t('Sale', 'سیل') : Loc.t('Purchase', 'خریداری')} $ref',
       '${Loc.t('Date', 'تاریخ')}: ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(e.createdAt))}',
       '${Loc.t('Total', 'کل')}: ${_rs2(e.amount)}',
       '${Loc.t('Balance', 'بقایا')}: ${_rs2(due)}',
     ].join('\n');
-    if (!mounted) return;
-    await _sendSlip(
-      text,
-      pdf: purchaseSlipData(
-        title: isSale ? 'SALE BILL' : 'PURCHASE BILL',
-        supplier: _name,
-        billNo: ref,
-        total: e.amount,
-        balance: due,
-        date: DateTime.fromMillisecondsSinceEpoch(e.createdAt),
-        shopName: shop.name,
-        shopPhone: shop.phone,
-      ),
-    );
+    try {
+      await Share.share(text);
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: text));
+      _toast(Loc.t('Details copied', 'تفصیل کاپی ہو گئی'));
+    }
   }
 
   void _showPlusMenu() {
@@ -750,7 +535,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         scrolledUnderElevation: 1,
         title: Text(Loc.t('Party Details', 'پارٹی کی تفصیل'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 21)),
         actions: [
-          IconButton(tooltip: Loc.t('Edit', 'ترمیم'), icon: const Icon(Icons.edit_outlined), onPressed: _editParty),
+          IconButton(tooltip: Loc.t('Edit', 'ترمیم'), icon: const Icon(Icons.edit_outlined), onPressed: _editName),
           PopupMenuButton<String>(
             onSelected: (v) {
               if (v == 'statement') _copyStatement();
@@ -851,14 +636,6 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            PartyAvatar(
-              isCustomer: widget.isCustomer,
-              partyId: widget.partyId,
-              name: _name,
-              radius: 26,
-              onTap: () => showPartyPhotoSheet(context, isCustomer: widget.isCustomer, partyId: widget.partyId),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: p.textDark)),
@@ -972,46 +749,7 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
         child: Padding(padding: const EdgeInsets.all(8), child: Icon(icon, size: 26, color: p.textMuted)),
       );
 
-  /// Amanat / Loan ki ledger row: sirf history (na print / share, na edit) — edit / delete Amanat / Loan screen se.
-  Widget _loanCard(AppPalette p, TxEntry e) {
-    final r = e.loan!;
-    final raises = r.balanceEffect > 0;
-    final color = raises ? p.red : p.flatTealFg;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: p.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        border: Border(left: BorderSide(color: color, width: 4)),
-        boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2))],
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-              child: Text(_loanLabel(r),
-                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: p.textDark))),
-          if (r.date > 0) Text(_shortDate(r.date), style: TextStyle(fontSize: 15.5, color: p.textMuted)),
-        ]),
-        const SizedBox(height: 14),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          _col(p, Loc.t('Amount', 'رقم'), _rs2(r.amount.abs())),
-          const SizedBox(width: 44),
-          _col(p, Loc.t('Effect on balance', 'بیلنس پر اثر'),
-              raises ? Loc.t('Adds to balance', 'بیلنس میں اضافہ') : Loc.t('Reduces balance', 'بیلنس میں کمی'),
-              valueColor: color),
-        ]),
-        if (r.note.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(r.note, style: TextStyle(fontSize: 12.5, color: p.textMuted)),
-          ),
-      ]),
-    );
-  }
-
   Widget _txCard(AppPalette p, TxEntry e) {
-    if (e.isLoan) return _loanCard(p, e);
     final isPay = e.isPayment;
     final pay = e.payment;
     final returned = e.status == 'returned';
@@ -1115,7 +853,6 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
       chip(Loc.t('All', 'سب'), TxFilter.all),
       chip(Loc.t('Bills', 'بل'), TxFilter.bills),
       chip(Loc.t('Payments', 'ادائیگیاں'), TxFilter.payments),
-      if (_hasLoanRows) chip(_loanChipLabel, TxFilter.loan),
     ]);
   }
 
@@ -1183,13 +920,6 @@ class _PartyTransactionScreenState extends State<PartyTransactionScreen> {
           tile(Loc.t('Overdue', 'واجب الادا'), _rs(st.overdue), st.overdue > 0 ? p.red : p.textDark),
           tile(Loc.t('Credit Limit', 'کریڈٹ حد'), credit, p.textDark),
         ]),
-        if (widget.isCustomer && _loanKind.isNotEmpty && (_loanOutstanding.abs() > 0.009 || _hasLoanRows))
-          Row(children: [
-            tile(
-                _loanKind == 'amanat' ? Loc.t('Deposit Held', 'امانت جمع') : Loc.t('Loan Outstanding', 'قرض بقایا'),
-                _rs(_loanOutstanding.abs()),
-                _loanOutstanding > 0.009 ? p.red : p.textDark),
-          ]),
         Row(children: [
           tile(widget.isCustomer ? Loc.t('Last Sale', 'آخری سیل') : Loc.t('Last Purchase', 'آخری خریداری'), last,
               p.textDark),
@@ -1432,8 +1162,7 @@ class _BilledItemsDialogState extends State<_BilledItemsDialog> {
     final status = _sale?.status ?? _purchase?.status ?? 'active';
     final total = _sale?.total ?? _purchase?.total ?? 0.0;
     final count = widget.isSale ? _saleItems.length : _purchaseItems.length;
-    // Returned bill ke items edit/delete nahi (stock/balance pehle hi wapas ho chuka hota hai).
-    final admin = Session.isAdmin && status != 'returned';
+    final admin = Session.isAdmin;
 
     return AlertDialog(
       titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 4),

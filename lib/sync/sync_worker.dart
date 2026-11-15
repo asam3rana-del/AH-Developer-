@@ -65,14 +65,6 @@ class SyncWorker {
   final ValueNotifier<SyncOutcome?> lastOutcome = ValueNotifier<SyncOutcome?>(null);
 
   Timer? _timer;
-  Timer? _rerunTimer;
-  bool _rerunRequested = false;
-
-  /// FIX (naya bill 15 min tak atka): sync chalte waqt aaya `triggerNow` (aksar enqueue — naya bill / payment)
-  /// pehle chupke se gum ho jata tha; wo entry agli periodic sync (15 min) ya app pause/resume tak cloud par
-  /// nahi jati thi. Ab yaad rakha jata hai aur sync khatam hone ke itni der baad EK aur sync (storm nahi).
-  @visibleForTesting
-  Duration rerunDelay = const Duration(seconds: 5);
   _LifecycleHook? _hook;
   Future<SyncOutcome>? _inFlight;
   int _lastFinishedAt = 0;
@@ -92,9 +84,6 @@ class SyncWorker {
   void cancelPeriodic() {
     _timer?.cancel();
     _timer = null;
-    _rerunTimer?.cancel();
-    _rerunTimer = null;
-    _rerunRequested = false;
     final h = _hook;
     if (h != null) WidgetsBinding.instance.removeObserver(h);
     _hook = null;
@@ -114,15 +103,9 @@ class SyncWorker {
   /// Kotlin `triggerNow` (KEEP): NetworkMonitor / SyncQueueHelper (enqueue ke baad) yahan se. Sync
   /// pehle se chal rahi ho ya internet na ho to kuch nahi karta.
   Future<void> triggerNow() async {
-    if (_inFlight != null) {
-      _rerunRequested = true;
-      return;
-    }
+    if (_inFlight != null) return;
     if (!await isOnline()) return;
-    if (_inFlight != null) {
-      _rerunRequested = true; // await ke dauran koi aur shuru kar chuka
-      return;
-    }
+    if (_inFlight != null) return; // await ke dauran koi aur shuru kar chuka
     await _start();
   }
 
@@ -146,19 +129,10 @@ class SyncWorker {
   }
 
   Future<SyncOutcome> _start() {
-    _rerunRequested = false; // is run mein jo pehle se queue mein hai wo ja raha hai
     final f = _doWork().whenComplete(() {
       _inFlight = null;
       _lastFinishedAt = nowMs();
       isRunning.value = false;
-      if (_rerunRequested) {
-        _rerunRequested = false;
-        _rerunTimer?.cancel();
-        _rerunTimer = Timer(rerunDelay, () {
-          _rerunTimer = null;
-          triggerNow();
-        });
-      }
     });
     _inFlight = f;
     return f;
@@ -169,8 +143,7 @@ class SyncWorker {
     isRunning.value = true;
     SyncOutcome outcome;
     try {
-      // Poori sync par had: atki hui sync `_inFlight` ko hamesha ke liye band kar deti thi (baad ki har sync no-op).
-      final r = await runSync().timeout(const Duration(minutes: 5));
+      final r = await runSync();
       outcome = SyncOutcome(success: r.pulledOk, summary: r.summary(), result: r);
     } catch (e, st) {
       var msg = e.toString();

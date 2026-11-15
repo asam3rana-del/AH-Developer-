@@ -125,35 +125,6 @@ void main() {
     });
   });
 
-  group('evaluateCustomerRate', () {
-    test('rate unchanged and above cost: customer rate applied', () {
-      final o = evaluateCustomerRate(_juice.copyWith(ratesAt: 1000),
-          lastUnitPrice: 550, lastUnit: 'Carton', chosenUnit: 'Carton', lastSoldAt: 2000);
-      expect(o.suggestion!.primaryRate, 550);
-      expect(o.skip, CustomerRateSkip.none);
-    });
-
-    test('item rate changed after last sale: old customer rate ignored', () {
-      final o = evaluateCustomerRate(_juice.copyWith(ratesAt: 3000),
-          lastUnitPrice: 550, lastUnit: 'Carton', chosenUnit: 'Carton', lastSoldAt: 2000);
-      expect(o.suggestion, isNull);
-      expect(o.skip, CustomerRateSkip.rateChanged);
-    });
-
-    test('old rate at or below cost: ignored', () {
-      final o = evaluateCustomerRate(_juice,
-          lastUnitPrice: 480, lastUnit: 'Carton', chosenUnit: 'Carton', lastSoldAt: 2000);
-      expect(o.suggestion, isNull);
-      expect(o.skip, CustomerRateSkip.belowCost);
-    });
-
-    test('unknown ratesAt / sale time skips the staleness rule', () {
-      final o = evaluateCustomerRate(_juice,
-          lastUnitPrice: 550, lastUnit: 'Carton', chosenUnit: 'Carton');
-      expect(o.suggestion, isNotNull);
-    });
-  });
-
   group('customerRateFor', () {
     test('last rate per Dozen becomes the same rate per Dozen', () {
       final s = customerRateFor(_juice, lastUnitPrice: 50, lastUnit: 'Dozen', chosenUnit: 'Dozen');
@@ -256,23 +227,6 @@ void main() {
       expect(text, contains('Discount'));
       expect(text, contains('TOTAL'));
       expect(text, contains('DUE'));
-    });
-
-    test('items are numbered and counted', () {
-      final t = buildSaleBillText(
-        shopName: 'S',
-        invoice: 'I',
-        date: DateTime(2026, 9, 28),
-        customer: '',
-        lines: [for (var i = 1; i <= 10; i++) _line('Item$i', 1, 'kg', 10)],
-        subtotal: 100,
-        discount: 0,
-        total: 100,
-        paid: 100,
-      );
-      expect(t, contains('1. Item1'));
-      expect(t, contains('10. Item10'));
-      expect(t, contains('Total Items: 10'));
     });
 
     test('no line is wider than the paper', () {

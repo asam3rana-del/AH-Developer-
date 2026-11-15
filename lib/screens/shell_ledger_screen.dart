@@ -6,7 +6,6 @@ import '../db/shell_repository.dart';
 import '../models/shell.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
-import '../widgets/contact_pick_button.dart';
 
 /// Mirrors ShellLedgerActivity.kt — Bottle Shell Ledger (filled bottles given,
 /// empty shells returned, plus the shop's own empty-shell stock). All roles.
@@ -54,12 +53,9 @@ class _ShellLedgerScreenState extends State<ShellLedgerScreen> {
     }
   }
 
-  void _toast(String m) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(m)));
-  }
+  void _toast(String m) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(m)));
 
   String _reason(String key) {
     for (final r in shopReasonLabels) {
@@ -94,9 +90,7 @@ class _ShellLedgerScreenState extends State<ShellLedgerScreen> {
                 TextField(
                   controller: phoneC,
                   keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                      labelText: Loc.t('Phone (optional)', 'فون (اختیاری)'),
-                      suffixIcon: ContactPickButton(phone: phoneC, name: nameC)),
+                  decoration: InputDecoration(labelText: Loc.t('Phone (optional)', 'فون (اختیاری)')),
                 ),
               const SizedBox(height: 14),
               Row(children: [

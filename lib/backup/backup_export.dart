@@ -10,11 +10,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart' show PdfGoogleFonts;
 
 import '../db/app_database.dart';
-import '../db/party_dashboard_repository.dart' as pd;
-import '../db/party_repository.dart' as pr;
 import '../models/product.dart';
 import '../utils/pdf_urdu.dart';
-import '../db/unit_cost.dart';
 
 /// Mirrors BackupExportActivity.kt (data + CSV + PDF hissa; screen `backup_export_screen.dart` mein).
 /// Sales, Purchases, Day Book, Customers/Suppliers (+ledgers), Products/Stock, Expenses, Cash/Bank
@@ -138,17 +135,12 @@ class BackupExport {
     ]..sort((a, b) => a.date.compareTo(b.date));
 
     // Customers / Suppliers (sab) + un ke ledgers (sirf range ke andar, naya pehle — Kotlin jaisa).
-    // "Current Bal" LIVE ledger se (opening + running + stuck) — stored `balance` purana ho sakta hai.
-    final liveCust = await pr.PartyRepository.instance.liveCustomerBalances();
-    final liveSupp = await pr.PartyRepository.instance.liveSupplierBalances();
     final customers = (await db.rawQuery('SELECT * FROM customers ORDER BY name COLLATE NOCASE'))
-        .map((r) => PartyRow(_i(r['id']), _s(r['name']), _s(r['phone']), _d(r['openingBalance']),
-            pr.partyClosing(opening: _d(r['openingBalance']), running: liveCust[_i(r['id'])] ?? 0.0, stuck: _d(r['stuckBalance'])),
+        .map((r) => PartyRow(_i(r['id']), _s(r['name']), _s(r['phone']), _d(r['openingBalance']), _d(r['balance']),
             _d(r['stuckBalance'])))
         .toList();
     final suppliers = (await db.rawQuery('SELECT * FROM suppliers ORDER BY name COLLATE NOCASE'))
-        .map((r) => PartyRow(_i(r['id']), _s(r['name']), _s(r['phone']), _d(r['openingBalance']),
-            pr.partyClosing(opening: _d(r['openingBalance']), running: liveSupp[_i(r['id'])] ?? 0.0), 0))
+        .map((r) => PartyRow(_i(r['id']), _s(r['name']), _s(r['phone']), _d(r['openingBalance']), _d(r['balance']), 0))
         .toList();
 
     final customerLedgers = <int, List<BillRow>>{};
@@ -193,19 +185,19 @@ class BackupExport {
     // Kotlin FIX: stock smallest unit mein, cost primary unit ka — is liye factor se taqseem.
     var stockValue = 0.0;
     for (final pr in products) {
-      stockValue += pr.stock * costPerSmallestOf(pr.cost, pr.smallestUnitFactor());
+      final factor = pr.smallestUnitFactor();
+      final costPerSmallest = factor > 0 ? pr.cost / factor : pr.cost;
+      stockValue += pr.stock * costPerSmallest;
     }
 
     Future<double> sum(String sql, [List<Object?>? a]) async => _d((await db.rawQuery(sql, a)).first.values.first);
 
-    // Dashboard (You'll Get / You'll Give) jaisa hi live-ledger hisaab — stored `balance` column purana ho sakta hai.
-    final partyTot = pd.partyTotals(await pd.PartyDashboardRepository.instance.loadParties());
     final totals = BackupTotals(
       totalSales: await sum("SELECT COALESCE(SUM(total),0) FROM sales WHERE createdAt BETWEEN ? AND ? AND status!='returned'", args),
       totalPurchases: await sum("SELECT COALESCE(SUM(total),0) FROM purchases WHERE createdAt BETWEEN ? AND ? AND status!='returned'", args),
       totalExpenses: await sum('SELECT COALESCE(SUM(amount),0) FROM expenses WHERE createdAt BETWEEN ? AND ?', args),
-      receivables: partyTot.toGet,
-      payables: partyTot.toGive,
+      receivables: await sum('SELECT COALESCE(SUM(balance),0) FROM customers WHERE balance>0'),
+      payables: await sum('SELECT COALESCE(SUM(balance),0) FROM suppliers WHERE balance>0'),
       stockValue: stockValue,
     );
 

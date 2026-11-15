@@ -1,9 +1,7 @@
 import '../models/product.dart';
+import '../services/session.dart';
 import 'app_database.dart';
-import 'cash_repository.dart' show incomeReasonLike, ownerCapitalReasonLike, ownerDrawingsReasonLike;
 import 'party_repository.dart';
-import '../services/permissions.dart';
-import 'unit_cost.dart';
 
 // PartyLedger / trueBalance / countBalanceDrift ab party_repository.dart mein hain (ek hi copy);
 // purane imports (aur test/balance_sheet_test.dart) chalte rahein isliye yahan se re-export.
@@ -23,7 +21,9 @@ export 'party_repository.dart' show PartyLedger, trueBalance, countBalanceDrift;
 double stockValueAtCost(Iterable<Product> products) {
   double total = 0;
   for (final p in products) {
-    total += p.stock * costPerSmallestOf(p.cost, p.smallestUnitFactor());
+    final factor = p.smallestUnitFactor();
+    final costPerSmallest = factor > 0 ? p.cost / factor : p.cost;
+    total += p.stock * costPerSmallest;
   }
   return total;
 }
@@ -54,15 +54,6 @@ class BalanceSheetFigures {
   // Equity inputs
   final double netProfit;
 
-  /// Malik ne dukaan mein dala (Cash In, category Owner Capital) — all-time.
-  final double ownerCapitalIn;
-
-  /// Malik ne ghar ke liye nikala (Cash Out, category Owner Drawings) — all-time.
-  final double ownerDrawings;
-
-  /// Sirf is mahine ke drawings (malik ko dikhane ke liye: munafa vs ghar kharch).
-  final double ownerDrawingsThisMonth;
-
   const BalanceSheetFigures({
     required this.cashInHand,
     required this.bankBalance,
@@ -72,23 +63,13 @@ class BalanceSheetFigures {
     required this.payables,
     required this.advanceFromCustomers,
     required this.netProfit,
-    this.ownerCapitalIn = 0,
-    this.ownerDrawings = 0,
-    this.ownerDrawingsThisMonth = 0,
   });
 
   double get totalAssets => cashInHand + bankBalance + stockValue + receivables + advancePaidToSuppliers;
   double get totalLiabilities => payables + advanceFromCustomers;
 
-  /// Malik ka kul hissa munafe ke ilawa (Assets - Liabilities - Net Profit). Ye ab bhi balancing figure
-  /// hai, lekin neeche ke getters is ko hisson mein todte hain: malik ne dala, ghar le gaya, aur baqi
-  /// (opening cash/stock/khate, damage, rounding) jo app alag record nahi karti.
+  /// Balancing figure (the app has no separate "owner capital" entry).
   double get capital => totalAssets - totalLiabilities - netProfit;
-
-  /// Capital ka wo hissa jo Owner Capital / Drawings entries se samjhaya nahi ja sakta:
-  /// opening cash / bank (agar Owner Capital mein nahi likha), opening stock, parties ke opening baqi,
-  /// damage / stock count ka farq, rounding.
-  double get openingAndOther => capital - ownerCapitalIn + ownerDrawings;
 
   /// Kotlin: totalLiabilities + capital + netProfit (== totalAssets by construction).
   double get totalLiabilitiesAndCapital => totalLiabilities + capital + netProfit;
@@ -110,10 +91,6 @@ BalanceSheetFigures buildBalanceSheet({
   required double sales,
   required double cogs,
   required double expenses,
-  double otherIncome = 0,
-  double ownerCapitalIn = 0,
-  double ownerDrawings = 0,
-  double ownerDrawingsThisMonth = 0,
 }) {
   return BalanceSheetFigures(
     cashInHand: cashIn - cashOut,
@@ -123,10 +100,7 @@ BalanceSheetFigures buildBalanceSheet({
     advancePaidToSuppliers: advancePaidToSuppliers,
     payables: payables,
     advanceFromCustomers: advanceFromCustomers,
-    netProfit: (sales - cogs) + otherIncome - expenses,
-    ownerCapitalIn: ownerCapitalIn,
-    ownerDrawings: ownerDrawings,
-    ownerDrawingsThisMonth: ownerDrawingsThisMonth,
+    netProfit: (sales - cogs) - expenses,
   );
 }
 
@@ -142,7 +116,7 @@ class BalanceSheetRepository {
   static final BalanceSheetRepository instance = BalanceSheetRepository._();
 
   Future<BalanceSheetData> load() async {
-    if (!Permissions.can('balance_sheet')) {
+    if (!Session.isAdminOrManager) {
       throw StateError('Sirf Admin/Manager is screen ko access kar sakta hai');
     }
     final db = await AppDatabase.instance.database;
@@ -157,9 +131,6 @@ class BalanceSheetRepository {
         'SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type=? AND method=?', [type, method]);
 
     final products = (await db.query('products')).map(Product.fromMap).toList();
-
-    final now = DateTime.now();
-    final monthStart = DateTime(now.year, now.month).millisecondsSinceEpoch;
 
     // Receivable / payable LIVE ledger se (opening + bills - payments, customer ka stuck bhi) —
     // stored `balance` field se nahi, taake Dashboard / Party list ke figures se mel khaye.
@@ -197,16 +168,6 @@ class BalanceSheetRepository {
       cogs: await scalar('SELECT COALESCE(SUM(si.cost),0) FROM sale_items si '
           "JOIN sales s ON si.invoice = s.invoice WHERE s.status != 'returned'"),
       expenses: await scalar('SELECT COALESCE(SUM(amount),0) FROM expenses'),
-      otherIncome: await scalar(
-          "SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type='IN' AND reason LIKE '$incomeReasonLike'"),
-      ownerCapitalIn: await scalar(
-          "SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type='IN' AND reason LIKE '$ownerCapitalReasonLike'"),
-      ownerDrawings: await scalar(
-          "SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type='OUT' AND reason LIKE '$ownerDrawingsReasonLike'"),
-      ownerDrawingsThisMonth: await scalar(
-          "SELECT COALESCE(SUM(amount),0) FROM cash_transactions WHERE type='OUT' AND reason LIKE '$ownerDrawingsReasonLike' "
-          'AND createdAt >= ?',
-          [monthStart]),
     );
 
     return BalanceSheetData(

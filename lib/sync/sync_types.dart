@@ -42,7 +42,6 @@ class PullResult {
   final List<SyncDoc> shopRentEntries;
   final List<SyncDoc> utilityBills;
   final List<SyncDoc> utilityBillPayments;
-  final List<SyncDoc> dueFollowups;
 
   /// Agli pull ka checkpoint (ms).
   final int serverTime;
@@ -76,7 +75,6 @@ class PullResult {
     this.shopRentEntries = const [],
     this.utilityBills = const [],
     this.utilityBillPayments = const [],
-    this.dueFollowups = const [],
     int? serverTime,
   }) : serverTime = serverTime ?? DateTime.now().millisecondsSinceEpoch;
 }
@@ -110,40 +108,6 @@ class SyncOfflineException implements Exception {
   String toString() => message;
 }
 
-/// Server ne push RAD kiya (security rules / permission denied). Poori queue ka masla hai, ek entry ka nahi:
-/// push ruk jata hai aur `retryCount` NAHI barhta (warna rules theek hone se pehle sab entries 10 baar
-/// "fail" ho kar hamesha ke liye stuck ho jati thin).
-class SyncPermissionDeniedException implements Exception {
-  final String message;
-  const SyncPermissionDeniedException(this.message);
-  @override
-  String toString() => message;
-}
-
-/// Ek entry ka asli push error (kharab payload, unknown entity, server ki ghalti) — `lastError` mein
-/// yahi likha jata hai, "push failed" jaisa be-matlab lafz nahi.
-class SyncPushException implements Exception {
-  final String message;
-  const SyncPushException(this.message);
-  @override
-  String toString() => message;
-}
-
-/// Firestore ka daily/minute quota khatam (resource-exhausted / "Quota exceeded")? Ye entry ki ghalti nahi —
-/// retryCount na barhao, warna quota wapas aane se pehle hi sari entries 10 baar fail ho kar stuck ho jati hain.
-bool isQuotaError(Object e) {
-  try {
-    final code = (e as dynamic).code;
-    if (code is String && code.toLowerCase().replaceAll('_', '-') == 'resource-exhausted') return true;
-  } catch (_) {}
-  return looksLikeQuotaMessage(e.toString());
-}
-
-bool looksLikeQuotaMessage(String s) {
-  final l = s.toLowerCase();
-  return l.contains('resource-exhausted') || l.contains('resource_exhausted') || l.contains('quota');
-}
-
 /// Network/connection ki ghalti hai (internet nahi, server ka rasta nahi, timeout)?
 bool isNetworkError(Object e) {
   if (e is SyncOfflineException) return true;
@@ -164,17 +128,4 @@ bool isNetworkError(Object e) {
       s.contains('connection refused') ||
       s.contains('connection reset') ||
       s.contains('unable to resolve host');
-}
-
-
-/// Pull ki chhupi kharabi jo sync ko "theek" dikhate hue data chhod deti hai — Sync Now ke natije mein dikhti hai.
-class PullDiagnostics {
-  PullDiagnostics._();
-
-  /// `pushedAt` (der se push hui entries) wali query fail hui — aksar Firestore index deploy nahi hua.
-  /// Khali = sab theek.
-  static String lateQueryIssue = '';
-
-  /// Jin collections ki late-push query fail hui (aakhri pull) — warning mein ginti.
-  static final Set<String> lateQueryFailed = <String>{};
 }
