@@ -187,6 +187,12 @@ class FollowUpState {
   }
 }
 
+/// Sirf maujooda qarz se mutaliq rabte. [debtSince] = bache hue sab se purane bill ki tareekh
+/// (DueParty.debtSince). Us se PEHLE ke wade / follow-up purane (chuka diye gaye) qarz ke the — customer ne sab ada
+/// karke naya udhaar liya to wo "wada toota" / "follow-up due" nahi dikhate. 0 = shuruaat maloom nahi => sab.
+List<DueFollowUp> entriesForCurrentDebt(Iterable<DueFollowUp> entries, int debtSince) =>
+    debtSince <= 0 ? entries.toList() : entries.where((e) => e.createdAt >= debtSince).toList();
+
 FollowUpState followUpState(Iterable<DueFollowUp> entries, {int? nowMillis}) {
   final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
   final today = _startOfDay(now);

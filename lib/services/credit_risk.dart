@@ -61,7 +61,17 @@ CreditRisk creditRiskFor({
     late += due;
     if (days > maxDays) maxDays = days;
   }
-  final st = followUpState(entries, nowMillis: now);
+  // Purana qarz chuka kar naya udhaar: pehle ka wada "toota" na gina jaye.
+  var since = 0;
+  for (final b in bills) {
+    if (b.isAdvance) continue;
+    if (b.isBalance || b.createdAt <= 0) {
+      since = 0;
+      break;
+    }
+    if (since == 0 || b.createdAt < since) since = b.createdAt;
+  }
+  final st = followUpState(entriesForCurrentDebt(entries, since), nowMillis: now);
   return CreditRisk(lateAmount: late, maxDaysLate: maxDays, promiseBroken: st.promiseBroken);
 }
 

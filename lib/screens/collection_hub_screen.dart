@@ -6,15 +6,17 @@ import '../utils/loc.dart';
 import '../widgets/permission_guard.dart';
 import 'collection_ticker_screen.dart';
 import 'due_reminders_screen.dart';
+import 'receivables_screen.dart';
 import 'wasooli_queue_screen.dart';
 
 /// Ek screen mein poori wasooli: tab 1 = "Aaj ki Wasooli" (Autopilot: aaj kis ko yaad dilana hai, ek tap mein),
-/// tab 2 = "Sab Bills" (Due Reminders: saari late / pending parties, filters, search).
+/// tab 2 = "Sab Bills" (Due Reminders: saari late / pending parties, filters, search),
+/// tab 3 = "Kab se" (Receivables / aging: kis se kitna, kitne din purana) — pehle dashboard ka alag tile tha.
 /// Dashboard ke Collect today / Late / Promise broken tiles `initialFilter` ke sath tab 2 kholte hain.
 class CollectionHubScreen extends StatelessWidget {
   final FollowUpFilter initialFilter;
 
-  /// 0 = Aaj ki Wasooli (Autopilot), 1 = Sab Bills. null => filter laga ho to 1, warna 0.
+  /// 0 = Aaj ki Wasooli (Autopilot), 1 = Sab Bills, 2 = Aging. null => filter laga ho to 1, warna 0.
   final int? initialTab;
   const CollectionHubScreen({super.key, this.initialFilter = FollowUpFilter.all, this.initialTab});
 
@@ -25,7 +27,7 @@ class CollectionHubScreen extends StatelessWidget {
     return PermissionGuard(
       permission: 'due_reminders',
       child: DefaultTabController(
-        length: 2,
+        length: 3,
         initialIndex: tab,
         child: Scaffold(
           backgroundColor: p.bg,
@@ -49,6 +51,7 @@ class CollectionHubScreen extends StatelessWidget {
               tabs: [
                 Tab(text: Loc.t('Today (Autopilot)', 'آج (آٹو پائلٹ)')),
                 Tab(text: Loc.t('All dues', 'تمام بقایا')),
+                Tab(text: Loc.t('Aging', 'کب سے')),
               ],
             ),
           ),
@@ -56,6 +59,7 @@ class CollectionHubScreen extends StatelessWidget {
             children: [
               const WasooliQueueScreen(embedded: true),
               DueRemindersScreen(initialFilter: initialFilter, embedded: true),
+              const ReceivablesScreen(embedded: true),
             ],
           ),
         ),

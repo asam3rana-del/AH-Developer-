@@ -286,7 +286,9 @@ CollectionFocus buildCollectionFocus(
     totalParties++;
     totalDue += p.total;
     final id = p.partyId;
-    final st = followUpState(id == null ? const <DueFollowUp>[] : (followUps[id] ?? const <DueFollowUp>[]), nowMillis: now);
+    final st = followUpState(
+        id == null ? const <DueFollowUp>[] : entriesForCurrentDebt(followUps[id] ?? const <DueFollowUp>[], p.debtSince),
+        nowMillis: now);
     final b = classifyCollection(p, st, nowMillis: now);
     if (st.promiseBroken) {
       brokenCount++;
@@ -381,8 +383,9 @@ FollowUpMonthStats followUpMonthStats(Iterable<DueFollowUp> entries) {
 /// Party ke WhatsApp reminder ka link. Pehli baar (aur wada na toota ho) wahi purana naram message; baad mein
 /// ya wada toota ho to shiddat badhti hai ([reminderLevel] / [followUpMessage]). [g] ek hi bill wali ho to
 /// level 0 par us bill ka message, warna poore total ka.
-Uri reminderUriFor(DueParty g, List<DueFollowUp> entries, {int? nowMillis}) {
+Uri reminderUriFor(DueParty g, List<DueFollowUp> allEntries, {int? nowMillis}) {
   final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
+  final entries = entriesForCurrentDebt(allEntries, g.debtSince);
   final single = g.bills.length == 1 && !g.bills.first.isBalance ? g.bills.first : null;
   final level = reminderLevel(entries, nowMillis: now);
   final st = followUpState(entries, nowMillis: now);

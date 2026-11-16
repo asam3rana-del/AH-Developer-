@@ -319,7 +319,7 @@ class _DueRemindersBodyState extends State<_DueRemindersBody> with WidgetsBindin
   FollowUpState _stateOf(DueParty g) {
     final id = g.partyId;
     if (_purchases || id == null || g.isAdvance) return followUpState(const <DueFollowUp>[]);
-    return followUpState(_followUps[id] ?? const <DueFollowUp>[]);
+    return followUpState(entriesForCurrentDebt(_followUps[id] ?? const <DueFollowUp>[], g.debtSince));
   }
 
   /// Aaj pehle hi WhatsApp gaya ho to dobara bhejne se pehle poochho.

@@ -298,6 +298,19 @@ class DueParty {
 
   bool get hasBalanceRow => bills.any((b) => b.isBalance && !b.isAdvance);
 
+  /// Maujooda qarz kab se: bache hue (FIFO ke baad) sab se purane bill ki tareekh. Customer ne sara purana baqi
+  /// chuka diya aur phir naya udhaar liya => yahan naye bill ki tareekh, purane wade / follow-up laagu nahi
+  /// ([entriesForCurrentDebt]). "Previous balance" (bina bill) row ho => 0 = shuruaat maloom nahi, sab laagu.
+  int get debtSince {
+    var since = 0;
+    for (final b in bills) {
+      if (b.isAdvance) continue;
+      if (b.isBalance || b.createdAt <= 0) return 0;
+      if (since == 0 || b.createdAt < since) since = b.createdAt;
+    }
+    return since;
+  }
+
   /// Jin asli bills par date nahi.
   int get undatedCount => bills.where((b) => !b.isBalance && !b.isAdvance && b.dueDate == 0).length;
 

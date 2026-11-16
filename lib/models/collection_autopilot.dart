@@ -133,7 +133,8 @@ AutopilotQueue buildAutopilot(
   for (final p in parties) {
     final id = p.partyId;
     if (id == null || p.isAdvance || p.total <= 0.009) continue;
-    final entries = followUps[id] ?? const <DueFollowUp>[];
+    // Purana qarz chuka kar naya udhaar: pehle ke wade / follow-up ab laagu nahi.
+    final entries = entriesForCurrentDebt(followUps[id] ?? const <DueFollowUp>[], p.debtSince);
     final st = followUpState(entries, nowMillis: now);
     final b = classifyCollection(p, st, nowMillis: now);
 

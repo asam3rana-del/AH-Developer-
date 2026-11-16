@@ -27,7 +27,6 @@ import 'daily_bills_screen.dart';
 import 'day_book_screen.dart';
 import 'collection_hub_screen.dart';
 import '../db/collection_autopilot_repository.dart';
-import 'receivables_screen.dart';
 import '../services/collection_actions.dart';
 import 'item_search_screen.dart';
 import 'items_screen.dart';
@@ -481,10 +480,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _Action('Collection', 'وصولی', 'Remind today + all pending dues', 'آج کی یاد دہانی اور تمام بقایا', Icons.bolt_rounded,
             p.flatAmberBg, p.flatAmberFg,
             open: () => const CollectionHubScreen(), badge: _autopilotTodo > 0 ? _autopilotTodo : (_focus?.overdueCount ?? 0)),
-      if (Permissions.can('due_reminders'))
-        _Action('Receivables', 'وصولیاں', 'Who owes, for how long', 'کس سے کتنا، کب سے', Icons.bar_chart_rounded,
-            p.flatBlueBg, p.flatBlueFg,
-            open: () => const ReceivablesScreen()),
+      // Receivables (aging) ab Collection ke andar 3rd tab ("Aging") — wasooli sab ek page par.
       _Action('Customers &\nSuppliers', 'گاہک اور\nسپلائر', 'Manage ledgers & dues', 'کھاتے اور بقایا', Icons.people_outline, p.flatPinkBg,
           p.flatPinkFg,
           open: () => const PartyDashboardScreen()),
@@ -539,7 +535,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onOpen: () => _push(const CollectionHubScreen(initialFilter: FollowUpFilter.focus)),
                     onOpenFilter: (f) => _push(CollectionHubScreen(initialFilter: f)),
                     onChanged: _refresh,
-                    onOpenReceivables: () => _push(const ReceivablesScreen()),
+                    onOpenReceivables: () => _push(const CollectionHubScreen(initialTab: 2)),
                     onReceive: (f) async {
                       final id = f.party.partyId;
                       if (id == null) return;

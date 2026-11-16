@@ -21,14 +21,18 @@ import '../widgets/premium_header.dart';
 /// Hisaab [buildAging] (pure) mein hai; data Due Reminders wala hi ([DueRemindersRepository.dueSales]),
 /// is liye Party Dashboard ke "You'll get" se mel khata hai. Sirf Customers (Sales).
 class ReceivablesScreen extends StatelessWidget {
-  const ReceivablesScreen({super.key});
+  /// `embedded` = CollectionHubScreen ke tab ke andar (apni AppBar / header nahi, hub ki hai).
+  final bool embedded;
+  const ReceivablesScreen({super.key, this.embedded = false});
 
   @override
-  Widget build(BuildContext context) => const PermissionGuard(permission: 'due_reminders', child: _ReceivablesBody());
+  Widget build(BuildContext context) =>
+      PermissionGuard(permission: 'due_reminders', child: _ReceivablesBody(embedded: embedded));
 }
 
 class _ReceivablesBody extends StatefulWidget {
-  const _ReceivablesBody();
+  final bool embedded;
+  const _ReceivablesBody({this.embedded = false});
 
   @override
   State<_ReceivablesBody> createState() => _ReceivablesBodyState();
@@ -326,20 +330,17 @@ class _ReceivablesBodyState extends State<_ReceivablesBody> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _p.bg,
-      appBar: AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
-      body: SafeArea(
-        child: RefreshIndicator(
+    final content = RefreshIndicator(
           onRefresh: () => _load(spinner: false),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 30),
             children: [
-              PremiumHeader(
-                title: Loc.t('Receivables', 'وصولیاں'),
-                subtitle: Loc.t('Who owes you, and for how long', 'کس سے کتنا لینا ہے، اور کب سے'),
-              ),
+              if (!widget.embedded)
+                PremiumHeader(
+                  title: Loc.t('Receivables', 'وصولیاں'),
+                  subtitle: Loc.t('Who owes you, and for how long', 'کس سے کتنا لینا ہے، اور کب سے'),
+                ),
               if (_loading)
                 const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
               else if (_error != null)
@@ -363,8 +364,12 @@ class _ReceivablesBodyState extends State<_ReceivablesBody> {
               ],
             ],
           ),
-        ),
-      ),
+        );
+    if (widget.embedded) return content;
+    return Scaffold(
+      backgroundColor: _p.bg,
+      appBar: AppBar(backgroundColor: _p.navy, foregroundColor: Colors.white, elevation: 0),
+      body: SafeArea(child: content),
     );
   }
 }
