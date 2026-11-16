@@ -535,7 +535,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     void go() {
       if (!mounted || !n.canRequestFocus) return;
       final cur = FocusManager.instance.primaryFocus;
-      // User is dauran khud kisi aur number field par chala gaya ho to focus mat chheeno.
+      // User is dauran khud kisi aur field (item ke ilawa) par chala gaya ho to focus mat chheeno.
       if (cur != null &&
           cur != n &&
           cur != _itemFocus &&
@@ -547,8 +547,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) => go());
-    // Dropdown menu / list band hone ki animation ke baad ek dafa aur (focus wapas aa chuka ho).
-    Future.delayed(const Duration(milliseconds: 350), go);
+    // Item list (overlay) band hone ke baad Autocomplete kabhi focus wapas item field par le aata hai —
+    // is liye kuch dafa dobara: aakhir mein cursor + number keyboard Quantity par hi rahe.
+    for (final ms in const [150, 350, 650]) {
+      Future.delayed(Duration(milliseconds: ms), go);
+    }
   }
 
   void _onProductTapped(Product p) {
@@ -2100,6 +2103,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                         textAlign: _nameDirection(value.text) == TextDirection.rtl ? TextAlign.right : TextAlign.left,
                         textInputAction: TextInputAction.next,
                         style: TextStyle(fontSize: 15.5, color: ThemeManager.palette.textDark),
+                        // Default "next" focus ko agle button (rate history / +) par le jata tha; focus khud set hota hai.
+                        onEditingComplete: () {},
                         onSubmitted: (_) {
                           // Ek hi match ho (ya naam poora mile) to wahi chun kar Qty par jao; khali ho to Paid par.
                           final t = _itemCtrl.text.trim();
@@ -2112,6 +2117,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                           final chosen = exact ?? (hits.length == 1 ? hits.first : null);
                           if (chosen != null) {
                             _onProductPicked(chosen);
+                            _focusAfterTap(_qtyFocus);
                           } else if (hits.isNotEmpty) {
                             _itemFocus.requestFocus(); // kai match: list se chunna hai
                           } else {
