@@ -7,6 +7,7 @@ import '../models/due_followup.dart';
 import 'payment_info.dart';
 import '../screens/payments_screen.dart' show showPaymentDialog;
 import '../utils/loc.dart';
+import '../screens/wasooli_sheets.dart' show askBaqiKabDega;
 
 /// Wasooli ke 1-tap kaam (dashboard card + Receivables screen dono yahin se):
 ///  * [receiveFromParty] — "Paisa mila": usi payment dialog se payment likho (bill / cash-bank / date), phir
@@ -16,11 +17,15 @@ import '../utils/loc.dart';
 /// Koi bhi ghalti app ko nahi rokti; log likhne mein masla ho to payment phir bhi mehfooz rehti hai.
 
 /// Customer se paisa mila. true = payment save hui.
+///
+/// Payment ke baad baqi reh jaye to (agar [askNextDate]) foran poochho "Baqi Rs X kab dega?" — tareekh chuni to
+/// wahi naya wada ban jata hai aur purana "wada toota" hat jata hai. "Abhi nahi" => sirf payment ka record.
 Future<bool> receiveFromParty(
   BuildContext context, {
   required int partyId,
   required String partyName,
   required double due,
+  bool askNextDate = true,
 }) async {
   final saved = await showPaymentDialog(context, isCustomer: true, partyId: partyId, partyName: partyName, due: due);
   if (!saved) return false;
@@ -31,13 +36,18 @@ Future<bool> receiveFromParty(
       if (b.partyId == partyId && !b.isAdvance) after += b.due;
     }
     final received = due - after;
+    var promiseDate = 0;
+    if (after > 0.009 && askNextDate && context.mounted) {
+      promiseDate = await askBaqiKabDega(context, partyName: partyName, remaining: after) ?? 0;
+    }
     await DueFollowUpRepository.instance.add(
       partyId: partyId,
       partyName: partyName,
       method: FollowUpMethod.note,
       outcome: after <= 0.009 ? FollowUpOutcome.paid : FollowUpOutcome.partial,
       amount: received > 0 ? received : 0,
-      note: 'Paisa mila',
+      promiseDate: promiseDate,
+      note: promiseDate > 0 ? 'Paisa mila · baqi ka wada' : 'Paisa mila',
     );
   } catch (_) {}
   return true;
