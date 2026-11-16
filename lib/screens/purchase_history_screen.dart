@@ -250,25 +250,13 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
               '${monthFmt.format(DateTime(picked.year, picked.month))} حذف کریں؟')),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(Loc.t(
-              '${picked.count} purchase bills, Rs ${picked.total.round()}.
-
-'
+              '${picked.count} purchase bills, Rs ${picked.total.round()}.\n\n'
                   'Their stock will be removed (never below 0), cost goes back, they leave the supplier khata and '
-                  'cash, and sync to the other phone. All go to the Recycle Bin.
-
-'
-                  'After this, count the shelf and fix stock with Stock Audit.
-
-Type DELETE to confirm:',
-              '${picked.count} خریداری بل، Rs ${picked.total.round()}۔
-
-'
+                  'cash, and sync to the other phone. All go to the Recycle Bin.\n\n'
+                  'After this, count the shelf and fix stock with Stock Audit.\n\nType DELETE to confirm:',
+              '${picked.count} خریداری بل، Rs ${picked.total.round()}۔\n\n'
                   'ان کا اسٹاک نکل جائے گا (0 سے کم نہیں)، لاگت واپس، سپلائر کھاتے اور کیش سے ہٹیں گے، اور دوسرے فون پر سنک ہوں گے۔ '
-                  'سب Recycle Bin میں جائیں گے۔
-
-اس کے بعد شیلف گن کر Stock Audit سے اسٹاک درست کریں۔
-
-تصدیق کے لیے DELETE لکھیں:',
+                  'سب Recycle Bin میں جائیں گے۔\n\nاس کے بعد شیلف گن کر Stock Audit سے اسٹاک درست کریں۔\n\nتصدیق کے لیے DELETE لکھیں:',
             )),
             const SizedBox(height: 8),
             TextField(
@@ -333,8 +321,7 @@ Type DELETE to confirm:',
           child: Text(failed.isEmpty
               ? Loc.t('Now count the shelf and correct stock with Stock Audit, then check the Balance Sheet.',
                   'اب شیلف گنیں اور Stock Audit سے اسٹاک درست کریں، پھر بیلنس شیٹ دیکھیں۔')
-              : '${Loc.t('Not deleted', 'حذف نہیں ہوئے')} (${failed.length}):
-${failed.join('\n')}'),
+              : '${Loc.t('Not deleted', 'حذف نہیں ہوئے')} (${failed.length}):\n${failed.join('\n')}'),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
       ),
