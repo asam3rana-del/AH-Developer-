@@ -12,6 +12,7 @@ import '../sync/sync_queue_helper.dart' show ProductDeleteBlockedException;
 import '../utils/loc.dart';
 import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
+import 'cost_check_screen.dart';
 import 'bill_cost_repair_screen.dart';
 import 'pending_cost_screen.dart';
 import 'bulk_default_unit_screen.dart';
@@ -312,6 +313,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
               _pill(Loc.t('Stock Adjust', 'اسٹاک ایڈجسٹمنٹ'), Icons.tune, () => _push(const StockAdjustmentScreen())),
             if (Permissions.can('stock_taking'))
               _pill(Loc.t('Stock Taking', 'اسٹاک گنتی'), Icons.fact_check_outlined, () => _push(const StockTakingScreen())),
+            if (Permissions.can('fix_bill_cost'))
+              _pill(Loc.t('Cost Check', 'لاگت چیک'), Icons.price_check,
+                  () => _push(const PermissionGuard(permission: 'fix_bill_cost', child: CostCheckScreen()))),
             if (Permissions.can('fix_bill_cost'))
               _pill(Loc.t('Fix Bill Cost', 'بل کی لاگت درست کریں'), Icons.build_outlined,
                   () => _push(const PermissionGuard(permission: 'fix_bill_cost', child: BillCostRepairScreen()))),

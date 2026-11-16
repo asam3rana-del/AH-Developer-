@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../db/bill_cost_repair_repository.dart' show isSuspiciousLineCost;
+import '../db/cost_check_repository.dart';
 import '../db/customer_repository.dart';
 import '../db/party_dashboard_repository.dart';
 import '../db/product_repository.dart';
@@ -1460,26 +1461,83 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
             .map((l) => '${l.itemName}: cost Rs ${l.cost.toStringAsFixed(0)}, sale Rs ${l.amount.toStringAsFixed(0)}')
             .join('\n')
         : names;
-    final ok = await showDialog<bool>(
+    final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(Loc.t('Cost shak wali hai', 'لاگت مشکوک ہے')),
         content: Text(Loc.t(
           'In items ki cost sale amount se bohat zyada lag rahi hai:\n$detail\n\n'
-              'Is se bill ka profit bohat minus aayega. Product ki unit/cost check karen. Phir bhi save karen?',
+              'Is se bill ka profit bohat minus aayega. Product ki unit/cost check karen. Phir bhi save karen?'
+              '${showFigures ? '\n\n"Cost theek karo" = item ki cost aakhri purchase rate par.' : ''}',
           'ان آئٹمز کی لاگت سیل رقم سے بہت زیادہ لگ رہی ہے:\n$detail\n\n'
-              'اس سے بل کا منافع بہت منفی آئے گا۔ پروڈکٹ کی یونٹ/لاگت چیک کریں۔ پھر بھی محفوظ کریں؟',
+              'اس سے بل کا منافع بہت منفی آئے گا۔ پروڈکٹ کی یونٹ/لاگت چیک کریں۔ پھر بھی محفوظ کریں؟'
+              '${showFigures ? '\n\n"لاگت درست کریں" = آئٹم کی لاگت آخری خریداری ریٹ پر۔' : ''}',
         )),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'back'), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
+          if (showFigures)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'fix'),
+              child: Text(Loc.t('Cost theek karo', 'لاگت درست کریں')),
+            ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => Navigator.pop(ctx, 'save'),
             child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں')),
           ),
         ],
       ),
     );
-    return ok == true;
+    if (choice == 'save') return true;
+    if (choice != 'fix' || !mounted) return false;
+    final fixedCount = await _fixSuspectCosts(suspects);
+    if (!mounted) return false;
+    if (fixedCount == 0) {
+      _toast('Aakhri purchase rate nahi mila (ya wo bhi sale se zyada hai) — product ki cost / unit khud check karen');
+      return false;
+    }
+    final still = [for (final l in _lines) if (isSuspiciousLineCost(l.cost, l.amount)) l];
+    if (still.isEmpty) {
+      _toast('Cost theek ho gayi — bill save ho raha hai');
+      return true;
+    }
+    return _confirmSuspectCost(still);
+  }
+
+  /// Shak wali lines ke products ki cost aakhri purchase rate par, aur cart ki lines ki cost dobara.
+  /// Kitne products theek hue wapas deta hai.
+  Future<int> _fixSuspectCosts(List<SaleLine> suspects) async {
+    final repo = CostCheckRepository.instance;
+    final fixed = <String, Product>{};
+    for (final barcode in {for (final l in suspects) l.barcode}) {
+      final p = await ProductRepository.instance.find(barcode);
+      if (p == null) continue;
+      final rate = await repo.lastPurchaseRate(p);
+      if (rate == null) continue;
+      // Naye rate par bhi line shak wali rahe to masla cost nahi (unit/rate) — chhor do.
+      final perSmallest = costPerSmallestOf(rate, p.smallestUnitFactor());
+      final stillBad = suspects.any((l) =>
+          l.barcode == barcode && isSuspiciousLineCost(perSmallest * p.toSmallestUnits(l.qty, l.unit), l.amount));
+      if (stillBad) continue;
+      fixed[barcode] = p.copyWith(cost: rate);
+    }
+    if (fixed.isEmpty) return 0;
+    try {
+      await repo.applyCosts({for (final e in fixed.entries) e.key: e.value.cost});
+    } catch (e) {
+      _toast(e.toString());
+      return 0;
+    }
+    if (!mounted) return fixed.length;
+    setState(() {
+      for (var i = 0; i < _lines.length; i++) {
+        final l = _lines[i];
+        final p = fixed[l.barcode];
+        if (p == null) continue;
+        final cost = costPerSmallestOf(p.cost, p.smallestUnitFactor()) * p.toSmallestUnits(l.qty, l.unit);
+        _lines[i] = l.copyWith(cost: cost);
+      }
+    });
+    return fixed.length;
   }
 
   Future<bool> _confirmDuplicate(Sale dup, double total) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/party.dart';
 import '../db/bill_cost_repair_repository.dart' show isSuspiciousLineCost, repairedLineCost;
+import '../db/cost_check_repository.dart';
 import '../models/product.dart';
 import '../services/session.dart';
 import '../utils/stock_policy.dart';
@@ -139,11 +140,12 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
   Future<void> _save() async {
     // Resolve by the TYPED name (like Kotlin) so editing the name after a
     // pick can never sell the previously picked product by mistake.
-    final product = _findByName(_itemCtrl.text);
-    if (product == null) {
+    final found = _findByName(_itemCtrl.text);
+    if (found == null) {
       setState(() => _error = 'Ye item product list mein nahi hai');
       return;
     }
+    var product = found;
     final qty = _qty;
     if (qty <= 0) {
       setState(() => _error = 'Quantity theek se likhen');
@@ -170,23 +172,47 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
       final detail = Session.isAdminOrManager
           ? '${product.name}: cost Rs ${lineCost.toStringAsFixed(0)}, sale Rs ${lineAmount.toStringAsFixed(0)}'
           : product.name;
-      final ok = await showDialog<bool>(
+      final canFix = Session.isAdminOrManager;
+      final choice = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text(Loc.t('Cost shak wali hai', 'لاگت مشکوک ہے')),
           content: Text(Loc.t(
             'Is item ki cost sale amount se bohat zyada lag rahi hai:\n$detail\n\n'
-                'Product ki unit/cost check karen. Phir bhi save karen?',
+                'Product ki unit/cost check karen. Phir bhi save karen?'
+                '${canFix ? '\n\n"Cost theek karo" = item ki cost aakhri purchase rate par.' : ''}',
             'اس آئٹم کی لاگت سیل رقم سے بہت زیادہ لگ رہی ہے:\n$detail\n\n'
-                'پروڈکٹ کی یونٹ/لاگت چیک کریں۔ پھر بھی محفوظ کریں؟',
+                'پروڈکٹ کی یونٹ/لاگت چیک کریں۔ پھر بھی محفوظ کریں؟'
+                '${canFix ? '\n\n"لاگت درست کریں" = آئٹم کی لاگت آخری خریداری ریٹ پر۔' : ''}',
           )),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں'))),
+            TextButton(onPressed: () => Navigator.pop(ctx, 'back'), child: Text(Loc.t('Go Back', 'واپس جائیں'))),
+            if (canFix)
+              TextButton(onPressed: () => Navigator.pop(ctx, 'fix'), child: Text(Loc.t('Cost theek karo', 'لاگت درست کریں'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: Text(Loc.t('Save Anyway', 'پھر بھی محفوظ کریں'))),
           ],
         ),
       );
-      if (ok != true || !mounted) return;
+      if (!mounted) return;
+      if (choice == 'fix') {
+        final rate = await CostCheckRepository.instance.lastPurchaseRate(product);
+        if (!mounted) return;
+        final fixedProduct = rate == null ? null : product.copyWith(cost: rate);
+        if (fixedProduct == null || isSuspiciousLineCost(repairedLineCost(fixedProduct, qty, unit, 0), lineAmount)) {
+          setState(() => _error = 'Aakhri purchase rate nahi mila (ya wo bhi sale se zyada hai) — product ki cost / unit check karen');
+          return;
+        }
+        try {
+          await CostCheckRepository.instance.applyCosts({product.barcode: fixedProduct.cost});
+        } catch (e) {
+          if (mounted) setState(() => _error = e.toString());
+          return;
+        }
+        if (!mounted) return;
+        product = fixedProduct;
+      } else if (choice != 'save') {
+        return;
+      }
     }
 
     Navigator.of(context).pop(QuickSaleRequest(
