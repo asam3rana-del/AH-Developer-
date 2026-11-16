@@ -535,13 +535,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     void go() {
       if (!mounted || !n.canRequestFocus) return;
       final cur = FocusManager.instance.primaryFocus;
-      // User is dauran khud kisi aur field (item ke ilawa) par chala gaya ho to focus mat chheeno.
-      if (cur != null &&
-          cur != n &&
-          cur != _itemFocus &&
-          cur.context?.findAncestorWidgetOfExactType<EditableText>() != null) {
-        return;
-      }
+      // User is dauran khud item card ke kisi aur number field (Rate, Lot, Retail...) par chala gaya ho to
+      // focus mat chheeno. Supplier / Bill no / Item par focus ho to wo list band hone ke baad khud wahan
+      // chala jata hai (user ne nahi kiya) — isay Quantity par le aao.
+      final userFields = <FocusNode>{
+        _qtyFocus, _rateFocus, _lotFocus, _retailFocus, _wholesaleFocus, _shopkeeperFocus, _paidFocus,
+      }..remove(n);
+      if (cur != null && userFields.contains(cur)) return;
       if (!n.hasFocus) n.requestFocus();
       SystemChannels.textInput.invokeMethod<void>('TextInput.show');
     }
@@ -555,6 +555,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   }
 
   void _onProductTapped(Product p) {
+    // Supplier ki list (agar khul gayi ho) band, phir Quantity.
+    if (_supplierFocus.hasFocus) _supplierFocus.unfocus();
     _onProductPicked(p);
     _focusAfterTap(_qtyFocus);
   }
@@ -1929,7 +1931,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                   optionsBuilder: (text) {
                     final q = text.text.trim().toLowerCase();
                     final names = _suppliers.map((s) => s.name);
-                    if (q.isEmpty) return names;
+                    // Khali field par poori list khud na khule (screen kholte / focus aate hi list aa jati thi);
+                    // ek harf likhte hi milte julte naam.
+                    if (q.isEmpty) return const Iterable<String>.empty();
                     return names.where((n) => n.toLowerCase().contains(q));
                   },
                   fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
