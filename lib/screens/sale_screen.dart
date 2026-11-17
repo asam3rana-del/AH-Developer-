@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../db/bill_cost_repair_repository.dart' show isSuspiciousLineCost;
@@ -10,6 +11,7 @@ import '../db/customer_repository.dart';
 import '../db/party_dashboard_repository.dart';
 import '../db/product_repository.dart';
 import '../db/sale_repository.dart';
+import '../utils/bill_text.dart';
 import '../db/user_repository.dart';
 import 'sale_history_screen.dart';
 import 'payments_screen.dart' show showPaymentDialog;
@@ -1051,6 +1053,66 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     return ok == true;
   }
 
+  /// Sale return ki receipt: customer ko dikhane ke liye ke maal wapas hua aur balance kam hua.
+  Future<void> _showReturnReceipt(
+    SaleReturnResult res,
+    List<({String name, double qty, String unit, double rate, double amount})> lines,
+  ) async {
+    final repo = UserRepository.instance;
+    final text = buildSaleReturnText(
+      shopName: (await repo.getSetting('shop_name')) ?? '',
+      shopOwner: (await repo.getSetting('shop_owner')) ?? '',
+      shopPhone: (await repo.getSetting('shop_phone')) ?? '',
+      invoice: res.invoice,
+      date: DateTime.now(),
+      customer: res.customerName.isEmpty ? _customerCtrl.text.trim() : res.customerName,
+      lines: lines,
+      returnedTotal: res.returnedTotal,
+      balanceBefore: res.customerBalanceBefore,
+      balanceAfter: res.customerBalanceAfter,
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Return receipt', 'واپسی کی رسید')),
+        content: SingleChildScrollView(
+          child: Container(
+            width: double.maxFinite,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: ThemeManager.palette.bg, borderRadius: BorderRadius.circular(8)),
+            child: Text(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.copy, size: 18),
+            label: Text(Loc.t('Copy', 'کاپی')),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (ctx.mounted) Navigator.pop(ctx);
+              _toast(Loc.t('Receipt copied', 'رسید کاپی ہو گئی'));
+            },
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.share, size: 18),
+            label: Text(Loc.t('Share', 'شیئر')),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await Share.share(text);
+              } catch (_) {
+                await Clipboard.setData(ClipboardData(text: text));
+                _toast(Loc.t('Receipt copied', 'رسید کاپی ہو گئی'));
+              }
+            },
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
+        ],
+      ),
+    );
+  }
+
   Future<void> _returnSale() async {
     final invoice = widget.editInvoice;
     if (invoice == null) return;
@@ -1064,12 +1126,17 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       okColor: ThemeManager.palette.amber,
     );
     if (!ok || !mounted) return;
+    // Receipt ke liye lines (bill pop hone se pehle).
+    final returnedLines = [
+      for (final l in _lines) (name: l.itemName, qty: l.qty, unit: l.unit, rate: l.unitPrice, amount: l.amount),
+    ];
     setState(() => _saving = true);
     try {
-      await SaleRepository.instance.returnSale(invoice);
+      final res = await SaleRepository.instance.returnSale(invoice);
       if (!mounted) return;
       _toast(Loc.t('Sale returned', 'سیل واپس ہو گئی'));
-      Navigator.of(context).pop(true);
+      await _showReturnReceipt(res, returnedLines);
+      if (mounted) Navigator.of(context).pop(true);
     } on ArgumentError catch (e) {
       _toast(e.message.toString());
     } catch (e) {
