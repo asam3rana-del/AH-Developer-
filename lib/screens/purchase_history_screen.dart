@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/purchase_history_repository.dart';
+import '../db/return_undo_repository.dart';
 import '../db/user_repository.dart';
 import '../db/party_transaction_repository.dart' show InsufficientStockException;
 import '../theme/theme_manager.dart';
@@ -53,6 +54,7 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
 
   bool _loading = true;
   List<PurchaseHistoryRow> _rows = const [];
+  Set<String> _undoable = const {};
   PurchaseHistorySummary _summary = const PurchaseHistorySummary(0, 0);
   String _query = '';
   Map<String, String> _itemText = const {};
@@ -91,9 +93,11 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
     if (showSpinner) setState(() => _loading = true);
     final rows = await _repo.allPurchases();
     final itemText = await _repo.itemTextByBill();
+    final undoable = await ReturnUndoRepository.instance.undoableRefs('purchase');
     if (!mounted) return;
     setState(() {
       _rows = rows;
+      _undoable = undoable;
       _itemText = itemText;
       _summary = summarizePurchases(rows);
       _items.clear();
@@ -327,6 +331,34 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
       ),
     );
+    if (mounted) _load(showSpinner: false);
+  }
+
+  /// Galti se return ho jaye to wapas pehli halat par.
+  Future<void> _undoReturn(String billNo) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Undo return?', 'واپسی منسوخ کریں؟')),
+        content: Text(Loc.t(
+          'This puts the bill back exactly as it was before the return: stock, supplier balance, payments and status all restored. Continue?',
+          'یہ بل کو بالکل ویسا ہی واپس کر دے گا جیسا واپسی سے پہلے تھا: اسٹاک، سپلائر بیلنس، ادائیگیاں اور اسٹیٹس سب بحال۔ جاری رکھیں؟',
+        )),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Undo return', 'واپسی منسوخ'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final done = await ReturnUndoRepository.instance.undo(billNo, 'purchase');
+      _toast(done
+          ? Loc.t('Return undone', 'واپسی منسوخ ہو گئی')
+          : Loc.t('No undo available', 'منسوخی دستیاب نہیں'));
+    } catch (e) {
+      _toast('$e');
+    }
     if (mounted) _load(showSpinner: false);
   }
 
@@ -590,13 +622,28 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
                     act(Icons.edit_outlined, _p.teal, () => _edit(r)),
                     PopupMenuButton<int>(
                       icon: Icon(Icons.more_vert, size: 19, color: _p.textMuted),
-                      onSelected: (v) => v == 1 ? _return(r) : _delete(r),
+                      onSelected: (v) => v == 1
+                          ? _return(r)
+                          : v == 2
+                              ? _delete(r)
+                              : _undoReturn(r.billNo),
                       itemBuilder: (_) => [
                         PopupMenuItem(value: 1, child: Text(Loc.t('Return', 'واپسی'))),
+                        if (_undoable.contains(r.billNo))
+                          PopupMenuItem(value: 3, child: Text(Loc.t('Undo last return', 'آخری واپسی منسوخ کریں'))),
                         PopupMenuItem(value: 2, child: Text(Loc.t('Delete', 'حذف کریں'))),
                       ],
                     ),
                   ]),
+                )
+              else if (_undoable.contains(r.billNo))
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.undo, size: 18),
+                    label: Text(Loc.t('Undo return', 'واپسی منسوخ کریں')),
+                    onPressed: () => _undoReturn(r.billNo),
+                  ),
                 )
               else
                 const SizedBox(height: 10),

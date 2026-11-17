@@ -40,6 +40,7 @@ void main() {
 
   // ---- what each migration step added (version -> things to remove when rewinding below it) ----
   final steps = <_Step>[
+    _Step(38, tables: ['return_undo']),
     _Step(37, columns: {'customers': ['paySchedule', 'qistPlan']}),
     _Step(36, columns: {'due_followups': ['serverId', 'partyServerId']}),
     _Step(35, tables: ['due_followups']),

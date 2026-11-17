@@ -8,6 +8,7 @@ import '../models/purchase.dart';
 import '../services/session.dart';
 import 'app_database.dart';
 import 'cost_backfill.dart';
+import 'return_undo_repository.dart';
 import 'party_transaction_repository.dart'
     show InsufficientStockException, purchaseItemSmallestQty, reconcilePaid, reversePurchaseLineCost;
 import '../models/stock_movement.dart' show MovementType;
@@ -363,6 +364,8 @@ class PurchaseHistoryRepository {
         final sb = await txn.query('suppliers', columns: ['balance'], where: 'id = ?', whereArgs: [supplierId], limit: 1);
         if (sb.isNotEmpty) balanceBefore = ((sb.first['balance'] as num?) ?? 0).toDouble();
       }
+      // Undo ke liye: return se pehle poore bill ka snapshot.
+      final undoPre = await ReturnUndoRepository.capture(txn, type: 'purchase', ref: billNo);
       final now = _now();
 
       final backfillBarcodes = <String>{};
@@ -455,6 +458,7 @@ class PurchaseHistoryRepository {
       }
       final fresh = (await txn.query('purchases', where: 'billNo = ?', whereArgs: [billNo], limit: 1)).first;
       await _enqueue(txn, 'purchase', billNo, 'update', fresh);
+      await ReturnUndoRepository.commit(txn, undoPre);
     });
     await _refreshAll();
     if (returnedTotal > 0) await _logAudit('purchase_return', billNo, 'returned=$returnedTotal');

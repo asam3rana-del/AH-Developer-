@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/return_entry.dart';
 import '../services/demo_mode.dart';
 
+import 'return_undo_repository.dart';
 import 'stock_ledger.dart';
 
 /// Ports the Room schema from Database.kt table-for-table so data shape
@@ -20,7 +21,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'ah_developer_kiryana_store.db';
-  static const _dbVersion = 37;
+  static const _dbVersion = 38;
 
   Database? _db;
 
@@ -358,6 +359,7 @@ class AppDatabase {
 
     // Seed defaults — mirrors the Kotlin app's first-run defaults.
     batch.execute(_recycleBinSql);
+    batch.execute(ReturnUndoRepository.createSql);
 
     batch.insert('categories', {'name': 'General'});
     batch.insert('units', {'name': 'pcs'});
@@ -583,6 +585,10 @@ class AppDatabase {
       // aur qist plan (models/qist_plan.dart, JSON).
       await _addColumnIfMissing(db, 'customers', 'paySchedule', "TEXT NOT NULL DEFAULT ''");
       await _addColumnIfMissing(db, 'customers', 'qistPlan', "TEXT NOT NULL DEFAULT ''");
+    }
+    if (oldVersion < 38) {
+      // v38: return "undo" — return se pehle bill ka snapshot (galti se return wapas le aane ke liye). Local only.
+      await db.execute(ReturnUndoRepository.createSql);
     }
     // products.searchTag was added to _onCreate WITHOUT a migration step, so a database created by the
     // earliest builds (schema v1) never got the column. Found by the real-file migration test
