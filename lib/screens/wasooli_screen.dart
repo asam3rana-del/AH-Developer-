@@ -7,6 +7,7 @@ import '../models/wasooli_plan.dart';
 import '../services/collection_actions.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
+import '../widgets/party_avatar.dart';
 import 'followup_sheets.dart' show showFollowUpTimeline;
 import 'wasooli_sheets.dart';
 
@@ -30,33 +31,36 @@ const _muted = Color(0xFF4B5563);
     };
 
 String kindLabel(WasooliDateKind k) => switch (k) {
-      WasooliDateKind.promise => Loc.t('wada', 'وعدہ'),
-      WasooliDateKind.qist => Loc.t('qist', 'قسط'),
-      WasooliDateKind.payDay => Loc.t('payment din', 'ادائیگی کا دن'),
-      WasooliDateKind.bill => Loc.t('bill', 'بل'),
-      WasooliDateKind.followUp => Loc.t('rabta', 'رابطہ'),
-      WasooliDateKind.dispute => Loc.t('jhagra', 'جھگڑا'),
+      WasooliDateKind.promise => Loc.t('promise', 'وعدہ'),
+      WasooliDateKind.qist => Loc.t('installment', 'قسط'),
+      WasooliDateKind.payDay => Loc.t('payment day', 'ادائیگی کا دن'),
+      WasooliDateKind.bill => Loc.t('bill due', 'بل'),
+      WasooliDateKind.followUp => Loc.t('follow-up', 'رابطہ'),
+      WasooliDateKind.dispute => Loc.t('dispute', 'جھگڑا'),
     };
 
-/// Chip ki ibarat: "Late · 3 din", "Aaj", "Aage · 20 Nov (4 din)".
+/// Chip ki ibarat: "11 days late", "Today", "20 Nov · in 4 days".
 String urgencyChip(WasooliRow r) {
+  final d = r.days;
   switch (r.urgency) {
     case WasooliUrgency.late:
-      return '${Loc.t('Late', 'لیٹ')} · ${r.days} ${Loc.t('din', 'دن')}';
+      return Loc.t(d == 1 ? '1 day late' : '$d days late', 'لیٹ · $d دن');
     case WasooliUrgency.today:
-      return Loc.t('Aaj', 'آج');
+      return Loc.t('Today', 'آج');
     case WasooliUrgency.later:
-      final d = r.days;
-      return '${Loc.t('Aage', 'آگے')} · ${wasooliDate(r.date)} (${d == 1 ? Loc.t('kal', 'کل') : '$d ${Loc.t('din', 'دن')}'})';
+      return Loc.t(
+        '${wasooliDate(r.date)} · ${d == 1 ? 'tomorrow' : 'in $d days'}',
+        'آگے · ${wasooliDate(r.date)} (${d == 1 ? 'کل' : '$d دن'})',
+      );
   }
 }
 
-/// Chip ke saath chhoti baat: "wada 13 Nov tha", "wada Rs 5,000", "qist Rs 3,000".
+/// Chip ke saath chhoti baat: "bill due 6 Nov", "promise Rs 5,000", "installment Rs 3,000".
 String urgencyNote(WasooliRow r) {
   final amt = r.amount > 0 ? ' ${wasooliRs(r.amount)}' : '';
-  if (r.kind == WasooliDateKind.dispute) return Loc.t('jhagra — baat karke hal karen', 'جھگڑا');
+  if (r.kind == WasooliDateKind.dispute) return Loc.t('dispute — talk it through', 'جھگڑا');
   if (r.urgency == WasooliUrgency.late) {
-    return '${kindLabel(r.kind)}$amt ${wasooliDate(r.date)} ${Loc.t('tha', 'تھا')}';
+    return Loc.t('${kindLabel(r.kind)}$amt was ${wasooliDate(r.date)}', '${kindLabel(r.kind)}$amt ${wasooliDate(r.date)} تھا');
   }
   return '${kindLabel(r.kind)}$amt';
 }
@@ -111,7 +115,7 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
   Future<void> _call(WasooliRow r) async {
     final phone = r.party.partyPhone.trim();
     if (phone.isEmpty) {
-      _toast(Loc.t('Is party ka phone number nahi', 'اس پارٹی کا فون نمبر نہیں'));
+      _toast(Loc.t('No phone number for this party', 'اس پارٹی کا فون نمبر نہیں'));
     } else {
       try {
         final ok = await launchUrl(Uri(scheme: 'tel', path: phone));
@@ -177,13 +181,13 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(children: [
-                    Expanded(child: _tile(Loc.t('Aaj wasool', 'آج وصول'), wasooliRs(s.todayTotal), '${s.todayCount} ${Loc.t('party', 'پارٹی')}', const Color(0xFFDBE2FF))),
+                    Expanded(child: _tile(Loc.t('Collect today', 'آج وصول'), wasooliRs(s.todayTotal), Loc.t('${s.todayCount} parties', '${s.todayCount} پارٹی'), const Color(0xFFDBE2FF))),
                     const SizedBox(width: 10),
-                    Expanded(child: _tile(Loc.t('Late', 'لیٹ'), wasooliRs(s.lateTotal), '${s.lateCount} ${Loc.t('party', 'پارٹی')}', const Color(0xFFFFD4D4))),
+                    Expanded(child: _tile(Loc.t('Late', 'لیٹ'), wasooliRs(s.lateTotal), Loc.t('${s.lateCount} parties', '${s.lateCount} پارٹی'), const Color(0xFFFFD4D4))),
                   ]),
                   if (day.collectedToday > 0) ...[
                     const SizedBox(height: 8),
-                    Text('${Loc.t('Aaj mila', 'آج ملا')}: ${wasooliRs(day.collectedToday)}',
+                    Text('${Loc.t('Received today', 'آج ملا')}: ${wasooliRs(day.collectedToday)}',
                         style: const TextStyle(color: Color(0xFFBBF7D0), fontSize: 13, fontWeight: FontWeight.w700)),
                   ],
                 ],
@@ -197,10 +201,10 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _filterChip(WasooliFilter.all, Loc.t('Sab', 'سب'), p.navy, counts),
+                  _filterChip(WasooliFilter.all, Loc.t('All', 'سب'), p.navy, counts),
                   _filterChip(WasooliFilter.late, Loc.t('Late', 'لیٹ'), _lateFg, counts),
-                  _filterChip(WasooliFilter.today, Loc.t('Aaj', 'آج'), _todayFg, counts),
-                  _filterChip(WasooliFilter.week, Loc.t('Is hafta', 'اس ہفتے'), const Color(0xFF374151), counts),
+                  _filterChip(WasooliFilter.today, Loc.t('Today', 'آج'), _todayFg, counts),
+                  _filterChip(WasooliFilter.week, Loc.t('This week', 'اس ہفتے'), const Color(0xFF374151), counts),
                 ],
               ),
             ),
@@ -214,7 +218,7 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
                 decoration: InputDecoration(
                   isDense: true,
                   prefixIcon: const Icon(Icons.search),
-                  hintText: Loc.t('Party ka naam / phone', 'پارٹی کا نام / فون'),
+                  hintText: Loc.t('Party name / phone', 'پارٹی کا نام / فون'),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
@@ -228,7 +232,7 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),
-                  child: Text(Loc.t('Is list mein koi party nahi', 'اس فہرست میں کوئی پارٹی نہیں'),
+                  child: Text(Loc.t('No parties in this list', 'اس فہرست میں کوئی پارٹی نہیں'),
                       style: const TextStyle(color: _muted, fontSize: 15)),
                 ),
               ),
@@ -293,8 +297,10 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  PartyAvatar(isCustomer: true, partyId: r.party.partyId, name: r.party.partyName, radius: 22),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(r.party.partyName,
                         maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
@@ -319,25 +325,24 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: _todayBg, borderRadius: BorderRadius.circular(8)),
-                      child: Text('${r.brokenCount} ${Loc.t('dafa toota', 'دفعہ ٹوٹا')}',
+                      child: Text(Loc.t('broken ${r.brokenCount}x', '${r.brokenCount} دفعہ ٹوٹا'),
                           style: const TextStyle(color: Color(0xFF7C2D12), fontSize: 12, fontWeight: FontWeight.w600)),
                     ),
                   if (r.touchedToday)
                     Row(mainAxisSize: MainAxisSize.min, children: [
                       const Icon(Icons.check_circle, size: 15, color: _green),
                       const SizedBox(width: 3),
-                      Text(Loc.t('aaj baat hui', 'آج بات ہوئی'), style: const TextStyle(fontSize: 12, color: _green)),
+                      Text(Loc.t('contacted today', 'آج بات ہوئی'), style: const TextStyle(fontSize: 12, color: _green)),
                     ]),
                 ],
               ),
               const SizedBox(height: 10),
               Row(children: [
-                Expanded(child: _outline(Loc.t('Call', 'کال'), () => _call(r))),
+                Expanded(child: _outline(Loc.t('Call', 'کال'), Icons.call_outlined, () => _call(r))),
                 const SizedBox(width: 8),
-                Expanded(child: _outline(Loc.t('WhatsApp', 'واٹس ایپ'), () => _whatsApp(r))),
+                Expanded(child: _outline(Loc.t('WhatsApp', 'واٹس ایپ'), Icons.chat_outlined, () => _whatsApp(r))),
                 const SizedBox(width: 8),
                 Expanded(
-                  flex: 13,
                   child: SizedBox(
                     height: 44,
                     child: FilledButton(
@@ -347,7 +352,7 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () => _paid(r),
-                      child: Text(Loc.t('Paisa mila', 'پیسے ملے'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      child: Text(Loc.t('Received', 'پیسے ملے'), style: const TextStyle(fontWeight: FontWeight.w700)),
                     ),
                   ),
                 ),
@@ -359,9 +364,9 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
     );
   }
 
-  Widget _outline(String label, VoidCallback onTap) => SizedBox(
+  Widget _outline(String label, IconData icon, VoidCallback onTap) => SizedBox(
         height: 44,
-        child: OutlinedButton(
+        child: OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFF111827),
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -369,7 +374,8 @@ class _WasooliScreenState extends State<WasooliScreen> with WidgetsBindingObserv
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           onPressed: onTap,
-          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+          icon: Icon(icon, size: 18),
+          label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
         ),
       );
 }
@@ -443,7 +449,7 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
         actions: [
           if (r.party.partyId != null)
             IconButton(
-              tooltip: Loc.t('Poori history', 'پوری تاریخ'),
+              tooltip: Loc.t('Full history', 'پوری تاریخ'),
               icon: const Icon(Icons.history),
               onPressed: () async {
                 await showFollowUpTimeline(context, partyId: r.party.partyId!, partyName: r.party.partyName, totalDue: r.total);
@@ -456,15 +462,23 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text(Loc.t('Poora hisaab saaf — kuch baqi nahi', 'پورا حساب صاف — کچھ باقی نہیں'),
+                child: Text(Loc.t('All clear — nothing due', 'پورا حساب صاف — کچھ باقی نہیں'),
                     textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _green)),
               ),
             )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text(Loc.t('Baqi', 'باقی'), style: const TextStyle(fontSize: 13, color: _muted)),
-                Text(wasooliRs(r.total), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
+                Row(children: [
+                  PartyAvatar(isCustomer: true, partyId: r.party.partyId, name: r.party.partyName, radius: 32),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(Loc.t('Due', 'باقی'), style: const TextStyle(fontSize: 13, color: _muted)),
+                      Text(wasooliRs(r.total), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
+                    ]),
+                  ),
+                ]),
                 const SizedBox(height: 14),
                 _mainCard(r),
                 const SizedBox(height: 12),
@@ -476,14 +490,14 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
                   Expanded(child: _btn(Loc.t('WhatsApp', 'واٹس ایپ'), _whatsApp)),
                 ]),
                 const SizedBox(height: 10),
-                _btn(Loc.t('Rabta likho (wada / nahi mila)', 'رابطہ لکھیں (وعدہ / نہیں ملا)'), _rabta),
+                _btn(Loc.t('Log contact (promise / no answer)', 'رابطہ لکھیں (وعدہ / نہیں ملا)'), _rabta),
                 const SizedBox(height: 10),
                 SizedBox(
                   height: 56,
                   child: FilledButton(
                     style: FilledButton.styleFrom(backgroundColor: _green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                     onPressed: _paid,
-                    child: Text(Loc.t('Paisa mila', 'پیسے ملے'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                    child: Text(Loc.t('Received', 'پیسے ملے'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -511,12 +525,12 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
     final isPromise = r.hasPromise;
     final border = isPromise && r.urgency == WasooliUrgency.later ? _blue : fg;
     final title = isPromise
-        ? (r.urgency == WasooliUrgency.late ? Loc.t('WADA TOOTA', 'وعدہ ٹوٹا') : Loc.t('ABHI KA WADA', 'ابھی کا وعدہ'))
-        : Loc.t('AGLI TAREEKH', 'اگلی تاریخ');
+        ? (r.urgency == WasooliUrgency.late ? Loc.t('PROMISE BROKEN', 'وعدہ ٹوٹا') : Loc.t('CURRENT PROMISE', 'ابھی کا وعدہ'))
+        : Loc.t('NEXT DATE', 'اگلی تاریخ');
     final when = switch (r.urgency) {
-      WasooliUrgency.late => '${r.days} ${Loc.t('din guzre', 'دن گزرے')}',
-      WasooliUrgency.today => Loc.t('aaj', 'آج'),
-      WasooliUrgency.later => r.days == 1 ? Loc.t('kal', 'کل') : '${r.days} ${Loc.t('din baqi', 'دن باقی')}',
+      WasooliUrgency.late => Loc.t('${r.days} days late', '${r.days} دن گزرے'),
+      WasooliUrgency.today => Loc.t('today', 'آج'),
+      WasooliUrgency.later => r.days == 1 ? Loc.t('tomorrow', 'کل') : Loc.t('in ${r.days} days', '${r.days} دن باقی'),
     };
     final promise = r.state.promise;
     return Container(
@@ -545,14 +559,14 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
           const SizedBox(height: 4),
           Text(
             isPromise
-                ? '${r.amount > 0 ? wasooliRs(r.amount) : Loc.t('Poora baqi', 'پورا باقی')} ${Loc.t('dene ka wada', 'دینے کا وعدہ')}'
-                    '${promise != null ? ' · ${wasooliDate(promise.createdAt)} ${Loc.t('ko kiya', 'کو کیا')}' : ''}'
+                ? '${r.amount > 0 ? wasooliRs(r.amount) : Loc.t('Full amount', 'پورا باقی')} ${Loc.t('promised', 'دینے کا وعدہ')}'
+                    '${promise != null ? ' · ${Loc.t('made on ${wasooliDate(promise.createdAt)}', '${wasooliDate(promise.createdAt)} کو کیا')}' : ''}'
                 : '${kindLabel(r.kind)}${r.amount > 0 ? ' · ${wasooliRs(r.amount)}' : ''}',
             style: const TextStyle(fontSize: 15, color: Color(0xFF374151)),
           ),
           if (isPromise && r.urgency == WasooliUrgency.late) ...[
             const SizedBox(height: 6),
-            Text(Loc.t('Rabta karke naya wada lo', 'رابطہ کر کے نیا وعدہ لیں'),
+            Text(Loc.t('Contact them and get a new promise', 'رابطہ کر کے نیا وعدہ لیں'),
                 style: const TextStyle(fontSize: 13, color: _lateFg, fontWeight: FontWeight.w600)),
           ],
           if (r.brokenCount > 0) ...[
@@ -560,7 +574,7 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(color: _todayBg, borderRadius: BorderRadius.circular(8)),
-              child: Text('${r.brokenCount} ${Loc.t('dafa wada toota', 'دفعہ وعدہ ٹوٹا')}',
+              child: Text(Loc.t('Promise broken ${r.brokenCount}x', '${r.brokenCount} دفعہ وعدہ ٹوٹا'),
                   style: const TextStyle(fontSize: 12, color: Color(0xFF7C2D12), fontWeight: FontWeight.w700)),
             ),
           ],
@@ -579,21 +593,21 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
       Color tagColor = _muted;
       var struck = false;
       if (e.promiseDate > 0 && e.outcome != FollowUpOutcome.sent) {
-        text = '${Loc.t('Wada', 'وعدہ')} ${wasooliDate(e.promiseDate)}${e.outcome == FollowUpOutcome.promised && e.amount > 0 ? ' · ${wasooliRs(e.amount)}' : ''}';
-        if (e.outcome == FollowUpOutcome.partial && e.amount > 0) text = '${wasooliRs(e.amount)} ${Loc.t('mila', 'ملا')} · $text';
+        text = '${Loc.t('Promise', 'وعدہ')} ${wasooliDate(e.promiseDate)}${e.outcome == FollowUpOutcome.promised && e.amount > 0 ? ' · ${wasooliRs(e.amount)}' : ''}';
+        if (e.outcome == FollowUpOutcome.partial && e.amount > 0) text = '${wasooliRs(e.amount)} ${Loc.t('received', 'ملا')} · $text';
         if (isNow) {
-          tag = Loc.t('abhi', 'ابھی');
+          tag = Loc.t('current', 'ابھی');
           tagColor = _blue;
         } else if (isPastPromise) {
           struck = true;
-          tag = e.promiseDate < r.today ? Loc.t('purana', 'پرانا') : Loc.t('badla', 'بدلا');
+          tag = e.promiseDate < r.today ? Loc.t('old', 'پرانا') : Loc.t('replaced', 'بدلا');
         }
       } else if (e.outcome == FollowUpOutcome.paid || e.outcome == FollowUpOutcome.partial) {
-        text = '${wasooliDate(e.createdAt)} · ${e.amount > 0 ? wasooliRs(e.amount) : ''} ${Loc.t('mila', 'ملا')}';
-        tag = Loc.t('paisa', 'پیسے');
+        text = '${wasooliDate(e.createdAt)} · ${e.amount > 0 ? wasooliRs(e.amount) : ''} ${Loc.t('received', 'ملا')}';
+        tag = Loc.t('payment', 'پیسے');
         tagColor = _green;
       } else if (e.outcome == FollowUpOutcome.noAnswer) {
-        text = '${wasooliDate(e.createdAt)} · ${Loc.t('Nahi mila', 'نہیں ملا')}';
+        text = '${wasooliDate(e.createdAt)} · ${Loc.t('No answer', 'نہیں ملا')}';
       } else if (e.outcome == FollowUpOutcome.sent) {
         text = '${wasooliDate(e.createdAt)} · ${e.method == FollowUpMethod.whatsapp ? 'WhatsApp' : Loc.t('Call', 'کال')}';
       } else {
@@ -616,7 +630,7 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
     }
     for (final b in r.party.bills.where((b) => !b.isAdvance).take(5)) {
       final label = b.isBalance
-          ? Loc.t('Pichla baqi', 'پچھلا باقی')
+          ? Loc.t('Previous balance', 'پچھلا باقی')
           : '${Loc.t('Bill', 'بل')} ${wasooliDate(b.createdAt)}${b.dueDate > 0 ? ' · due ${wasooliDate(b.dueDate)}' : ''}';
       lines.add(Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -632,7 +646,7 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(Loc.t('Pichla hisaab', 'پچھلا حساب'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _muted)),
+          Text(Loc.t('History', 'پچھلا حساب'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _muted)),
           const SizedBox(height: 6),
           ...lines,
         ],

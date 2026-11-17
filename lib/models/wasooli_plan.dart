@@ -94,7 +94,18 @@ WasooliRow buildWasooliRow(
   QistStatus? qist,
 }) {
   final today = _sod(nowMillis);
-  final entries = sortFollowUpsNewestFirst(entriesForCurrentDebt(allEntries, p.debtSince));
+  // Purane bill ka chhota bacha hua hissa (jaise Rs 60 — rounding / thori kami) party ko "late" nahi banata
+  // aur purane wade wapas nahi laata: tareekh asal (bare) baqi wale bills se.
+  final bills = _countingBills(p);
+  var since = 0;
+  for (final b in bills) {
+    if (b.isBalance || b.createdAt <= 0) {
+      since = 0;
+      break;
+    }
+    if (since == 0 || b.createdAt < since) since = b.createdAt;
+  }
+  final entries = sortFollowUpsNewestFirst(entriesForCurrentDebt(allEntries, since));
   final st = followUpState(entries, nowMillis: nowMillis);
   // promiseRecord() toota wada 2 din baad ginta hai; abhi ka khula toota wada us se pehle bhi ginti mein aaye.
   final broken = promiseRecord(entries, nowMillis: nowMillis).broken +
@@ -136,10 +147,10 @@ WasooliRow buildWasooliRow(
   }
 
   // Bill ki tareekh: sab se purani due date; bina-date bill => bill + 7 din (tab "late" ginte hain).
-  var billDate = p.earliestDue;
-  for (final b in p.bills) {
-    if (b.isBalance || b.isAdvance || b.dueDate > 0 || b.createdAt <= 0) continue;
-    final d = _sod(b.createdAt) + DueParty.undatedGraceDays * _dayMs;
+  var billDate = 0;
+  for (final b in bills) {
+    if (b.isBalance || (b.createdAt <= 0 && b.dueDate <= 0)) continue;
+    final d = b.dueDate > 0 ? b.dueDate : _sod(b.createdAt) + DueParty.undatedGraceDays * _dayMs;
     if (billDate == 0 || d < billDate) billDate = d;
   }
   if (billDate > 0 && _sod(billDate) < today) return make(WasooliUrgency.late, WasooliDateKind.bill, _sod(billDate));
@@ -159,6 +170,17 @@ WasooliRow buildWasooliRow(
   // "Previous balance" (bina bill / bina tareekh) aur kuch tay nahi => aaj.
   if (best == 0) return make(WasooliUrgency.today, WasooliDateKind.bill, today);
   return make(byDate(best), kind, best);
+}
+
+/// Purane bill ka itna (ya kam) bacha hissa tareekh / late ke liye nahi gina jata (baqi ke jor mein phir bhi hai).
+const double kSmallLeftover = 100;
+
+/// Tareekh ke liye ginne wale bills: advance nahi; purane bills ka chhota bacha hissa nahi — magar sab hi chhote
+/// hon to sab (warna party ki koi tareekh na bane).
+List<DueBill> _countingBills(DueParty p) {
+  final all = [for (final b in p.bills) if (!b.isAdvance && b.due > 0.009) b];
+  final big = [for (final b in all) if (b.due >= kSmallLeftover || b.isBalance) b];
+  return big.isEmpty ? all : big;
 }
 
 /// Abhi ka khula toota wada promiseRecord() mein pehle se gina gaya (2 din se purana)?

@@ -41,7 +41,7 @@ class CollectionHubScreen extends StatelessWidget {
           backgroundColor: p.navy,
           foregroundColor: Colors.white,
           elevation: 0,
-          title: Text(Loc.t('Aaj kis se lena hai', 'آج کس سے لینا ہے'),
+          title: Text(Loc.t('Collections', 'آج کس سے لینا ہے'),
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
           actions: [
             IconButton(
@@ -50,7 +50,7 @@ class CollectionHubScreen extends StatelessWidget {
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CollectionTickerScreen())),
             ),
             PopupMenuButton<int>(
-              tooltip: Loc.t('Aur', 'مزید'),
+              tooltip: Loc.t('More', 'مزید'),
               onSelected: (v) {
                 final Widget page = switch (v) {
                   0 => const WasooliQueueScreen(),
@@ -60,9 +60,9 @@ class CollectionHubScreen extends StatelessWidget {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
               },
               itemBuilder: (_) => [
-                PopupMenuItem(value: 0, child: Text(Loc.t('Autopilot (purani list)', 'آٹو پائلٹ (پرانی فہرست)'))),
-                PopupMenuItem(value: 1, child: Text(Loc.t('Sab bills (filters)', 'تمام بل (فلٹر)'))),
-                PopupMenuItem(value: 2, child: Text(Loc.t('Kab se baqi (Aging)', 'کب سے باقی'))),
+                PopupMenuItem(value: 0, child: Text(Loc.t('Autopilot (old list)', 'آٹو پائلٹ (پرانی فہرست)'))),
+                PopupMenuItem(value: 1, child: Text(Loc.t('All bills (filters)', 'تمام بل (فلٹر)'))),
+                PopupMenuItem(value: 2, child: Text(Loc.t('Aging', 'کب سے باقی'))),
               ],
             ),
           ],

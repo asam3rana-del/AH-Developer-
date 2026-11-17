@@ -43,10 +43,10 @@ class _QuickDates extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = <(String, String)>[
-      ('kal', Loc.t('Kal', 'کل')),
-      ('3din', Loc.t('3 din', '3 دن')),
-      ('hafta', Loc.t('1 hafta', '1 ہفتہ')),
-      ('mahina', Loc.t('Mahine ke aakhir', 'مہینے کے آخر')),
+      ('kal', Loc.t('Tomorrow', 'کل')),
+      ('3din', Loc.t('3 days', '3 دن')),
+      ('hafta', Loc.t('1 week', '1 ہفتہ')),
+      ('mahina', Loc.t('Month end', 'مہینے کے آخر')),
     ];
     final quick = {for (final o in options) o.$1: startOfDay(quickPromiseDate(o.$1))};
     final custom = selected != null && !quick.values.contains(selected);
@@ -73,8 +73,8 @@ class _QuickDates extends StatelessWidget {
           style: TextButton.styleFrom(alignment: Alignment.centerLeft, foregroundColor: _blue, minimumSize: const Size(0, 44)),
           icon: const Icon(Icons.calendar_month_outlined, size: 20),
           label: Text(custom
-              ? '${Loc.t('Tareekh', 'تاریخ')}: ${wasooliDate(selected!)}'
-              : Loc.t('Koi aur tareekh…', 'کوئی اور تاریخ…')),
+              ? '${Loc.t('Date', 'تاریخ')}: ${wasooliDate(selected!)}'
+              : Loc.t('Other date…', 'کوئی اور تاریخ…')),
           onPressed: () async {
             final now = DateTime.now();
             final d = await showDatePicker(
@@ -145,7 +145,7 @@ Future<int?> askBaqiKabDega(BuildContext context, {required String partyName, re
                 _handle(),
                 Text(partyName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
-                Text(Loc.t('Payment save ho gayi', 'ادائیگی محفوظ ہو گئی'),
+                Text(Loc.t('Payment saved', 'ادائیگی محفوظ ہو گئی'),
                     style: const TextStyle(fontSize: 14, color: _green, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 14),
                 Container(
@@ -154,7 +154,7 @@ Future<int?> askBaqiKabDega(BuildContext context, {required String partyName, re
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(Loc.t('Baqi ${wasooliRs(remaining)} kab dega?', 'باقی ${wasooliRs(remaining)} کب دے گا؟'),
+                      Text(Loc.t('When will they pay the remaining ${wasooliRs(remaining)}?', 'باقی ${wasooliRs(remaining)} کب دے گا؟'),
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _blueInk)),
                       const SizedBox(height: 10),
                       _QuickDates(selected: picked, onPick: (d) => setS(() => picked = d)),
@@ -165,12 +165,12 @@ Future<int?> askBaqiKabDega(BuildContext context, {required String partyName, re
                 FilledButton(
                   style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), backgroundColor: const Color(0xFF101C4A)),
                   onPressed: picked == null ? null : () => Navigator.pop(ctx, picked),
-                  child: Text(Loc.t('Wada save karo', 'وعدہ محفوظ کریں'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  child: Text(Loc.t('Save promise', 'وعدہ محفوظ کریں'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ),
                 TextButton(
                   style: TextButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                   onPressed: () => Navigator.pop(ctx, 0),
-                  child: Text(Loc.t('Abhi tareekh nahi — sirf payment', 'ابھی تاریخ نہیں — صرف ادائیگی')),
+                  child: Text(Loc.t('No date now — just the payment', 'ابھی تاریخ نہیں — صرف ادائیگی')),
                 ),
               ],
             ),
@@ -279,17 +279,17 @@ class _RabtaSheetState extends State<_RabtaSheet> {
               _handle(),
               Text(r.party.partyName, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
               const SizedBox(height: 2),
-              Text('${Loc.t('Baqi', 'باقی')} ${wasooliRs(r.total)} · ${Loc.t('Kya hua?', 'کیا ہوا؟')}',
+              Text('${Loc.t('Due', 'باقی')} ${wasooliRs(r.total)} · ${Loc.t('What happened?', 'کیا ہوا؟')}',
                   style: const TextStyle(fontSize: 14, color: Color(0xFF4B5563))),
               const SizedBox(height: 16),
               Row(children: [
-                _big(Loc.t('Paisa mila', 'پیسے ملے'), const Color(0xFF166534), _green, const Color(0xFFF0FDF4),
+                _big(Loc.t('Got paid', 'پیسے ملے'), const Color(0xFF166534), _green, const Color(0xFFF0FDF4),
                     () => Navigator.pop(context, 'paid')),
                 const SizedBox(width: 8),
-                _big(Loc.t('Wada kiya', 'وعدہ کیا'), _blue, promise ? _blue : const Color(0xFFD1D5DB),
+                _big(Loc.t('Promised', 'وعدہ کیا'), _blue, promise ? _blue : const Color(0xFFD1D5DB),
                     promise ? const Color(0xFFEFF6FF) : Colors.white, () => setState(() => _mode = 'promise')),
                 const SizedBox(width: 8),
-                _big(Loc.t('Nahi mila', 'نہیں ملا'), _red, const Color(0xFFD1D5DB), Colors.white,
+                _big(Loc.t('No answer', 'نہیں ملا'), _red, const Color(0xFFD1D5DB), Colors.white,
                     () => _save(FollowUpOutcome.noAnswer)),
               ]),
               if (promise) ...[
@@ -300,7 +300,7 @@ class _RabtaSheetState extends State<_RabtaSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(Loc.t('Kab dega?', 'کب دے گا؟'),
+                      Text(Loc.t('When?', 'کب دے گا؟'),
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _blueInk)),
                       const SizedBox(height: 10),
                       _QuickDates(selected: _date, onPick: (d) => setState(() => _date = d)),
@@ -310,7 +310,7 @@ class _RabtaSheetState extends State<_RabtaSheet> {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                         decoration: InputDecoration(
-                          labelText: Loc.t('Kitna dega (khali = poora baqi)', 'کتنا دے گا (خالی = پورا باقی)'),
+                          labelText: Loc.t('Amount (empty = full due)', 'کتنا دے گا (خالی = پورا باقی)'),
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -323,7 +323,7 @@ class _RabtaSheetState extends State<_RabtaSheet> {
                 FilledButton(
                   style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), backgroundColor: const Color(0xFF101C4A)),
                   onPressed: _saving || _date == null ? null : () => _save(FollowUpOutcome.promised),
-                  child: Text(Loc.t('Wada save karo', 'وعدہ محفوظ کریں'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  child: Text(Loc.t('Save promise', 'وعدہ محفوظ کریں'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ),
               ],
             ],

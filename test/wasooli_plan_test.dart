@@ -122,6 +122,25 @@ void main() {
     expect(sum.todayCount, 1);
   });
 
+  test('purane bill ka chhota bacha hissa (Rs 60) party ko late nahi banata', () {
+    // 7 Nov ka bill: Rs 60 bache; 12 Nov ka naya udhaar Rs 28,550 (due 19 Nov).
+    final p = DueParty(partyId: 1, partyName: 'Akbar', partyPhone: '0312', isSale: true, bills: [
+      DueBill(id: 'S1', partyId: 1, partyName: 'Akbar', partyPhone: '0312', total: 32060, paid: 32000,
+          dueDate: day(11, 7), createdAt: at(10, 31), isSale: true),
+      DueBill(id: 'S2', partyId: 1, partyName: 'Akbar', partyPhone: '0312', total: 28550, paid: 0,
+          dueDate: day(11, 19), createdAt: at(11, 12), isSale: true),
+    ]);
+    final r = buildWasooliRow(
+      p,
+      [f(at(11, 1), FollowUpOutcome.promised, promiseDate: day(11, 5))], // purane qarz ka wada
+      nowMillis: now,
+    );
+    expect(r.urgency, WasooliUrgency.later);
+    expect(r.date, day(11, 19));
+    expect(r.brokenCount, 0);
+    expect(r.total, 28610);
+  });
+
   test('jaldi tareekhen', () {
     expect(quickPromiseDate('kal', nowMillis: now), day(11, 17));
     expect(quickPromiseDate('3din', nowMillis: now), day(11, 19));
