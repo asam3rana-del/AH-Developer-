@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemChannels;
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -394,7 +393,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       _mainShopkeeper = p.shopkeeperPrice;
     });
     _fillRetailWholesaleText();
-    _qtyFocus.requestFocus();
+    // Sale screen jaisa: frame ke BAAD focus (synchronous requestFocus overlay band hote hi overwrite ho jata tha).
+    _focus(_qtyFocus);
 
     // Pichli khareedi ka asli rate (running weighted-average cost nahi) — jab tak user ne khud rate na
     // likha ho, wahi auto-fill.
@@ -531,39 +531,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
   /// keyboard dobara khul jaye. Tap / dropdown menu focus le leta hai aur Android keyboard band kar deta
   /// hai; pehle dobara field par tap karna padta tha. Keyboard se (Enter/Next) wala flow is ko chalata hi
   /// nahi, woh bilkul pehle jaisa tez hai.
-  void _focusAfterTap(FocusNode n) {
-    void go() {
-      if (!mounted || !n.canRequestFocus) return;
-      final cur = FocusManager.instance.primaryFocus;
-      // User is dauran khud item card ke kisi aur number field (Rate, Lot, Retail...) par chala gaya ho to
-      // focus mat chheeno. Supplier / Bill no / Item par focus ho to wo list band hone ke baad khud wahan
-      // chala jata hai (user ne nahi kiya) — isay Quantity par le aao.
-      final userFields = <FocusNode>{
-        _qtyFocus, _rateFocus, _lotFocus, _retailFocus, _wholesaleFocus, _shopkeeperFocus, _paidFocus,
-      }..remove(n);
-      if (cur != null && userFields.contains(cur)) return;
-      // Item field ka purana (ABC) keyboard band karo, warna numeric keyboard Quantity par nahi khulta
-      // aur RawAutocomplete focus wapas item par le aata hai.
-      if (_itemFocus.hasFocus && n != _itemFocus) _itemFocus.unfocus();
-      if (!n.hasFocus) n.requestFocus();
-      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => go());
-    // Item list (overlay) band hone ke baad Autocomplete kabhi focus wapas item field par le aata hai —
-    // is liye kuch dafa dobara: aakhir mein cursor + number keyboard Quantity par hi rahe.
-    for (final ms in const [60, 180, 360, 600]) {
-      Future.delayed(Duration(milliseconds: ms), go);
-    }
+  /// Sale screen jaisa saada focus: frame ke BAAD requestFocus. Isi se tap aur Enter dono par Quantity par
+  /// numeric keyboard sahi khulta hai (synchronous requestFocus overlay band hote hi overwrite ho jata tha).
+  void _focus(FocusNode n) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && n.canRequestFocus) n.requestFocus();
+    });
   }
 
-  void _onProductTapped(Product p) {
-    // Supplier / item ki list (agar khuli ho) band, phir Quantity (numeric keyboard).
-    if (_supplierFocus.hasFocus) _supplierFocus.unfocus();
-    if (_itemFocus.hasFocus) _itemFocus.unfocus();
-    _onProductPicked(p);
-    _focusAfterTap(_qtyFocus);
-  }
+  void _onProductTapped(Product p) => _onProductPicked(p);
 
   /// Enter/Next dabane par agli KHALI field par jao; jo field pehle se bhari ho (auto-fill rate,
   /// lot, retail, wholesale, shopkeeper) usay skip karo. Sab bhari hon to seedha line add ho jaye.
@@ -2117,19 +2093,18 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                           // Ek hi match ho (ya naam poora mile) to wahi chun kar Qty par jao; khali ho to Paid par.
                           final t = _itemCtrl.text.trim();
                           if (t.isEmpty) {
-                            _paidFocus.requestFocus();
+                            _focus(_paidFocus);
                             return;
                           }
                           final exact = _productByName(t);
                           final hits = _products.where((x) => x.matchesQuery(t)).toList();
                           final chosen = exact ?? (hits.length == 1 ? hits.first : null);
                           if (chosen != null) {
-                            _onProductPicked(chosen);
-                            _focusAfterTap(_qtyFocus);
+                            _onProductPicked(chosen); // khud Qty par focus de deta hai
                           } else if (hits.isNotEmpty) {
-                            _itemFocus.requestFocus(); // kai match: list se chunna hai
+                            _focus(_itemFocus); // kai match: list se chunna hai
                           } else {
-                            _qtyFocus.requestFocus();
+                            _focus(_qtyFocus);
                           }
                         },
                         onChanged: (v) {
@@ -2206,7 +2181,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
                       onChanged: (v) {
                         if (v != null) _onUnitChanged(v);
                         // Unit chunne ke baad keyboard wapas: Qty khali ho to Qty, warna Rate.
-                        _focusAfterTap(_qtyCtrl.text.trim().isEmpty ? _qtyFocus : _rateFocus);
+                        _focus(_qtyCtrl.text.trim().isEmpty ? _qtyFocus : _rateFocus);
                       },
                     ),
                   ),
