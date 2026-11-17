@@ -66,10 +66,20 @@ service cloud.firestore {
                             'cash_register', 'units', 'categories', 'returns', 'stock_movements',
                             'app_settings', 'shell_customers', 'shell_transactions', 'shop_empty_shell_log'];
     }
+    // Cashier naya customer bana sakta hai, magar sensitive financial fields sirf DEFAULT (0) ke saath —
+    // yani cashier credit limit / opening balance / stuck balance set nahi kar sakta. Normal app in ko 0 hi
+    // bhejti hai, is liye asli sync nahi rukti; sirf ghalat (bara) value rokta hai.
+    function cashierCustomerFieldsSafe() {
+      return request.resource.data.get('creditLimit', 0) == 0
+          && request.resource.data.get('openingBalance', 0) == 0
+          && request.resource.data.get('stuckBalance', 0) == 0;
+    }
     function cashierMayCreate(collection) {
-      return notTombstone() && collection in ['customers', 'sales', 'payments', 'expenses', 'cash_transactions',
-                            'cash_register', 'returns', 'stock_movements', 'shell_customers',
-                            'shell_transactions', 'shop_empty_shell_log'];
+      return notTombstone() && (
+        (collection == 'customers' && cashierCustomerFieldsSafe())
+        || collection in ['sales', 'payments', 'expenses', 'cash_transactions',
+                          'cash_register', 'returns', 'stock_movements', 'shell_customers',
+                          'shell_transactions', 'shop_empty_shell_log']);
     }
     function cashierMayUpdate(collection) {
       return notTombstone() && (

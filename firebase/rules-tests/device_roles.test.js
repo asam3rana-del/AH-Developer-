@@ -79,6 +79,17 @@ test('cashier creates sale / payment / customer / stock movement but not supplie
   await assertFails(setDoc(doc(db, 'sales/new3'), { total: 5 }));                        // no branchId
 });
 
+test('cashier new customer: default (0) financial fields ok, setting credit limit / opening / stuck fails', async () => {
+  const db = as('u-cash');
+  // Normal app cashier create (fields = 0, ya absent) chalni chahiye.
+  await assertSucceeds(setDoc(doc(db, 'customers/cc1'), { branchId: 'b1', name: 'New', creditLimit: 0, openingBalance: 0, stuckBalance: 0 }));
+  await assertSucceeds(setDoc(doc(db, 'customers/cc2'), { branchId: 'b1', name: 'New2' }));
+  // Cashier naya customer bana kar bara credit limit / opening / stuck balance set nahi kar sakta.
+  await assertFails(setDoc(doc(db, 'customers/cc3'), { branchId: 'b1', name: 'Bad', creditLimit: 999999 }));
+  await assertFails(setDoc(doc(db, 'customers/cc4'), { branchId: 'b1', name: 'Bad', openingBalance: 5000 }));
+  await assertFails(setDoc(doc(db, 'customers/cc5'), { branchId: 'b1', name: 'Bad', stuckBalance: 5000 }));
+});
+
 test('cashier stock increment: only stock/updatedAt/appliedOps on a product', async () => {
   const db = as('u-cash');
   await assertSucceeds(updateDoc(doc(db, 'products/p1'), { stock: 8, updatedAt: 5, appliedOps: { 'd-1-1': 5 } }));

@@ -2,10 +2,12 @@ import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 
+import '../models/stock_movement.dart';
 import '../sync/sync_queue_helper.dart';
 import 'app_database.dart';
 import 'customer_repository.dart';
 import 'product_repository.dart';
+import 'stock_ledger.dart';
 
 /// Return "undo": galti se return ho jaye to wapas pehli halat par le aana.
 ///
@@ -52,10 +54,23 @@ class ReturnUndoRepository {
       for (final r in await txn.query('payments', where: 'reference = ? OR billReference = ?', whereArgs: [ref, ref]))
         Map<String, Object?>.from(r),
     ];
-    final cash = [
-      for (final r in await txn.query('cash_transactions', where: 'reference = ?', whereArgs: [ref]))
-        Map<String, Object?>.from(r),
-    ];
+    // Cash rows: bill ki apni, linked payments ki apni (reference = payment ka reference), aur return/ reversal
+    // ki rows (reference = 'return:<bill-ya-payment-ref>'). Sab ko ek saath capture/restore karna zaroori hai
+    // warna undo ke baad cash book mein duplicate / orphan entries reh jati hain.
+    final cashRefs = <String>{ref, 'return:$ref'};
+    for (final pay in payments) {
+      final pref = (pay['reference'] as String?) ?? '';
+      if (pref.isNotEmpty) {
+        cashRefs.add(pref);
+        cashRefs.add('return:$pref');
+      }
+    }
+    final cash = <Map<String, Object?>>[];
+    for (final cr in cashRefs) {
+      for (final r in await txn.query('cash_transactions', where: 'reference = ?', whereArgs: [cr])) {
+        cash.add(Map<String, Object?>.from(r));
+      }
+    }
 
     final barcodes = {for (final it in items) (it['barcode'] as String?) ?? ''}..remove('');
     final preStock = <String, double>{};
@@ -97,12 +112,14 @@ class ReturnUndoRepository {
     if (pre.bill.isEmpty) return; // kuch snapshot karne ko nahi
     final products = <Map<String, Object?>>[];
     for (final bc in pre.preStock.keys) {
-      final pr = await txn.query('products', columns: ['stock'], where: 'barcode = ?', whereArgs: [bc], limit: 1);
+      final pr = await txn.query('products', columns: ['stock', 'cost'], where: 'barcode = ?', whereArgs: [bc], limit: 1);
       final postStock = pr.isEmpty ? pre.preStock[bc]! : ((pr.first['stock'] as num?) ?? 0).toDouble();
+      final postCost = pr.isEmpty ? (pre.preCost[bc] ?? 0) : ((pr.first['cost'] as num?) ?? 0).toDouble();
       products.add({
         'barcode': bc,
         'stockDelta': postStock - pre.preStock[bc]!, // return ne stock itna badla (sale: +, purchase: -)
         'costBefore': pre.preCost[bc] ?? 0,
+        'costAfter': postCost, // undo cost sirf tab restore kare jab beech mein kisi aur ne cost na badli ho
       });
     }
 
@@ -185,9 +202,18 @@ class ReturnUndoRepository {
         if (id is int) await SyncQueueHelper.enqueuePayment(txn, id);
       }
 
-      // 3. Cash rows: maujooda is bill ke hatao (helper khud DB se hataati + cloud delete), phir snapshot wale wapas.
-      await SyncQueueHelper.deleteCashTransactionsByReference(txn, ref);
-      for (final c in (p['cash'] as List).cast<Map<String, Object?>>()) {
+      // 3. Cash rows: bill + linked payments + reversal (sab references) ke maujooda rows hatao, phir snapshot
+      //    wale hoo-ba-hoo wapas. Warna linked-payment ki cash duplicate / orphan reh jati.
+      final snapCash = (p['cash'] as List).cast<Map<String, Object?>>();
+      final cashRefs = <String>{ref, 'return:$ref'};
+      for (final c in snapCash) {
+        final cref = (c['reference'] as String?) ?? '';
+        if (cref.isNotEmpty) cashRefs.add(cref);
+      }
+      for (final cr in cashRefs) {
+        await SyncQueueHelper.deleteCashTransactionsByReference(txn, cr);
+      }
+      for (final c in snapCash) {
         final m = Map<String, Object?>.from(c)..['dirty'] = 1;
         await txn.insert('cash_transactions', m, conflictAlgorithm: ConflictAlgorithm.replace);
         final id = m['id'];
@@ -208,16 +234,32 @@ class ReturnUndoRepository {
         await SyncQueueHelper.enqueuePurchase(txn, ref);
       }
 
-      // 5. Products: stock par return ke delta ka ULTA, cost snapshot wali value.
+      // 5. Products: stock par return ke delta ka ULTA (+ stock_movements ledger), cost mehfoot tareeqe se.
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
       for (final pr in (p['products'] as List).cast<Map<String, Object?>>()) {
         final bc = pr['barcode'] as String;
         final stockDelta = ((pr['stockDelta'] as num?) ?? 0).toDouble();
         final costBefore = ((pr['costBefore'] as num?) ?? 0).toDouble();
-        await txn.rawUpdate(
-          'UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
-          [stockDelta, costBefore, DateTime.now().millisecondsSinceEpoch, bc],
-        );
-        if (stockDelta != 0) await SyncQueueHelper.enqueueStockDelta(txn, bc, -stockDelta);
+        final costAfter = (pr['costAfter'] as num?)?.toDouble();
+        // Cost sirf tab restore karo jab return ke baad se cost badli NAHI (warna beech ki nayi purchase ki
+        // cost mit jati). costAfter purane snapshot mein na ho (purani snapshot), to purana rawaiya: restore.
+        final cur = await txn.query('products', columns: ['cost'], where: 'barcode = ?', whereArgs: [bc], limit: 1);
+        final curCost = cur.isEmpty ? null : ((cur.first['cost'] as num?) ?? 0).toDouble();
+        final restoreCost = costAfter == null || curCost == null || (curCost - costAfter).abs() < 0.01;
+        if (restoreCost) {
+          await txn.rawUpdate('UPDATE products SET stock = stock - ?, cost = ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+              [stockDelta, costBefore, nowMs, bc]);
+        } else {
+          // Beech mein cost badal chuki — sirf stock ulta karo, cost ko haath na lagao.
+          await txn.rawUpdate('UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+              [stockDelta, nowMs, bc]);
+        }
+        if (stockDelta != 0) {
+          await SyncQueueHelper.enqueueStockDelta(txn, bc, -stockDelta);
+          // stock_movements ledger bhi, taake product.stock aur ledger milते rahein (RETURN_UNDO).
+          await StockLedger.log(txn,
+              barcode: bc, type: MovementType.returnUndo, signedQty: -stockDelta, reference: ref, now: nowMs);
+        }
         await SyncQueueHelper.enqueueProduct(txn, bc);
       }
 

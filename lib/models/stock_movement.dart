@@ -82,6 +82,7 @@ class MovementType {
   static const adjustment = 'ADJUSTMENT';
   static const stockTake = 'STOCK_TAKE';
   static const auditReconcile = 'AUDIT_RECONCILE';
+  static const returnUndo = 'RETURN_UNDO';
 
   /// Cost History sirf wo types jo Product.cost hila sakti hain (sale kabhi cost nahi badalti).
   /// Kotlin StockMovementDao.costHistoryForProduct().
@@ -91,5 +92,6 @@ class MovementType {
     purchaseReversal,
     purchaseItemDelete,
     openingStock,
+    returnUndo,
   ];
 }
