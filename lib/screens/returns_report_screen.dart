@@ -1,11 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/reports_repository.dart' show ReportPeriod, reportRangeFor;
 import '../db/returns_report_repository.dart';
+import '../db/user_repository.dart';
 import '../services/permissions.dart';
 import '../theme/theme_manager.dart';
+import '../utils/bill_text.dart';
 import '../utils/loc.dart';
+
+/// Ek return event (ek bill ki ek dafa ki wapsi) ki saari lines — "bill" ki tarah dekhne / share ke liye.
+class _ReturnBatch {
+  final String reference;
+  final String type;
+  final String partyName;
+  final int createdAt;
+  final List<ReturnReportRow> lines;
+  const _ReturnBatch(this.reference, this.type, this.partyName, this.createdAt, this.lines);
+
+  double get total => lines.fold(0.0, (a, r) => a + r.amount);
+}
+
+List<_ReturnBatch> groupReturnBatches(List<ReturnReportRow> rows) {
+  final map = <String, List<ReturnReportRow>>{};
+  final order = <String>[];
+  for (final r in rows) {
+    final key = '${r.reference}|${r.createdAt}';
+    (map[key] ??= (order..add(key), <ReturnReportRow>[]).$2).add(r);
+  }
+  return [
+    for (final k in order)
+      _ReturnBatch(map[k]!.first.reference, map[k]!.first.type, map[k]!.first.partyName, map[k]!.first.createdAt, map[k]!),
+  ];
+}
 
 /// Returns Report: Sale Returns / Purchase Returns ki line-wise list (bill, party, item, qty, amount) + total.
 /// Period: Today / This Week / This Month / All Time (Reports hub jaisa).
@@ -26,7 +55,6 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
 
   AppPalette get _p => ThemeManager.palette;
   String _rs(double v) => 'Rs ${v.round()}';
-  String _qty(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
 
   @override
   void initState() {
@@ -115,11 +143,14 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : rows.isEmpty
                       ? Center(child: Text(Loc.t('No returns in this period.', 'اس مدت میں کوئی واپسی نہیں۔'), style: TextStyle(color: p.textMuted)))
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 24),
-                          itemCount: rows.length,
-                          itemBuilder: (_, i) => _tile(rows[i]),
-                        ),
+                      : Builder(builder: (_) {
+                          final batches = groupReturnBatches(rows);
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(12, 6, 12, 24),
+                            itemCount: batches.length,
+                            itemBuilder: (_, i) => _batchTile(batches[i]),
+                          );
+                        }),
         ),
       ]),
     );
@@ -137,26 +168,119 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
     _load();
   }
 
-  Widget _tile(ReturnReportRow r) {
+  /// Ek return event ka card — dusre bills ki tarah, tap par poori receipt (Share / Copy).
+  Widget _batchTile(_ReturnBatch b) {
     final p = _p;
+    final items = b.lines.map((l) => l.itemName).take(3).join(', ');
     return Container(
       margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: p.cardWhite, borderRadius: BorderRadius.circular(14), border: Border.all(color: p.border)),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(r.itemName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.textDark)),
-            const SizedBox(height: 2),
-            Text('${_qty(r.qty)}${r.unit.isEmpty ? '' : ' ${r.unit}'}  •  ${r.partyName}',
-                style: TextStyle(fontSize: 12, color: p.textMuted)),
-            Text('${r.reference}  •  ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(r.createdAt))}',
-                style: TextStyle(fontSize: 11, color: p.textMuted)),
-          ]),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _viewReceipt(b),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(b.partyName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.textDark)),
+                  const SizedBox(height: 2),
+                  Text('${b.lines.length} ${Loc.t('item(s)', 'آئٹم')}: $items${b.lines.length > 3 ? '…' : ''}',
+                      style: TextStyle(fontSize: 12, color: p.textMuted), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text('${b.reference}  •  ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(b.createdAt))}',
+                      style: TextStyle(fontSize: 11, color: p.textMuted)),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Icon(Icons.receipt_long, size: 14, color: p.navy),
+                    const SizedBox(width: 4),
+                    Text(Loc.t('View receipt', 'رسید دیکھیں'), style: TextStyle(fontSize: 12, color: p.navy, fontWeight: FontWeight.w600)),
+                  ]),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Text('- ${_rs(b.total)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.red)),
+            ]),
+          ),
         ),
-        const SizedBox(width: 8),
-        Text(_rs(r.amount), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.red)),
-      ]),
+      ),
+    );
+  }
+
+  Future<void> _viewReceipt(_ReturnBatch b) async {
+    final repo = UserRepository.instance;
+    final shopName = (await repo.getSetting('shop_name')) ?? '';
+    final shopOwner = (await repo.getSetting('shop_owner')) ?? '';
+    final shopPhone = (await repo.getSetting('shop_phone')) ?? '';
+    final date = DateTime.fromMillisecondsSinceEpoch(b.createdAt);
+    final String text;
+    if (b.type == 'sale') {
+      text = buildSaleReturnText(
+        shopName: shopName,
+        shopOwner: shopOwner,
+        shopPhone: shopPhone,
+        invoice: b.reference,
+        date: date,
+        customer: b.partyName,
+        lines: [
+          for (final l in b.lines)
+            (name: l.itemName, qty: l.qty, unit: l.unit, rate: l.qty > 0 ? l.amount / l.qty : l.amount, amount: l.amount),
+        ],
+        returnedTotal: b.total,
+      );
+    } else {
+      text = buildPurchaseReturnText(
+        shopName: shopName,
+        shopOwner: shopOwner,
+        shopPhone: shopPhone,
+        billNo: b.reference,
+        date: date,
+        supplier: b.partyName,
+        lines: [
+          for (final l in b.lines)
+            (name: l.itemName, qty: l.qty, unit: l.unit, unitCost: l.qty > 0 ? l.amount / l.qty : l.amount, amount: l.amount),
+        ],
+        returnedTotal: b.total,
+      );
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Return receipt', 'واپسی کی رسید')),
+        content: SingleChildScrollView(
+          child: Container(
+            width: double.maxFinite,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: _p.bg, borderRadius: BorderRadius.circular(8)),
+            child: Text(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.copy, size: 18),
+            label: Text(Loc.t('Copy', 'کاپی')),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.share, size: 18),
+            label: Text(Loc.t('Share', 'شیئر')),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await Share.share(text);
+              } catch (_) {
+                await Clipboard.setData(ClipboardData(text: text));
+              }
+            },
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
+        ],
+      ),
     );
   }
 }

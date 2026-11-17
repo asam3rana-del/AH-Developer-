@@ -140,8 +140,8 @@ String buildPurchaseReturnText({
   required String supplier,
   required List<({String name, double qty, String unit, double unitCost, double amount})> lines,
   required double returnedTotal,
-  required double balanceBefore,
-  required double balanceAfter,
+  double? balanceBefore,
+  double? balanceAfter,
   int width = 32,
 }) {
   final b = StringBuffer();
@@ -170,11 +170,13 @@ String buildPurchaseReturnText({
   }
   b.writeln(rule);
   b.writeln(row('Returned Amount', '-${returnedTotal.round()}'));
-  b.writeln(rule);
-  b.writeln(row('Balance before', balanceBefore.round().toString()));
-  b.writeln(row('Balance now', balanceAfter.round().toString()));
-  b.writeln(rule);
-  b.writeln(center('Supplier balance Rs ${returnedTotal.round()} kam hua'));
+  if (balanceBefore != null && balanceAfter != null) {
+    b.writeln(rule);
+    b.writeln(row('Balance before', balanceBefore.round().toString()));
+    b.writeln(row('Balance now', balanceAfter.round().toString()));
+    b.writeln(rule);
+    b.writeln(center('Supplier balance Rs ${returnedTotal.round()} kam hua'));
+  }
   return b.toString();
 }
 
@@ -188,8 +190,8 @@ String buildSaleReturnText({
   required String customer,
   required List<({String name, double qty, String unit, double rate, double amount})> lines,
   required double returnedTotal,
-  required double balanceBefore,
-  required double balanceAfter,
+  double? balanceBefore,
+  double? balanceAfter,
   int width = 32,
 }) {
   final b = StringBuffer();
@@ -218,11 +220,13 @@ String buildSaleReturnText({
   }
   b.writeln(rule);
   b.writeln(row('Returned Amount', '-${returnedTotal.round()}'));
-  b.writeln(rule);
-  b.writeln(row('Balance before', balanceBefore.round().toString()));
-  b.writeln(row('Balance now', balanceAfter.round().toString()));
-  b.writeln(rule);
-  b.writeln(center('Customer balance Rs ${returnedTotal.round()} kam hua'));
+  if (balanceBefore != null && balanceAfter != null) {
+    b.writeln(rule);
+    b.writeln(row('Balance before', balanceBefore.round().toString()));
+    b.writeln(row('Balance now', balanceAfter.round().toString()));
+    b.writeln(rule);
+    b.writeln(center('Customer balance Rs ${returnedTotal.round()} kam hua'));
+  }
   return b.toString();
 }
 
