@@ -971,9 +971,10 @@ class SaleRepository {
       // Return ki cash reversal rows (reference = return:<invoice>) hatao — cloud par bhi.
       await SyncQueueHelper.deleteCashTransactionsByReference(txn, 'return:$invoice');
       // `returns` rows hatao.
-      final retRows = await txn.query('returns', columns: ['id'], where: 'reference = ? AND type = ?', whereArgs: [invoice, 'sale']);
+      final retRows = await txn.query('returns', columns: ['id', 'serverId'], where: 'reference = ? AND type = ?', whereArgs: [invoice, 'sale']);
       for (final rr in retRows) {
-        await SyncQueueHelper.enqueueDelete(txn, 'return', '${rr['id']}');
+        final sid = (rr['serverId'] as String?)?.trim();
+        await SyncQueueHelper.enqueueDelete(txn, 'return', sid != null && sid.isNotEmpty ? sid : '${rr['id']}');
       }
       await txn.delete('returns', where: 'reference = ? AND type = ?', whereArgs: [invoice, 'sale']);
       await txn.update('sales', {'status': 'active', 'updatedAt': now, 'dirty': 1}, where: 'invoice=?', whereArgs: [invoice]);

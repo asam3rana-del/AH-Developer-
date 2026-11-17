@@ -528,6 +528,12 @@ Future<void> applyReturns(DatabaseExecutor db, List<SyncDoc> rows, {required int
   for (final row in rows) {
     final serverId = _s(row['serverId']);
     if (serverId == null) continue;
+    // Return undo se return delete ho sakti hai: tombstone aaye to local row bhi hatao (warna
+    // ek device par undo kiya hua return doosre device ki Returns Report mein reh jata hai).
+    if (row['_deleted'] == true) {
+      await db.delete('returns', where: 'serverId = ?', whereArgs: [serverId]);
+      continue;
+    }
     if (await _findBy(db, 'returns', 'serverId', serverId) != null) continue;
     final reference = _s(row['reference']);
     final type = _s(row['type']);

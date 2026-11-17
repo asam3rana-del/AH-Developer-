@@ -184,9 +184,11 @@ class ReturnUndoRepository {
     await db.transaction((txn) async {
       // 1. Is return ki `returns` rows (snapshot ke waqt ya baad banin) hatao — cloud par bhi.
       final retRows = await txn.query('returns',
-          columns: ['id'], where: 'reference = ? AND createdAt >= ?', whereArgs: [ref, at]);
+          columns: ['id', 'serverId'], where: 'reference = ? AND createdAt >= ?', whereArgs: [ref, at]);
       for (final r in retRows) {
-        await SyncQueueHelper.enqueueDelete(txn, 'return', '${r['id']}');
+        // Cloud doc serverId se banta hai (pulled return), warna local id (yahan bani return). Dono case theek.
+        final sid = (r['serverId'] as String?)?.trim();
+        await SyncQueueHelper.enqueueDelete(txn, 'return', sid != null && sid.isNotEmpty ? sid : '${r['id']}');
       }
       await txn.delete('returns', where: 'reference = ? AND createdAt >= ?', whereArgs: [ref, at]);
 
