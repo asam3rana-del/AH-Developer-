@@ -34,6 +34,24 @@ import '../sync/sync_queue_helper.dart';
 ///  * Return/Delete sirf admin (data layer par bhi check).
 
 /// Kotlin `PurchaseWithSupplier` + paid.
+/// Purchase return ke baad receipt banane ke liye natija.
+class PurchaseReturnResult {
+  final String billNo;
+  final double returnedTotal;
+  final String supplierName;
+  final double supplierBalanceBefore;
+
+  /// Supplier ka naya balance (musbat = hum ne dena hai). Return se ye kam hota hai.
+  final double supplierBalanceAfter;
+  const PurchaseReturnResult({
+    required this.billNo,
+    required this.returnedTotal,
+    required this.supplierName,
+    required this.supplierBalanceBefore,
+    required this.supplierBalanceAfter,
+  });
+}
+
 class PurchaseHistoryRow {
   final String billNo;
   final String supplierName;
@@ -328,15 +346,23 @@ class PurchaseHistoryRepository {
   /// Partial purchase return (admin). [requested] = purchase_items.id -> return qty.
   /// Kotlin processPartialReturn(): sirf wahi qty stock/cost/supplier balance se nikalti hai; sab lines
   /// poori return => bill 'returned'. Sab ek transaction mein.
-  Future<void> returnItems(String billNo, Map<int, double> requested) async {
+  /// Receipt ke liye [PurchaseReturnResult] (kitna wapas, supplier ka naya balance) wapas.
+  Future<PurchaseReturnResult> returnItems(String billNo, Map<int, double> requested) async {
     _requireAdmin();
     final db = await AppDatabase.instance.database;
     double returnedTotal = 0;
+    int? supplierId;
+    var balanceBefore = 0.0;
     await db.transaction((txn) async {
       final pr = await txn.query('purchases', where: 'billNo = ?', whereArgs: [billNo], limit: 1);
       if (pr.isEmpty) throw StateError('Ye bill nahi mila');
       final purchase = Purchase.fromMap(pr.first);
       if (purchase.status == 'returned') throw StateError('Ye purchase pehle hi return ho chuki hai');
+      supplierId = purchase.supplierId;
+      if (supplierId != null) {
+        final sb = await txn.query('suppliers', columns: ['balance'], where: 'id = ?', whereArgs: [supplierId], limit: 1);
+        if (sb.isNotEmpty) balanceBefore = ((sb.first['balance'] as num?) ?? 0).toDouble();
+      }
       final now = _now();
 
       final backfillBarcodes = <String>{};
@@ -432,6 +458,23 @@ class PurchaseHistoryRepository {
     });
     await _refreshAll();
     if (returnedTotal > 0) await _logAudit('purchase_return', billNo, 'returned=$returnedTotal');
+
+    var balanceAfter = 0.0;
+    var supplierName = '';
+    if (supplierId != null) {
+      final sr = await db.query('suppliers', columns: ['name', 'balance'], where: 'id = ?', whereArgs: [supplierId], limit: 1);
+      if (sr.isNotEmpty) {
+        supplierName = (sr.first['name'] as String?) ?? '';
+        balanceAfter = ((sr.first['balance'] as num?) ?? 0).toDouble();
+      }
+    }
+    return PurchaseReturnResult(
+      billNo: billNo,
+      returnedTotal: returnedTotal,
+      supplierName: supplierName,
+      supplierBalanceBefore: balanceBefore,
+      supplierBalanceAfter: balanceAfter,
+    );
   }
 
   // ---------------------------------------------------------------- Delete

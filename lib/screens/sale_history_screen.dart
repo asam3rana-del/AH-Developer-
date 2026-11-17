@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/sale_history_repository.dart';
 import '../db/purchase_history_repository.dart' show ReturnableLine;
 import '../db/sale_repository.dart';
+import '../db/user_repository.dart';
+import '../utils/bill_text.dart';
 import '../models/sale.dart';
 import '../services/session.dart';
 import '../theme/theme_manager.dart';
@@ -152,13 +156,83 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
       ),
     );
     if (requested == null) return;
+    // Receipt ke liye returned lines (naam / qty / rate) yahin se le lo (return ke baad bill badal jata hai).
+    final byId = {for (final i in items) i.id ?? -1: i};
+    final returnedLines = <({String name, double qty, String unit, double rate, double amount})>[];
+    requested.forEach((id, qty) {
+      if (qty <= 0) return;
+      final i = byId[id];
+      if (i != null) returnedLines.add((name: i.product, qty: qty, unit: i.unit, rate: i.unitPrice, amount: qty * i.unitPrice));
+    });
     try {
-      await SaleRepository.instance.returnSaleItems(s.invoice, requested);
+      final res = await SaleRepository.instance.returnSaleItems(s.invoice, requested);
       _toast(Loc.t('Items returned', 'آئٹمز واپس ہو گئے'));
+      if (mounted) await _showReturnReceipt(res, returnedLines, s.customerName);
     } catch (e) {
       _toast('$e');
     }
     if (mounted) _refresh(showSpinner: false);
+  }
+
+  /// Sale return ki receipt: customer ko dikhane ke liye ke maal wapas hua aur uska balance kam hua.
+  Future<void> _showReturnReceipt(
+    SaleReturnResult res,
+    List<({String name, double qty, String unit, double rate, double amount})> lines,
+    String customerName,
+  ) async {
+    final repo = UserRepository.instance;
+    final text = buildSaleReturnText(
+      shopName: (await repo.getSetting('shop_name')) ?? '',
+      shopOwner: (await repo.getSetting('shop_owner')) ?? '',
+      shopPhone: (await repo.getSetting('shop_phone')) ?? '',
+      invoice: res.invoice,
+      date: DateTime.now(),
+      customer: res.customerName.isEmpty ? customerName : res.customerName,
+      lines: lines,
+      returnedTotal: res.returnedTotal,
+      balanceBefore: res.customerBalanceBefore,
+      balanceAfter: res.customerBalanceAfter,
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Return receipt', 'واپسی کی رسید')),
+        content: SingleChildScrollView(
+          child: Container(
+            width: double.maxFinite,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: _p.bg, borderRadius: BorderRadius.circular(8)),
+            child: Text(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.copy, size: 18),
+            label: Text(Loc.t('Copy', 'کاپی')),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (ctx.mounted) Navigator.pop(ctx);
+              _toast(Loc.t('Receipt copied', 'رسید کاپی ہو گئی'));
+            },
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.share, size: 18),
+            label: Text(Loc.t('Share', 'شیئر')),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await Share.share(text);
+              } catch (_) {
+                await Clipboard.setData(ClipboardData(text: text));
+                _toast(Loc.t('Receipt copied', 'رسید کاپی ہو گئی'));
+              }
+            },
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
+        ],
+      ),
+    );
   }
 
   Future<void> _delete(SaleWithCustomer s) async {

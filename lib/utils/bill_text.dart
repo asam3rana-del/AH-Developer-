@@ -130,6 +130,102 @@ String buildPurchaseBillText({
   return b.toString();
 }
 
+/// Purchase RETURN receipt (supplier ko dikhane ke liye ke maal wapas hua aur uska balance minus hua).
+String buildPurchaseReturnText({
+  required String shopName,
+  String shopOwner = '',
+  String shopPhone = '',
+  required String billNo,
+  required DateTime date,
+  required String supplier,
+  required List<({String name, double qty, String unit, double unitCost, double amount})> lines,
+  required double returnedTotal,
+  required double balanceBefore,
+  required double balanceAfter,
+  int width = 32,
+}) {
+  final b = StringBuffer();
+  String center(String t) => t.length >= width ? t : ' ' * ((width - t.length) ~/ 2) + t;
+  String row(String left, String right) {
+    final space = width - left.length - right.length;
+    return space >= 1 ? left + ' ' * space + right : '$left\n${' ' * (width - right.length)}$right';
+  }
+
+  final rule = '-' * width;
+  b.writeln(center(shopName.isEmpty ? 'IBTISAAM Kiryana Store' : shopName));
+  if (shopOwner.trim().isNotEmpty) b.writeln(center(shopOwner.trim()));
+  if (shopPhone.isNotEmpty) b.writeln(center(shopPhone));
+  b.writeln(center('PURCHASE RETURN'));
+  b.writeln(center('(Maal wapsi)'));
+  b.writeln(rule);
+  b.writeln('Bill No: $billNo');
+  b.writeln('Date: ${DateFormat('dd/MM/yyyy hh:mm a').format(date)}');
+  b.writeln('Supplier: ${supplier.trim().isEmpty ? '-' : supplier.trim()}');
+  b.writeln(rule);
+  b.writeln(center('RETURNED ITEMS'));
+  for (var n = 0; n < lines.length; n++) {
+    final l = lines[n];
+    b.writeln('${n + 1}. ${l.name}');
+    b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitCost.toStringAsFixed(2)}', '-${l.amount.round()}'));
+  }
+  b.writeln(rule);
+  b.writeln(row('Returned Amount', '-${returnedTotal.round()}'));
+  b.writeln(rule);
+  b.writeln(row('Balance before', balanceBefore.round().toString()));
+  b.writeln(row('Balance now', balanceAfter.round().toString()));
+  b.writeln(rule);
+  b.writeln(center('Supplier balance Rs ${returnedTotal.round()} kam hua'));
+  return b.toString();
+}
+
+/// Sale RETURN receipt (customer ko dikhane ke liye ke maal wapas hua aur uska balance minus hua).
+String buildSaleReturnText({
+  required String shopName,
+  String shopOwner = '',
+  String shopPhone = '',
+  required String invoice,
+  required DateTime date,
+  required String customer,
+  required List<({String name, double qty, String unit, double rate, double amount})> lines,
+  required double returnedTotal,
+  required double balanceBefore,
+  required double balanceAfter,
+  int width = 32,
+}) {
+  final b = StringBuffer();
+  String center(String t) => t.length >= width ? t : ' ' * ((width - t.length) ~/ 2) + t;
+  String row(String left, String right) {
+    final space = width - left.length - right.length;
+    return space >= 1 ? left + ' ' * space + right : '$left\n${' ' * (width - right.length)}$right';
+  }
+
+  final rule = '-' * width;
+  b.writeln(center(shopName.isEmpty ? 'IBTISAAM Kiryana Store' : shopName));
+  if (shopOwner.trim().isNotEmpty) b.writeln(center(shopOwner.trim()));
+  if (shopPhone.isNotEmpty) b.writeln(center(shopPhone));
+  b.writeln(center('SALE RETURN'));
+  b.writeln(center('(Maal wapsi)'));
+  b.writeln(rule);
+  b.writeln('Invoice: $invoice');
+  b.writeln('Date: ${DateFormat('dd/MM/yyyy hh:mm a').format(date)}');
+  b.writeln('Customer: ${customer.trim().isEmpty ? 'Walk-in' : customer.trim()}');
+  b.writeln(rule);
+  b.writeln(center('RETURNED ITEMS'));
+  for (var n = 0; n < lines.length; n++) {
+    final l = lines[n];
+    b.writeln('${n + 1}. ${l.name}');
+    b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.rate.toStringAsFixed(2)}', '-${l.amount.round()}'));
+  }
+  b.writeln(rule);
+  b.writeln(row('Returned Amount', '-${returnedTotal.round()}'));
+  b.writeln(rule);
+  b.writeln(row('Balance before', balanceBefore.round().toString()));
+  b.writeln(row('Balance now', balanceAfter.round().toString()));
+  b.writeln(rule);
+  b.writeln(center('Customer balance Rs ${returnedTotal.round()} kam hua'));
+  return b.toString();
+}
+
 /// Kotlin sharePurchase(): chhota summary text (supplier, bill no, amount, balance, date).
 String buildPurchaseShareText({
   required String supplier,

@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/purchase_history_repository.dart';
+import '../db/user_repository.dart';
 import '../db/party_transaction_repository.dart' show InsufficientStockException;
 import '../theme/theme_manager.dart';
 import '../utils/bill_doc.dart';
@@ -345,13 +346,86 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
       ),
     );
     if (requested == null) return;
+    // Receipt ke liye lines (naam/unit) aur unitCost yahin se le lo (return ke baad bill badal jata hai).
+    final items = await _repo.itemsForBill(r.billNo);
+    final costById = {for (final it in items) it.id ?? -1: it.unitCost};
+    final nameById = {for (final l in lines) l.itemId: (name: l.name, unit: l.unit)};
+    final returnedLines = <({String name, double qty, String unit, double unitCost, double amount})>[];
+    requested.forEach((id, qty) {
+      if (qty <= 0) return;
+      final n = nameById[id];
+      final cost = costById[id] ?? 0;
+      if (n != null) returnedLines.add((name: n.name, qty: qty, unit: n.unit, unitCost: cost, amount: qty * cost));
+    });
     try {
-      await _repo.returnItems(r.billNo, requested);
+      final res = await _repo.returnItems(r.billNo, requested);
       _toast(Loc.t('Items returned', 'آئٹمز واپس ہو گئے'));
+      if (mounted) await _showReturnReceipt(res, returnedLines, r.supplierName);
     } catch (e) {
       _toast('$e');
     }
     if (mounted) _load(showSpinner: false);
+  }
+
+  /// Purchase return ki receipt: supplier ko dikhane ke liye ke maal wapas hua aur uska balance kam hua.
+  Future<void> _showReturnReceipt(
+    PurchaseReturnResult res,
+    List<({String name, double qty, String unit, double unitCost, double amount})> lines,
+    String supplierName,
+  ) async {
+    final repo = UserRepository.instance;
+    final text = buildPurchaseReturnText(
+      shopName: (await repo.getSetting('shop_name')) ?? '',
+      shopOwner: (await repo.getSetting('shop_owner')) ?? '',
+      shopPhone: (await repo.getSetting('shop_phone')) ?? '',
+      billNo: res.billNo,
+      date: DateTime.now(),
+      supplier: res.supplierName.isEmpty ? supplierName : res.supplierName,
+      lines: lines,
+      returnedTotal: res.returnedTotal,
+      balanceBefore: res.supplierBalanceBefore,
+      balanceAfter: res.supplierBalanceAfter,
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Return receipt', 'واپسی کی رسید')),
+        content: SingleChildScrollView(
+          child: Container(
+            width: double.maxFinite,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: _p.bg, borderRadius: BorderRadius.circular(8)),
+            child: Text(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.copy, size: 18),
+            label: Text(Loc.t('Copy', 'کاپی')),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (ctx.mounted) Navigator.pop(ctx);
+              _toast(Loc.t('Receipt copied', 'رسید کاپی ہو گئی'));
+            },
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.share, size: 18),
+            label: Text(Loc.t('Share', 'شیئر')),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await Share.share(text);
+              } catch (_) {
+                await Clipboard.setData(ClipboardData(text: text));
+                _toast(Loc.t('Receipt copied', 'رسید کاپی ہو گئی'));
+              }
+            },
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Close', 'بند کریں'))),
+        ],
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------- UI
