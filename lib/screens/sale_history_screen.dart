@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../db/sale_history_repository.dart';
 import '../db/purchase_history_repository.dart' show ReturnableLine;
 import '../db/sale_repository.dart';
+import '../db/return_undo_repository.dart';
 import '../db/user_repository.dart';
 import '../utils/bill_text.dart';
 import '../models/sale.dart';
@@ -41,6 +42,7 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
 
   bool _loading = true;
   List<SaleWithCustomer> _all = const [];
+  Set<String> _undoable = const {};
   List<SaleGroup> _groups = const [];
   Map<String, double> _profits = const {};
   Set<String> _pendingCost = const {};
@@ -80,9 +82,11 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
     final all = await _repo.allSales();
     final profits = await _repo.saleProfits();
     final pendingCost = await _repo.pendingCostInvoices();
+    final undoable = await ReturnUndoRepository.instance.undoableRefs('sale');
     if (!mounted) return;
     setState(() {
       _pendingCost = pendingCost;
+      _undoable = undoable;
       _all = all;
       _groups = groupSalesByCustomer(all);
       _profits = profits;
@@ -134,6 +138,40 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
       ),
     );
     return ok == true;
+  }
+
+  /// Galti se return ho jaye to wapas pehli halat par. [reconstructFallback] = purana full return (snapshot nahi).
+  Future<void> _undoReturn(String invoice, bool reconstructFallback) async {
+    final hasSnap = await ReturnUndoRepository.instance.hasUndo(invoice, 'sale');
+    if (!mounted) return;
+    final old = !hasSnap && reconstructFallback;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('Undo return?', 'واپسی منسوخ کریں؟')),
+        content: Text(old
+            ? Loc.t(
+                'This return was done before the undo feature. The bill will be restored: stock back, customer balance re-applied, status Active. If this bill had a separate linked payment, re-enter that payment afterwards. Continue?',
+                'یہ واپسی undo فیچر سے پہلے ہوئی۔ بل بحال ہو جائے گا: اسٹاک واپس، گاہک بیلنس دوبارہ، اسٹیٹس ایکٹو۔ اگر اس بل پر الگ لنک شدہ ادائیگی تھی تو وہ بعد میں دوبارہ درج کریں۔ جاری رکھیں؟')
+            : Loc.t(
+                'This puts the bill back exactly as it was before the return: stock, customer balance, payments and status all restored. Continue?',
+                'یہ بل کو بالکل ویسا ہی واپس کر دے گا جیسا واپسی سے پہلے تھا: اسٹاک، گاہک بیلنس، ادائیگیاں اور اسٹیٹس سب بحال۔ جاری رکھیں؟')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Undo return', 'واپسی منسوخ'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final done = hasSnap
+          ? await ReturnUndoRepository.instance.undo(invoice, 'sale')
+          : await SaleRepository.instance.reconstructUndoFullReturn(invoice);
+      _toast(done ? Loc.t('Return undone', 'واپسی منسوخ ہو گئی') : Loc.t('Undo not possible for this return', 'اس واپسی کی منسوخی ممکن نہیں'));
+    } catch (e) {
+      _toast('$e');
+    }
+    if (mounted) _refresh(showSpinner: false);
   }
 
   Future<void> _return(SaleWithCustomer s) async {
@@ -442,6 +480,8 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
               icon(Icons.print_outlined, _p.navy, () => _print(s)),
               if (_admin && !s.isReturned) icon(Icons.edit_outlined, _p.teal, () => _edit(s)),
               if (_admin && !s.isReturned) icon(Icons.undo, _p.teal, () => _return(s)),
+              if (_admin && (_undoable.contains(s.invoice) || s.isReturned))
+                icon(Icons.restore, _p.amber, () => _undoReturn(s.invoice, s.isReturned)),
               if (_admin) icon(Icons.delete_outline, _p.red, () => _delete(s)),
             ]),
           ),

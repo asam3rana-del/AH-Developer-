@@ -19,6 +19,7 @@ import 'cost_backfill.dart';
 import 'customer_repository.dart';
 import 'party_repository.dart' show PartyRepository, partyClosing;
 import 'product_repository.dart';
+import 'return_undo_repository.dart';
 import 'recycle_bin_repository.dart';
 import '../sync/device_tag.dart';
 import '../sync/sync_queue_helper.dart';
@@ -931,6 +932,64 @@ class SaleRepository {
   /// line (so it shows in Sale Returns reports), customer due reversed, a
   /// dated cash-OUT reversal, and status -> 'returned'. The original sale's
   /// cash history is kept. Mirrors `returnSale()` (HistoryActivity).
+  /// Purane FULL sale return ka undo JAB snapshot mojood NAHI (feature se pehle hua return). Bill status
+  /// 'returned' hona chahiye — tab items salamat hoti hain. Bill ke apne data se return ka asar ulta:
+  ///  * har item ka stock wapas kam,
+  ///  * customer ka baqaya (total - paid) phir se lag jata hai,
+  ///  * return ki cash reversal rows (`return:<invoice>`) hat jati hain,
+  ///  * `returns` rows hat jati hain, status 'active'.
+  /// NOTE: agar bill par alag se "Receive Payment" wale linked payments the jo return mein khatam hue, wo
+  /// khud wapas nahi aate — unka record dobara daalna parega (balance phir bhi theek rehta hai).
+  Future<bool> reconstructUndoFullReturn(String invoice) async {
+    _requireAdmin();
+    final db = await AppDatabase.instance.database;
+    var ok = false;
+    await db.transaction((txn) async {
+      final rows = await txn.query('sales', where: 'invoice=?', whereArgs: [invoice], limit: 1);
+      if (rows.isEmpty) return;
+      final sale = Sale.fromMap(rows.first);
+      if (sale.status != 'returned') return; // sirf full return ka reconstruct
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final itemRows = await txn.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
+      for (final r in itemRows) {
+        final si = SaleItem.fromMap(r);
+        final pr = await txn.query('products', where: 'barcode=?', whereArgs: [si.barcode], limit: 1);
+        final product = pr.isEmpty ? null : Product.fromMap(pr.first);
+        final smallest = saleItemSmallestQty(si, product);
+        if (smallest > 0) {
+          await txn.rawUpdate('UPDATE products SET stock = stock - ?, dirty = 1, updatedAt = ? WHERE barcode = ?',
+              [smallest, now, si.barcode]);
+          await SyncQueueHelper.enqueueStockDelta(txn, si.barcode, -smallest);
+          await StockLedger.log(txn,
+              barcode: si.barcode, type: MovementType.saleReversal, signedQty: -smallest, reference: invoice, now: now);
+        }
+      }
+      final outstanding = sale.total - sale.paid;
+      if (sale.customerId != null && outstanding.abs() > 0.009) {
+        await _adjustCustomerBalance(txn, sale.customerId!, outstanding, now);
+      }
+      // Return ki cash reversal rows (reference = return:<invoice>) hatao — cloud par bhi.
+      await SyncQueueHelper.deleteCashTransactionsByReference(txn, 'return:$invoice');
+      // `returns` rows hatao.
+      final retRows = await txn.query('returns', columns: ['id'], where: 'reference = ? AND type = ?', whereArgs: [invoice, 'sale']);
+      for (final rr in retRows) {
+        await SyncQueueHelper.enqueueDelete(txn, 'return', '${rr['id']}');
+      }
+      await txn.delete('returns', where: 'reference = ? AND type = ?', whereArgs: [invoice, 'sale']);
+      await txn.update('sales', {'status': 'active', 'updatedAt': now, 'dirty': 1}, where: 'invoice=?', whereArgs: [invoice]);
+      await _enqueueSync(txn, 'sale', invoice, 'update',
+          {'invoice': invoice, 'customerId': sale.customerId, 'total': sale.total, 'paid': sale.paid, 'status': 'active'});
+      ok = true;
+    });
+    if (ok) {
+      await ProductRepository.instance.refresh();
+      await CustomerRepository.instance.refresh();
+      await _notify();
+      await _logAudit('sale_return_undo_reconstruct', invoice, '');
+    }
+    return ok;
+  }
+
   Future<SaleReturnResult> returnSale(String invoice) async {
     _requireAdmin();
     final db = await AppDatabase.instance.database;
@@ -949,6 +1008,8 @@ class SaleRepository {
         final cb = await txn.query('customers', columns: ['balance'], where: 'id=?', whereArgs: [customerId], limit: 1);
         if (cb.isNotEmpty) balanceBefore = ((cb.first['balance'] as num?) ?? 0).toDouble();
       }
+      // Undo ke liye: return se pehle poore bill ka snapshot.
+      final undoPre = await ReturnUndoRepository.capture(txn, type: 'sale', ref: invoice);
       final itemRows = await txn.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       final now = DateTime.now().millisecondsSinceEpoch;
 
@@ -1006,6 +1067,7 @@ class SaleRepository {
         'paid': sale.paid,
         'status': 'returned',
       });
+      await ReturnUndoRepository.commit(txn, undoPre);
       returned = sale;
     });
 
@@ -1078,6 +1140,8 @@ class SaleRepository {
         final cb = await txn.query('customers', columns: ['balance'], where: 'id=?', whereArgs: [customerId], limit: 1);
         if (cb.isNotEmpty) balanceBefore = ((cb.first['balance'] as num?) ?? 0).toDouble();
       }
+      // Undo ke liye: return se pehle poore bill ka snapshot.
+      final undoPre = await ReturnUndoRepository.capture(txn, type: 'sale', ref: invoice);
       final itemRows = await txn.query('sale_items', where: 'invoice=?', whereArgs: [invoice]);
       final now = DateTime.now().millisecondsSinceEpoch;
 
@@ -1211,6 +1275,7 @@ class SaleRepository {
         'paid': newPaid,
         'itemCount': remainingCount,
       });
+      await ReturnUndoRepository.commit(txn, undoPre);
     });
 
     await ProductRepository.instance.refresh();
