@@ -553,10 +553,52 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
     );
   }
 
+  /// Exact din likhwao (short time ke liye, jaise 2-3 din).
+  Future<int?> _askDays() async {
+    final ctrl = TextEditingController(text: _r.dueDays > 0 ? _r.dueDays.toString() : '');
+    final v = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(Loc.t('How many days?', 'کتنے دن؟')),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(hintText: Loc.t('e.g. 3', 'مثلاً 3'), suffixText: Loc.t('days', 'دن')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(Loc.t('Cancel', 'منسوخ'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, (int.tryParse(ctrl.text.trim()) ?? 0).clamp(0, 365)),
+            child: Text(Loc.t('OK', 'ٹھیک')),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return v;
+  }
+
+  /// Tareekh chuno; term = aaj se us din tak ke din (kam se kam 1).
+  Future<int?> _askDateAsDays() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: today.add(const Duration(days: 7)),
+      firstDate: today.add(const Duration(days: 1)),
+      lastDate: today.add(const Duration(days: 365)),
+      helpText: Loc.t('When will they usually pay?', 'عموماً کب ادائیگی کرے گا؟'),
+    );
+    if (picked == null) return null;
+    return DateTime(picked.year, picked.month, picked.day).difference(today).inDays.clamp(1, 365);
+  }
+
   Future<void> _setTerm() async {
     final id = _r.party.partyId;
     if (id == null) return;
-    final presets = <int>[10, 15, 30, 45, 60, 90];
+    // Short (2-7 din) se le kar 3 month tak; ya exact din likho; ya date pick karo (aaj se din gin lega).
+    final presets = <int>[3, 5, 7, 10, 15, 30, 45, 60, 90];
     final chosen = await showModalBottomSheet<int>(
       context: context,
       backgroundColor: Colors.white,
@@ -584,21 +626,71 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
                 onSelected: (_) => Navigator.pop(ctx, 0),
               ),
             ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 46)),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: Text(Loc.t('Exact days', 'دن لکھیں')),
+                  onPressed: () async {
+                    final d = await _askDays();
+                    if (d != null && ctx.mounted) Navigator.pop(ctx, d);
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 46)),
+                  icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                  label: Text(Loc.t('Pick a date', 'تاریخ چنیں')),
+                  onPressed: () async {
+                    final d = await _askDateAsDays();
+                    if (d != null && ctx.mounted) Navigator.pop(ctx, d);
+                  },
+                ),
+              ),
+            ]),
           ]),
         ),
       ),
     );
     if (chosen == null) return;
-    final ok = await DueRemindersRepository.instance.setCustomerDueDays(id, chosen);
+    final repo = DueRemindersRepository.instance;
+    final ok = await repo.setCustomerDueDays(id, chosen);
     if (!mounted) return;
-    if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(chosen > 0
-            ? Loc.t('Payment term set: $chosen days', 'ادائیگی مدت: $chosen دن')
-            : Loc.t('Payment term removed', 'ادائیگی مدت ہٹا دی')),
-      ));
-      await _reload();
+    if (!ok) return;
+
+    // Purane baqi bills par purani (chhoti) due date lagi hoti hai — poochho ke un par bhi nayi muddat laga dein,
+    // warna wo late dikhte rehte hain.
+    final open = await repo.openBillCount(id);
+    if (mounted && open > 0 && chosen > 0) {
+      final apply = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(Loc.t('Apply to current bills too?', 'موجودہ بلوں پر بھی لگائیں؟')),
+          content: Text(Loc.t(
+            'This party has $open unpaid bill(s). Set their due date to bill date + $chosen days as well?\n\n'
+                'Otherwise only new bills use the term, and old bills keep showing late.',
+            'اس پارٹی کے $open بل باقی ہیں۔ ان کی ڈیو ڈیٹ بھی بل کی تاریخ + $chosen دن کر دیں؟\n\n'
+                'ورنہ صرف نئے بلوں پر مدت لگے گی اور پرانے بل لیٹ دکھتے رہیں گے۔',
+          )),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(Loc.t('Only new bills', 'صرف نئے بل'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(Loc.t('Yes, update', 'ہاں، بدلیں'))),
+          ],
+        ),
+      );
+      if (apply == true) await repo.applyTermToOpenBills(id, chosen);
     }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(chosen > 0
+          ? Loc.t('Payment term set: $chosen days', 'ادائیگی مدت: $chosen دن')
+          : Loc.t('Payment term removed', 'ادائیگی مدت ہٹا دی')),
+    ));
+    await _reload();
   }
 
   /// Sab se ahem dabbi: wada ho to "ABHI KA WADA", warna "AGLI TAREEKH".

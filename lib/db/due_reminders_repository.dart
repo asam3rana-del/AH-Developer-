@@ -1119,6 +1119,52 @@ class DueRemindersRepository {
     if (ok) await CustomerRepository.instance.refresh();
     return ok;
   }
+
+  /// Customer ke MOJOODA baqi (unpaid / partial) sale bills ki due date dobara nikaalo = bill date + [days].
+  /// Jab term badlta hai, purane bills bhi nayi muddat par aa jaate hain (warna wo purani chhoti date par Late dikhte hain).
+  /// Kitni bills badlin, wapas. [days] 0 => due date hata do (0).
+  Future<int> applyTermToOpenBills(int customerId, int days) async {
+    final db = await AppDatabase.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final value = clampDueDays(days);
+    final rows = await db.query(
+      'sales',
+      columns: ['invoice', 'createdAt'],
+      // Sirf active, baqi wale (total - paid > 1 paisa).
+      where: "customerId = ? AND status = 'active' AND (total - paid) > 0.01",
+      whereArgs: [customerId],
+    );
+    if (rows.isEmpty) return 0;
+    var changed = 0;
+    await db.transaction((txn) async {
+      for (final r in rows) {
+        final invoice = r['invoice'] as String;
+        final createdAt = (r['createdAt'] as num?)?.toInt() ?? 0;
+        final due = value > 0 && createdAt > 0 ? dueDateAfterDays(createdAt, value) : 0;
+        final n = await txn.update(
+          'sales',
+          {'dueDate': due, 'updatedAt': now, 'dirty': 1},
+          where: 'invoice = ?',
+          whereArgs: [invoice],
+        );
+        if (n > 0) {
+          changed += n;
+          await SyncQueueHelper.enqueueSale(txn, invoice);
+        }
+      }
+    });
+    return changed;
+  }
+
+  /// Customer ki kitni baqi (unpaid/partial) active sale bills hain.
+  Future<int> openBillCount(int customerId) async {
+    final db = await AppDatabase.instance.database;
+    final r = await db.rawQuery(
+      "SELECT COUNT(*) AS c FROM sales WHERE customerId = ? AND status = 'active' AND (total - paid) > 0.01",
+      [customerId],
+    );
+    return r.isEmpty ? 0 : ((r.first['c'] as num?)?.toInt() ?? 0);
+  }
 }
 
 /// Muddat (din) ki hadd: 0 .. 365 (Party screen ke edit dialog jaisi).
