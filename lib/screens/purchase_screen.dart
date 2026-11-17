@@ -542,6 +542,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
         _qtyFocus, _rateFocus, _lotFocus, _retailFocus, _wholesaleFocus, _shopkeeperFocus, _paidFocus,
       }..remove(n);
       if (cur != null && userFields.contains(cur)) return;
+      // Item field ka purana (ABC) keyboard band karo, warna numeric keyboard Quantity par nahi khulta
+      // aur RawAutocomplete focus wapas item par le aata hai.
+      if (_itemFocus.hasFocus && n != _itemFocus) _itemFocus.unfocus();
       if (!n.hasFocus) n.requestFocus();
       SystemChannels.textInput.invokeMethod<void>('TextInput.show');
     }
@@ -549,14 +552,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
     WidgetsBinding.instance.addPostFrameCallback((_) => go());
     // Item list (overlay) band hone ke baad Autocomplete kabhi focus wapas item field par le aata hai —
     // is liye kuch dafa dobara: aakhir mein cursor + number keyboard Quantity par hi rahe.
-    for (final ms in const [150, 350, 650]) {
+    for (final ms in const [60, 180, 360, 600]) {
       Future.delayed(Duration(milliseconds: ms), go);
     }
   }
 
   void _onProductTapped(Product p) {
-    // Supplier ki list (agar khul gayi ho) band, phir Quantity.
+    // Supplier / item ki list (agar khuli ho) band, phir Quantity (numeric keyboard).
     if (_supplierFocus.hasFocus) _supplierFocus.unfocus();
+    if (_itemFocus.hasFocus) _itemFocus.unfocus();
     _onProductPicked(p);
     _focusAfterTap(_qtyFocus);
   }
