@@ -141,6 +141,13 @@ void main() {
     expect(r.total, 28610);
   });
 
+  test('bina-date bill par customer ki muddat laagu (7 nahi, 60 din)', () {
+    final r = buildWasooliRow(party(createdAt: at(11, 1)), const [], nowMillis: now, customerDueDays: 60);
+    expect(r.urgency, WasooliUrgency.later);
+    expect(r.date, day(12, 31)); // 1 Nov + 60 din
+    expect(r.dueDays, 60);
+  });
+
   test('jaldi tareekhen', () {
     expect(quickPromiseDate('kal', nowMillis: now), day(11, 17));
     expect(quickPromiseDate('3din', nowMillis: now), day(11, 19));

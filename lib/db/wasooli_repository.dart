@@ -34,6 +34,7 @@ class WasooliRepository {
     final followUps = await DueFollowUpRepository.instance.allByParty(backfillSync: true);
     final pay = await _paySchedules();
     final qist = await QistRepository.instance.allActive(nowMillis: now);
+    final dueDays = await DueRemindersRepository.instance.customerDueDaysMap();
     final rows = <WasooliRow>[];
     for (final p in groupDueByParty(bills)) {
       final id = p.partyId;
@@ -44,6 +45,7 @@ class WasooliRepository {
         nowMillis: now,
         paySchedule: pay[id] ?? '',
         qist: qist[id],
+        customerDueDays: dueDays[id] ?? 0,
       ));
     }
     final sorted = sortWasooli(rows);

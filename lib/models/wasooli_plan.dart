@@ -64,6 +64,9 @@ class WasooliRow {
   /// Purane (toote / khatam) wade — party screen par kati hui line mein.
   final List<DueFollowUp> pastPromises;
 
+  /// Customer ki default udhaar muddat (din); 0 = set nahi.
+  final int dueDays;
+
   const WasooliRow({
     required this.party,
     required this.entries,
@@ -76,6 +79,7 @@ class WasooliRow {
     required this.touchedToday,
     required this.today,
     required this.pastPromises,
+    required this.dueDays,
   });
 
   double get total => party.total;
@@ -92,6 +96,7 @@ WasooliRow buildWasooliRow(
   required int nowMillis,
   String paySchedule = '',
   QistStatus? qist,
+  int customerDueDays = 0,
 }) {
   final today = _sod(nowMillis);
   // Purane bill ka chhota bacha hua hissa (jaise Rs 60 — rounding / thori kami) party ko "late" nahi banata
@@ -128,6 +133,7 @@ WasooliRow buildWasooliRow(
         touchedToday: touched,
         today: today,
         pastPromises: past,
+        dueDays: customerDueDays,
       );
 
   WasooliUrgency byDate(int d) => d < today ? WasooliUrgency.late : (d == today ? WasooliUrgency.today : WasooliUrgency.later);
@@ -150,7 +156,8 @@ WasooliRow buildWasooliRow(
   var billDate = 0;
   for (final b in bills) {
     if (b.isBalance || (b.createdAt <= 0 && b.dueDate <= 0)) continue;
-    final d = b.dueDate > 0 ? b.dueDate : _sod(b.createdAt) + DueParty.undatedGraceDays * _dayMs;
+    final grace = customerDueDays > 0 ? customerDueDays : DueParty.undatedGraceDays;
+    final d = b.dueDate > 0 ? b.dueDate : _sod(b.createdAt) + grace * _dayMs;
     if (billDate == 0 || d < billDate) billDate = d;
   }
   if (billDate > 0 && _sod(billDate) < today) return make(WasooliUrgency.late, WasooliDateKind.bill, _sod(billDate));

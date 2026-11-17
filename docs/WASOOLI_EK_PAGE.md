@@ -31,3 +31,13 @@ Collection ke kisi bhi "Paisa mila" se payment ke baad baqi reh jaye to app pooc
 - [ ] Paisa mila (thora) > "Baqi kab dega?" > Kal: party "Aage · kal".
 - [ ] Poora paisa: party list se nikal jaye.
 - [ ] ⋮ menu se purani screens khulti hain.
+
+## Payment term (har customer ki apni udhaar muddat)
+- Collection > party kholo > "Payment term" > kitne din baad pay karta hai chuno (10/15 din, 1/1.5/2/3 month, ya koi mudat nahi).
+- Naye udhaar bill par due date khud = bill date + yehi din. (Sale screen par us bill ke liye date badal bhi sakte hain.)
+- Jin purane bills par date nahi, Wasooli un par bhi ab 7 din ki jagah is customer ki muddat lagati hai — is liye jo 2 month baad deta hai wo 2 month tak "Late" nahi dikhega.
+- Yehi muddat Settings mein shop ka default bhi hai (jab customer ki alag na ho).
+
+### Test
+- [ ] Party kholo > Payment term > 2 months > naya credit bill banao > due date ~60 din baad.
+- [ ] 2-month wala customer Collection mein 60 din tak "Aage" (hara), "Late" nahi.

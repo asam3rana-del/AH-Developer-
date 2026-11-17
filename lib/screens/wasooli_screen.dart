@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../db/due_reminders_repository.dart' show DueRemindersRepository;
 import '../db/wasooli_repository.dart';
 import '../models/due_followup.dart';
 import '../models/wasooli_plan.dart';
@@ -482,6 +483,8 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
                 const SizedBox(height: 14),
                 _mainCard(r),
                 const SizedBox(height: 12),
+                _termRow(r),
+                const SizedBox(height: 12),
                 _history(r),
                 const SizedBox(height: 16),
                 Row(children: [
@@ -518,6 +521,85 @@ class _WasooliPartyScreenState extends State<WasooliPartyScreen> {
           child: Text(label, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
         ),
       );
+
+  /// Customer ki udhaar muddat (din). Isi se naye udhaar bill par due date khud lagti hai.
+  Widget _termRow(WasooliRow r) {
+    final d = r.dueDays;
+    final label = d > 0
+        ? Loc.t('Pays in ~$d days', '~$d دن میں ادائیگی')
+        : Loc.t('No payment term set', 'ادائیگی مدت مقرر نہیں');
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: _setTerm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(children: [
+            const Icon(Icons.event_repeat_outlined, size: 20, color: _muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(Loc.t('Payment term', 'ادائیگی کی مدت'),
+                    style: const TextStyle(fontSize: 12, color: _muted)),
+                Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+            Text(Loc.t('Change', 'تبدیل'), style: const TextStyle(fontSize: 14, color: _blue, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _setTerm() async {
+    final id = _r.party.partyId;
+    if (id == null) return;
+    final presets = <int>[10, 15, 30, 45, 60, 90];
+    final chosen = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(Loc.t('After how long does this party pay?', 'یہ پارٹی کتنے دن بعد ادائیگی کرتی ہے؟'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(Loc.t('New credit bills get this due date automatically.', 'نئے ادھار بل پر یہی مدت خود لگے گی۔'),
+                style: const TextStyle(fontSize: 13, color: _muted)),
+            const SizedBox(height: 14),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final d in presets)
+                ChoiceChip(
+                  selected: _r.dueDays == d,
+                  label: Text(d % 30 == 0 ? Loc.t('${d ~/ 30} month${d == 30 ? '' : 's'}', '${d ~/ 30} ماہ') : Loc.t('$d days', '$d دن')),
+                  onSelected: (_) => Navigator.pop(ctx, d),
+                ),
+              ChoiceChip(
+                selected: _r.dueDays == 0,
+                label: Text(Loc.t('No term', 'کوئی مدت نہیں')),
+                onSelected: (_) => Navigator.pop(ctx, 0),
+              ),
+            ]),
+          ]),
+        ),
+      ),
+    );
+    if (chosen == null) return;
+    final ok = await DueRemindersRepository.instance.setCustomerDueDays(id, chosen);
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(chosen > 0
+            ? Loc.t('Payment term set: $chosen days', 'ادائیگی مدت: $chosen دن')
+            : Loc.t('Payment term removed', 'ادائیگی مدت ہٹا دی')),
+      ));
+      await _reload();
+    }
+  }
 
   /// Sab se ahem dabbi: wada ho to "ABHI KA WADA", warna "AGLI TAREEKH".
   Widget _mainCard(WasooliRow r) {
