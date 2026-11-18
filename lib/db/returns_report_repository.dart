@@ -14,6 +14,12 @@ class ReturnReportRow {
   final double amount;
   final int createdAt;
 
+  /// Bill ka maujooda total (full return par original; partial par ghata hua = net). 0 = bill nahi mila.
+  final double billTotal;
+
+  /// 'returned' = poora bill wapas (net 0); warna 'active'.
+  final String billStatus;
+
   const ReturnReportRow({
     required this.id,
     required this.reference,
@@ -24,6 +30,8 @@ class ReturnReportRow {
     required this.qty,
     required this.amount,
     required this.createdAt,
+    this.billTotal = 0,
+    this.billStatus = 'active',
   });
 }
 
@@ -41,7 +49,9 @@ class ReturnsReportRepository {
       SELECT r.id AS id, r.reference AS reference, r.qty AS qty, r.amount AS amount, r.createdAt AS createdAt,
              COALESCE((SELECT name FROM products WHERE barcode = r.barcode), r.barcode) AS itemName,
              ${isSale ? "COALESCE((SELECT c.name FROM sales s JOIN customers c ON c.id = s.customerId WHERE s.invoice = r.reference), 'Walk-in')" : "COALESCE((SELECT sp.name FROM purchases p JOIN suppliers sp ON sp.id = p.supplierId WHERE p.billNo = r.reference), 'Cash Purchase')"} AS partyName,
-             COALESCE((SELECT ${isSale ? 'unit FROM sale_items WHERE invoice' : 'unit FROM purchase_items WHERE billNo'} = r.reference AND barcode = r.barcode LIMIT 1), '') AS unit
+             COALESCE((SELECT ${isSale ? 'unit FROM sale_items WHERE invoice' : 'unit FROM purchase_items WHERE billNo'} = r.reference AND barcode = r.barcode LIMIT 1), '') AS unit,
+             COALESCE((SELECT ${isSale ? 'total FROM sales WHERE invoice' : 'total FROM purchases WHERE billNo'} = r.reference LIMIT 1), 0) AS billTotal,
+             COALESCE((SELECT ${isSale ? 'status FROM sales WHERE invoice' : 'status FROM purchases WHERE billNo'} = r.reference LIMIT 1), 'active') AS billStatus
       FROM returns r
       WHERE r.type = ? AND r.createdAt BETWEEN ? AND ?
       ORDER BY r.createdAt DESC, r.id DESC
@@ -58,6 +68,8 @@ class ReturnsReportRepository {
           qty: (r['qty'] as num?)?.toDouble() ?? 0.0,
           amount: (r['amount'] as num?)?.toDouble() ?? 0.0,
           createdAt: (r['createdAt'] as num?)?.toInt() ?? 0,
+          billTotal: (r['billTotal'] as num?)?.toDouble() ?? 0,
+          billStatus: (r['billStatus'] as String?) ?? 'active',
         ),
     ];
   }

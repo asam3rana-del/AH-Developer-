@@ -11,28 +11,54 @@ import '../theme/theme_manager.dart';
 import '../utils/bill_text.dart';
 import '../utils/loc.dart';
 
-/// Ek return event (ek bill ki ek dafa ki wapsi) ki saari lines — "bill" ki tarah dekhne / share ke liye.
-class _ReturnBatch {
-  final String reference;
-  final String type;
-  final String partyName;
+/// Ek return event (ek bill ki ek dafa ki wapsi) ki lines.
+class _ReturnEvent {
   final int createdAt;
   final List<ReturnReportRow> lines;
-  const _ReturnBatch(this.reference, this.type, this.partyName, this.createdAt, this.lines);
-
+  const _ReturnEvent(this.createdAt, this.lines);
   double get total => lines.fold(0.0, (a, r) => a + r.amount);
 }
 
-List<_ReturnBatch> groupReturnBatches(List<ReturnReportRow> rows) {
-  final map = <String, List<ReturnReportRow>>{};
-  final order = <String>[];
+/// Ek BILL ke saare returns (chahe 2-3 dafa alag alag hue) ek jagah. Net = original - total returned.
+class _ReturnBill {
+  final String reference;
+  final String type;
+  final String partyName;
+  final List<_ReturnEvent> events; // naya pehle
+  final double billTotal;
+  final String billStatus;
+  const _ReturnBill(this.reference, this.type, this.partyName, this.events, this.billTotal, this.billStatus);
+
+  int get lastAt => events.first.createdAt;
+  double get totalReturned => events.fold(0.0, (a, e) => a + e.total);
+
+  /// Full return (status 'returned') => ab kuch nahi bika => net 0. Warna bill ka maujooda total hi net hai.
+  double get net => billStatus == 'returned' ? 0 : billTotal;
+  double get original => net + totalReturned;
+  List<ReturnReportRow> get allLines => [for (final e in events) ...e.lines];
+}
+
+/// Pehle (reference,createdAt) ke event, phir reference ke hisaab se bill. Naya return pehle.
+List<_ReturnBill> groupReturnsByBill(List<ReturnReportRow> rows) {
+  // event key -> lines
+  final eventMap = <String, List<ReturnReportRow>>{};
+  final eventOrder = <String>[];
   for (final r in rows) {
     final key = '${r.reference}|${r.createdAt}';
-    (map[key] ??= (order..add(key), <ReturnReportRow>[]).$2).add(r);
+    (eventMap[key] ??= (eventOrder..add(key), <ReturnReportRow>[]).$2).add(r);
+  }
+  // reference -> events
+  final billEvents = <String, List<_ReturnEvent>>{};
+  final billOrder = <String>[];
+  for (final k in eventOrder) {
+    final lines = eventMap[k]!;
+    final ref = lines.first.reference;
+    (billEvents[ref] ??= (billOrder..add(ref), <_ReturnEvent>[]).$2).add(_ReturnEvent(lines.first.createdAt, lines));
   }
   return [
-    for (final k in order)
-      _ReturnBatch(map[k]!.first.reference, map[k]!.first.type, map[k]!.first.partyName, map[k]!.first.createdAt, map[k]!),
+    for (final ref in billOrder)
+      _ReturnBill(ref, billEvents[ref]!.first.lines.first.type, billEvents[ref]!.first.lines.first.partyName,
+          billEvents[ref]!, billEvents[ref]!.first.lines.first.billTotal, billEvents[ref]!.first.lines.first.billStatus),
   ];
 }
 
@@ -144,11 +170,11 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
                   : rows.isEmpty
                       ? Center(child: Text(Loc.t('No returns in this period.', 'اس مدت میں کوئی واپسی نہیں۔'), style: TextStyle(color: p.textMuted)))
                       : Builder(builder: (_) {
-                          final batches = groupReturnBatches(rows);
+                          final bills = groupReturnsByBill(rows);
                           return ListView.builder(
                             padding: const EdgeInsets.fromLTRB(12, 6, 12, 24),
-                            itemCount: batches.length,
-                            itemBuilder: (_, i) => _batchTile(batches[i]),
+                            itemCount: bills.length,
+                            itemBuilder: (_, i) => _billTile(bills[i]),
                           );
                         }),
         ),
@@ -168,10 +194,11 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
     _load();
   }
 
-  /// Ek return event ka card — dusre bills ki tarah, tap par poori receipt (Share / Copy).
-  Widget _batchTile(_ReturnBatch b) {
+  /// Ek BILL ke saare returns ek card — "N returns", total wapas aur Net. Tap par receipt (saare events + net).
+  Widget _billTile(_ReturnBill b) {
     final p = _p;
-    final items = b.lines.map((l) => l.itemName).take(3).join(', ');
+    final items = b.allLines.map((l) => l.itemName).toSet().take(3).join(', ');
+    final n = b.events.length;
     return Container(
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(color: p.cardWhite, borderRadius: BorderRadius.circular(14), border: Border.all(color: p.border)),
@@ -182,25 +209,42 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
           onTap: () => _viewReceipt(b),
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(b.partyName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.textDark)),
-                  const SizedBox(height: 2),
-                  Text('${b.lines.length} ${Loc.t('item(s)', 'آئٹم')}: $items${b.lines.length > 3 ? '…' : ''}',
-                      style: TextStyle(fontSize: 12, color: p.textMuted), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  Text('${b.reference}  •  ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(b.createdAt))}',
-                      style: TextStyle(fontSize: 11, color: p.textMuted)),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    Icon(Icons.receipt_long, size: 14, color: p.navy),
-                    const SizedBox(width: 4),
-                    Text(Loc.t('View receipt', 'رسید دیکھیں'), style: TextStyle(fontSize: 12, color: p.navy, fontWeight: FontWeight.w600)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(b.partyName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.textDark)),
+                    const SizedBox(height: 2),
+                    Text('${b.allLines.length} ${Loc.t('item(s)', 'آئٹم')}: $items${b.allLines.length > 3 ? '…' : ''}',
+                        style: TextStyle(fontSize: 12, color: p.textMuted), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text('${b.reference}  •  ${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(b.lastAt))}',
+                        style: TextStyle(fontSize: 11, color: p.textMuted)),
                   ]),
+                ),
+                const SizedBox(width: 8),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('- ${_rs(b.totalReturned)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.red)),
+                  if (n > 1)
+                    Container(
+                      margin: const EdgeInsets.only(top: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(6)),
+                      child: Text('$n ${Loc.t('returns', 'واپسیاں')}', style: TextStyle(fontSize: 11, color: p.textMuted)),
+                    ),
                 ]),
-              ),
-              const SizedBox(width: 8),
-              Text('- ${_rs(b.total)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.red)),
+              ]),
+              const Divider(height: 14),
+              Row(children: [
+                Expanded(child: _kv(Loc.t('Bill', 'بل'), _rs(b.original))),
+                Expanded(child: _kv(Loc.t('Returned', 'واپس'), '- ${_rs(b.totalReturned)}', color: p.red)),
+                Expanded(child: _kv(Loc.t('Net', 'نیٹ'), _rs(b.net), color: p.tealDark, bold: true)),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                Icon(Icons.receipt_long, size: 14, color: p.navy),
+                const SizedBox(width: 4),
+                Text(Loc.t('View receipt', 'رسید دیکھیں'), style: TextStyle(fontSize: 12, color: p.navy, fontWeight: FontWeight.w600)),
+              ]),
             ]),
           ),
         ),
@@ -208,12 +252,20 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
     );
   }
 
-  Future<void> _viewReceipt(_ReturnBatch b) async {
+  Widget _kv(String k, String v, {Color? color, bool bold = false}) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(k, style: TextStyle(fontSize: 11, color: _p.textMuted)),
+          Text(v, style: TextStyle(fontSize: 13, fontWeight: bold ? FontWeight.bold : FontWeight.w600, color: color ?? _p.textDark)),
+        ],
+      );
+
+  Future<void> _viewReceipt(_ReturnBill b) async {
     final repo = UserRepository.instance;
     final shopName = (await repo.getSetting('shop_name')) ?? '';
     final shopOwner = (await repo.getSetting('shop_owner')) ?? '';
     final shopPhone = (await repo.getSetting('shop_phone')) ?? '';
-    final date = DateTime.fromMillisecondsSinceEpoch(b.createdAt);
+    final date = DateTime.fromMillisecondsSinceEpoch(b.lastAt);
     final String text;
     if (b.type == 'sale') {
       text = buildSaleReturnText(
@@ -224,10 +276,13 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
         date: date,
         customer: b.partyName,
         lines: [
-          for (final l in b.lines)
+          for (final l in b.allLines)
             (name: l.itemName, qty: l.qty, unit: l.unit, rate: l.qty > 0 ? l.amount / l.qty : l.amount, amount: l.amount),
         ],
-        returnedTotal: b.total,
+        returnedTotal: b.totalReturned,
+        billTotal: b.original,
+        netTotal: b.net,
+        returnCount: b.events.length,
       );
     } else {
       text = buildPurchaseReturnText(
@@ -238,10 +293,13 @@ class _ReturnsReportScreenState extends State<ReturnsReportScreen> {
         date: date,
         supplier: b.partyName,
         lines: [
-          for (final l in b.lines)
+          for (final l in b.allLines)
             (name: l.itemName, qty: l.qty, unit: l.unit, unitCost: l.qty > 0 ? l.amount / l.qty : l.amount, amount: l.amount),
         ],
-        returnedTotal: b.total,
+        returnedTotal: b.totalReturned,
+        billTotal: b.original,
+        netTotal: b.net,
+        returnCount: b.events.length,
       );
     }
     if (!mounted) return;

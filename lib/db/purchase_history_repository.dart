@@ -61,6 +61,9 @@ class PurchaseHistoryRow {
   final int createdAt;
   final String status;
 
+  /// Is bill par (active rehte hue) kitna wapas hua — partial returns ka jor. Net = total.
+  final double partialReturned;
+
   const PurchaseHistoryRow({
     required this.billNo,
     required this.supplierName,
@@ -68,6 +71,7 @@ class PurchaseHistoryRow {
     required this.paid,
     required this.createdAt,
     required this.status,
+    this.partialReturned = 0,
   });
 
   bool get isActive => status == 'active';
@@ -172,7 +176,8 @@ class PurchaseHistoryRepository {
     final rows = await db.rawQuery('''
       SELECT billNo,
              COALESCE((SELECT name FROM suppliers WHERE suppliers.id = purchases.supplierId), 'Cash Purchase') AS supplierName,
-             total, COALESCE(paid, 0) AS paid, createdAt, status
+             total, COALESCE(paid, 0) AS paid, createdAt, status,
+             COALESCE((SELECT SUM(amount) FROM returns WHERE returns.reference = purchases.billNo AND returns.type = 'purchase'), 0) AS returnedAmount
       FROM purchases ORDER BY createdAt DESC
     ''');
     return rows
@@ -183,6 +188,7 @@ class PurchaseHistoryRepository {
               paid: (r['paid'] as num).toDouble(),
               createdAt: (r['createdAt'] as num).toInt(),
               status: (r['status'] as String?) ?? 'active',
+              partialReturned: (r['returnedAmount'] as num?)?.toDouble() ?? 0,
             ))
         .toList();
   }

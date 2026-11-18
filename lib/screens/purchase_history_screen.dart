@@ -597,6 +597,9 @@ class _PurchaseHistoryBodyState extends State<_PurchaseHistoryBody> with Widgets
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text(r.isActive ? Loc.t('Purchase', 'خریداری') : _cap(r.status), style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
                     Text(_dayFmt.format(DateTime.fromMillisecondsSinceEpoch(r.createdAt)), style: TextStyle(fontSize: 11.5, color: _p.textMuted)),
+                    if (r.isActive && r.partialReturned > 0)
+                      Text('${Loc.t('Returned', 'واپس')} ${_rs(r.partialReturned)} · ${Loc.t('Net', 'نیٹ')} ${_rs(r.total)}',
+                          style: TextStyle(fontSize: 10.5, color: _p.red, fontWeight: FontWeight.w600)),
                   ]),
                 ]),
               ),

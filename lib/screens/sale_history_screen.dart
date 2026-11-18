@@ -464,6 +464,10 @@ class _SaleHistoryScreenState extends State<SaleHistoryScreen> with WidgetsBindi
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: _p.textDark)),
                   Text(s.isReturned ? Loc.t('Returned', 'واپس') : _methodLabel(s.paymentMethod),
                       style: TextStyle(fontSize: 11, color: _p.textMuted)),
+                  if (!s.isReturned && s.partialReturned > 0)
+                    Text(
+                        '${Loc.t('Returned', 'واپس')} ${_rs(s.partialReturned)} · ${Loc.t('Net', 'نیٹ')} ${_rs(s.total)}',
+                        style: TextStyle(fontSize: 10.5, color: _p.red, fontWeight: FontWeight.w600)),
                 ]),
               ),
               Padding(

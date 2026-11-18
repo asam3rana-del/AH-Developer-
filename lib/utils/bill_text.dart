@@ -142,6 +142,9 @@ String buildPurchaseReturnText({
   required double returnedTotal,
   double? balanceBefore,
   double? balanceAfter,
+  double? billTotal,
+  double? netTotal,
+  int returnCount = 1,
   int width = 32,
 }) {
   final b = StringBuffer();
@@ -169,7 +172,10 @@ String buildPurchaseReturnText({
     b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.unitCost.toStringAsFixed(2)}', '-${l.amount.round()}'));
   }
   b.writeln(rule);
-  b.writeln(row('Returned Amount', '-${returnedTotal.round()}'));
+  if (returnCount > 1) b.writeln('($returnCount returns is bill par)');
+  if (billTotal != null) b.writeln(row('Bill total', billTotal.round().toString()));
+  b.writeln(row('Returned', '-${returnedTotal.round()}'));
+  if (netTotal != null) b.writeln(row('Net', netTotal.round().toString()));
   if (balanceBefore != null && balanceAfter != null) {
     b.writeln(rule);
     b.writeln(row('Balance before', balanceBefore.round().toString()));
@@ -192,6 +198,9 @@ String buildSaleReturnText({
   required double returnedTotal,
   double? balanceBefore,
   double? balanceAfter,
+  double? billTotal,
+  double? netTotal,
+  int returnCount = 1,
   int width = 32,
 }) {
   final b = StringBuffer();
@@ -219,7 +228,10 @@ String buildSaleReturnText({
     b.writeln(row('  ${_qty(l.qty)} ${l.unit} x ${l.rate.toStringAsFixed(2)}', '-${l.amount.round()}'));
   }
   b.writeln(rule);
-  b.writeln(row('Returned Amount', '-${returnedTotal.round()}'));
+  if (returnCount > 1) b.writeln('($returnCount returns is bill par)');
+  if (billTotal != null) b.writeln(row('Bill total', billTotal.round().toString()));
+  b.writeln(row('Returned', '-${returnedTotal.round()}'));
+  if (netTotal != null) b.writeln(row('Net', netTotal.round().toString()));
   if (balanceBefore != null && balanceAfter != null) {
     b.writeln(rule);
     b.writeln(row('Balance before', balanceBefore.round().toString()));
