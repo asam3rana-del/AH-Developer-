@@ -757,3 +757,7 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 ## About / contact info (2026-11-20)
 - [x] Email `asam9rana@gmail.com` -> `hannasolutions1@gmail.com` aur address -> `Ibtisaam Traders, Bhikhi` (phone 0300 6296815 pehle se sahi): `lib/app_info.dart` (About screen, mailto links), `web_public/index.html` + `privacy.html`, `tools/deploy_privacy_site.sh`, `docs/STORE_LISTING.md`.
 - Note: privacy site live tabhi badlegi jab `bash tools/deploy_privacy_site.sh` dobara deploy ho; Play Console ka contact email alag se badalna parta hai.
+
+## Settings: collapsible cards (2026-11-20)
+- [x] Settings mein Shop Information, Login Method, My Login aur Printer Setup ab fold hote hain (shuru mein band; title par tap se khulte/band). `_card(..., collapsible: true)` (ExpansionTile, `maintainState: true` — band karne par text fields ka likha hua nahi jata). Baqi cards pehle jaisay.
+- Note: compile/test nahi hua — `flutter analyze`, phir Settings device par dekh lein.

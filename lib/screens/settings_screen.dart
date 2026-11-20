@@ -395,17 +395,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
   }
 
-  Widget _card(String title, IconData icon, List<Widget> children) => Card(
+  /// [collapsible] = true: title par tap se khulta/band hota hai (shuru mein band) — lambi Settings ko chhota rakhne ke liye.
+  Widget _card(String title, IconData icon, List<Widget> children, {bool collapsible = false}) {
+    final header = Row(children: [
+      Icon(icon, color: ThemeManager.palette.navyInk),
+      const SizedBox(width: 8),
+      Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+    ]);
+    if (collapsible) {
+      return Card(
         margin: const EdgeInsets.only(bottom: 14),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(icon, color: ThemeManager.palette.navyInk), const SizedBox(width: 8), Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
-            const SizedBox(height: 12),
-            ...children,
-          ]),
+        clipBehavior: Clip.antiAlias,
+        child: Theme(
+          // ExpansionTile ki upar/neeche ki lakeerein hatao (Card ke andar saaf dikhe).
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            key: PageStorageKey<String>('settings_card_$title'),
+            initiallyExpanded: false,
+            maintainState: true, // band karne par bhi text fields ka likha hua na jaye
+            tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            title: header,
+            children: children,
+          ),
         ),
       );
+    }
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          header,
+          const SizedBox(height: 12),
+          ...children,
+        ]),
+      ),
+    );
+  }
 
   Widget _tf(TextEditingController c, String label, {bool obscure = false, bool enabled = true, bool number = false}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
@@ -504,7 +532,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: const Icon(Icons.checklist_rtl),
               label: Text(Loc.t('SHOP SETUP GUIDE (new shop)', 'دکان سیٹ اپ گائیڈ (نئی دکان)')),
             ),
-          ]),
+          ], collapsible: true),
         if (admin)
           _card(Loc.t('Sale', 'سیل'), Icons.point_of_sale, [
             SwitchListTile(
@@ -545,7 +573,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text(Loc.t('OTP (Phone Number)', 'OTP (فون نمبر)')),
               subtitle: Text(Loc.t('Needs Cloud Sync Setup; staff phone in Manage Users', 'Cloud Sync Setup ضروری؛ اسٹاف کا فون Manage Users میں')),
             ),
-          ]),
+          ], collapsible: true),
         _card(Loc.t('Secure Cloud Login (staff)', 'سیکیور کلاؤڈ لاگ اِن (اسٹاف)'), Icons.verified_user, [
           FutureBuilder<bool>(
             future: StaffAuth.isEnabled(),
@@ -605,7 +633,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _tf(_newUsername, Loc.t('New Username', 'نیا یوزر نیم')),
           _tf(_newPassword, Loc.t('New Password', 'نیا پاس ورڈ'), obscure: true),
           FilledButton(onPressed: _updateLogin, child: Text(Loc.t('UPDATE LOGIN', 'لاگ اِن اپڈیٹ کریں'))),
-        ]),
+        ], collapsible: true),
         _card(
           PrinterService.isDesktop
               ? Loc.t('Printer Setup (Windows / Network)', 'پرنٹر سیٹ اپ (ونڈوز / نیٹ ورک)')
@@ -659,7 +687,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: _testing ? null : _testPrintText,
             child: Text(Loc.t('PLAIN TEXT TEST (English only)', 'سادہ ٹیکسٹ ٹیسٹ (صرف انگریزی)')),
           ),
-        ]),
+        ], collapsible: true),
         // Kotlin Settings mein Backup/Export row (BackupExportScreen ka apna RoleGuard admin/manager).
         if (Session.isAdminOrManager)
           _card(Loc.t('Backup & Export', 'بیک اپ اور ایکسپورٹ'), Icons.save_outlined, [
