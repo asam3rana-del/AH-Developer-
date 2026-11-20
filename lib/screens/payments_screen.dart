@@ -106,6 +106,10 @@ Future<bool> showPaymentDialog(
   String billRef = existing != null && bills.any((b) => b.ref == existing.billReference) ? existing.billReference : '';
   String? error;
   var saving = false; // double-tap par do payments / do cash rows na banen
+  // Split: ek payment cash + bank mein (sirf naya payment; edit mein ek hi method).
+  var split = false;
+  final splitCashCtrl = TextEditingController();
+  final splitBankCtrl = TextEditingController();
 
   final saved = await showDialog<bool>(
     context: context,
@@ -115,9 +119,10 @@ Future<bool> showPaymentDialog(
           : isCustomer
               ? Loc.t('Receive Payment', 'ادائیگی وصول کریں')
               : Loc.t('Make Payment', 'ادائیگی کریں');
+      double splitVal(TextEditingController c) => double.tryParse(c.text.trim()) ?? 0;
       Future<void> submit() async {
-              final amt = double.tryParse(amountCtrl.text.trim());
-              if (amt == null || !amt.isFinite || amt <= 0) {
+              final amt = split ? splitVal(splitCashCtrl) + splitVal(splitBankCtrl) : double.tryParse(amountCtrl.text.trim());
+              if (amt == null || !amt.isFinite || amt <= 0 || (split && (splitVal(splitCashCtrl) < 0 || splitVal(splitBankCtrl) < 0))) {
                 setS(() => error = Loc.t('Enter a valid amount', 'صحیح رقم لکھیں'));
                 return;
               }
@@ -140,6 +145,19 @@ Future<bool> showPaymentDialog(
                     newDateMillis: when,
                     newBillRef: billRef,
                   );
+                } else if (split) {
+                  await PaymentRepository.instance.saveSplit(
+                    isCustomer: isCustomer,
+                    partyId: partyId,
+                    partyName: partyName,
+                    parts: [
+                      if (splitVal(splitCashCtrl) > 0) ('cash', splitVal(splitCashCtrl)),
+                      if (splitVal(splitBankCtrl) > 0) ('bank', splitVal(splitBankCtrl)),
+                    ],
+                    note: note,
+                    dateMillis: when,
+                    billRef: billRef,
+                  );
                 } else {
                   await PaymentRepository.instance.save(
                     isCustomer: isCustomer,
@@ -152,7 +170,7 @@ Future<bool> showPaymentDialog(
                     billRef: billRef,
                   );
                 }
-                if (existing == null) _lastPaymentMethod = method;
+                if (existing == null && !split) _lastPaymentMethod = method;
                 if (ctx.mounted) Navigator.pop(ctx, true);
               } catch (e) {
                 if (ctx.mounted) {
@@ -169,6 +187,29 @@ Future<bool> showPaymentDialog(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(partyName, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark)),
             const SizedBox(height: 10),
+            if (split) ...[
+              TextField(
+                controller: splitCashCtrl,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setS(() => error = null),
+                decoration: InputDecoration(labelText: Loc.t('Cash amount', 'کیش رقم')),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: splitBankCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setS(() => error = null),
+                decoration: InputDecoration(labelText: Loc.t('Bank amount', 'بینک رقم'), errorText: error),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '${Loc.t('Total', 'کل')}: Rs ${(splitVal(splitCashCtrl) + splitVal(splitBankCtrl)).toStringAsFixed(2)}',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: ThemeManager.palette.textDark),
+                ),
+              ),
+            ] else
             TextField(
               controller: amountCtrl,
               autofocus: true,
@@ -179,7 +220,7 @@ Future<bool> showPaymentDialog(
               },
               decoration: InputDecoration(labelText: Loc.t('Amount', 'رقم'), errorText: error),
             ),
-            if (existing == null && due > 0.009)
+            if (existing == null && !split && due > 0.009)
               Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: Padding(
@@ -211,6 +252,28 @@ Future<bool> showPaymentDialog(
                 child: Text(DateFormat('dd MMM yyyy').format(date)),
               ),
             ),
+            if (existing == null)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  icon: Icon(split ? Icons.close : Icons.call_split, size: 18),
+                  label: Text(split ? Loc.t('Single payment', 'ایک ہی ادائیگی') : Loc.t('+ Split Payment (Cash + Bank)', '+ اسپلٹ ادائیگی (کیش + بینک)')),
+                  onPressed: () => setS(() {
+                    if (!split) {
+                      // Maujooda amount aur ذریعہ se split fields pehle se bhar do.
+                      final cur = amountCtrl.text.trim();
+                      splitCashCtrl.text = method == 'cash' ? cur : '';
+                      splitBankCtrl.text = method == 'bank' ? cur : '';
+                    } else {
+                      final sum = splitVal(splitCashCtrl) + splitVal(splitBankCtrl);
+                      amountCtrl.text = sum > 0 ? (sum == sum.roundToDouble() ? sum.toStringAsFixed(0) : sum.toStringAsFixed(2)) : '';
+                    }
+                    split = !split;
+                    error = null;
+                  }),
+                ),
+              ),
+            if (!split) ...[
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: method,
@@ -221,6 +284,7 @@ Future<bool> showPaymentDialog(
               ],
               onChanged: (v) => setS(() => method = v ?? 'cash'),
             ),
+            ],
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: billRef,

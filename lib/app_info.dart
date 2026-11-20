@@ -6,8 +6,8 @@ class AppInfo {
   static const developer = 'Asam Hameed';
   static const business = 'Hanna Solutions';
   static const appId = 'com.hannasolutions.pos';
-  static const address = 'Bhikhi, District Sheikhupura, Pakistan';
-  static const supportEmail = 'asam9rana@gmail.com';
+  static const address = 'Ibtisaam Traders, Bhikhi';
+  static const supportEmail = 'hannasolutions1@gmail.com';
   static const supportPhone = '03006296815';
   static const supportWhatsAppIntl = '923006296815';
 

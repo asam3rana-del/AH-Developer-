@@ -11,7 +11,7 @@ Default language: **English (United States)**; Translations → **Urdu (ur)** ad
 | Category | Business |
 | Tags | Point of sale, Accounting, Inventory |
 | Developer name | Asam Hameed (Hanna Solutions) |
-| Contact email | asam9rana@gmail.com |
+| Contact email | hannasolutions1@gmail.com |
 | Phone | +92 300 6296815 |
 | Website | https://my-grocery-pos-8a444.web.app |
 | Privacy policy | https://my-grocery-pos-8a444.web.app/privacy.html |
@@ -60,7 +60,7 @@ SAFE & MULTI-USER
 
 English and Urdu.
 
-Support: WhatsApp 0300-6296815 · asam9rana@gmail.com
+Support: WhatsApp 0300-6296815 · hannasolutions1@gmail.com
 ```
 
 ## اردو (Urdu translation)

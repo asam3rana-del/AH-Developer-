@@ -748,3 +748,12 @@ Har Android tabdeeli yahan sabse upar likhein (naya pehle). Flutter mein port ho
 - [x] PDF share sheet fail ho to file PDF viewer mein khul jati hai.
 - Note: yeh code compile/test nahi hua (Flutter SDK nahi tha) — `flutter analyze && flutter test` chalayein. `test/bill_pdf_data_test.dart` naya.
 - Baqi: Party Summary PDF (`partySummarySlipData`) abhi kisi button se jura nahi; tasveer sirf usi phone mein hai (backup/sync mein nahi).
+
+## Split Payment in Receive/Make Payment (2026-11-20)
+- [x] Payment dialog (`showPaymentDialog`, payments_screen.dart): naye payment mein "+ Split Payment (Cash + Bank)" link — Cash amount + Bank amount alag bharein, Total neeche dikhta hai. Ek Save se do alag payment rows (cash / bank), har ek apne method ke saath Payments Report/Cash/Bank mein. Edit mein split nahi.
+- [x] `PaymentRepository.saveSplit()` — saare parts EK transaction mein (beech mein fail ho to aadhi payment nahi bachti), customer ki due dates ek hi dafa renew hoti hain; `save()` ab usi ko ek part ke saath chalata hai.
+- Note: compile/test nahi hua — `flutter analyze && flutter test`, phir device par chhoti raqam (10 cash + 10 bank) se test karein.
+
+## About / contact info (2026-11-20)
+- [x] Email `asam9rana@gmail.com` -> `hannasolutions1@gmail.com` aur address -> `Ibtisaam Traders, Bhikhi` (phone 0300 6296815 pehle se sahi): `lib/app_info.dart` (About screen, mailto links), `web_public/index.html` + `privacy.html`, `tools/deploy_privacy_site.sh`, `docs/STORE_LISTING.md`.
+- Note: privacy site live tabhi badlegi jab `bash tools/deploy_privacy_site.sh` dobara deploy ho; Play Console ka contact email alag se badalna parta hai.

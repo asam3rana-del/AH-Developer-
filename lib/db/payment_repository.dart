@@ -159,59 +159,90 @@ class PaymentRepository {
     required String note,
     required int dateMillis,
     String billRef = '',
+  }) =>
+      saveSplit(
+        isCustomer: isCustomer,
+        partyId: partyId,
+        partyName: partyName,
+        parts: [(method, amount)],
+        note: note,
+        dateMillis: dateMillis,
+        billRef: billRef,
+      );
+
+  /// Ek hi payment ko kai ذریعہ mein baantna (misal 120000 cash + 20000 bank). EK transaction mein:
+  /// ya sab parts save hote hain ya koi nahi (beech mein fail hone par aadhi payment nahi bachti).
+  /// Har part apni alag payment row + cash/bank entry banata hai (Payments Report mein alag method).
+  /// Bill se jorne par har part bill ke baaqi ke hisab se hota hai (pehla part pehle bill mein jata hai).
+  Future<void> saveSplit({
+    required bool isCustomer,
+    required int partyId,
+    required String partyName,
+    required List<(String, double)> parts,
+    required String note,
+    required int dateMillis,
+    String billRef = '',
   }) async {
+    if (parts.isEmpty) throw ArgumentError('Amount must be greater than 0');
     // Repository par bhi guard (Cash/Expense jaisa): NaN / Infinity / <= 0 se party balance kharab na ho.
-    if (!amount.isFinite || amount <= 0) throw ArgumentError('Amount must be greater than 0');
+    for (final (_, a) in parts) {
+      if (!a.isFinite || a <= 0) throw ArgumentError('Amount must be greater than 0');
+    }
     final db = await AppDatabase.instance.database;
     final partyType = isCustomer ? 'customer' : 'supplier';
     // Device-unique (Expense jaisa): do devices par ek hi ms mein ek hi party ka payment ho to reference na takraye.
-    final reference = 'manual-$partyType-$partyId-${DeviceTag.current}-${DateTime.now().millisecondsSinceEpoch}';
+    final baseRef = 'manual-$partyType-$partyId-${DeviceTag.current}-${DateTime.now().millisecondsSinceEpoch}';
     await db.transaction((txn) async {
-      // Bill ke baaqi se zyada payment: bill ka `paid` total par ruk jata hai, is liye poori raqam
-      // bill se jorne par party balance aur bill alag ho jate (advance chupke se gayab). Isliye
-      // bill ke baaqi jitna hissa bill se juray, extra hissa alag (general) payment banay.
-      final remaining = await _billRemaining(txn, isCustomer, billRef);
-      var linked = amount;
-      var extra = 0.0;
-      var linkRef = billRef;
-      if (remaining != null && amount > remaining + 0.009) {
-        linked = remaining;
-        extra = amount - remaining;
-        if (linked <= 0.009) {
-          linked = 0.0;
-          linkRef = '';
+      for (var i = 0; i < parts.length; i++) {
+        final (method, amount) = parts[i];
+        final reference = i == 0 ? baseRef : '$baseRef-s$i';
+        // Bill ke baaqi se zyada payment: bill ka `paid` total par ruk jata hai, is liye poori raqam
+        // bill se jorne par party balance aur bill alag ho jate (advance chupke se gayab). Isliye
+        // bill ke baaqi jitna hissa bill se juray, extra hissa alag (general) payment banay.
+        final remaining = await _billRemaining(txn, isCustomer, billRef);
+        var linked = amount;
+        var extra = 0.0;
+        var linkRef = billRef;
+        if (remaining != null && amount > remaining + 0.009) {
+          linked = remaining;
+          extra = amount - remaining;
+          if (linked <= 0.009) {
+            linked = 0.0;
+            linkRef = '';
+          }
         }
-      }
-      if (linked > 0.009 || extra <= 0.009) {
-        await _insertPayment(txn,
-            isCustomer: isCustomer,
-            partyType: partyType,
-            partyId: partyId,
-            partyName: partyName,
-            amount: linked > 0.009 ? linked : amount,
-            method: method,
-            note: note,
-            billRef: linkRef,
-            dateMillis: dateMillis,
-            reference: reference);
-      }
-      if (extra > 0.009) {
-        await _insertPayment(txn,
-            isCustomer: isCustomer,
-            partyType: partyType,
-            partyId: partyId,
-            partyName: partyName,
-            amount: extra,
-            method: method,
-            note: linked > 0.009 ? (note.isEmpty ? 'Extra (bill se zyada)' : '$note | Extra (bill se zyada)') : note,
-            billRef: '',
-            dateMillis: dateMillis,
-            reference: linked > 0.009 ? '$reference-x' : reference);
+        if (linked > 0.009 || extra <= 0.009) {
+          await _insertPayment(txn,
+              isCustomer: isCustomer,
+              partyType: partyType,
+              partyId: partyId,
+              partyName: partyName,
+              amount: linked > 0.009 ? linked : amount,
+              method: method,
+              note: note,
+              billRef: linkRef,
+              dateMillis: dateMillis,
+              reference: reference);
+        }
+        if (extra > 0.009) {
+          await _insertPayment(txn,
+              isCustomer: isCustomer,
+              partyType: partyType,
+              partyId: partyId,
+              partyName: partyName,
+              amount: extra,
+              method: method,
+              note: linked > 0.009 ? (note.isEmpty ? 'Extra (bill se zyada)' : '$note | Extra (bill se zyada)') : note,
+              billRef: '',
+              dateMillis: dateMillis,
+              reference: linked > 0.009 ? '$reference-x' : reference);
+        }
       }
       if (isCustomer) await _renewDueDates(txn, partyId);
     });
     await _refreshParties();
   }
+
 
   /// Customer ki ek raqam KAI bills par (purane pehle) — ek transaction, har bill ka alag payment row
   /// (bill ka `paid` + party balance + cash entry sab theek). [shares] ke baad bachi [generalAmount] bina bill
