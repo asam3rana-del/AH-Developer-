@@ -12,6 +12,14 @@ IBTISAAM Kiryana Store ka POS: Android + iPad/iOS + Windows, sirf Flutter. Kotli
 
 `android/`, `ios/`, `windows/` repo mein nahi hain; CI `flutter create` se banata hai.
 
+## Windows (PC)
+- CI ka `windows-build` artifact: `HannaPOS-Setup-<version>.exe` (installer — yehi chalayein) aur `AH-Kiryana-Store-windows.zip` (portable; extract karke exe chalayein).
+- Visual C++ runtime DLLs exe ke saath bundle hain (naye PC par "VCRUNTIME140_1.dll not found" nahi aata). Zip mein backup ke liye `vc_redist.x64.exe` bhi hai.
+- Windows 10/11 64-bit. Admin ki zaroorat nahi. Ek waqt mein sirf ek app khulti hai (DB mehfooz).
+- Data: `%APPDATA%\Hanna Solutions\Hanna POS` (DB + settings) — uninstall/update par nahi mitta. Ye naam `build.yml` (Runner.rc) se aata hai, **kabhi na badlein**. Purane `com.example` folder ka data pehli dafa khud copy ho jata hai.
+- `windows_assets/`: `app_icon.ico` (Hanna POS icon), `installer.iss` (Inno Setup). Installer ka `AppId` kabhi na badlein.
+- Windows par nahi: Bluetooth printer, Bill Scan (OCR), notifications, background backup/sync service, contacts picker. Staff cloud login switch OFF rakhein.
+
 ## Build (GitHub Actions)
 - `Build` workflow har push par chalta hai (sirf `.md` / `docs/` badalne par nahi). Naya push aane par purani chalti run cancel ho jati hai.
 - Flutter ka version `build.yml` ke `FLUTTER_VERSION` mein ek hi jagah hai (abhi 3.24.0). Naya version aazmane ke liye Actions > Build > Run workflow mein `flutter_version` likhein (e.g. 3.47.2) — repo mein kuch badalna nahi parta. Naye Flutter par `tools/android_fix.sh` ke Kotlin/AGP/Gradle/compileSdk fixes dobara check karne parte hain.
