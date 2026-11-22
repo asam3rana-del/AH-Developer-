@@ -598,3 +598,15 @@ if ! grep -q "coreLibraryDesugaring" "$GRADLE"; then
 fi
 grep -n "esugar" "$GRADLE"
 grep -q "esugar" "$GRADLE" || { echo "ERROR: core library desugaring not applied"; exit 1; }
+
+# --- App icon: Hanna Software Series ka POS icon (app_icon/android). ---
+# Yahan is liye bhi ke "Import zip" workflow .github/ (build.yml) ko repo mein nahi daalta,
+# magar tools/ aur app_icon/ daal deta hai — icon build.yml badle baghair bhi lag jaye.
+if [ -d app_icon/android ]; then
+  RES=android/app/src/main/res
+  cp -R app_icon/android/. "$RES/"
+  rm -f "$RES"/mipmap-anydpi-v26/ic_launcher_round.xml
+  echo "App icon: Hanna POS"; ls "$RES"/mipmap-xxxhdpi
+else
+  echo "WARNING: app_icon/android nahi mila — purana (Flutter) icon rahega"
+fi
