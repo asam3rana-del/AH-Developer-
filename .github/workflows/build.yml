@@ -123,6 +123,20 @@ jobs:
       # Flutter 3.47 ka `flutter create` dependencies naye patch par upgrade kar deta hai — commit wali lock wapas.
       - run: git checkout -- pubspec.yaml pubspec.lock
 
+      # App icon: Hanna Software Series ka POS icon. AppIcon.appiconset ki har PNG ko usi pixel size wali
+      # app_icon/ios/icon_<px>.png se badal do (file naam Flutter template ke hi rehte hain).
+      - name: Set iOS app icon (Hanna POS)
+        run: |
+          set -e
+          SET=ios/Runner/Assets.xcassets/AppIcon.appiconset
+          for f in "$SET"/*.png; do
+            w=$(sips -g pixelWidth "$f" | awk '/pixelWidth/{print $2}')
+            src="app_icon/ios/icon_${w}.png"
+            [ -f "$src" ] || { echo "::error::$src nahi mila ($f)"; exit 1; }
+            cp "$src" "$f"
+          done
+          ls -la "$SET"
+
       # App ka naam (home screen par): Hanna POS.
       - name: Set iOS app name
         run: |
@@ -243,6 +257,17 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
+      # App icon: Hanna Software Series ka POS icon (app_icon/hanna_pos_icon.svg se bane PNG).
+      # Purane phones: mipmap-*/ic_launcher.png. Android 8+: adaptive icon (navy background + H/barcode foreground).
+      - name: Set Android app icon (Hanna POS)
+        run: |
+          set -e
+          RES=android/app/src/main/res
+          cp -R app_icon/android/. "$RES/"
+          rm -f "$RES"/mipmap-anydpi-v26/ic_launcher_round.xml
+          grep -q 'android:icon="@mipmap/ic_launcher"' android/app/src/main/AndroidManifest.xml || { echo "::error::Manifest mein @mipmap/ic_launcher nahi"; exit 1; }
+          ls "$RES"/mipmap-*
+
       # Har build ka versionCode badhta hai, taake Android use update maane.
       # Gradle signing passwords System.getenv() se padhta hai, isliye yahan bhi env zaroori hai.
       - run: flutter build apk --release --build-number=${{ github.run_number }}
@@ -306,10 +331,64 @@ jobs:
             fi
           fi
 
-      # Window title: Hanna POS.
-      - name: Set Windows window title
+      # Windows runner ki tayyari (flutter create ke banaye hue files par):
+      #  1. Window title "Hanna POS", maximized khulti hai (restore = 1280x800).
+      #  2. Ek waqt mein sirf EK app: dusri dafa kholne par purani window aage aa jaye
+      #     (do copies ek hi SQLite DB par likhein to hisaab / sync bigar sakta hai).
+      #  3. Hanna POS icon (windows_assets/app_icon.ico = app_icon/hanna_pos_icon.svg).
+      #  4. Runner.rc: CompanyName / ProductName. path_provider inhi se AppData folder banata hai:
+      #     %APPDATA%\Hanna Solutions\Hanna POS  (DB + settings). KABHI NA BADLEIN — badla to data "gum" lagega.
+      #     (purana com.example wala folder lib/db/desktop_db_init.dart khud naye mein copy kar deta hai.)
+      - name: Windows runner setup (title, single instance, icon, company name)
         shell: pwsh
-        run: (Get-Content windows/runner/main.cpp) -replace 'L"ah_developer_kiryana_store"', 'L"Hanna POS"' | Set-Content windows/runner/main.cpp
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $main = 'windows/runner/main.cpp'
+          $c = Get-Content $main -Raw
+          $c = $c -replace 'L"ah_developer_kiryana_store"', 'L"Hanna POS"'
+          $c = $c -replace 'Win32Window::Size size\(\d+, \d+\)', 'Win32Window::Size size(1280, 800)'
+          $guard = @'
+          $1
+            // Hanna POS: sirf ek instance. Dusri dafa kholne par pehli window aage le aao.
+            HANDLE hanna_single = ::CreateMutexW(nullptr, TRUE, L"Local\\HannaPOS_SingleInstance");
+            if (hanna_single != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+              HWND existing = ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"Hanna POS");
+              if (existing != nullptr) {
+                if (::IsIconic(existing)) ::ShowWindow(existing, SW_RESTORE);
+                ::SetForegroundWindow(existing);
+              }
+              return EXIT_SUCCESS;
+            }
+          '@
+          $c = [regex]::new('(show_command\)\s*\{)').Replace($c, $guard, 1)
+          Set-Content $main $c -NoNewline
+          foreach ($must in 'L"Hanna POS"', 'HannaPOS_SingleInstance', 'size(1280, 800)') {
+            if (-not (Select-String -Path $main -SimpleMatch $must -Quiet)) { Write-Error "main.cpp patch fail: $must" }
+          }
+
+          # App poori screen (maximized) khule — POS PC par yehi chahiye. Restore karne par 1280x800.
+          $fw = 'windows/runner/flutter_window.cpp'
+          $f = Get-Content $fw -Raw
+          if ($f -match 'this->Show\(\);') {
+            $f = $f -replace 'this->Show\(\);', '::ShowWindow(this->GetHandle(), SW_SHOWMAXIMIZED);'
+            Set-Content $fw $f -NoNewline
+          } else {
+            Write-Warning "flutter_window.cpp mein this->Show() nahi mila — window maximized nahi khulegi"
+          }
+
+          Copy-Item windows_assets/app_icon.ico windows/runner/resources/app_icon.ico -Force
+
+          $rc = 'windows/runner/Runner.rc'
+          $r = Get-Content $rc -Raw
+          $r = $r -replace 'VALUE "CompanyName", "[^"]*"', 'VALUE "CompanyName", "Hanna Solutions"'
+          $r = $r -replace 'VALUE "ProductName", "[^"]*"', 'VALUE "ProductName", "Hanna POS"'
+          $r = $r -replace 'VALUE "FileDescription", "[^"]*"', 'VALUE "FileDescription", "Hanna POS"'
+          $r = $r -replace 'VALUE "LegalCopyright", "[^"]*"', 'VALUE "LegalCopyright", "Copyright (C) Hanna Solutions"'
+          Set-Content $rc $r -NoNewline
+          foreach ($must in '"CompanyName", "Hanna Solutions"', '"ProductName", "Hanna POS"') {
+            if (-not (Select-String -Path $rc -SimpleMatch $must -Quiet)) { Write-Error "Runner.rc patch fail: $must" }
+          }
+          Select-String -Path $rc -Pattern 'CompanyName|ProductName|FileDescription'
 
       - run: flutter build windows --release
 
@@ -378,7 +457,28 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath AH-Kiryana-Store-windows.zip
 
+      # Asaan install: HannaPOS-Setup-<version>.exe — Start menu + Desktop shortcut, admin ki zaroorat nahi,
+      # update ke waqt data (AppData) mehfooz. Inno Setup windows-2022 runner par pehle se hota hai.
+      - name: Build Windows installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ver = ((Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value)
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          $src = (Resolve-Path build/windows/x64/runner/Release).Path
+          $out = Join-Path $PWD 'installer_out'
+          & $iscc "/DAppVersion=$ver" "/DSourceDir=$src" "/DOutDir=$out" windows_assets/installer.iss
+          if ($LASTEXITCODE -ne 0) { Write-Error "Inno Setup fail ($LASTEXITCODE)" }
+          Get-ChildItem $out
+
       - uses: actions/upload-artifact@v7
         with:
           name: windows-build
-          path: AH-Kiryana-Store-windows.zip
+          path: |
+            AH-Kiryana-Store-windows.zip
+            installer_out/HannaPOS-Setup-*.exe
