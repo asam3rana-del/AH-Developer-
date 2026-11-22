@@ -1,7 +1,5 @@
 import 'dart:async' show unawaited;
-import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -10,6 +8,8 @@ import 'backup/backup_scheduler.dart';
 import 'backup/offsite_backup.dart';
 import 'db/user_repository.dart';
 import 'db/desktop_db_init.dart';
+import 'desktop/desktop_prefs.dart';
+import 'desktop/desktop_shell.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/app_lock.dart';
@@ -44,6 +44,7 @@ void main() async {
     await BranchConfigStore.init();
     await Loc.load();
     await ThemeManager.load();
+    await DesktopPrefs.load(); // PC: text size + sidebar (phone par kuch nahi)
     await Session.load();
     await _revalidateSession();
     // PosApplication.onCreate() mein AppLock.register(this) ke barabar.
@@ -115,6 +116,8 @@ class AhDeveloperApp extends StatelessWidget {
         final demo = DemoMode.enabled;
         return MaterialApp(
           navigatorKey: AppLock.navigatorKey,
+          // PC sidebar ko pata rahe kaunsi screen / dialog upar hai.
+          navigatorObservers: [DesktopShell.observerFor('$lang-$dark-$demo')],
           // zabaan / theme badalne par saari screens dobara ban jayein
           // Demo on/off par bhi poora tree naya (kisi screen mein doosri dukaan ka purana data na reh jaye).
           key: ValueKey('$lang-$dark-$demo'),
@@ -127,8 +130,8 @@ class AhDeveloperApp extends StatelessWidget {
             textDirection: lang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
             child: _BottomSystemBarGuard(
               background: p.bg,
-              child: _DesktopFrame(
-                background: p.bg,
+              // PC: sidebar + poori screen (phone / tablet par seedha child).
+              child: DesktopShell(
                 // Demo dukaan har screen par saaf nazar aaye, taake asal hisaab samajh kar entry na ho.
                 child: demo
                     ? Banner(
@@ -177,27 +180,6 @@ ThemeData _buildTheme(AppPalette p, bool dark) {
     fontFamily: 'Roboto',
   );
   return base.copyWith(textTheme: base.textTheme.apply(bodyColor: p.textDark, displayColor: p.textDark));
-}
-
-bool get _isDesktop => !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
-
-/// Screens mobile ke liye bani hain. Bari (desktop) window mein unhein khinchne ke bajaye beech mein
-/// aik hadd (900 px) tak chaura rakhte hain; phone / tablet par kuch nahi badalta.
-class _DesktopFrame extends StatelessWidget {
-  const _DesktopFrame({required this.child, required this.background});
-  final Widget child;
-  final Color background;
-
-  static const double maxWidth = 900;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_isDesktop) return child;
-    return ColoredBox(
-      color: background,
-      child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: maxWidth), child: child)),
-    );
-  }
 }
 
 /// Android 15+ (targetSdk 35/36) edge-to-edge zabardasti karta hai: neeche wali system bar (back/home)

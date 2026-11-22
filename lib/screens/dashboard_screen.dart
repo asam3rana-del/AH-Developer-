@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, LogicalKeyboardKey;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -7,6 +7,8 @@ import '../models/due_followup.dart';
 import '../db/dashboard_repository.dart';
 import '../db/due_followup_repository.dart';
 import '../db/party_dashboard_repository.dart';
+import '../desktop/desktop_prefs.dart';
+import '../desktop/desktop_shell.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../services/biometric.dart';
@@ -80,6 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   AppPalette get _p => ThemeManager.palette;
 
   final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode(); // PC: Ctrl+F
   List<Product>? _products; // cache; doosri screen se wapas aane par reset
   List<Product> _matches = const [];
   String _query = '';
@@ -102,6 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _refresh();
+    DesktopShell.rootShown.addListener(_onRootShown);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkLastCrash());
   }
 
@@ -163,7 +167,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    DesktopShell.rootShown.removeListener(_onRootShown);
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -270,6 +276,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   bool get _canSeeSuppliers => _am.contains(Session.role); // cashier ko supplier screen band
+
+  /// PC sidebar se wapas Dashboard par aaye (yahan ka `_push` nahi chala) — numbers dobara padho.
+  void _onRootShown() {
+    if (!mounted) return;
+    _products = null;
+    _parties = null;
+    _refresh();
+    if (_query.isNotEmpty) _onSearch(_searchCtrl.text);
+  }
 
   // ------------------------------------------------------------ navigation
 
@@ -514,6 +529,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final p = _p;
     final mq = MediaQuery.of(context);
+    if (DesktopPrefs.wide(mq.size.width)) return _desktop(p, mq);
     final cols = dashboardColumns(mq.size.width);
     return Scaffold(
       backgroundColor: p.bg,
@@ -556,6 +572,132 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // ------------------------------------------------------------ PC (Windows) layout
+
+  /// PC: upar patti (dukaan + search + buttons), baayen bara Quick Actions grid, daayen baqaya + wasooli.
+  /// Data / actions wahi jo phone par — sirf tarteeb alag.
+  Widget _desktop(AppPalette p, MediaQueryData mq) {
+    final w = mq.size.width;
+    final sideW = w >= 1250 ? 380.0 : 330.0;
+    final mainW = w - sideW - 24 * 3;
+    final cols = mainW >= 1000 ? 6 : (mainW >= 820 ? 5 : (mainW >= 620 ? 4 : 3));
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _searchFocus.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.f5): _onRootShown,
+      },
+      child: Focus(
+        autofocus: true,
+        skipTraversal: true,
+        child: Scaffold(
+          backgroundColor: p.bg,
+          body: Column(children: [
+            _desktopTopBar(p),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (_query.isNotEmpty) ...[
+                        _unifiedResults(p),
+                        const SizedBox(height: 22),
+                      ],
+                      _sectionLabel(p, Loc.t('QUICK ACTIONS', 'فوری کام')),
+                      // Text size (Ctrl +) ke saath card bhi lamba — 100% par phone jitna (146).
+                      _grid(_quickActions(p), cols, p, extent: 50 + 96 * mq.textScaler.scale(1)),
+                    ]),
+                  ),
+                  const SizedBox(width: 24),
+                  SizedBox(
+                    width: sideW,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      _sectionLabel(p, Loc.t('DUES SUMMARY', 'بقایا کا خلاصہ')),
+                      _statCard(
+                        label: Loc.t("You'll get", 'آپ کو ملنا ہے'),
+                        value: dashboardAmount(_toGet),
+                        bg: _partyGreenBg,
+                        fg: _partyGreen,
+                        onTap: () => _push(const PartyDashboardScreen()),
+                      ),
+                      const SizedBox(height: 12),
+                      _statCard(
+                        label: Loc.t("You'll give", 'آپ کو دینا ہے'),
+                        value: dashboardAmount(_toGive),
+                        bg: _partyRedBg,
+                        fg: _partyRed,
+                        onTap: () => _push(const PartyDashboardScreen()),
+                      ),
+                      if (_pending > 0) _syncPendingLabel(),
+                      if (_focus != null) ...[
+                        const SizedBox(height: 22),
+                        TodaysCollectionCard(
+                          focus: _focus!,
+                          onOpen: () => _push(const CollectionHubScreen(initialFilter: FollowUpFilter.focus)),
+                          onOpenFilter: (f) => _push(CollectionHubScreen(initialFilter: f)),
+                          onChanged: _refresh,
+                          onOpenReceivables: () => _push(const CollectionHubScreen(initialTab: 2)),
+                          onReceive: (f) async {
+                            final id = f.party.partyId;
+                            if (id == null) return;
+                            final saved = await receiveFromParty(context, partyId: id, partyName: f.party.partyName, due: f.total);
+                            if (saved) await _refresh();
+                          },
+                        ),
+                      ],
+                    ]),
+                  ),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _desktopTopBar(AppPalette p) {
+    final role = Session.role;
+    final roleLabel = role.isEmpty ? '' : role[0].toUpperCase() + role.substring(1);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+      decoration: BoxDecoration(color: p.cardWhite, border: Border(bottom: BorderSide(color: p.border))),
+      child: Row(children: [
+        Flexible(
+          flex: 2,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(
+              _shopName.isEmpty ? _defaultShopName : _shopName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: p.textDark),
+            ),
+            const SizedBox(height: 3),
+            Text('$roleLabel ${Loc.t('Panel', 'پینل')}  •  ${Session.username ?? ''}',
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.textMuted)),
+          ]),
+        ),
+        const SizedBox(width: 24),
+        Expanded(
+          flex: 3,
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: _searchBar(p)),
+          ),
+        ),
+        const SizedBox(width: 16),
+        _syncButton(p),
+        const SizedBox(width: 10),
+        _circleButton(Icons.refresh, p.flatBlueBg, p.flatBlueFg, Loc.t('Refresh (F5)', 'ریفریش (F5)'), _onRootShown),
+        const SizedBox(width: 10),
+        _circleButton(Icons.swap_horiz, p.flatTealBg, p.flatTealFg, Loc.t('Switch user', 'یوزر تبدیل کریں'), _openQuickSwitch),
+        const SizedBox(width: 10),
+        _circleButton(Icons.settings_outlined, p.flatPurpleBg, p.flatPurpleFg, Loc.t('Settings', 'سیٹنگز'),
+            () => _push(const SettingsScreen())),
+      ]),
     );
   }
 
@@ -671,6 +813,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Expanded(
           child: TextField(
             controller: _searchCtrl,
+            focusNode: _searchFocus,
             onChanged: _onSearch,
             textInputAction: TextInputAction.search,
             style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: p.textDark),
@@ -920,7 +1063,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Kotlin buildQuickActionRows(): har row mein [cols] card (2 / 3 / 4).
-  Widget _grid(List<_Action> actions, int cols, AppPalette p) {
+  Widget _grid(List<_Action> actions, int cols, AppPalette p, {double extent = 146}) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -929,7 +1072,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisCount: cols,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        mainAxisExtent: 146,
+        mainAxisExtent: extent,
       ),
       itemCount: actions.length,
       itemBuilder: (_, i) => _actionCard(actions[i], p),

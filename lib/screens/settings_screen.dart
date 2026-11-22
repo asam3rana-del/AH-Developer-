@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../db/app_database.dart';
 import '../db/user_repository.dart';
+import '../desktop/desktop_prefs.dart';
+import '../desktop/desktop_shell.dart' show showDesktopShortcuts;
 import '../models/misc_entities.dart';
 import '../services/credit_guard.dart';
 import '../services/demo_mode.dart';
@@ -445,6 +447,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
 
+  /// Sirf PC (Windows): text size, sidebar, keyboard shortcuts. Har user ka apna (is computer par).
+  Widget _desktopCard() {
+    return _card(Loc.t('Computer (PC)', 'کمپیوٹر (PC)'), Icons.desktop_windows_outlined, [
+      Text(Loc.t('Text size', 'ٹیکسٹ کا سائز'), style: const TextStyle(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 6),
+      ValueListenableBuilder<double>(
+        valueListenable: DesktopPrefs.textScale,
+        builder: (_, scale, __) => Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final v in DesktopPrefs.textScales)
+            ChoiceChip(
+              label: Text(DesktopPrefs.scaleLabel(v)),
+              selected: v == scale,
+              onSelected: (_) => DesktopPrefs.setTextScale(v),
+            ),
+        ]),
+      ),
+      const SizedBox(height: 4),
+      Text(Loc.t('Shortcut: Ctrl + / Ctrl − / Ctrl 0', 'شارٹ کٹ: Ctrl + / Ctrl − / Ctrl 0'),
+          style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted)),
+      const SizedBox(height: 8),
+      ValueListenableBuilder<bool>(
+        valueListenable: DesktopPrefs.sidebarCollapsed,
+        builder: (_, collapsed, __) => SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          value: collapsed,
+          onChanged: DesktopPrefs.setSidebarCollapsed,
+          title: Text(Loc.t('Small side menu (icons only)', 'چھوٹا سائیڈ مینیو (صرف آئیکن)')),
+          subtitle: Text(Loc.t('More room for bills and reports', 'بل اور رپورٹ کے لیے زیادہ جگہ')),
+        ),
+      ),
+      const SizedBox(height: 4),
+      OutlinedButton.icon(
+        onPressed: showDesktopShortcuts,
+        icon: const Icon(Icons.keyboard_outlined),
+        label: Text(Loc.t('KEYBOARD SHORTCUTS (F1)', 'کی بورڈ شارٹ کٹس (F1)')),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        Loc.t(
+            'Printer: use "Printer Setup" above for a USB (installed in Windows) or network thermal printer.',
+            'پرنٹر: اوپر "پرنٹر سیٹ اپ" سے USB (ونڈوز میں انسٹال) یا نیٹ ورک تھرمل پرنٹر چنیں۔'),
+        style: TextStyle(fontSize: 12, color: ThemeManager.palette.textMuted),
+      ),
+    ]);
+  }
+
   void _open(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
 
   /// Kotlin SettingsActivity ke upar wali link rows (Parties, Items, Reports, Sale, Purchase, Expense,
@@ -699,6 +748,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ]),
         const SyncSection(),
+        if (DesktopPrefs.isDesktop) _desktopCard(),
         _card(Loc.t('Appearance', 'ظاہری شکل'), Icons.dark_mode, [
           ValueListenableBuilder<bool>(
             valueListenable: ThemeManager.isDark,

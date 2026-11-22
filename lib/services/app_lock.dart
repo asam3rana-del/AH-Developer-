@@ -25,7 +25,10 @@ class AppLock with WidgetsBindingObserver {
   WidgetBuilder? _loginBuilder;
 
   /// LoginScreen khuli ho to true (us dauran lock arm/consume nahi hota).
-  bool onLoginScreen = false;
+  /// PC sidebar isi ko sunta hai: login screen par sidebar chhupa (lock ke dauran menu se andar na ja sakein).
+  final ValueNotifier<bool> loginScreenShown = ValueNotifier<bool>(false);
+  bool get onLoginScreen => loginScreenShown.value;
+  set onLoginScreen(bool v) => loginScreenShown.value = v;
 
   /// Biometric prompt khud paused/resumed events paida kar sakta hai — us dauran ignore karein.
   bool suspendLock = false;

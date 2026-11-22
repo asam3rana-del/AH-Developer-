@@ -18,6 +18,9 @@ IBTISAAM Kiryana Store ka POS: Android + iPad/iOS + Windows, sirf Flutter. Kotli
 - Windows 10/11 64-bit. Admin ki zaroorat nahi. Ek waqt mein sirf ek app khulti hai (DB mehfooz).
 - Data: `%APPDATA%\Hanna Solutions\Hanna POS` (DB + settings) — uninstall/update par nahi mitta. Ye naam `build.yml` (Runner.rc) se aata hai, **kabhi na badlein**. Purane `com.example` folder ka data pehli dafa khud copy ho jata hai.
 - `windows_assets/`: `app_icon.ico` (Hanna POS icon), `installer.iss` (Inno Setup). Installer ka `AppId` kabhi na badlein.
+- PC layout (`lib/desktop/`): window 1000 px se chauri ho to baayen sidebar menu (Urdu mein daayen), role ke hisaab se wahi screens jo dashboard/settings par. Login/lock screen par sidebar nahi. Content poori screen leta hai (1480 px tak). Dashboard ka alag PC layout (upar search patti, bara Quick Actions grid, daayen baqaya + wasooli). Tang window par purana mobile layout.
+- PC settings (Settings › Computer (PC)): text size 85–145% (Ctrl + / Ctrl − / Ctrl 0), chhota sidebar, shortcuts list (F1). Shortcuts: Ctrl+D dashboard, Ctrl+N sale, Ctrl+I items, Ctrl+L parties, Ctrl+B day book, Alt+← / mouse back button = wapas; sale screen ke F2–F9 waise hi.
+- App maximized khulti hai. Printer: Settings › Printer Setup se USB (Windows mein installed) ya network printer.
 - Windows par nahi: Bluetooth printer, Bill Scan (OCR), notifications, background backup/sync service, contacts picker. Staff cloud login switch OFF rakhein.
 
 ## Build (GitHub Actions)
