@@ -25,6 +25,7 @@ import 'sync/network_monitor.dart';
 import 'sync/settings_sync.dart';
 import 'sync/sync_keepalive.dart';
 import 'sync/sync_worker.dart';
+import 'theme/app_theme.dart';
 import 'theme/theme_manager.dart';
 import 'utils/loc.dart';
 
@@ -156,31 +157,8 @@ class AhDeveloperApp extends StatelessWidget {
 /// aur unstyled Text bhi dark/light mein palette ke rang lete hain (pehle Material ke apne seeded rang the).
 /// Sirf stable ColorScheme/ThemeData fields — component themes (DialogTheme wagaira) jaan boojh kar nahi,
 /// kyunke naye Flutter versions mein unke class naam badal gaye hain.
-ThemeData _buildTheme(AppPalette p, bool dark) {
-  final brightness = dark ? Brightness.dark : Brightness.light;
-  final scheme = ColorScheme.fromSeed(seedColor: p.navy, brightness: brightness).copyWith(
-    surface: p.cardWhite,
-    onSurface: p.textDark,
-    onSurfaceVariant: p.textMuted,
-    surfaceContainerLowest: p.cardWhite,
-    surfaceContainerLow: p.cardWhite,
-    surfaceContainer: p.cardWhite,
-    surfaceContainerHigh: p.cardWhite,
-    surfaceContainerHighest: p.fieldFill,
-    outline: p.textMuted,
-    outlineVariant: p.border,
-    error: p.red,
-  );
-  final base = ThemeData(
-    useMaterial3: true,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: p.bg,
-    canvasColor: p.cardWhite,
-    dividerColor: p.border,
-    fontFamily: 'Roboto',
-  );
-  return base.copyWith(textTheme: base.textTheme.apply(bodyColor: p.textDark, displayColor: p.textDark));
-}
+/// Poori app ka premium theme: lib/theme/app_theme.dart (Hanna navy + gold).
+ThemeData _buildTheme(AppPalette p, bool dark) => AppTheme.build(p, dark);
 
 /// Android 15+ (targetSdk 35/36) edge-to-edge zabardasti karta hai: neeche wali system bar (back/home)
 /// screen ke upar aa jaati hai, aur jin ListView par apni padding di hui hai unka aakhri button

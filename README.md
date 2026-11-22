@@ -12,6 +12,11 @@ IBTISAAM Kiryana Store ka POS: Android + iPad/iOS + Windows, sirf Flutter. Kotli
 
 `android/`, `ios/`, `windows/` repo mein nahi hain; CI `flutter create` se banata hai.
 
+## Design (Hanna premium)
+- Poori app ka look ek jagah: `lib/theme/app_theme.dart` (Hanna navy `#0B2545` + gold `#F5B841`): cards, buttons, input boxes (gol konay), dialogs, bottom sheets, snackbars (floating), chips, tabs, switches, tables, scrollbar.
+- Rang: `lib/theme/theme_manager.dart` (`AppPalette`, light/dark). Screen headers: `lib/widgets/premium_header.dart`.
+- Sirf shape/rang/typography badli — button/field ki unchai nahi; jo screen apna style deti hai wo waise hi.
+
 ## Windows (PC)
 - CI ka `windows-build` artifact: `HannaPOS-Setup-<version>.exe` (installer — yehi chalayein) aur `AH-Kiryana-Store-windows.zip` (portable; extract karke exe chalayein).
 - Visual C++ runtime DLLs exe ke saath bundle hain (naye PC par "VCRUNTIME140_1.dll not found" nahi aata). Zip mein backup ke liye `vc_redist.x64.exe` bhi hai.

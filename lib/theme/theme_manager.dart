@@ -34,13 +34,13 @@ class ThemeManager {
 
   static const _keyDarkMode = 'dark_mode';
 
-  // Khatabook-style ledger palette (Kotlin LIGHT).
+  // Hanna Software Series brand: navy #0B2545 (app icon jaisa) + teal/amber accents.
   static const light = AppPalette(
-    bg: Color(0xFFF4F5F9), cardWhite: Color(0xFFFFFFFF), navy: Color(0xFF0D1B4C), teal: Color(0xFF0F9B8E),
+    bg: Color(0xFFF4F6FA), cardWhite: Color(0xFFFFFFFF), navy: Color(0xFF0B2545), teal: Color(0xFF0F9B8E),
     red: Color(0xFFE5484D), textDark: Color(0xFF14162B), textMuted: Color(0xFF7C8798), border: Color(0xFFE7E9F2),
     amber: Color(0xFFFF8A00), fieldFill: Color(0xFFF4F5F9), headerSubtitleColor: Color(0xFFAEB8E0),
     headerBadgeOverlay: Color(0x33FFFFFF), savedHighlightBg: Color(0xFFE9FBF9),
-    navyInk: Color(0xFF0D1B4C), navyLight: Color(0xFF1B2F6B), tealDark: Color(0xFF0C8F8A), redDark: Color(0xFFC93B40),
+    navyInk: Color(0xFF0B2545), navyLight: Color(0xFF173863), tealDark: Color(0xFF0C8F8A), redDark: Color(0xFFC93B40),
     blue: Color(0xFF3B82F6), orange: Color(0xFFF5A524), purple: Color(0xFF8B5CF6),
     flatPurpleBg: Color(0xFFE7E9FB), flatPurpleFg: Color(0xFF2D3796),
     flatCoralBg: Color(0xFFFDEAE3), flatCoralFg: Color(0xFFC1440E),
@@ -51,11 +51,11 @@ class ThemeManager {
   );
 
   static const dark = AppPalette(
-    bg: Color(0xFF0B0F1E), cardWhite: Color(0xFF161B2E), navy: Color(0xFF0D1B4C), teal: Color(0xFF14B8A6),
+    bg: Color(0xFF0B0F1E), cardWhite: Color(0xFF161B2E), navy: Color(0xFF0B2545), teal: Color(0xFF14B8A6),
     red: Color(0xFFF0666B), textDark: Color(0xFFEAEFF7), textMuted: Color(0xFF8B95A8), border: Color(0xFF262C42),
     amber: Color(0xFFFF9E33), fieldFill: Color(0xFF161D2C), headerSubtitleColor: Color(0xFFAEB8E0),
     headerBadgeOverlay: Color(0x33FFFFFF), savedHighlightBg: Color(0xFF12332F),
-    navyInk: Color(0xFFB8C4F2), navyLight: Color(0xFF1B2F6B), tealDark: Color(0xFF0F9F94), redDark: Color(0xFFD9575C),
+    navyInk: Color(0xFFB8C8EC), navyLight: Color(0xFF1D3F6E), tealDark: Color(0xFF0F9F94), redDark: Color(0xFFD9575C),
     blue: Color(0xFF60A5FA), orange: Color(0xFFFFB44D), purple: Color(0xFFA78BFA),
     flatPurpleBg: Color(0xFF2C2F7A), flatPurpleFg: Color(0xFFC7CBF6),
     flatCoralBg: Color(0xFF6E2E10), flatCoralFg: Color(0xFFF6C4A9),
