@@ -313,6 +313,66 @@ jobs:
 
       - run: flutter build windows --release
 
+      # Naye PC par "VCRUNTIME140_1.dll / MSVCP140.dll was not found" na aaye:
+      # Visual C++ 2015-2022 runtime DLLs exe ke saath hi rakh do (app-local deployment, Flutter docs wala tareeqa).
+      # Backup ke liye vc_redist.x64.exe bhi zip mein — agar kabhi DLL wala raasta kaam na kare.
+      - name: Bundle Visual C++ runtime (VC++ 2015-2022 x64)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $rel = "build/windows/x64/runner/Release"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { Write-Error "Visual Studio (C++ tools) runner par nahi mila" }
+          Write-Host "Visual Studio: $vs"
+
+          # VC\Redist\MSVC\<version>\x64\Microsoft.VC14x.CRT  (sab se naya version)
+          $verDir = Get-ChildItem (Join-Path $vs "VC\Redist\MSVC") -Directory |
+            Where-Object { $_.Name -match '^\d+(\.\d+)+$' } |
+            Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          $crt = Get-ChildItem (Join-Path $verDir.FullName "x64") -Directory -Filter "Microsoft.VC*.CRT" | Select-Object -First 1
+          if (-not $crt) { Write-Error "Microsoft.VC*.CRT folder nahi mila ($($verDir.FullName))" }
+          Write-Host "CRT: $($crt.FullName)"
+          Copy-Item (Join-Path $crt.FullName "*.dll") $rel -Force
+
+          $redist = Join-Path $verDir.FullName "vc_redist.x64.exe"
+          if (Test-Path $redist) { Copy-Item $redist $rel -Force } else { Write-Warning "vc_redist.x64.exe nahi mila (sirf DLLs bundle hongi)" }
+
+          @"
+          Hanna POS - Windows
+          ===================
+          1. Poora zip kisi folder mein Extract karein (zip ke andar se exe na chalayein).
+          2. ah_developer_kiryana_store.exe chalayein.
+          3. Agar phir bhi 'VCRUNTIME140 / MSVCP140 .dll not found' aaye to isi folder ka
+             vc_redist.x64.exe ek dafa install karein, phir app dobara kholein.
+          Windows 10/11 64-bit zaroori hai.
+          "@ | Set-Content (Join-Path $rel "PEHLE_PARHEIN.txt") -Encoding UTF8
+
+      # Check: exe aur har plugin DLL jo bhi MSVC runtime DLL mangti hai, wo Release folder mein maujood ho.
+      # (api-ms-win-crt-* Windows 10/11 ke andar hi hoti hain, unhein nahi dekhte.)
+      - name: Verify no missing VC++ runtime DLLs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $rel = "build/windows/x64/runner/Release"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -property installationPath
+          $dumpbin = Get-ChildItem (Join-Path $vs "VC\Tools\MSVC") -Recurse -Filter dumpbin.exe |
+            Where-Object { $_.FullName -match 'Hostx64\\x64' } | Select-Object -First 1
+          $present = (Get-ChildItem $rel -Filter *.dll).Name | ForEach-Object { $_.ToLower() }
+          $missing = @()
+          Get-ChildItem $rel -Include *.exe,*.dll -Recurse | ForEach-Object {
+            $deps = & $dumpbin.FullName /nologo /dependents $_.FullName |
+              ForEach-Object { $_.Trim().ToLower() } |
+              Where-Object { $_ -match '^(vcruntime|msvcp|concrt|vcomp|vccorlib)\S*\.dll$' }
+            foreach ($d in $deps) {
+              if ($present -notcontains $d) { $missing += "$($_.Name) -> $d" }
+            }
+          }
+          Get-ChildItem $rel | Format-Table Name, Length
+          if ($missing.Count) { $missing | Sort-Object -Unique | ForEach-Object { Write-Host "::error::Missing: $_" }; exit 1 }
+          Write-Host "OK: saari VC++ runtime DLLs Release folder mein hain."
+
       # Poora Release folder (exe + dll + data) — sirf .exe akeli nahi chalti.
       - name: Zip Release folder
         shell: pwsh
