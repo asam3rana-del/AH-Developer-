@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app_info.dart';
 import '../utils/loc.dart';
+import '../widgets/hanna_about_card.dart';
 
 /// About / Privacy / Support — Play Store policy: privacy policy ka link app ke andar bhi hona chahiye,
 /// aur data delete karwane ka tareeqa.
@@ -23,22 +24,10 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final build = AppInfo.build.isEmpty ? '' : ' (build ${AppInfo.build})';
     return Scaffold(
       appBar: AppBar(title: Text(Loc.t('About', 'ایپ کے بارے میں'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(AppInfo.appName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text('${AppInfo.developer} (${AppInfo.business}) · ${AppInfo.address}'),
-              const SizedBox(height: 4),
-              Text('${AppInfo.appId}$build', style: Theme.of(context).textTheme.bodySmall),
-            ]),
-          ),
-        ),
+        const HannaAboutCard(showMore: false),
         const SizedBox(height: 8),
         ListTile(
           leading: const Icon(Icons.privacy_tip_outlined),

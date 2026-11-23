@@ -1,3 +1,5 @@
+import '../app_info.dart';
+
 /// Hanna POS license ki settings (Hanna Solutions bharte hain). Private key YAHAN NAHI — sirf public.
 class LicenseConfig {
   LicenseConfig._();
@@ -12,9 +14,8 @@ class LicenseConfig {
   /// Expire hone se itne din pehle har screen ke upar yaad-dihani.
   static const int warnDays = 7;
 
-  /// License screen par "WhatsApp par Device ID bhejein" — Hanna Solutions ka number, 92 se shuru,
-  /// sirf digits (jaise '923001234567'). Khali => WhatsApp khud contact poochta hai.
-  static const String vendorWhatsApp = '';
+  /// License screen par "WhatsApp par Device ID bhejein" — Hanna Solutions ka number (About / support wala).
+  static const String vendorWhatsApp = AppInfo.supportWhatsAppIntl;
 
   static const String vendorName = 'Hanna Solutions';
 

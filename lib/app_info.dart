@@ -6,6 +6,8 @@ class AppInfo {
   static const developer = 'Asam Hameed';
   static const business = 'Hanna Solutions';
   static const appId = 'com.hannasolutions.pos';
+  static const version = '1.0';
+  static const tagline = 'Premium Shop POS';
   static const address = 'Ibtisaam Traders, Bhikhi';
   static const supportEmail = 'hannasolutions1@gmail.com';
   static const supportPhone = '03006296815';

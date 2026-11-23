@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../db/app_database.dart';
 import '../db/user_repository.dart';
 import '../desktop/desktop_prefs.dart';
+import '../license/license_codec.dart';
 import '../license/license_screen.dart';
 import '../license/license_service.dart';
+import '../widgets/hanna_about_card.dart';
 import '../desktop/desktop_shell.dart' show showDesktopShortcuts;
 import '../models/misc_entities.dart';
 import '../services/credit_guard.dart';
@@ -28,7 +31,6 @@ import '../widgets/premium_header.dart';
 import '../widgets/role_guard.dart';
 import '../widgets/sync_section.dart';
 import '../sync/sync_repository.dart';
-import 'about_screen.dart';
 import 'backup_export_screen.dart';
 import 'cash_screen.dart';
 import 'expense_screen.dart';
@@ -449,30 +451,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
 
-  /// Hanna POS license: halat + Device ID + key (renew). Sab users dekh sakte hain.
+  /// Hanna POS license (Hanna Fitness jaisa): rangeen nishan + "Licensed / Free trial / Not active",
+  /// plan · kab tak, aur Device ID. Tap => License screen (renew / key). Sab users dekh sakte hain.
   Widget _licenseCard() {
     return _card(Loc.t('License', 'لائسنس'), Icons.verified_user_outlined, [
       ValueListenableBuilder<LicenseState>(
         valueListenable: LicenseService.instance.state,
         builder: (_, s, __) {
           final p = ThemeManager.palette;
-          final String text;
+          String plan(LicensePlan x) => switch (x) {
+                LicensePlan.lifetime => Loc.t('Lifetime', 'لائف ٹائم'),
+                LicensePlan.yearly => Loc.t('Yearly', 'سالانہ'),
+                LicensePlan.monthly => Loc.t('Monthly', 'ماہانہ'),
+                LicensePlan.days => Loc.t('Custom', 'مخصوص'),
+              };
+          String date(int day) => DateFormat('d MMM yyyy').format(dateFromDay(day));
+          final String title;
+          final String detail;
+          final IconData icon;
+          final Color fg;
+          final Color bg;
           switch (s.status) {
             case LicenseStatus.active:
-              text = s.daysLeft == null
-                  ? Loc.t('Active — lifetime', 'فعال — لائف ٹائم')
-                  : Loc.t('Active — ${s.daysLeft} days left', 'فعال — ${s.daysLeft} دن باقی');
+              final l = s.license!;
+              title = Loc.t('Licensed', 'لائسنس یافتہ');
+              detail = l.isLifetime
+                  ? '${plan(l.plan)} · ${Loc.t('no expiry', 'کبھی ختم نہیں')}'
+                  : '${plan(l.plan)} · ${Loc.t('valid till', 'تک')} ${date(l.expiryDay - 1)}';
+              icon = Icons.verified;
+              fg = p.flatTealFg;
+              bg = p.flatTealBg;
             case LicenseStatus.trial:
-              text = Loc.t('Free trial — ${s.daysLeft} days left', 'مفت ٹرائل — ${s.daysLeft} دن باقی');
+              title = Loc.t('Free trial', 'مفت ٹرائل');
+              detail = Loc.t('${s.daysLeft} days left', '${s.daysLeft} دن باقی');
+              icon = Icons.hourglass_top;
+              fg = p.flatAmberFg;
+              bg = p.flatAmberBg;
             default:
-              text = Loc.t('Not active', 'فعال نہیں');
+              title = Loc.t('Not active', 'فعال نہیں');
+              detail = Loc.t('Tap to activate', 'فعال کرنے کے لیے دبائیں');
+              icon = Icons.lock_outline;
+              fg = p.red;
+              bg = p.red.withValues(alpha: 0.10);
           }
-          return ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(text, style: TextStyle(fontWeight: FontWeight.bold, color: s.usable ? p.textDark : p.red)),
-            subtitle: Text('${Loc.t('Device ID', 'ڈیوائس آئی ڈی')}: ${LicenseService.instance.deviceCode}'),
-            trailing: const Icon(Icons.chevron_right),
+          return InkWell(
+            borderRadius: BorderRadius.circular(14),
             onTap: () => _open(const LicenseScreen()),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14)),
+                  child: Icon(icon, color: fg, size: 26),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: s.usable ? p.textDark : p.red)),
+                    const SizedBox(height: 2),
+                    Text(detail, style: TextStyle(color: p.textMuted)),
+                    Text('${Loc.t('Device ID', 'ڈیوائس آئی ڈی')}: ${LicenseService.instance.deviceCode}',
+                        style: TextStyle(color: p.textMuted)),
+                  ]),
+                ),
+                Icon(Icons.chevron_right, color: p.textMuted),
+              ]),
+            ),
           );
         },
       ),
@@ -817,14 +863,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(Loc.t('MANAGE USERS', 'یوزرز مینیج کریں')),
             ),
           ]),
-        _card(Loc.t('About & Privacy', 'ایپ اور پرائیویسی'), Icons.info_outline, [
-          Text(Loc.t('Privacy policy, support, delete my data', 'پرائیویسی پالیسی، سپورٹ، ڈیٹا ختم کروانا')),
-          const SizedBox(height: 10),
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
-            child: Text(Loc.t('OPEN ABOUT', 'کھولیں')),
-          ),
-        ]),
+        // Hanna Fitness jaisa About card (logo, version, Hanna Solutions · Asam Hameed, WhatsApp support).
+        const HannaAboutCard(),
         if (admin || DemoMode.enabled)
           _card(Loc.t('Demo / Training shop', 'ڈیمو / ٹریننگ دکان'), Icons.school_outlined, [
             Text(DemoMode.enabled
