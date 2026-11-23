@@ -19,6 +19,7 @@ import '../screens/reports_screen.dart';
 import '../screens/sale_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/stock_report_screen.dart';
+import '../license/license_service.dart';
 import '../services/app_lock.dart';
 import '../services/permissions.dart';
 import '../services/session.dart';
@@ -124,6 +125,7 @@ class _DesktopShellState extends State<DesktopShell> {
     _obs = DesktopShell._observer;
     _obs?.changes.addListener(_onChange);
     AppLock.instance.loginScreenShown.addListener(_onChange);
+    LicenseService.instance.state.addListener(_onChange);
     DesktopPrefs.textScale.addListener(_onChange);
     DesktopPrefs.sidebarCollapsed.addListener(_onChange);
     if (DesktopPrefs.isDesktop) HardwareKeyboard.instance.addHandler(_onKey);
@@ -133,6 +135,7 @@ class _DesktopShellState extends State<DesktopShell> {
   void dispose() {
     _obs?.changes.removeListener(_onChange);
     AppLock.instance.loginScreenShown.removeListener(_onChange);
+    LicenseService.instance.state.removeListener(_onChange);
     DesktopPrefs.textScale.removeListener(_onChange);
     DesktopPrefs.sidebarCollapsed.removeListener(_onChange);
     if (DesktopPrefs.isDesktop) HardwareKeyboard.instance.removeHandler(_onKey);
@@ -152,8 +155,9 @@ class _DesktopShellState extends State<DesktopShell> {
 
   NavigatorState? get _nav => AppLock.navigatorKey.currentState;
 
-  /// Andar (logged in) hain aur login/lock screen nahi.
-  bool get _signedIn => Session.isLoggedIn && !AppLock.instance.onLoginScreen;
+  /// Andar (logged in) hain, login/lock screen nahi, aur license chal raha hai (band ho to menu / shortcuts nahi).
+  bool get _signedIn =>
+      Session.isLoggedIn && !AppLock.instance.onLoginScreen && LicenseService.instance.state.value.usable;
 
   // ------------------------------------------------------------------ navigation
 

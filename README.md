@@ -12,6 +12,11 @@ IBTISAAM Kiryana Store ka POS: Android + iPad/iOS + Windows, sirf Flutter. Kotli
 
 `android/`, `ios/`, `windows/` repo mein nahi hain; CI `flutter create` se banata hai.
 
+## License (Hanna Solutions)
+- Offline Ed25519 key, Device ID se bandhi + 7 din trial + (optional) apne Firebase se online band / key. Band ho to login ke baad sirf License screen (backup + logout ke saath).
+- Code: `lib/license/` (config mein public key, WhatsApp number, Firebase). Key banana: GitHub Actions › **License key** (`.github/workflows/license-key.yml`, secret `HANNA_LICENSE_PRIVATE_KEY`) ya `tools/license_tool.py`.
+- Poori guide: `docs/LICENSE_GUIDE.md`. Test: `test/license_codec_test.dart` (Python tool ki keys Dart mein verify).
+
 ## Design (Hanna premium)
 - Poori app ka look ek jagah: `lib/theme/app_theme.dart` (Hanna navy `#0B2545` + gold `#F5B841`): cards, buttons, input boxes (gol konay), dialogs, bottom sheets, snackbars (floating), chips, tabs, switches, tables, scrollbar.
 - Rang: `lib/theme/theme_manager.dart` (`AppPalette`, light/dark). Screen headers: `lib/widgets/premium_header.dart`.

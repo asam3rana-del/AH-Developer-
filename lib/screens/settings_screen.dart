@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../db/app_database.dart';
 import '../db/user_repository.dart';
 import '../desktop/desktop_prefs.dart';
+import '../license/license_screen.dart';
+import '../license/license_service.dart';
 import '../desktop/desktop_shell.dart' show showDesktopShortcuts;
 import '../models/misc_entities.dart';
 import '../services/credit_guard.dart';
@@ -447,6 +449,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
 
+  /// Hanna POS license: halat + Device ID + key (renew). Sab users dekh sakte hain.
+  Widget _licenseCard() {
+    return _card(Loc.t('License', 'لائسنس'), Icons.verified_user_outlined, [
+      ValueListenableBuilder<LicenseState>(
+        valueListenable: LicenseService.instance.state,
+        builder: (_, s, __) {
+          final p = ThemeManager.palette;
+          final String text;
+          switch (s.status) {
+            case LicenseStatus.active:
+              text = s.daysLeft == null
+                  ? Loc.t('Active — lifetime', 'فعال — لائف ٹائم')
+                  : Loc.t('Active — ${s.daysLeft} days left', 'فعال — ${s.daysLeft} دن باقی');
+            case LicenseStatus.trial:
+              text = Loc.t('Free trial — ${s.daysLeft} days left', 'مفت ٹرائل — ${s.daysLeft} دن باقی');
+            default:
+              text = Loc.t('Not active', 'فعال نہیں');
+          }
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(text, style: TextStyle(fontWeight: FontWeight.bold, color: s.usable ? p.textDark : p.red)),
+            subtitle: Text('${Loc.t('Device ID', 'ڈیوائس آئی ڈی')}: ${LicenseService.instance.deviceCode}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _open(const LicenseScreen()),
+          );
+        },
+      ),
+    ]);
+  }
+
   /// Sirf PC (Windows): text size, sidebar, keyboard shortcuts. Har user ka apna (is computer par).
   Widget _desktopCard() {
     return _card(Loc.t('Computer (PC)', 'کمپیوٹر (PC)'), Icons.desktop_windows_outlined, [
@@ -748,6 +780,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ]),
         const SyncSection(),
+        _licenseCard(),
         if (DesktopPrefs.isDesktop) _desktopCard(),
         _card(Loc.t('Appearance', 'ظاہری شکل'), Icons.dark_mode, [
           ValueListenableBuilder<bool>(

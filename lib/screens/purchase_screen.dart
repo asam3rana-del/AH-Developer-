@@ -18,6 +18,7 @@ import '../models/category_unit.dart' as models;
 import '../models/party.dart';
 import '../models/product.dart';
 import '../services/purchase_hold_recall.dart';
+import '../desktop/desktop_prefs.dart';
 import '../services/session.dart';
 import '../utils/bill_doc.dart';
 import '../utils/bill_scan_match.dart';
@@ -1696,13 +1697,33 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
               padding: const EdgeInsets.fromLTRB(4, 20, 16, 180),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(),
-                  _buildDateRow(),
-                  _buildFirmCard(),
-                  _buildSupplierCard(),
-                  _buildItemEntryCard(),
-                ],
+                children: DesktopPrefs.wide(MediaQuery.of(context).size.width)
+                    // PC: Supplier card + (date, Firm/Party balance) saath saath — Item ka khana bina scroll nazar aaye.
+                    ? [
+                        _buildHeader(),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: _buildSupplierCard()),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [_buildDateRow(), _buildFirmCard()],
+                              ),
+                            ),
+                          ],
+                        ),
+                        _buildItemEntryCard(),
+                      ]
+                    : [
+                        _buildHeader(),
+                        _buildDateRow(),
+                        _buildFirmCard(),
+                        _buildSupplierCard(),
+                        _buildItemEntryCard(),
+                      ],
               ),
             ),
           ),

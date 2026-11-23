@@ -22,6 +22,7 @@ import '../services/sale_draft.dart';
 import '../services/sale_hold_recall.dart';
 import '../services/credit_override_policy.dart';
 import '../services/credit_risk.dart' show CreditRisk, loadCreditRiskByName;
+import '../desktop/desktop_prefs.dart';
 import '../services/session.dart';
 import '../utils/bill_doc.dart';
 import 'bill_preview_screen.dart';
@@ -1902,8 +1903,34 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
     final returned = _originalSale?.status == 'returned';
     // Kotlin `isTabletWide = screenWidthDp >= 700`.
     final wide = MediaQuery.of(context).size.width >= 700;
+    // PC (Windows): baayen hissa chhota — Hold/Recall + date ek patli line mein, firm naam header mein,
+    // Customer + Sale type saath saath, taa ke Item ka khana bina scroll ke nazar aaye.
+    final desk = DesktopPrefs.wide(MediaQuery.of(context).size.width);
 
-    final headerWidgets = <Widget>[
+    final headerWidgets = desk
+        ? <Widget>[
+            _buildSaleHeader(),
+            if (returned)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  Loc.t('This sale is already Returned', 'یہ سیل پہلے ہی واپس ہو چکی ہے'),
+                  style: TextStyle(color: ThemeManager.palette.red, fontWeight: FontWeight.bold),
+                ),
+              ),
+            _shortcutHint(),
+            _buildDesktopToolRow(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 3, child: _buildCustomerCard()),
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: _buildSaleTypeCard()),
+              ],
+            ),
+            _buildItemEntryCard(),
+          ]
+        : <Widget>[
       _buildSaleHeader(),
       if (returned)
         Padding(
@@ -2041,7 +2068,14 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
                 Text(_isEdit ? Loc.t('Edit Sale', 'سیل میں ترمیم') : Loc.t('New Sale', 'نئی سیل'),
                     style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text(_isEdit ? 'Invoice ${widget.editInvoice}' : 'RETAIL · WHOLESALE BILLING',
+                Text(
+                    _isEdit
+                        ? 'Invoice ${widget.editInvoice}'
+                        : (DesktopPrefs.wide(MediaQuery.of(context).size.width)
+                            ? '${_firmName.toUpperCase()}  ·  RETAIL · WHOLESALE BILLING'
+                            : 'RETAIL · WHOLESALE BILLING'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Color(0xFF9FB4CC), fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
               ],
             ),
@@ -2103,14 +2137,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (wideScreen)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'F2 Item · F3 Customer · F4 Discount · F6 Paid · F7 Retail/Wholesale · F8 Rs · F9/Ctrl+S Save · Ctrl+H Hold · Ctrl+R Recall · Ctrl+Q Quick · Esc Clear',
-                style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
-              ),
-            ),
+          if (wideScreen) _shortcutHint(),
           if (!_isEdit)
             Row(children: [
               _holdRecallCard('⏸  ${Loc.t('Hold', 'روکیں')}', _holdBill, left: true),
@@ -2119,6 +2146,40 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  Widget _shortcutHint() => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          'F2 Item · F3 Customer · F4 Discount · F6 Paid · F7 Retail/Wholesale · F8 Rs · F9/Ctrl+S Save · Ctrl+H Hold · Ctrl+R Recall · Ctrl+Q Quick · Esc Clear',
+          style: TextStyle(fontSize: 11, color: ThemeManager.palette.textMuted),
+        ),
+      );
+
+  /// PC: date + Hold / Recall ek hi patli line mein (mobile ke bare Hold/Recall dabbon ki jagah).
+  Widget _buildDesktopToolRow() {
+    final pal = ThemeManager.palette;
+    Widget btn(IconData icon, String label, VoidCallback onTap) => Padding(
+          padding: const EdgeInsetsDirectional.only(start: 8, bottom: 14),
+          child: OutlinedButton.icon(
+            onPressed: onTap,
+            icon: Icon(icon, size: 18, color: pal.blue),
+            label: Text(label, style: TextStyle(color: pal.blue, fontWeight: FontWeight.bold)),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: pal.cardWhite,
+              side: BorderSide(color: pal.border),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+          ),
+        );
+    return Row(children: [
+      _datePill(),
+      const Spacer(),
+      if (!_isEdit) ...[
+        btn(Icons.pause_circle_outline, Loc.t('Hold', 'روکیں'), _holdBill),
+        btn(Icons.restore, Loc.t('Recall', 'واپس لائیں'), _openRecall),
+      ],
+    ]);
   }
 
   Widget _buildFirmCard() => _softCard(
@@ -2133,29 +2194,30 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       );
 
   Widget _buildTopRow() {
-    final pal = ThemeManager.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(30),
-            onTap: _pickDate,
-            child: _softCard(
-              radius: 30,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.calendar_today_outlined, size: 20, color: pal.textDark),
-                const SizedBox(width: 8),
-                Text(DateFormat('dd/MM/yyyy').format(_saleDate),
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: pal.textDark)),
-                Text('  ›', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: pal.teal)),
-              ]),
-            ),
-          ),
-        ),
+        Align(alignment: Alignment.centerLeft, child: _datePill()),
       ],
+    );
+  }
+
+  Widget _datePill() {
+    final pal = ThemeManager.palette;
+    return InkWell(
+      borderRadius: BorderRadius.circular(30),
+      onTap: _pickDate,
+      child: _softCard(
+        radius: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.calendar_today_outlined, size: 20, color: pal.textDark),
+          const SizedBox(width: 8),
+          Text(DateFormat('dd/MM/yyyy').format(_saleDate),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: pal.textDark)),
+          Text('  ›', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: pal.teal)),
+        ]),
+      ),
     );
   }
 

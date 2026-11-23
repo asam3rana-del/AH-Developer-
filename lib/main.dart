@@ -10,6 +10,8 @@ import 'db/user_repository.dart';
 import 'db/desktop_db_init.dart';
 import 'desktop/desktop_prefs.dart';
 import 'desktop/desktop_shell.dart';
+import 'license/license_gate.dart';
+import 'license/license_service.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/app_lock.dart';
@@ -46,6 +48,7 @@ void main() async {
     await Loc.load();
     await ThemeManager.load();
     await DesktopPrefs.load(); // PC: text size + sidebar (phone par kuch nahi)
+    await LicenseService.instance.init(); // Hanna POS license (offline key + trial + online band)
     await Session.load();
     await _revalidateSession();
     // PosApplication.onCreate() mein AppLock.register(this) ke barabar.
@@ -133,15 +136,18 @@ class AhDeveloperApp extends StatelessWidget {
               background: p.bg,
               // PC: sidebar + poori screen (phone / tablet par seedha child).
               child: DesktopShell(
-                // Demo dukaan har screen par saaf nazar aaye, taake asal hisaab samajh kar entry na ho.
-                child: demo
-                    ? Banner(
-                        message: 'DEMO',
-                        location: BannerLocation.topEnd,
-                        color: const Color(0xFFD97706),
-                        child: child!,
-                      )
-                    : child!,
+                // License band => sirf License screen (login ke baad); qareeb => upar patti.
+                child: LicenseGate(
+                  // Demo dukaan har screen par saaf nazar aaye, taake asal hisaab samajh kar entry na ho.
+                  child: demo
+                      ? Banner(
+                          message: 'DEMO',
+                          location: BannerLocation.topEnd,
+                          color: const Color(0xFFD97706),
+                          child: child!,
+                        )
+                      : child!,
+                ),
               ),
             ),
           ),
