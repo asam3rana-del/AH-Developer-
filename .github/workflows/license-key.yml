@@ -1,0 +1,66 @@
+# Hanna POS — license key banao (phone se bhi): GitHub > Actions > "License key" > Run workflow.
+# Device ID (dukandar ki License screen se) + plan do; key "Summary" mein milegi — copy kar ke WhatsApp karein.
+# Zaroori: repo Settings > Secrets and variables > Actions > secret HANNA_LICENSE_PRIVATE_KEY (sirf aap ke paas).
+name: License key
+
+on:
+  workflow_dispatch:
+    inputs:
+      device_id:
+        description: 'Device ID (jaise ABCD-EFGH-IJKL-MNOP)'
+        required: true
+      plan:
+        description: 'Plan'
+        type: choice
+        options: [yearly, monthly, lifetime, days]
+        default: yearly
+      amount:
+        description: 'Kitne: yearly = saal, monthly = mahine, days = din (lifetime mein ignore)'
+        required: false
+        default: '1'
+      customer:
+        description: 'Dukaan / gahak ka naam (sirf record ke liye)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet cryptography
+      - name: Issue key
+        env:
+          HANNA_LICENSE_PRIVATE_KEY: ${{ secrets.HANNA_LICENSE_PRIVATE_KEY }}
+          DEVICE: ${{ inputs.device_id }}
+          PLAN: ${{ inputs.plan }}
+          AMOUNT: ${{ inputs.amount }}
+          CUSTOMER: ${{ inputs.customer }}
+        run: |
+          set -euo pipefail
+          case "$PLAN" in
+            yearly)  EXTRA="--years $AMOUNT" ;;
+            monthly) EXTRA="--months $AMOUNT" ;;
+            days)    EXTRA="--days $AMOUNT" ;;
+            *)       EXTRA="" ;;
+          esac
+          KEY=$(python3 tools/license_tool.py issue --device "$DEVICE" --plan "$PLAN" $EXTRA 2> info.txt)
+          INFO=$(cat info.txt)
+          {
+            echo "## Hanna POS license key"
+            echo ""
+            echo "**Gahak:** ${CUSTOMER:-—}  "
+            echo "**${INFO#\# }**"
+            echo ""
+            echo '```'
+            echo "$KEY"
+            echo '```'
+            echo ""
+            echo "Ye poori key copy kar ke dukandar ko bhejein — wo License screen mein paste kar ke ACTIVATE dabaye."
+          } >> "$GITHUB_STEP_SUMMARY"
