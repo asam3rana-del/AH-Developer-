@@ -18,12 +18,10 @@ import '../models/category_unit.dart' as models;
 import '../models/party.dart';
 import '../models/product.dart';
 import '../services/purchase_hold_recall.dart';
+import '../desktop/desktop_back_button.dart';
 import '../desktop/desktop_prefs.dart';
 import '../services/session.dart';
 import '../utils/bill_doc.dart';
-import '../utils/bill_scan_match.dart';
-import '../utils/bill_scan_parser.dart' show ScannedItem;
-import 'bill_scan_screen.dart';
 import 'bill_preview_screen.dart';
 import '../utils/input_validation.dart';
 import '../utils/loc.dart';
@@ -570,35 +568,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       if (!mounted || ctx == null || !f.hasFocus) return;
       Scrollable.ensureVisible(ctx, alignment: 0.3, duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
     });
-  }
-
-  /// Bill Scan: photo -> OCR -> review -> items yahan purchase lines ban jate hain. Jo item kisi maujooda
-  /// product se mil jaye wo juda hota hai (stock add hoga); baaqi barcode-khali lines ban jati hain jinhein
-  /// tap karke product chunna hai (save par bhi yaad dilaya jata hai).
-  Future<void> _scanBill() async {
-    final items = await Navigator.of(context).push<List<ScannedItem>>(MaterialPageRoute(builder: (_) => const BillScanScreen()));
-    if (items == null || items.isEmpty || !mounted) return;
-    var linked = 0;
-    setState(() {
-      for (final it in items) {
-        final p = matchScannedProduct(it.name, _products);
-        if (p != null) linked++;
-        _lines.add(PurchaseLine(
-          itemName: p?.name ?? it.name,
-          barcode: p?.barcode,
-          qty: it.qty,
-          unit: p?.unit ?? 'pcs',
-          rate: it.rate,
-          amount: it.qty * it.rate,
-        ));
-      }
-    });
-    _saveDraftSoon();
-    final unlinked = items.length - linked;
-    _toast(unlinked == 0
-        ? Loc.t('${items.length} items added from the bill', 'بل سے ${items.length} آئٹم شامل ہو گئے')
-        : Loc.t('${items.length} items added — $unlinked not linked to a product yet (tap the line to pick it)',
-            '${items.length} آئٹم شامل ہوئے — $unlinked ابھی پروڈکٹ سے منسلک نہیں (لائن پر ٹیپ کر کے چنیں)'));
   }
 
   Future<void> _addLine() async {
@@ -1585,6 +1554,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
       ),
       child: Row(
         children: [
+          const DesktopBackButton(), // PC: wapas (phone par system back)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1614,22 +1584,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> with WidgetsBindingObse
             ),
             const SizedBox(width: 8),
           ],
-          // Bill Scan: supplier bill ki photo se items seedha is purchase mein.
-          InkWell(
-            borderRadius: BorderRadius.circular(30),
-            onTap: _scanBill,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(color: const Color(0x33FFFFFF), borderRadius: BorderRadius.circular(30)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.document_scanner_outlined, color: Colors.white, size: 18),
-                const SizedBox(width: 6),
-                Text(Loc.t('Scan', 'سکین'),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-              ]),
-            ),
-          ),
-          const SizedBox(width: 8),
           // Print / Share = saved bill ka Bill Preview (naya bill => "Save the purchase first").
           PopupMenuButton<String>(
             tooltip: Loc.t('More', 'مزید'),

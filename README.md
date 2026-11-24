@@ -30,8 +30,9 @@ IBTISAAM Kiryana Store ka POS: Android + iPad/iOS + Windows, sirf Flutter. Kotli
 - `windows_assets/`: `app_icon.ico` (Hanna POS icon), `installer.iss` (Inno Setup). Installer ka `AppId` kabhi na badlein.
 - PC layout (`lib/desktop/`): window 1000 px se chauri ho to baayen sidebar menu (Urdu mein daayen), role ke hisaab se wahi screens jo dashboard/settings par. Login/lock screen par sidebar nahi. Content poori screen leta hai (1480 px tak). Dashboard ka alag PC layout (upar search patti, bara Quick Actions grid, daayen baqaya + wasooli). Tang window par purana mobile layout.
 - PC settings (Settings › Computer (PC)): text size 85–145% (Ctrl + / Ctrl − / Ctrl 0), chhota sidebar, shortcuts list (F1). Shortcuts: Ctrl+D dashboard, Ctrl+N sale, Ctrl+I items, Ctrl+L parties, Ctrl+B day book, Alt+← / mouse back button = wapas; sale screen ke F2–F9 waise hi.
+- Backup (PC): asal backup `Documents\IBTISAAM POS Backups` (C:) + har backup ki copy dusri drive par (khud dhoondi: D:, E: … `\Hanna POS Backups`; Settings › "Backup copy — other drive" se badlein), 60 copies tak. App khuli ho to har 3 ghante backup. Naye Windows par restore ke liye backup password zaroori.
 - App maximized khulti hai. Printer: Settings › Printer Setup se USB (Windows mein installed) ya network printer.
-- Windows par nahi: Bluetooth printer, Bill Scan (OCR), notifications, background backup/sync service, contacts picker. Staff cloud login switch OFF rakhein.
+- Bill Scan (OCR) feature hata diya gaya (APK chhota). Windows par nahi: Bluetooth printer, notifications, background backup/sync service, contacts picker. Staff cloud login switch OFF rakhein.
 
 ## Build (GitHub Actions)
 - `Build` workflow har push par chalta hai (sirf `.md` / `docs/` badalne par nahi). Naya push aane par purani chalti run cancel ho jati hai.

@@ -193,13 +193,35 @@ class _BottomSystemBarGuard extends StatelessWidget {
 class _DesktopScrollBehavior extends MaterialScrollBehavior {
   const _DesktopScrollBehavior();
 
+  /// Phone / tablet: pehle jaisa (mouse / trackpad se bhi kheench kar scroll).
+  /// PC: Windows ka aam tareeqa — mouse wheel, touchpad ki do ungliyan, scrollbar. Mouse se "kheench kar
+  /// scroll" band, kyun ke wo click / text select se takrata tha aur scroll mushkil lagta tha.
   @override
-  Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.stylus,
-        PointerDeviceKind.trackpad,
-      };
+  Set<PointerDeviceKind> get dragDevices => DesktopPrefs.isDesktop
+      ? const {PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus}
+      : const {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.trackpad,
+        };
+
+  /// PC: lambi screens (Dashboard, Settings…) par scrollbar hamesha nazar aaye aur mouse se pakad kar
+  /// kheencha ja sake.
+  @override
+  Widget buildScrollbar(BuildContext context, Widget child, ScrollableDetails details) {
+    if (!DesktopPrefs.isDesktop || axisDirectionToAxis(details.direction) != Axis.vertical) {
+      return super.buildScrollbar(context, child, details);
+    }
+    return Scrollbar(
+      controller: details.controller,
+      thumbVisibility: true,
+      interactive: true,
+      thickness: 10,
+      radius: const Radius.circular(8),
+      child: child,
+    );
+  }
 }
 
 

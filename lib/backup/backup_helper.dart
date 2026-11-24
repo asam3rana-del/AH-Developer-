@@ -15,6 +15,7 @@ import '../sync/device_tag.dart';
 import '../sync/sync_repository.dart';
 import 'backup_crypto.dart';
 import 'offsite_backup.dart';
+import 'pc_backup_mirror.dart';
 import 'downloads_copy.dart';
 import 'backup_password_store.dart';
 import 'kotlin_import.dart';
@@ -189,6 +190,9 @@ class BackupHelper {
     // app agli dafa screen par aaye to [flushPendingDownloadsCopies] copy kar deta hai.
     final copied = await DownloadsCopy.copy(dest, folder: folderName, fileName: fileName);
     if (!copied && Platform.isAndroid) await _addPendingDownloads(dest.path);
+
+    // PC (Windows): ek copy dusri drive (D: …) par — Windows kharab / format hone par bhi backup bache.
+    if (PcBackupMirror.supported) await PcBackupMirror.copy(dest);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);

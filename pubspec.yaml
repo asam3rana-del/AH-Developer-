@@ -55,8 +55,8 @@ dependencies:
   # Phase 12 — Print & Scan (Kotlin: PrinterHelper, BillPreviewActivity, BillScanActivity)
   print_bluetooth_thermal: ^1.1.4          # 58/80mm Bluetooth ESC/POS printer
   permission_handler: ^11.3.1              # Android 12+ Bluetooth permission
-  image_picker: ^1.1.2                     # Bill Scan: camera / gallery
-  google_mlkit_text_recognition: ^0.14.0   # Bill Scan: on-device OCR
+  image_picker: ^1.1.2                     # Party photo: camera / gallery
+  # Bill Scan (google_mlkit_text_recognition OCR) hata diya — APK chhota (ML Kit model + native libs).
 
   # Phase 6 — Parties: contact picker (Kotlin PartyActivity.openContactPicker)
   flutter_contacts: ^1.1.9+2               # phone field ka contact picker

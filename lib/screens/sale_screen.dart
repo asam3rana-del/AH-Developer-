@@ -22,6 +22,7 @@ import '../services/sale_draft.dart';
 import '../services/sale_hold_recall.dart';
 import '../services/credit_override_policy.dart';
 import '../services/credit_risk.dart' show CreditRisk, loadCreditRiskByName;
+import '../desktop/desktop_back_button.dart';
 import '../desktop/desktop_prefs.dart';
 import '../services/session.dart';
 import '../utils/bill_doc.dart';
@@ -2061,6 +2062,7 @@ class _SaleScreenState extends State<SaleScreen> with WidgetsBindingObserver {
       ),
       child: Row(
         children: [
+          const DesktopBackButton(), // PC: wapas (phone par system back)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

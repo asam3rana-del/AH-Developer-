@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
@@ -30,7 +31,12 @@ class BackupScheduler with WidgetsBindingObserver {
     if (_registered) return;
     _registered = true;
     WidgetsBinding.instance.addObserver(this);
-    _timer = Timer.periodic(checkInterval, (_) => checkCheckpoints());
+    _timer = Timer.periodic(checkInterval, (_) {
+      checkCheckpoints();
+      // PC (Windows): dukaan sara din app khuli rakhti hai — har 3 ghante ek backup (aur us ki dusri drive par
+      // copy, PcBackupMirror), taa ke 9 PM se pehle band hone wali dukaan ka din bhi mehfooz rahe.
+      if (Platform.isWindows) BackupHelper.backupIfDue(minGapMinutes: 180);
+    });
     checkCheckpoints();
     BackupHelper.flushPendingDownloadsCopies(); // background backups ki Downloads copy
     BackupBackground.schedule(); // Kotlin scheduleDailyCheckpoints (Android only, KEEP)

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../desktop/desktop_back_button.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_manager.dart';
 
@@ -77,7 +78,10 @@ class PremiumHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(22, 18, 18, 18),
       child: Row(
         children: [
-          if (leading != null) ...[leading!, const SizedBox(width: 6)],
+          if (leading != null) ...[leading!, const SizedBox(width: 6)]
+          // PC: AppBar wali screens ka back AppBar mein; baqi (Items, Product…) ka yahan.
+          else if (!(Scaffold.maybeOf(context)?.hasAppBar ?? false))
+            const DesktopBackButton(),
           // Hanna gold patti.
           Container(
             width: 4,

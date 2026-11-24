@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../db/app_database.dart';
 import '../db/user_repository.dart';
+import '../backup/pc_backup_card.dart';
+import '../backup/pc_backup_mirror.dart';
 import '../desktop/desktop_prefs.dart';
 import '../license/license_codec.dart';
 import '../license/license_screen.dart';
@@ -828,6 +830,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SyncSection(),
         _licenseCard(),
         if (DesktopPrefs.isDesktop) _desktopCard(),
+        // Windows: har backup ki copy dusri drive (D: …) par — Windows kharab / format hone par bhi bache.
+        if (admin && PcBackupMirror.supported) const PcBackupCard(),
         _card(Loc.t('Appearance', 'ظاہری شکل'), Icons.dark_mode, [
           ValueListenableBuilder<bool>(
             valueListenable: ThemeManager.isDark,
