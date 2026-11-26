@@ -12,6 +12,11 @@ IBTISAAM Kiryana Store ka POS: Android + iPad/iOS + Windows, sirf Flutter. Kotli
 
 `android/`, `ios/`, `windows/` repo mein nahi hain; CI `flutter create` se banata hai.
 
+## Update + PC sync (Hanna Installment se)
+- App ke andar update: `lib/services/app_update.dart` — Dashboard par khud (6 ghante), Settings › About › Check for update. Mobile APK / PC Setup khud install. Publish: Build › Run workflow › `publish_update` (secret `UPDATES_TOKEN`). Guide: `docs/UPDATES.md`.
+- PC (Windows) Cloud Sync REST se (`lib/sync/firestore_rest.dart`, `sync_api_rest.dart`) — Firebase C++ SDK PC par band (app girata tha). Ghadi check + heartbeat (`branch_sync`). Guide: `docs/UPDATES.md` (neeche wala hissa).
+- Import-zip: zip mein `.import-delete.txt` ho to us mein likhi files repo se mit jati hain; `pubspec.yaml` badle to `pubspec.lock` khud naya.
+
 ## License (Hanna Solutions)
 - Offline Ed25519 key, Device ID se bandhi + 7 din trial + (optional) apne Firebase se online band / key. Band ho to login ke baad sirf License screen (backup + logout ke saath).
 - Code: `lib/license/` (config mein public key, WhatsApp number, Firebase). Key banana: GitHub Actions › **License key** (`.github/workflows/license-key.yml`, secret `HANNA_LICENSE_PRIVATE_KEY`) ya `tools/license_tool.py`.

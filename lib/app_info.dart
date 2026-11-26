@@ -16,6 +16,10 @@ class AppInfo {
   /// Firebase Hosting (tools/deploy_privacy_site.sh).
   static const privacyPolicyUrl = 'https://my-grocery-pos-8a444.web.app/privacy.html';
 
+  /// App ke andar update check (lib/services/app_update.dart, docs/UPDATES.md). Public GitHub repo `hanna-updates`
+  /// ki `hanna-pos.json` (Hanna Installment ki `update.json` alag — dono ek repo mein). Khali = check band.
+  static const updateUrl = 'https://raw.githubusercontent.com/asam3rana-del/hanna-updates/main/hanna-pos.json';
+
   /// CI: `--dart-define=APP_BUILD=<run number>`; local / purani build par khali.
   static const build = String.fromEnvironment('APP_BUILD');
 }

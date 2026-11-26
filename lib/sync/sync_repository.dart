@@ -1,9 +1,11 @@
+import 'dart:io' show Platform;
 import '../utils/loc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/app_database.dart';
 import '../services/demo_mode.dart';
+import 'clock_check.dart';
 import 'cloud_config_store.dart';
 import 'sync_queue_dao.dart';
 import 'sync_types.dart';
@@ -18,6 +20,18 @@ class SyncRepository {
 
   static const String prefsLastSync = 'sync_prefs.last_sync_time';
 
+  /// Aakhri kamyab pull ke waqt ka heartbeat ([SyncHeartbeat]).
+  static const String prefsLastHeartbeat = 'sync_prefs.last_heartbeat';
+
+  /// Aakhri poori pull kab hui (ms).
+  static const String prefsLastFullPull = 'sync_prefs.last_full_pull';
+
+  /// Heartbeat wahi ho tab bhi itni der baad ek poori pull (koi purana build heartbeat na badle to bhi data aaye).
+  static const int fullPullEveryMs = 60 * 60 * 1000;
+
+  /// Agli sync heartbeat dekhe baghair poori pull kare (Settings > Sync Now).
+  static bool forceNextPull = false;
+
   /// Push ki had per cycle (Kotlin `pending(limit = 200)`).
   static const int pushBatchLimit = 200;
 
@@ -29,7 +43,7 @@ class SyncRepository {
 
   /// "Cloud set up hai?" — default: custom config ya build ka default Firebase app. Tests badalte hain.
   static Future<bool> Function() isCloudReady =
-      () async => (await CloudConfigStore.firebaseApp()) != null;
+      CloudConfigStore.cloudReady;
 
   /// Pull ke baad ka safai kaam (Kotlin `SyncQueueHelper.mergeOwnDuplicateExpenses(db)`); SyncQueueHelper
   /// port hone par yahan jurega. Kabhi sync nahi rokta — throw bhi kare to nazar-andaz.
@@ -46,6 +60,7 @@ class SyncRepository {
   static Future<void> resetSyncCheckpoint(int timestampMillis) async {
     final p = await SharedPreferences.getInstance();
     await p.setInt(prefsLastSync, timestampMillis);
+    await p.remove(prefsLastHeartbeat); // agli sync zaroor poori pull kare
   }
 
   static Future<int> lastSyncTime() async {
@@ -104,6 +119,11 @@ class SyncRepository {
       return SyncResult(
           pushedCount: 0, failedCount: 0, pulledOk: false, error: 'Sync backend not initialised');
     }
+    // Ghadi bahut ghalat => na push na pull (ghalat waqt wale records doosre devices ka hisaab bigaad dete).
+    final clock = await ClockCheck.problem();
+    if (clock != null) {
+      return SyncResult(pushedCount: 0, failedCount: 0, pulledOk: false, error: clock);
+    }
 
     final db = await openDb();
     final queue = SyncQueueDao(db);
@@ -154,14 +174,47 @@ class SyncRepository {
       }
     }
 
+    final hbApi = api is SyncHeartbeat ? api as SyncHeartbeat : null;
+    if (pushed > 0 && hbApi != null) {
+      // Doosre devices ko batao ke naya data aaya (na ho saka to wo ghante wali poori pull mein le lenge).
+      try {
+        await hbApi.bumpHeartbeat().timeout(const Duration(seconds: 15));
+      } catch (_) {}
+    }
+
     // ---- 2. PULL ----
     final p = await SharedPreferences.getInstance();
     final since = p.getInt(prefsLastSync) ?? 0;
 
+    // Sasta check: cloud par kisi ne kuch nahi badla to poori pull (har collection ki query) chhor do.
+    final force = forceNextPull;
+    forceNextPull = false;
+    String? heartbeat;
+    if (hbApi != null) {
+      try {
+        heartbeat = await hbApi.readHeartbeat().timeout(const Duration(seconds: 20));
+      } catch (_) {
+        heartbeat = null; // rules mein branch_sync nahi / net: pehle jaisi poori pull
+      }
+    }
+    final lastFull = p.getInt(prefsLastFullPull) ?? 0;
+    final sinceFull = nowMs() - lastFull;
+    if (!force &&
+        heartbeat != null &&
+        heartbeat.isNotEmpty &&
+        since > 0 &&
+        heartbeat == p.getString(prefsLastHeartbeat) &&
+        sinceFull >= 0 &&
+        sinceFull < fullPullEveryMs) {
+      await queue.pruneSynced(nowMs() - pruneAfterMs);
+      return SyncResult(pushedCount: pushed, failedCount: failed, pulledOk: true, pushError: pushBlocked);
+    }
+
     final pullStartedAt = nowMs();
     final PullResult changes;
     try {
-      changes = await api.pull(since).timeout(const Duration(seconds: 90));
+      // PC (REST) mein har collection ki alag HTTP query — kamzor internet par zyada waqt; mobile 90 sec.
+      changes = await api.pull(since).timeout(Duration(seconds: Platform.isWindows ? 240 : 90));
     } on BranchNotConfiguredException catch (e) {
       return SyncResult(
           pushedCount: pushed, failedCount: failed, pulledOk: false, error: pushBlocked ?? e.message);
@@ -190,6 +243,12 @@ class SyncRepository {
     // baqi devices ke docs skip hote the. Checkpoint kabhi is pull ke start se aage nahi.
     final checkpoint = changes.serverTime < pullStartedAt ? changes.serverTime : pullStartedAt;
     await p.setInt(prefsLastSync, checkpoint);
+    await p.setInt(prefsLastFullPull, nowMs());
+    if (heartbeat != null && heartbeat.isNotEmpty) {
+      await p.setString(prefsLastHeartbeat, heartbeat);
+    } else {
+      await p.remove(prefsLastHeartbeat);
+    }
 
     // Safai: 7 din se purani synced queue rows.
     await queue.pruneSynced(nowMs() - pruneAfterMs);

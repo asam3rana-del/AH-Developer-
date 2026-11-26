@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app_info.dart';
 import '../screens/about_screen.dart';
+import '../services/app_update.dart';
 import '../theme/theme_manager.dart';
 import '../utils/loc.dart';
 
@@ -73,6 +74,20 @@ class HannaAboutCard extends StatelessWidget {
           icon: const Icon(Icons.support_agent, color: Color(0xFF1FA855)),
           label: Text('${Loc.t('WhatsApp support', 'واٹس ایپ سپورٹ')} ${AppInfo.supportPhone}',
               style: TextStyle(color: p.textDark, fontWeight: FontWeight.w700, fontSize: 15)),
+        ),
+        const SizedBox(height: 8),
+        // App update (Hanna Installment jaisa): naya build ho to mobile par APK, PC par Setup khud install.
+        OutlinedButton.icon(
+          onPressed: () => AppUpdate.checkNow(context),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            side: BorderSide(color: p.border, width: 1.3),
+          ),
+          icon: Icon(Icons.system_update, color: p.navyInk),
+          label: Text(
+              '${Loc.t('Check for update', 'اپڈیٹ چیک کریں')}${AppInfo.build.isEmpty ? '' : '  (build ${AppInfo.build})'}',
+              style: TextStyle(color: p.textDark, fontWeight: FontWeight.w700)),
         ),
         if (showMore)
           TextButton(

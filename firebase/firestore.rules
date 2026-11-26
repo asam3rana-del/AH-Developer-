@@ -120,6 +120,16 @@ service cloud.firestore {
                      && isMyBranch(resource.data.branchId);
     }
 
+    // Sync heartbeat: har branch ka ek chhota document (branch_sync/{branchId}). Push karne wala device ise
+    // badalta hai; baqi devices pehle sirf yahi parh kar dekhte hain ke poori pull ki zaroorat hai ya nahi
+    // (Firestore ki daily read limit bachane ke liye). Sirf apni branch ka, sirf yahi teen fields.
+    match /branch_sync/{bid} {
+      allow read: if isMyBranch(bid);
+      allow write: if isMyBranch(bid)
+                   && request.resource.data.branchId == bid
+                   && request.resource.data.keys().hasOnly(['branchId', 'at', 'n']);
+    }
+
     // Crash reports: app ki ghalti (stack trace) developer ko — sirf banana, branch member device, chhota text,
     // apna uid. Padhna / badalna / mitana app se nahi (sirf Firebase console). lib/services/crash_reporter.dart.
     match /crash_reports/{docId} {

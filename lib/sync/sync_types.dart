@@ -178,3 +178,20 @@ class PullDiagnostics {
   /// Jin collections ki late-push query fail hui (aakhri pull) — warning mein ginti.
   static final Set<String> lateQueryFailed = <String>{};
 }
+
+/// Sasta "cloud par kuch naya hai?" check (optional — jo backend ise implement kare).
+///
+/// Har branch ka ek chhota document `branch_sync/{branchId}`: koi bhi device push kare to ise badal deta hai.
+/// Doosre devices sync par pehle sirf yahi 1 document parhte hain; wahi purana ho to ~70 collection queries
+/// (har ek kam az kam 1 Firestore read) chhor di jati hain — idle devices ki daily read limit nahi khati.
+/// Rules mein `branch_sync` na ho (parh na sake) to pehle jaisi poori pull hoti hai.
+abstract class SyncHeartbeat {
+  /// Branch ka aakhri badlao marker. Document na ho => ''. Parh na sake => throw.
+  Future<String> readHeartbeat();
+
+  /// Push ke baad marker badlo.
+  Future<void> bumpHeartbeat();
+}
+
+/// Heartbeat documents ki collection.
+const String heartbeatCollection = 'branch_sync';

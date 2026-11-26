@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -7,7 +9,9 @@ import '../db/party_repository.dart';
 import '../utils/loc.dart';
 import 'branch_config_store.dart';
 import 'cloud_config_store.dart';
+import 'firestore_rest.dart';
 import 'sync_api.dart';
+import 'sync_api_rest.dart';
 import 'sync_queue_dao.dart';
 import 'sync_queue_helper.dart';
 import 'sync_repository.dart';
@@ -195,7 +199,7 @@ class SettingsSync {
     return r.any((c) => c != ConnectivityResult.none);
   };
 
-  static Future<bool> Function() cloudConfigured = () async => (await CloudConfigStore.firebaseApp()) != null;
+  static Future<bool> Function() cloudConfigured = CloudConfigStore.cloudReady;
 
   static int Function() nowMs = () => DateTime.now().millisecondsSinceEpoch;
 
@@ -213,6 +217,7 @@ class SettingsSync {
   /// warna sync chalao aur natija ka summary lautao ("Sync complete" jab summary khali ho).
   static Future<String?> syncNow() async {
     if (!await isOnline()) return null;
+    SyncRepository.forceNextPull = true; // haath se Sync Now: hamesha poori pull
     final o = await SyncWorker.instance.syncNowOnce();
     if (o.summary.isNotEmpty) return o.summary;
     return o.success ? 'Sync complete' : 'Sync failed';
@@ -269,12 +274,16 @@ class SettingsSync {
     return null;
   }
 
-  static Future<Map<String, int>> scanWrongBranch(String badId) => SyncApi.instance.countDocsByBranchId(badId.trim());
+  static Future<Map<String, int>> scanWrongBranch(String badId) => Platform.isWindows
+      ? RestSyncApi.instance.countDocsByBranchId(badId.trim())
+      : SyncApi.instance.countDocsByBranchId(badId.trim());
 
   static Future<Map<String, int>> deleteWrongBranch(String badId) {
     // Double-check: apni branch kabhi nahi (UI se bach kar aaye to bhi).
     if (badId.trim() == BranchConfigStore.current) return Future.value(<String, int>{});
-    return SyncApi.instance.deleteDocsByBranchId(badId.trim());
+    return Platform.isWindows
+        ? RestSyncApi.instance.deleteDocsByBranchId(badId.trim())
+        : SyncApi.instance.deleteDocsByBranchId(badId.trim());
   }
 
   /// `"col: n"` har line par (Kotlin `joinToString("\n")`).
@@ -347,7 +356,20 @@ class SettingsSync {
   }
 
   /// Device ID (Firebase anonymous UID) — pehli sync se pehle null.
-  static Future<String?> deviceId() => SyncApi.instance.currentUid();
+  /// PC (Windows): REST wali anonymous UID — abhi tak sign-in na hua ho to (project set ho to) yahin sign-in,
+  /// taake Cloud Sync Setup kholte hi Device ID nazar aa jaye (branch_members mein daalne ke liye).
+  static Future<String?> deviceId() async {
+    if (!Platform.isWindows) return SyncApi.instance.currentUid();
+    final have = await RestSyncApi.instance.currentUid();
+    if (have != null) return have;
+    if (await CloudConfigStore.get() == null) return null;
+    try {
+      await FirestoreRest.instance.idToken().timeout(const Duration(seconds: 20));
+    } catch (_) {
+      return null;
+    }
+    return RestSyncApi.instance.currentUid();
+  }
 
   /// Kotlin `SyncQueueHelper.trigger` (Cloud Setup ke "Sync Now" button ke liye).
   static Future<void> trigger() => SyncWorker.instance.triggerNow();
@@ -362,7 +384,13 @@ class SettingsSync {
 ///  * `SyncQueueHelper.onQueued = SyncWorker.triggerNow` (Kotlin `SyncQueueHelper.trigger`).
 /// Dobara bulana mehfooz hai.
 void installSyncWiring() {
-  SyncRepository.backend = SyncApi.instance;
+  // PC (Windows): Firebase ka C++ SDK sync mein app gira deta tha — wahan REST backend (koi native code nahi).
+  // (if/else: dono SyncBackend + SyncHeartbeat hain, ternary ka type Object ban jata tha)
+  if (Platform.isWindows) {
+    SyncRepository.backend = RestSyncApi.instance;
+  } else {
+    SyncRepository.backend = SyncApi.instance;
+  }
   SyncRepository.afterApply = (db) async {
     await SyncQueueHelper.mergeOwnDuplicateExpenses(db);
   };

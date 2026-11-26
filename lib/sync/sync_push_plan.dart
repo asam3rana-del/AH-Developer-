@@ -101,9 +101,13 @@ bool shouldApplyUpsert(int incomingUpdatedAt, int? serverUpdatedAt) =>
 /// Tombstone (`_deleted`) par purani `updatedAt` hi chalti hai, taake purani edit hata hua record zinda na kare.
 int? upsertClock(Map<String, Object?>? data) {
   final up = asMillis(data?['upsertAt']);
-  if (up != null) return up;
-  if (data?['_deleted'] == true) return asMillis(data?['updatedAt']);
-  return null;
+  if (data?['_deleted'] == true) {
+    final del = asMillis(data?['updatedAt']);
+    if (up == null) return del;
+    if (del == null) return up;
+    return up > del ? up : del;
+  }
+  return up;
 }
 
 /// Delete bhi wohi: purana delete naye cloud record ko nahi mitata.

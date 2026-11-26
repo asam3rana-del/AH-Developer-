@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -29,7 +30,7 @@ import 'sync_types.dart';
 /// STATUS: HEADER + PUSH + PULL + APPLY (hissa 1 + 2, sab 20 collections) + branch cleanup
 /// (count/delete) — `SyncApi.kt` mukammal. Wiring `installSyncWiring()` (settings_sync.dart) se main() mein
 /// hoti hai: `SyncRepository.backend = SyncApi.instance`, `afterApply = mergeOwnDuplicateExpenses`.
-class SyncApi implements SyncBackend {
+class SyncApi implements SyncBackend, SyncHeartbeat {
   SyncApi._();
   static final SyncApi instance = SyncApi._();
 
@@ -59,11 +60,48 @@ class SyncApi implements SyncBackend {
     return FirebaseAuth.instanceFor(app: app).currentUser?.uid;
   }
 
+  // ---------------------------------------------------------------- HEARTBEAT ([SyncHeartbeat])
+
+  @override
+  Future<String> readHeartbeat() async {
+    final fs = await firestoreFor();
+    if (fs == null) throw StateError('cloud not ready');
+    final branch = BranchConfigStore.current;
+    final snap = await fs.collection(heartbeatCollection).doc(branch).get(const GetOptions(source: Source.server));
+    if (!snap.exists) return '';
+    final m = snap.data() ?? const <String, dynamic>{};
+    final at = m['at'];
+    final atS = at is Timestamp ? at.millisecondsSinceEpoch.toString() : '$at';
+    return '$atS|${m['n']}';
+  }
+
+  @override
+  Future<void> bumpHeartbeat() async {
+    final fs = await firestoreFor();
+    if (fs == null) return;
+    final branch = BranchConfigStore.current;
+    await fs.collection(heartbeatCollection).doc(branch).set({
+      'branchId': branch,
+      'at': DateTime.now().millisecondsSinceEpoch,
+      'n': DateTime.now().microsecondsSinceEpoch % 1000000007,
+    });
+  }
+
   /// Kotlin `firestoreFor`: branch configure nahi / cloud project nahi / sign-in nahi ho saka => null
   /// (caller isay "sync nahi ho sakta" samjhe). Anonymous Auth: Firestore rules `request.auth != null`
   /// maangte hain — sirf API key wala koi bhi bahar wala data nahi chhoo sakta.
   Future<FirebaseFirestore?> firestoreFor() async {
     connectIssue = '';
+    // Windows: Firebase ka C++ (Firestore) SDK sync ke dauran app ko gira deta tha (0xe06d7363, KERNELBASE.dll) —
+    // dukaan par app khud band. Jab tak PC ka REST sync tayyar nahi, PC par Firestore ko chhoona hi band:
+    // app chalti rahe, entries queue mein mehfooz (mobile par sync bilkul pehle jaisa).
+    if (windowsFirestoreBlocked) {
+      connectIssue = Loc.t(
+        'Cloud sync is paused on Windows PC for now (it was closing the app). Data is safe here; use Backup to move it.',
+        'کمپیوٹر (Windows) پر کلاؤڈ سنک فی الحال بند ہے (ایپ بند ہو جاتی تھی)۔ ڈیٹا محفوظ ہے؛ منتقل کرنے کے لیے بیک اپ استعمال کریں۔',
+      );
+      return null;
+    }
     // Branch ke baghair kabhi cloud request nahi (galat/khali tenant mein likhne se bachao).
     if (!BranchConfigStore.isConfigured()) {
       connectIssue = Loc.t(
@@ -118,6 +156,9 @@ class SyncApi implements SyncBackend {
     }
     return FirebaseFirestore.instanceFor(app: app);
   }
+
+  /// Windows par native Firestore band (dekhein [firestoreFor]). Tests / aage REST sync ke liye badla ja sakta hai.
+  static bool windowsFirestoreBlocked = Platform.isWindows;
 
   /// Aakhri [firestoreFor] null lauta to asal wajah (khali = koi masla nahi). Push/pull ke message ke liye.
   String connectIssue = '';
@@ -469,7 +510,10 @@ class SyncApi implements SyncBackend {
       final uid = app == null ? null : FirebaseAuth.instanceFor(app: app).currentUser?.uid;
       if (uid == null) return false;
       final snap = await fs.collection('branch_members').doc(uid).get(const GetOptions(source: Source.server));
-      final isCashier = snap.data()?['role'] == 'cashier';
+      // Rules (firestore.device-roles.rules) jaisa: role na ho = admin; saaf admin / manager = poora; baaqi sab = cashier.
+      final role = snap.data()?['role'];
+      final r = role == null ? 'admin' : role.toString().toLowerCase().trim();
+      final isCashier = r != 'admin' && r != 'manager';
       _cashierCache = isCashier;
       _cashierCacheAt = now;
       return isCashier;

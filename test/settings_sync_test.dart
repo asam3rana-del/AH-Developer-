@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'package:ah_developer_kiryana_store/sync/clock_check.dart';
 import 'package:ah_developer_kiryana_store/sync/branch_config_store.dart';
 import 'package:ah_developer_kiryana_store/sync/settings_sync.dart';
 import 'package:ah_developer_kiryana_store/sync/sync_api.dart';
@@ -47,6 +48,8 @@ void main() {
 
   late Database db;
   setUp(() async {
+    ClockCheck.serverNow = () async => null; // network nahi (ghadi check band)
+    ClockCheck.resetForTest();
     SharedPreferences.setMockInitialValues({});
     await BranchConfigStore.clear();
     db = await _memDb();
@@ -227,6 +230,8 @@ void main() {
   group('Sync Now / Resync from', () {
     final w = SyncWorker.instance;
     setUp(() {
+    ClockCheck.serverNow = () async => null; // network nahi (ghadi check band)
+    ClockCheck.resetForTest();
       w.cancelPeriodic();
       w.isOnline = () async => true;
       w.runSync = () async => const SyncResult(pushedCount: 2, failedCount: 0, pulledOk: true);

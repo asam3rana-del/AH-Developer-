@@ -1,5 +1,6 @@
 ; Hanna POS — Windows installer (Inno Setup 6).
-; CI chalata hai:  ISCC.exe /DAppVersion=1.0.0 /DSourceDir=<Release folder> /DOutDir=<output> windows_assets\installer.iss
+; CI chalata hai:  ISCC.exe /DAppVersion=1.0.0.<run> /DSourceDir=<Release folder> /DOutDir=<output> windows_assets\installer.iss
+; Natija: Hanna-POS-Setup.exe (+ CI sha256.txt). App ke andar update ise /VERYSILENT se chalati hai.
 ;
 ; - Admin ki zaroorat nahi: user ke apne folder (%LOCALAPPDATA%\Programs\Hanna POS) mein install hota hai.
 ; - Visual C++ runtime DLLs Release folder mein pehle se hain (build.yml), is liye alag install nahi chahiye.
@@ -34,14 +35,16 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#OutDir}
-OutputBaseFilename=HannaPOS-Setup-{#AppVersion}
+; Naam fix — app ke andar update (lib/services/app_update.dart) aur publish-update isi naam ko dhoondte hain.
+OutputBaseFilename=Hanna-POS-Setup
 SetupIconFile=app_icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; Chalti app band karwa kar update kare (DB file lock na rahe).
-CloseApplications=yes
+; Chalti app band karwa kar update kare (DB file lock na rahe). force: app ke andar se silent update
+; (/VERYSILENT /CLOSEAPPLICATIONS) mein bhi band ho — Hanna Installment wala fix.
+CloseApplications=force
 RestartApplications=no
 
 [Languages]
@@ -59,4 +62,5 @@ Name: "{group}\{#AppName} Uninstall"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "Hanna POS abhi kholein"; Flags: nowait postinstall skipifsilent
+; skipifsilent NAHI: app ke andar se silent update ke baad bhi app khud dobara khule (Hanna Installment wala fix).
+Filename: "{app}\{#AppExe}"; Description: "Hanna POS abhi kholein"; Flags: nowait postinstall

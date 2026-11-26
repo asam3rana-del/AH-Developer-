@@ -12,6 +12,7 @@ import '../desktop/desktop_shell.dart';
 import '../models/misc_entities.dart';
 import '../models/product.dart';
 import '../services/biometric.dart';
+import '../services/app_update.dart';
 import '../services/crash_handler.dart';
 import '../services/crash_reporter.dart';
 import '../services/permissions.dart';
@@ -107,6 +108,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _refresh();
     DesktopShell.rootShown.addListener(_onRootShown);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkLastCrash());
+    // Naya update (har 6 ghante mein ek dafa, internet ho to) — Hanna Installment jaisa (docs/UPDATES.md).
+    WidgetsBinding.instance.addPostFrameCallback((_) => Future.delayed(const Duration(seconds: 4), () {
+          if (mounted) AppUpdate.checkOnStart(context);
+        }));
   }
 
   /// Kotlin `showCrashDialog`: pichli baar crash hui ho to log dikhao (Share / Copy / Dismiss).
@@ -526,7 +531,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ------------------------------------------------------------------ build
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => _updateBackGuard(_buildBody(context));
+
+  /// Update download chal raha ho to Dashboard par back dabane se app band nahi hoti (download toot jata) —
+  /// sirf peeche chali jati hai (Hanna Installment wala fix).
+  Widget _updateBackGuard(Widget child) => ValueListenableBuilder<double?>(
+        valueListenable: AppUpdate.downloading,
+        builder: (_, v, c) => PopScope(
+          canPop: v == null,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && AppUpdate.busy) AppUpdate.moveAppToBack();
+          },
+          child: c!,
+        ),
+        child: child,
+      );
+
+  Widget _buildBody(BuildContext context) {
     final p = _p;
     final mq = MediaQuery.of(context);
     if (DesktopPrefs.wide(mq.size.width)) return _desktop(p, mq);

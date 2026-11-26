@@ -1,8 +1,11 @@
+import 'dart:io' show Platform;
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_info.dart';
 import '../sync/branch_config_store.dart';
 import '../sync/device_tag.dart';
+import '../sync/sync_api_rest.dart';
 import '../sync/sync_api.dart';
 import 'demo_mode.dart';
 
@@ -42,6 +45,21 @@ class CrashReporter {
       final prefs = await SharedPreferences.getInstance();
       final fp = fingerprint(text);
       if (prefs.getString(_keyUploaded) == fp) return false;
+      if (Platform.isWindows) {
+        // PC: Firebase SDK nahi (crash ki wajah wahi tha) — REST se.
+        final uid = await RestSyncApi.instance.currentUid();
+        if (uid == null) return false;
+        final ok = await RestSyncApi.instance.addCrashReport({
+          'text': clip(text),
+          'at': DateTime.now().millisecondsSinceEpoch,
+          'device': DeviceTag.current,
+          'branchId': BranchConfigStore.current,
+          'app': AppInfo.appName,
+          'uid': uid,
+        });
+        if (ok) await prefs.setString(_keyUploaded, fp);
+        return ok;
+      }
       final db = await SyncApi.instance.firestoreFor();
       if (db == null) return false;
       final uid = await SyncApi.instance.currentUid();

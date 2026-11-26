@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -46,6 +47,10 @@ class CloudConfigStore {
 
   /// Custom FirebaseApp ka naam (default app se takrata nahi).
   static const String customAppName = 'custom_cloud';
+
+  /// Cloud project set hai? Windows par Firebase SDK ke baghair (sirf saved config), baqi par [firebaseApp].
+  static Future<bool> cloudReady() async =>
+      Platform.isWindows ? (await get()) != null : (await firebaseApp()) != null;
 
   /// Jo config admin ne is device par enter ki (agar ki).
   static Future<CloudConfig?> get() async {
@@ -101,6 +106,9 @@ class CloudConfigStore {
   /// '[DEFAULT]'" isi se aata tha). Agar [DEFAULT] kisi aur config par ban chuka (config badli) to alag
   /// naam ("custom_cloud") ka app. Kuch nahi to null (sync skip karein).
   static Future<FirebaseApp?> firebaseApp() async {
+    // PC (Windows): Firebase ka C++ SDK kabhi shuru hi nahi hota (sync ke dauran app gira deta tha) — sync
+    // wahan FirestoreRest (REST) se hoti hai. Is liye yahan hamesha null.
+    if (Platform.isWindows) return null;
     final custom = await get();
     if (custom == null) {
       try {

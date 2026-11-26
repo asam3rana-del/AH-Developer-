@@ -56,7 +56,13 @@ service cloud.firestore {
     function myRole() {
       return get(/databases/$(database)/documents/branch_members/$(request.auth.uid)).data.get('role', 'admin');
     }
-    function isCashier() { return myRole() == 'cashier'; }
+    // FIX (role ki spelling ghalat = poori ijazat): ab sirf saaf "admin" / "manager" (chhote-bade harf / khali jagah
+    // maaf) ko poori ijazat; koi bhi aur likha role ("Cashier ", "casher", "staff") = cashier jaisi pabandi.
+    // Role ka khaana hi na ho = admin (aaj jaisa, rollout safe). (Hanna Installment se; app ka SyncApi bhi yahi maanta hai.)
+    function isCashier() {
+      let r = string(myRole()).lower().trim();
+      return !(r in ['admin', 'manager']);
+    }
 
     function notTombstone() { return request.resource.data.get('_deleted', false) != true; }
     function changedKeys() { return request.resource.data.diff(resource.data).affectedKeys(); }
@@ -174,6 +180,15 @@ service cloud.firestore {
                      && (!isCashier() || cashierMayUpdate(collection));
       allow delete: if isSignedIn() && isSyncedCollection(collection)
                      && isMyBranch(resource.data.branchId) && !isCashier();
+    }
+
+    // Sync heartbeat (firestore.rules jaisa): har branch ka ek chhota marker; har role ki device parh / badal sake
+    // (cashier bhi push karta hai), sirf apni branch ka, sirf yahi teen fields.
+    match /branch_sync/{bid} {
+      allow read: if isMyBranch(bid);
+      allow write: if isMyBranch(bid)
+                   && request.resource.data.branchId == bid
+                   && request.resource.data.keys().hasOnly(['branchId', 'at', 'n']);
     }
 
     // Crash reports: app ki ghalti (stack trace) developer ko — sirf banana, branch member device, chhota text,

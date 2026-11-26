@@ -73,6 +73,11 @@ void main() {
       expect(shouldApplyUpsert(1, upsertClock(null)), isTrue);
       // Asli purana upsert (upsertAt naya) phir bhi nahi lagta.
       expect(shouldApplyUpsert(40, upsertClock({'updatedAt': 200, 'upsertAt': 50})), isFalse);
+      // Tombstone (merge) ke baad purana upsertAt reh jata hai: delete (300) se pehle ki edit (120) zinda na kare.
+      final deleted = {'updatedAt': 300, 'upsertAt': 50, '_deleted': true};
+      expect(upsertClock(deleted), 300);
+      expect(shouldApplyUpsert(120, upsertClock(deleted)), isFalse);
+      expect(shouldApplyUpsert(400, upsertClock(deleted)), isTrue); // delete ke BAAD ki asli edit lagti hai
     });
 
     test('tombstone shakl', () {
