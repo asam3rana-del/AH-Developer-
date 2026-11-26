@@ -29,10 +29,34 @@ jobs:
             SRC=$(find /tmp/x -mindepth 1 -maxdepth 1 -type d | head -1)
             [ -n "$SRC" ] || SRC=/tmp/x
             rsync -a --exclude '.github' --exclude '.git' "$SRC"/ ./
+            # Zip ke saath `.import-delete.txt` ho to us mein likhi files repo se mitao (rsync khud nahi mitata).
+            # Hifazat: khali / # wali lines, '..', '/' se shuru, .github / .git chhor do.
+            if [ -f .import-delete.txt ]; then
+              while IFS= read -r f || [ -n "$f" ]; do
+                f="${f%$'\r'}"
+                case "$f" in ""|\#*|*..*|/*|.github*|.git/*|.git) continue ;; esac
+                if [ -e "$f" ]; then git rm -rq --ignore-unmatch -- "$f" || rm -rf -- "$f"; echo "deleted: $f"; fi
+              done < .import-delete.txt
+              rm -f .import-delete.txt
+            fi
             rm -f "$z"
             did=1
           done
           echo "did=$did" >> "$GITHUB_OUTPUT"
+          # Naya package (pubspec.yaml badla): pubspec.lock yahin dobara bana kar saath commit — Build ka lock check
+          # phir khud pass (haath se accept_new_lockfile / artifact ki zaroorat nahi).
+          if [ "$did" = "1" ] && ! git diff --quiet -- pubspec.yaml; then echo "lock=1" >> "$GITHUB_OUTPUT"; fi
+      - uses: subosito/flutter-action@v2
+        if: steps.unzip.outputs.lock == '1'
+        with:
+          flutter-version: '3.47.x'
+          channel: 'stable'
+          cache: true
+      - name: Refresh pubspec.lock
+        if: steps.unzip.outputs.lock == '1'
+        run: |
+          flutter pub get
+          git diff --stat -- pubspec.lock || true
       - name: Commit
         run: |
           git config user.name "import-bot"
